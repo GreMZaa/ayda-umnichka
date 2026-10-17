@@ -85,30 +85,6 @@ export default function Navbar() {
               </div>
             </Link>
 
-            {/* Навигация по кабинетам на десктопе */}
-            {!isRoom && (
-              <nav className="hidden lg:flex items-center gap-1 p-1 bg-slate-100/90 rounded-xl border border-slate-200/70">
-                {roles.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = pathname.startsWith(item.href);
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                        isActive
-                          ? "bg-white text-blue-600 shadow-xs"
-                          : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
-                      }`}
-                    >
-                      <Icon className="w-3.5 h-3.5" />
-                      <span>{item.title}</span>
-                    </Link>
-                  );
-                })}
-              </nav>
-            )}
-
             {/* Правые кнопки действий */}
             <div className="flex items-center gap-2 sm:gap-2.5">
               {!isRoom && (
@@ -140,15 +116,24 @@ export default function Navbar() {
                     <span>Эфир урока</span>
                   </Link>
 
-                  {/* ГЛАВНАЯ КНОПКА: ВОЙТИ В КАБИНЕТ */}
-                  <button
-                    onClick={() => setShowLoginModal(true)}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-600/25 transition transform active:scale-95 cursor-pointer"
-                    id="btn-login-header"
-                  >
-                    <LogIn className="w-4 h-4" />
-                    <span>Войти в кабинет</span>
-                  </button>
+                  {/* ГЛАВНАЯ КНОПКА: ВОЙТИ В КАБИНЕТ (или На главную, если уже на /login) */}
+                  {pathname === "/login" ? (
+                    <Link
+                      href="/"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition border border-slate-200"
+                    >
+                      <span>← На главную</span>
+                    </Link>
+                  ) : (
+                    <button
+                      onClick={() => setShowLoginModal(true)}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-600/25 transition transform active:scale-95 cursor-pointer"
+                      id="btn-login-header"
+                    >
+                      <LogIn className="w-4 h-4" />
+                      <span>Войти в кабинет</span>
+                    </button>
+                  )}
 
                   {/* Мобильная кнопка меню */}
                   <button
