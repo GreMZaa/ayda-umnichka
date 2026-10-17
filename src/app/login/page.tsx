@@ -4,10 +4,9 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  GraduationCap,
   Users,
   User,
-  ShieldCheck,
+  GraduationCap,
   ArrowRight,
   Lock,
   Mail,
@@ -21,8 +20,9 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [selectedRole, setSelectedRole] = useState<"teacher" | "student" | "parent" | "admin">("teacher");
-  const [loginInput, setLoginInput] = useState("anna@umnichka.ru");
+  // Вход предназначен для учеников и родителей
+  const [selectedRole, setSelectedRole] = useState<"student" | "parent">("student");
+  const [loginInput, setLoginInput] = useState("misha@umnichka.ru");
   const [password, setPassword] = useState("••••••••");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
@@ -30,13 +30,11 @@ export default function LoginPage() {
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const roles = [
-    { id: "teacher" as const, label: "Преподаватель", icon: GraduationCap, defaultLogin: "anna@umnichka.ru" },
     { id: "student" as const, label: "Ученик", icon: User, defaultLogin: "misha@umnichka.ru" },
     { id: "parent" as const, label: "Родитель", icon: Users, defaultLogin: "elena@umnichka.ru" },
-    { id: "admin" as const, label: "Управление", icon: ShieldCheck, defaultLogin: "admin@umnichka.ru" },
   ];
 
-  const handleRoleSelect = (roleId: "teacher" | "student" | "parent" | "admin") => {
+  const handleRoleSelect = (roleId: "student" | "parent") => {
     setSelectedRole(roleId);
     const roleObj = roles.find((r) => r.id === roleId);
     if (roleObj) {
@@ -86,7 +84,7 @@ export default function LoginPage() {
             Вход в систему
           </h1>
           <p className="text-xs sm:text-sm text-slate-500">
-            Введите логин и пароль для входа в личный кабинет «АйДаУмничка»
+            Вход в личный кабинет ученика и родителя «АйДаУмничка»
           </p>
         </div>
 
@@ -109,10 +107,10 @@ export default function LoginPage() {
             </div>
           )}
 
-          {/* Выбор роли входа */}
+          {/* Выбор роли входа (только Ученик и Родитель) */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-2">
-              Роль аккаунта:
+              Ваш личный кабинет:
             </label>
             <div className="grid grid-cols-2 gap-2">
               {roles.map((r) => {
@@ -123,13 +121,13 @@ export default function LoginPage() {
                     key={r.id}
                     type="button"
                     onClick={() => handleRoleSelect(r.id)}
-                    className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition border ${
+                    className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition border ${
                       isSelected
                         ? "border-blue-600 bg-blue-50/70 text-blue-700 shadow-2xs"
                         : "border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-600"
                     }`}
                   >
-                    <Icon className={`w-3.5 h-3.5 ${isSelected ? "text-blue-600" : "text-slate-400"}`} />
+                    <Icon className={`w-4 h-4 ${isSelected ? "text-blue-600" : "text-slate-400"}`} />
                     <span>{r.label}</span>
                   </button>
                 );
@@ -150,7 +148,7 @@ export default function LoginPage() {
                   required
                   value={loginInput}
                   onChange={(e) => setLoginInput(e.target.value)}
-                  placeholder="anna@umnichka.ru"
+                  placeholder="misha@umnichka.ru"
                   className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-medium focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition"
                 />
               </div>
@@ -225,15 +223,15 @@ export default function LoginPage() {
           {/* Быстрая подсказка для тестирования */}
           <div className="pt-3 border-t border-slate-100 text-center space-y-2">
             <span className="text-[11px] font-semibold text-slate-400 block">
-              Быстрая подстановка тестовых данных:
+              Быстрая подстановка тестового логина:
             </span>
-            <div className="flex flex-wrap items-center justify-center gap-1.5">
+            <div className="flex flex-wrap items-center justify-center gap-2">
               {roles.map((r) => (
                 <button
                   key={r.id}
                   type="button"
                   onClick={() => handleRoleSelect(r.id)}
-                  className={`text-[11px] font-semibold px-2.5 py-1 rounded-md border transition ${
+                  className={`text-[11px] font-semibold px-3 py-1 rounded-lg border transition ${
                     selectedRole === r.id
                       ? "bg-slate-900 text-white border-slate-900"
                       : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
