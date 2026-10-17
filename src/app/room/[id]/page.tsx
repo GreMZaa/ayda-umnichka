@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import VideoRoom from "@/components/VideoRoom";
+import { fetchWithAuth } from "@/lib/api-client";
 
 export default function RoomPage({ params }: { params: { id: string } }) {
   const router = useRouter();
@@ -11,7 +12,7 @@ export default function RoomPage({ params }: { params: { id: string } }) {
   const [currentRole, setCurrentRole] = useState<"TEACHER" | "STUDENT">("TEACHER");
 
   useEffect(() => {
-    fetch(`/api/lessons/${params.id}`)
+    fetchWithAuth(`/api/lessons/${params.id}`)
       .then((res) => {
         if (!res.ok) throw new Error("Lesson not found");
         return res.json();
@@ -33,7 +34,7 @@ export default function RoomPage({ params }: { params: { id: string } }) {
   const handleEndLesson = async () => {
     if (lesson?.id) {
       try {
-        await fetch(`/api/lessons/${lesson.id}`, {
+        await fetchWithAuth(`/api/lessons/${lesson.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status: "COMPLETED" }),

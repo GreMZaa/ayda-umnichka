@@ -25,6 +25,7 @@ import {
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { getSupabase } from "@/lib/supabase";
+import { fetchWithAuth } from "@/lib/api-client";
 
 export default function ParentCabinet() {
   const [parentName, setParentName] = useState("Родитель");
@@ -69,7 +70,7 @@ export default function ParentCabinet() {
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/lessons?studentId=${selectedChildId}`)
+    fetchWithAuth(`/api/lessons?studentId=${selectedChildId}`)
       .then((res) => res.json())
       .then((data) => {
         setLessons(Array.isArray(data) ? data : []);

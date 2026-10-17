@@ -16,6 +16,7 @@ import {
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { getSupabase } from "@/lib/supabase";
+import { fetchWithAuth } from "@/lib/api-client";
 
 export default function StudentCabinet() {
   const [studentName, setStudentName] = useState("Ученик");
@@ -37,7 +38,7 @@ export default function StudentCabinet() {
       });
     }
 
-    fetch("/api/lessons?studentId=u-student-1")
+    fetchWithAuth("/api/lessons")
       .then((res) => res.json())
       .then((data) => {
         setLessons(Array.isArray(data) ? data : []);

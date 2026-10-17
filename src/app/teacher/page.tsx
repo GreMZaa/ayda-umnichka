@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
+import { fetchWithAuth } from "@/lib/api-client";
 
 export default function TeacherCabinet() {
   const [lessons, setLessons] = useState<any[]>([]);
@@ -28,9 +29,9 @@ export default function TeacherCabinet() {
 
   const fetchLessons = async () => {
     try {
-      const res = await fetch("/api/lessons?teacherId=u-teacher-1");
+      const res = await fetchWithAuth("/api/lessons");
       const data = await res.json();
-      setLessons(data);
+      setLessons(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -44,7 +45,7 @@ export default function TeacherCabinet() {
 
   const handleUpdateStatus = async (lessonId: string, status: string) => {
     try {
-      await fetch(`/api/lessons/${lessonId}`, {
+      await fetchWithAuth(`/api/lessons/${lessonId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
@@ -60,11 +61,10 @@ export default function TeacherCabinet() {
     if (!selectedLessonForNote || !noteContent) return;
     setSavingNote(true);
     try {
-      await fetch(`/api/lessons/${selectedLessonForNote.id}`, {
+      await fetchWithAuth(`/api/lessons/${selectedLessonForNote.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          authorId: "u-teacher-1",
           content: noteContent,
           grade,
           feedback,

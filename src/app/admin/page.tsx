@@ -13,6 +13,7 @@ import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 
 import { getSupabase } from "@/lib/supabase";
+import { fetchWithAuth } from "@/lib/api-client";
 
 export default function AdminPage() {
   const [users, setUsers] = useState<any[]>([]);
@@ -32,7 +33,7 @@ export default function AdminPage() {
 
   const loadData = async () => {
     try {
-      const resLessons = await fetch("/api/lessons");
+      const resLessons = await fetchWithAuth("/api/lessons");
       const dataLessons = await resLessons.json();
       setLessons(Array.isArray(dataLessons) ? dataLessons : []);
 
@@ -111,7 +112,7 @@ export default function AdminPage() {
         roomName: "umnichka-" + Math.random().toString(36).substring(2, 8),
       };
 
-      const res = await fetch("/api/lessons", {
+      const res = await fetchWithAuth("/api/lessons", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
