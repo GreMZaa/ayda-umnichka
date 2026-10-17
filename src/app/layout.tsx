@@ -30,12 +30,8 @@ export default function RootLayout({
               <span className="font-bold text-brand-600">АйДаУмничка</span>
               <span>© {new Date().getFullYear()} Образовательный центр. Все права защищены.</span>
             </div>
-            <div className="flex items-center gap-4 text-xs">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 font-medium border border-emerald-200">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                Видеосервер: Активен
-              </span>
-              <span>Версия MVP 1.0</span>
+            <div className="text-xs text-slate-400">
+              Образовательный онлайн-центр
             </div>
           </div>
         </footer>
