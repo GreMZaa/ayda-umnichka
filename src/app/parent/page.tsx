@@ -11,6 +11,16 @@ import {
   GraduationCap,
   PhoneCall,
   CheckCircle2,
+  Star,
+  FileText,
+  AlertCircle,
+  ChevronRight,
+  BookOpen,
+  ArrowRight,
+  Sparkles,
+  MessageSquare,
+  PlusCircle,
+  HelpCircle,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -21,8 +31,12 @@ export default function ParentCabinet() {
       id: "u-student-1",
       name: "Миша Смирнов",
       grade: "3 класс",
-      avatar: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&h=200&fit=crop&crop=faces",
+      avatar: "https://images.unsplash.com/photo-1588072432836-e10032774350?w=200&h=200&fit=crop&crop=faces",
       balance: 6,
+      stars: 28,
+      nextLesson: "Сегодня, 15:00",
+      teacher: "Анна Сергеевна",
+      subject: "Математика и логика",
     },
     {
       id: "u-student-2",
@@ -30,10 +44,16 @@ export default function ParentCabinet() {
       grade: "5 класс",
       avatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&h=200&fit=crop&crop=faces",
       balance: 4,
+      stars: 35,
+      nextLesson: "Завтра, 16:30",
+      teacher: "Ольга Викторовна",
+      subject: "Английский язык",
     },
   ];
 
   const [selectedChildId, setSelectedChildId] = useState(children[0].id);
+  const [activeTab, setActiveTab] = useState<"reports" | "schedule" | "billing">("reports");
+  const [showTopupModal, setShowTopupModal] = useState(false);
   const [lessons, setLessons] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -58,71 +78,110 @@ export default function ParentCabinet() {
   const completedLessons = lessons.filter((l) => l.status === "COMPLETED");
 
   return (
-    <div className="space-y-8 pb-12">
-      {/* Шапка родителя */}
-      <div className="clean-card p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+    <div className="space-y-6 pb-16">
+      {/* 1. ШАПКА РОДИТЕЛЯ */}
+      <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/90 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <img
-            src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&h=200&fit=crop&crop=faces"
-            alt="Елена Смирнова"
-            className="w-16 h-16 rounded-xl object-cover border border-slate-200"
-          />
+          <div className="relative">
+            <img
+              src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&h=200&fit=crop&crop=faces"
+              alt="Елена Смирнова"
+              className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover border-2 border-white shadow-sm ring-2 ring-slate-100"
+            />
+            <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center text-[10px] text-white">
+              ✓
+            </span>
+          </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold text-slate-900">
+              <h1 className="text-lg sm:text-xl font-bold text-slate-900">
                 Елена Смирнова
               </h1>
-              <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700">
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
                 Родитель
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Центр развития «АйДаУмничка» • Детей в обучении: {children.length}
+            <p className="text-xs text-slate-500 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span>Договор №2026-УМ активен</span>
+              <span>•</span>
+              <span>Детей в центре: {children.length}</span>
+              <span>•</span>
+              <span className="font-semibold text-slate-700">Общий баланс: 10 уроков</span>
             </p>
           </div>
         </div>
 
-        <a
-          href="tel:+79997778899"
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition"
-        >
-          <PhoneCall className="w-3.5 h-3.5" />
-          <span>Связь с центром</span>
-        </a>
+        <div className="flex items-center gap-2.5 w-full sm:w-auto">
+          <button
+            onClick={() => setShowTopupModal(true)}
+            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm transition"
+          >
+            <CreditCard className="w-3.5 h-3.5" />
+            <span>Пополнить баланс</span>
+          </button>
+
+          <a
+            href="tel:+79990001122"
+            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition border border-slate-200/80"
+            title="Связаться с куратором центра"
+          >
+            <PhoneCall className="w-3.5 h-3.5 text-slate-500" />
+            <span className="hidden md:inline">Куратор центра</span>
+          </a>
+        </div>
       </div>
 
-      {/* Селектор детей */}
+      {/* 2. ПЕРЕКЛЮЧАТЕЛЬ ДЕТЕЙ */}
       <div className="space-y-2">
-        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-          Профиль ребенка:
-        </span>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="flex items-center justify-between px-1">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            Выберите ребёнка:
+          </span>
+          <span className="text-xs text-slate-400">
+            Нажмите на карточку для просмотра отчетов и расписания
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {children.map((child) => {
             const isSelected = child.id === selectedChildId;
             return (
               <button
                 key={child.id}
                 onClick={() => setSelectedChildId(child.id)}
-                className={`clean-card p-4 text-left transition flex items-center justify-between gap-4 ${
-                  isSelected ? "border-blue-600 bg-blue-50/30" : "hover:bg-slate-50"
+                className={`p-4 rounded-2xl border text-left transition flex items-center justify-between gap-3 relative cursor-pointer ${
+                  isSelected
+                    ? "bg-white border-blue-600 shadow-sm ring-2 ring-blue-500/10"
+                    : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50"
                 }`}
               >
                 <div className="flex items-center gap-3">
                   <img
                     src={child.avatar}
                     alt={child.name}
-                    className="w-12 h-12 rounded-lg object-cover border border-slate-200"
+                    className="w-12 h-12 rounded-xl object-cover border border-slate-200"
                   />
                   <div>
-                    <h3 className="font-bold text-slate-900 text-sm">{child.name}</h3>
-                    <p className="text-xs text-slate-500">{child.grade}</p>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-slate-900 text-sm">{child.name}</h3>
+                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
+                        {child.grade}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Ближайший урок: <strong className="text-slate-700">{child.nextLesson}</strong>
+                    </p>
                   </div>
                 </div>
 
-                <div className="text-right">
-                  <span className="text-xs font-semibold text-slate-700">
-                    Остаток: <strong>{child.balance} зан.</strong>
-                  </span>
+                <div className="text-right shrink-0">
+                  <div className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100">
+                    Остаток: {child.balance} уроков
+                  </div>
+                  <div className="text-[11px] text-amber-600 font-semibold mt-1 flex items-center justify-end gap-1">
+                    <Star className="w-3 h-3 fill-amber-400 text-amber-500" />
+                    <span>{child.stars} звёзд</span>
+                  </div>
                 </div>
               </button>
             );
@@ -130,131 +189,313 @@ export default function ParentCabinet() {
         </div>
       </div>
 
-      {/* Индикатор текущего урока ребенка */}
+      {/* 3. ОПОВЕЩЕНИЕ: УРОК ИДЕТ ПРЯМО СЕЙЧАС */}
       {liveLesson && (
-        <div className="clean-card p-5 border-l-4 border-l-emerald-600 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="bg-emerald-50 border-2 border-emerald-500/80 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm animate-in fade-in duration-300">
           <div className="space-y-1">
-            <span className="text-xs font-semibold text-emerald-700">
-              {selectedChild.name} сейчас на уроке
-            </span>
-            <h3 className="text-base font-bold text-slate-900">{liveLesson.title}</h3>
-            <p className="text-xs text-slate-500">
-              Преподаватель: {liveLesson.teacherName} • До {format(new Date(liveLesson.endTime), "HH:mm")}
+            <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+              <span>{selectedChild.name} сейчас на уроке онлайн</span>
+            </div>
+            <h2 className="text-base sm:text-lg font-extrabold text-slate-900">
+              {liveLesson.title}
+            </h2>
+            <p className="text-xs text-slate-600">
+              Преподаватель: <strong>{liveLesson.teacherName}</strong> • Окончание в {format(new Date(liveLesson.endTime), "HH:mm")}
             </p>
           </div>
 
           <Link
             href={`/room/${liveLesson.roomName}`}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition self-stretch sm:self-auto justify-center"
           >
-            <Video className="w-3.5 h-3.5" />
-            <span>Присутствовать</span>
+            <Video className="w-4 h-4" />
+            <span>Присутствовать на уроке</span>
+            <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
       )}
 
-      {/* Предстоящие занятия */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-slate-500" />
-          <span>Расписание: {selectedChild.name}</span>
-        </h3>
-
-        {upcomingLessons.length === 0 ? (
-          <div className="clean-card p-6 text-center text-slate-500 text-xs">
-            На ближайшие дни уроков не запланировано
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {upcomingLessons.map((lesson) => (
-              <div key={lesson.id} className="clean-card p-5 space-y-1.5">
-                <div className="flex items-center justify-between text-xs text-slate-500">
-                  <span className="font-semibold text-slate-800">{lesson.subjectName}</span>
-                  <span>{format(new Date(lesson.startTime), "d MMMM, HH:mm", { locale: ru })}</span>
-                </div>
-                <h4 className="font-bold text-slate-900 text-sm">{lesson.title}</h4>
-                <p className="text-xs text-slate-600">
-                  Преподаватель: {lesson.teacherName}
-                </p>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Отчеты педагогов по прошедшим урокам */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
-          <GraduationCap className="w-4 h-4 text-slate-500" />
-          <span>Отчеты преподавателей</span>
-        </h3>
-
-        {completedLessons.length === 0 ? (
-          <div className="clean-card p-6 text-center text-slate-500 text-xs">
-            История уроков пуста
-          </div>
-        ) : (
-          <div className="clean-card divide-y divide-slate-100 overflow-hidden">
-            {completedLessons.map((lesson) => (
-              <div key={lesson.id} className="p-5 space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                  <div>
-                    <span className="text-xs text-slate-400">
-                      {format(new Date(lesson.startTime), "d MMMM yyyy, HH:mm", { locale: ru })}
-                    </span>
-                    <h4 className="font-bold text-slate-900 text-sm">{lesson.title}</h4>
-                    <p className="text-xs text-slate-600">
-                      Преподаватель: {lesson.teacherName} ({lesson.subjectName})
-                    </p>
-                  </div>
-                  <span className="text-xs text-emerald-700 font-semibold self-start sm:self-auto">
-                    Занятие проведено
-                  </span>
-                </div>
-
-                {lesson.notes && lesson.notes.length > 0 && (
-                  <div className="bg-slate-50 rounded-lg p-3.5 border border-slate-100 text-xs text-slate-700 space-y-2">
-                    {lesson.notes.map((note: any) => (
-                      <div key={note.id} className="space-y-1">
-                        {note.grade && (
-                          <span className="font-bold text-slate-900 block">
-                            Оценка за урок: {note.grade} из 5
-                          </span>
-                        )}
-                        <p>{note.content}</p>
-                        {note.feedback && (
-                          <div className="p-2 bg-white rounded border border-slate-200 mt-1">
-                            <strong>Рекомендация родителям:</strong> {note.feedback}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Баланс уроков */}
-      <div className="clean-card p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-50">
-        <div>
-          <h3 className="font-bold text-slate-900 text-base">
-            Остаток занятий: {selectedChild.balance} уроков
-          </h3>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Пакет занятий для ученика {selectedChild.name}
-          </p>
+      {/* 4. ОСНОВНЫЕ ВКЛАДКИ КАБИНЕТА РОДИТЕЛЯ */}
+      <div className="space-y-4">
+        {/* Переключатель вкладок */}
+        <div className="flex p-1 bg-slate-200/80 rounded-xl max-w-md">
+          <button
+            onClick={() => setActiveTab("reports")}
+            className={`flex-1 py-2 text-xs font-bold rounded-lg transition flex items-center justify-center gap-1.5 ${
+              activeTab === "reports"
+                ? "bg-white text-blue-600 shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>Отчёты и оценки ({completedLessons.length})</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("schedule")}
+            className={`flex-1 py-2 text-xs font-bold rounded-lg transition flex items-center justify-center gap-1.5 ${
+              activeTab === "schedule"
+                ? "bg-white text-blue-600 shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <Calendar className="w-3.5 h-3.5" />
+            <span>Расписание ({upcomingLessons.length})</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("billing")}
+            className={`flex-1 py-2 text-xs font-bold rounded-lg transition flex items-center justify-center gap-1.5 ${
+              activeTab === "billing"
+                ? "bg-white text-blue-600 shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <CreditCard className="w-3.5 h-3.5" />
+            <span>Абонемент</span>
+          </button>
         </div>
 
-        <button
-          onClick={() => alert("Онлайн-оплата (ЮKassa/СБП) будет активирована при подключении эквайринга.")}
-          className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition"
-        >
-          Пополнить баланс
-        </button>
+        {/* ВКЛАДКА 1: ОТЧЁТЫ РЕПЕТИТОРА (САМОЕ ВАЖНОЕ ДЛЯ РОДИТЕЛЯ) */}
+        {activeTab === "reports" && (
+          <div className="space-y-3">
+            {completedLessons.length === 0 ? (
+              <div className="bg-white rounded-2xl p-8 border border-slate-200 text-center text-slate-500 text-xs">
+                Пока нет завершённых уроков с отчётами для {selectedChild.name}
+              </div>
+            ) : (
+              completedLessons.map((lesson) => (
+                <div
+                  key={lesson.id}
+                  className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200 shadow-xs space-y-4 hover:border-slate-300 transition"
+                >
+                  {/* Верхняя строка отчета */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">
+                          {lesson.subjectName}
+                        </span>
+                        <span className="text-xs text-slate-400">•</span>
+                        <span className="text-xs text-slate-500 font-medium">
+                          {format(new Date(lesson.startTime), "d MMMM yyyy, HH:mm", { locale: ru })}
+                        </span>
+                      </div>
+                      <h3 className="font-bold text-slate-900 text-base mt-0.5">
+                        {lesson.title}
+                      </h3>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-1 px-3 py-1 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 font-bold text-xs">
+                        <Star className="w-4 h-4 fill-amber-400 text-amber-500" />
+                        <span>Оценка: 5 / 5</span>
+                      </div>
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-100">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Урок проведён
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Тело отчета репетитора */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 space-y-1.5">
+                      <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                        <GraduationCap className="w-4 h-4 text-blue-600" />
+                        <span>Что прошли на занятии:</span>
+                      </div>
+                      <p className="text-slate-600 leading-relaxed">
+                        Разобрали тему «Олимпиадные логические задачи и уравнения». {selectedChild.name} отлично усвоил новый метод решения, активно работал на доске.
+                      </p>
+                    </div>
+
+                    <div className="p-3.5 rounded-xl bg-blue-50/60 border border-blue-100 space-y-1.5">
+                      <div className="flex items-center gap-1.5 font-bold text-blue-900">
+                        <Sparkles className="w-4 h-4 text-blue-600" />
+                        <span>Совет родителям на дом:</span>
+                      </div>
+                      <p className="text-slate-700 leading-relaxed">
+                        Обязательно похвалите за самостоятельное решение 3-й задачи! Дома закрепить таблицу умножения на 7 и решить 2 коротких примера на стр. 14.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Преподаватель и статус домашки */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-500 pt-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-400">Преподаватель:</span>
+                      <strong className="text-slate-800">{lesson.teacherName}</strong>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-400">Домашнее задание:</span>
+                      <span className="font-semibold text-emerald-700">✓ Проверено учителем</span>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* ВКЛАДКА 2: РАСПИСАНИЕ УРОКОВ */}
+        {activeTab === "schedule" && (
+          <div className="space-y-3">
+            {upcomingLessons.length === 0 ? (
+              <div className="bg-white rounded-2xl p-8 border border-slate-200 text-center text-slate-500 text-xs">
+                Все запланированные уроки завершены. Обратитесь к куратору для составления нового расписания.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {upcomingLessons.map((lesson) => (
+                  <div
+                    key={lesson.id}
+                    className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs space-y-3"
+                  >
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-md">
+                        {lesson.subjectName}
+                      </span>
+                      <span className="font-semibold text-slate-700 flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5 text-slate-400" />
+                        {format(new Date(lesson.startTime), "d MMMM, HH:mm", { locale: ru })}
+                      </span>
+                    </div>
+
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-sm">{lesson.title}</h4>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Преподаватель: <strong className="text-slate-700">{lesson.teacherName}</strong>
+                      </p>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                      <span className="text-[11px] text-slate-400">
+                        Ссылка активируется за 5 мин до урока
+                      </span>
+                      <button
+                        onClick={() => alert("Запрос на перенос урока отправлен куратору центра")}
+                        className="text-[11px] font-semibold text-blue-600 hover:underline cursor-pointer"
+                      >
+                        Перенести урок
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ВКЛАДКА 3: АБОНЕМЕНТ И БАЛАНС */}
+        {activeTab === "billing" && (
+          <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+              <div>
+                <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">
+                  Текущий тарифный план
+                </span>
+                <h3 className="text-lg font-bold text-slate-900 mt-0.5">
+                  Абонемент «Оптимальный» (8 уроков в месяц)
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Действует до 30 ноября 2026 г. • Прикреплен к {selectedChild.name}
+                </p>
+              </div>
+
+              <button
+                onClick={() => setShowTopupModal(true)}
+                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm transition"
+              >
+                Продлить абонемент
+              </button>
+            </div>
+
+            {/* Прогресс использования занятий */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs font-semibold">
+                <span className="text-slate-600">Использовано уроков:</span>
+                <span className="text-slate-900">2 из 8 (осталось {selectedChild.balance})</span>
+              </div>
+              <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                <div className="bg-blue-600 h-3 rounded-full" style={{ width: "25%" }} />
+              </div>
+            </div>
+
+            {/* История списаний */}
+            <div className="space-y-2 pt-2">
+              <span className="text-xs font-bold text-slate-700 block">
+                История посещений и списаний:
+              </span>
+              <div className="divide-y divide-slate-100 text-xs text-slate-600">
+                <div className="py-2.5 flex items-center justify-between">
+                  <span>Урок по математике (Анна Сергеевна)</span>
+                  <span className="font-semibold text-slate-800">-1 занятие (17 октября)</span>
+                </div>
+                <div className="py-2.5 flex items-center justify-between">
+                  <span>Урок по логике (Анна Сергеевна)</span>
+                  <span className="font-semibold text-slate-800">-1 занятие (14 октября)</span>
+                </div>
+                <div className="py-2.5 flex items-center justify-between text-emerald-700 font-semibold">
+                  <span>Оплата абонемента на 8 занятий через СБП</span>
+                  <span>+8 занятий (10 октября)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* МОДАЛЬНОЕ ОКНО ПОПОЛНЕНИЯ БАЛАНСА */}
+      {showTopupModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl border border-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <CreditCard className="w-5 h-5 text-blue-600" />
+                <h3 className="font-bold text-slate-900 text-base">Пополнение абонемента</h3>
+              </div>
+              <button
+                onClick={() => setShowTopupModal(false)}
+                className="text-slate-400 hover:text-slate-600 font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600">
+              Выберите пакет занятий для <strong>{selectedChild.name}</strong>:
+            </p>
+
+            <div className="space-y-2.5">
+              {[
+                { count: "4 занятия", price: "4 800 ₽", benefit: "Пробный месяц" },
+                { count: "8 занятий", price: "8 800 ₽", benefit: "Популярный (скидка 10%)" },
+                { count: "16 занятий", price: "15 900 ₽", benefit: "Максимальный прогресс (скидка 18%)" },
+              ].map((pack, idx) => (
+                <div
+                  key={idx}
+                  className="p-3.5 rounded-xl border border-slate-200 hover:border-blue-500 bg-slate-50/50 flex items-center justify-between cursor-pointer transition"
+                  onClick={() => {
+                    alert(`Пакет «${pack.count}» выбран! Перенаправление на оплату через СБП...`);
+                    setShowTopupModal(false);
+                  }}
+                >
+                  <div>
+                    <div className="font-bold text-slate-900 text-xs sm:text-sm">{pack.count}</div>
+                    <div className="text-[11px] text-blue-600 font-medium">{pack.benefit}</div>
+                  </div>
+                  <div className="font-extrabold text-sm text-slate-900">{pack.price}</div>
+                </div>
+              ))}
+            </div>
+
+            <p className="text-[11px] text-slate-400 text-center">
+              Оплата защищена. Поддерживаются СБП, карты Мир, Visa, Mastercard.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

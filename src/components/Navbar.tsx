@@ -8,6 +8,7 @@ import {
   User,
   GraduationCap,
   LogIn,
+  LogOut,
   Menu,
   X,
   Lock,
@@ -15,9 +16,8 @@ import {
   Eye,
   EyeOff,
   ArrowRight,
-  CheckCircle2,
+  ShieldCheck,
   AlertCircle,
-  ChevronRight,
 } from "lucide-react";
 import { getSupabase } from "@/lib/supabase";
 
@@ -25,7 +25,7 @@ export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
 
-  // Состояние модального окна мгновенного входа по паролю
+  // Состояние модального окна мгновенного входа по паролю на главной странице
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -40,6 +40,22 @@ export default function Navbar() {
 
   const isRoom = pathname.startsWith("/room");
   const isLoginPage = pathname === "/login";
+  const isParent = pathname.startsWith("/parent");
+  const isStudent = pathname.startsWith("/student");
+  const isTeacher = pathname.startsWith("/teacher");
+  const isAdmin = pathname.startsWith("/admin");
+  const isInsideCabinet = isParent || isStudent || isTeacher || isAdmin;
+
+  // Определение профиля текущего вошедшего пользователя
+  const currentUser = isParent
+    ? { name: "Елена Смирнова", role: "Родитель", icon: Users, color: "bg-amber-100 text-amber-800" }
+    : isStudent
+    ? { name: "Миша Смирнов", role: "Ученик (3 класс)", icon: User, color: "bg-emerald-100 text-emerald-800" }
+    : isTeacher
+    ? { name: "Анна Сергеевна", role: "Преподаватель", icon: GraduationCap, color: "bg-blue-100 text-blue-800" }
+    : isAdmin
+    ? { name: "Администратор", role: "Управление", icon: ShieldCheck, color: "bg-purple-100 text-purple-800" }
+    : null;
 
   const handleRoleQuickSelect = (role: "student" | "parent") => {
     setSelectedRole(role);
@@ -81,12 +97,23 @@ export default function Navbar() {
         return;
       }
     } else {
-      // Демо-режим (если переменные Supabase пока не заданы на сервере)
       setShowLoginModal(false);
       router.push(`/${selectedRole}`);
     }
 
     setLoading(false);
+  };
+
+  const handleLogout = async () => {
+    const client = getSupabase();
+    if (client) {
+      try {
+        await client.auth.signOut();
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    router.push("/");
   };
 
   return (
@@ -110,7 +137,7 @@ export default function Navbar() {
             </Link>
 
             {/* Правые кнопки действий */}
-            <div className="flex items-center gap-2 sm:gap-2.5">
+            <div className="flex items-center gap-2 sm:gap-3">
               {isRoom ? (
                 <Link
                   href="/"
@@ -125,7 +152,27 @@ export default function Navbar() {
                 >
                   <span>← На главную</span>
                 </Link>
+              ) : isInsideCabinet && currentUser ? (
+                /* Пользователь УЖЕ в личном кабинете: показываем его бейдж и кнопку Выйти */
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                    <span className={`w-2 h-2 rounded-full ${isParent ? "bg-amber-500" : isStudent ? "bg-emerald-500" : "bg-blue-500"}`} />
+                    <span className="font-bold text-slate-800">{currentUser.name}</span>
+                    <span className="text-slate-400">•</span>
+                    <span className="text-slate-500">{currentUser.role}</span>
+                  </div>
+
+                  <button
+                    onClick={handleLogout}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 transition cursor-pointer"
+                    title="Выйти из личного кабинета"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Выйти</span>
+                  </button>
+                </div>
               ) : (
+                /* На главной странице: заметная кнопка Войти в кабинет */
                 <button
                   onClick={() => setShowLoginModal(true)}
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-600/25 transition transform active:scale-95 cursor-pointer"
@@ -135,77 +182,9 @@ export default function Navbar() {
                   <span>Войти в кабинет</span>
                 </button>
               )}
-
-              {/* Мобильная кнопка меню */}
-              {!isRoom && !isLoginPage && (
-                <button
-                  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                  className="sm:hidden p-2 rounded-xl text-slate-600 hover:bg-slate-100 transition"
-                  aria-label="Меню"
-                >
-                  {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-                </button>
-              )}
             </div>
           </div>
         </div>
-
-        {/* Мобильное меню */}
-        {mobileMenuOpen && !isRoom && !isLoginPage && (
-          <div className="sm:hidden border-t border-slate-200 bg-white px-4 py-4 space-y-3">
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider px-1">
-              Личные кабинеты:
-            </div>
-            <div className="grid grid-cols-1 gap-2">
-              <Link
-                href="/student"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 transition"
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
-                    <User className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold text-slate-900">Кабинет Ученика</div>
-                    <div className="text-[11px] text-slate-500">Миша Смирнов</div>
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-slate-400" />
-              </Link>
-
-              <Link
-                href="/parent"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 transition"
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center">
-                    <Users className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold text-slate-900">Кабинет Родителя</div>
-                    <div className="text-[11px] text-slate-500">Елена Смирнова</div>
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-slate-400" />
-              </Link>
-            </div>
-
-            <div className="pt-2 border-t border-slate-100">
-              <button
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  setShowLoginModal(true);
-                }}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold bg-blue-600 text-white shadow-sm"
-              >
-                <LogIn className="w-4 h-4" />
-                <span>Войти по паролю</span>
-              </button>
-            </div>
-          </div>
-        )}
       </header>
 
       {/* МОДАЛЬНОЕ ОКНО ПРЯМОГО ВХОДА ПО EMAIL И ПАРОЛЮ */}
