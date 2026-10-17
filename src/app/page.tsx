@@ -350,107 +350,141 @@ export default function HomePage() {
       </section>
 
       {/* 5. ФОРМА ЗАПИСИ НА БЕСПЛАТНЫЙ ПРОБНЫЙ УРОК */}
-      <section id="trial" className="max-w-4xl mx-auto">
-        <div className="clean-card p-6 sm:p-10 bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
+      <section id="trial" className="max-w-3xl mx-auto">
+        <div className="bg-white rounded-3xl border border-slate-200/90 shadow-xl p-6 sm:p-10 relative overflow-hidden space-y-8">
+          {/* Декоративная подсветка сверху */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-2 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 rounded-b-full" />
 
-          <div className="max-w-2xl mx-auto text-center space-y-3 relative z-10">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 text-white text-xs font-bold backdrop-blur-xs">
-              <Sparkles className="w-3.5 h-3.5" />
+          {/* Заголовок секции */}
+          <div className="text-center space-y-3 pt-2">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold">
+              <Sparkles className="w-3.5 h-3.5 text-blue-600" />
               <span>Бесплатное первое занятие</span>
             </span>
-            <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight">
-              Запишитесь на пробный онлайн-урок
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+              Запишитесь на вводный онлайн-урок
             </h2>
-            <p className="text-xs sm:text-sm text-blue-100 leading-relaxed">
-              Определим уровень знаний ребёнка, покажем платформу и подберём персональный план обучения.
+            <p className="text-xs sm:text-sm text-slate-600 max-w-lg mx-auto leading-relaxed">
+              Познакомим ребенка с репетитором, определим уровень знаний и составим персональный план обучения.
             </p>
           </div>
 
-          <div className="mt-8 max-w-xl mx-auto bg-white rounded-2xl p-6 text-slate-900 shadow-lg relative z-10">
-            {leadSuccess ? (
-              <div className="text-center py-6 space-y-3">
-                <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
-                  <CheckCircle2 className="w-6 h-6" />
-                </div>
-                <h3 className="font-bold text-lg text-slate-900">Заявка успешно отправлена!</h3>
-                <p className="text-xs text-slate-600">
-                  Методист свяжется с вами в течение 15 минут, ответит на вопросы и согласует удобное время урока.
-                </p>
-                <button
-                  onClick={() => setLeadSuccess(false)}
-                  className="mt-2 text-xs font-bold text-blue-600 hover:underline"
-                >
-                  Отправить ещё одну заявку
-                </button>
+          {/* 3 преимущества первого урока */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {[
+              { title: "45 минут", desc: "Полноценный урок 1 на 1" },
+              { title: "Диагностика", desc: "Выявим сильные стороны и пробелы" },
+              { title: "В браузере", desc: "Без установки сторонних программ" },
+            ].map((item, idx) => (
+              <div
+                key={idx}
+                className="p-3 rounded-2xl bg-slate-50 border border-slate-100 text-center space-y-0.5"
+              >
+                <div className="font-bold text-xs text-slate-900">{item.title}</div>
+                <div className="text-[11px] text-slate-500">{item.desc}</div>
               </div>
-            ) : (
-              <form onSubmit={handleLeadSubmit} className="space-y-4 text-xs">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">Имя родителя:</label>
-                    <input
-                      type="text"
-                      required
-                      value={leadParentName}
-                      onChange={(e) => setLeadParentName(e.target.value)}
-                      placeholder="Елена"
-                      className="w-full p-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-medium focus:outline-none focus:ring-1 focus:ring-blue-600"
-                    />
-                  </div>
+            ))}
+          </div>
 
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">Имя ребёнка (необязательно):</label>
-                    <input
-                      type="text"
-                      value={leadChildName}
-                      onChange={(e) => setLeadChildName(e.target.value)}
-                      placeholder="Артём"
-                      className="w-full p-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-medium focus:outline-none focus:ring-1 focus:ring-blue-600"
-                    />
-                  </div>
+          {/* Тело формы */}
+          {leadSuccess ? (
+            <div className="text-center py-8 space-y-3 bg-emerald-50/60 rounded-2xl border border-emerald-200 p-6">
+              <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-xs">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <h3 className="font-bold text-lg text-emerald-950">Заявка успешно отправлена!</h3>
+              <p className="text-xs sm:text-sm text-emerald-800 max-w-md mx-auto">
+                Наш методист свяжется с вами в течение 15 минут, чтобы согласовать удобный день и время для бесплатного урока.
+              </p>
+              <button
+                onClick={() => setLeadSuccess(false)}
+                className="mt-3 inline-block text-xs font-bold text-emerald-700 hover:text-emerald-900 underline underline-offset-4 cursor-pointer"
+              >
+                Отправить ещё одну заявку
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleLeadSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Ваше имя (родитель):
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={leadParentName}
+                    onChange={(e) => setLeadParentName(e.target.value)}
+                    placeholder="Например: Елена"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 focus:bg-white text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition placeholder:text-slate-400"
+                  />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">Телефон:</label>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Имя ребёнка (необязательно):
+                  </label>
+                  <input
+                    type="text"
+                    value={leadChildName}
+                    onChange={(e) => setLeadChildName(e.target.value)}
+                    placeholder="Например: Артём"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 focus:bg-white text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition placeholder:text-slate-400"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Телефон для связи:
+                  </label>
+                  <div className="relative">
+                    <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                     <input
                       type="tel"
                       required
                       value={leadPhone}
                       onChange={(e) => setLeadPhone(e.target.value)}
                       placeholder="+7 (999) 000-00-00"
-                      className="w-full p-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-medium focus:outline-none focus:ring-1 focus:ring-blue-600"
+                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 focus:bg-white text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition placeholder:text-slate-400"
                     />
-                  </div>
-
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">Предмет:</label>
-                    <select
-                      value={leadSubject}
-                      onChange={(e) => setLeadSubject(e.target.value)}
-                      className="w-full p-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-medium focus:outline-none focus:ring-1 focus:ring-blue-600"
-                    >
-                      {subjects.map((s, idx) => (
-                        <option key={idx} value={s.name}>
-                          {s.name}
-                        </option>
-                      ))}
-                    </select>
                   </div>
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={leadSubmitting}
-                  className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm transition shadow-md shadow-blue-600/25 flex items-center justify-center gap-2 cursor-pointer active:scale-98 disabled:opacity-50"
-                >
-                  <Phone className="w-4 h-4" />
-                  <span>{leadSubmitting ? "Отправка заявки..." : "Записаться на бесплатный урок"}</span>
-                </button>
-              </form>
-            )}
-          </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Интересующий предмет:
+                  </label>
+                  <select
+                    value={leadSubject}
+                    onChange={(e) => setLeadSubject(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 focus:bg-white text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition cursor-pointer"
+                  >
+                    {subjects.map((s, idx) => (
+                      <option key={idx} value={s.name}>
+                        {s.name} ({s.grade})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={leadSubmitting}
+                className="w-full mt-2 py-3.5 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm transition shadow-md shadow-blue-600/25 flex items-center justify-center gap-2 cursor-pointer active:scale-98 disabled:opacity-50"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>{leadSubmitting ? "Отправляем заявку..." : "Записаться на бесплатный пробный урок"}</span>
+                <ArrowRight className="w-4 h-4 ml-0.5" />
+              </button>
+
+              <p className="text-[11px] text-slate-400 text-center pt-1">
+                🔒 Ваши данные в безопасности и никогда не передаются третьим лицам
+              </p>
+            </form>
+          )}
         </div>
       </section>
 
