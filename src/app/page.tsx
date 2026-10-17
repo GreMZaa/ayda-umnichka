@@ -23,6 +23,7 @@ import {
   Layers,
   MessageSquare,
   Award,
+  LogIn,
 } from "lucide-react";
 
 export default function HomePage() {
@@ -118,20 +119,57 @@ export default function HomePage() {
 
         <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
           <Link
-            href="/room/umnichka-live-room-demo"
+            href="/login"
             className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-md shadow-blue-600/20 transition transform hover:-translate-y-0.5"
+            id="hero-btn-login"
           >
-            <Video className="w-4 h-4" />
-            <span>Тест видеоурока в 1 клик</span>
+            <LogIn className="w-4 h-4" />
+            <span>Войти в личный кабинет</span>
             <ArrowRight className="w-4 h-4" />
           </Link>
 
-          <a
-            href="#cabinets"
+          <Link
+            href="/room/umnichka-live-room-demo"
             className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 font-semibold text-sm shadow-xs transition"
           >
-            <span>Обзор личных кабинетов</span>
-          </a>
+            <Video className="w-4 h-4 text-blue-600" />
+            <span>Тест видеоурока</span>
+          </Link>
+        </div>
+
+        {/* Панель быстрого входа в кабинеты прямо из первого экрана */}
+        <div className="pt-2 flex flex-col items-center gap-2">
+          <span className="text-xs font-semibold text-slate-500">Быстрый переход в нужный кабинет:</span>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <Link
+              href="/teacher"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200/80 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition shadow-2xs"
+            >
+              <GraduationCap className="w-3.5 h-3.5" />
+              <span>Преподаватель</span>
+            </Link>
+            <Link
+              href="/student"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200/80 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition shadow-2xs"
+            >
+              <User className="w-3.5 h-3.5" />
+              <span>Ученик</span>
+            </Link>
+            <Link
+              href="/parent"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200/80 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition shadow-2xs"
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>Родитель</span>
+            </Link>
+            <Link
+              href="/admin"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-50 border border-purple-200/80 text-xs font-semibold text-purple-700 hover:bg-purple-100 transition shadow-2xs"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Управление (CRM)</span>
+            </Link>
+          </div>
         </div>
 
         {/* Доказательства и факты */}
@@ -412,12 +450,19 @@ export default function HomePage() {
         <p className="text-slate-300 text-sm sm:text-base max-w-xl mx-auto">
           Откройте видеокомнату прямо сейчас — проверьте микрофон, камеру и интерактивную доску без регистрации.
         </p>
-        <div>
+        <div className="flex flex-wrap items-center justify-center gap-3">
           <Link
-            href="/room/umnichka-live-room-demo"
+            href="/login"
             className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm transition shadow-lg"
           >
-            <Video className="w-4 h-4" />
+            <LogIn className="w-4 h-4" />
+            <span>Войти в личный кабинет</span>
+          </Link>
+          <Link
+            href="/room/umnichka-live-room-demo"
+            className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-sm transition border border-slate-700"
+          >
+            <Video className="w-4 h-4 text-blue-400" />
             <span>Запустить тестовый урок</span>
           </Link>
         </div>
