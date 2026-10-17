@@ -343,6 +343,58 @@ export default function VideoRoom({
 
                 <div className="h-4 w-px bg-slate-200 mx-1" />
 
+                {/* Быстрые шаблоны задач для репетитора */}
+                <div className="hidden lg:flex items-center gap-1.5">
+                  <span className="text-[11px] text-slate-400 font-medium">Шаблоны:</span>
+                  <button
+                    onClick={() => {
+                      const canvas = canvasRef.current;
+                      if (!canvas) return;
+                      const ctx = canvas.getContext("2d");
+                      if (!ctx) return;
+                      ctx.font = "bold 20px system-ui";
+                      ctx.fillStyle = "#2563eb";
+                      ctx.fillText("Уравнение: 4x + 18 = 50", 40, 100);
+                      ctx.font = "16px system-ui";
+                      ctx.fillStyle = "#64748b";
+                      ctx.fillText("Шаг 1: 4x = 50 - 18", 40, 140);
+                      ctx.fillText("Шаг 2: 4x = 32  ==>  x = 8", 40, 175);
+                    }}
+                    className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold transition"
+                  >
+                    + Уравнение
+                  </button>
+                  <button
+                    onClick={() => {
+                      const canvas = canvasRef.current;
+                      if (!canvas) return;
+                      const ctx = canvas.getContext("2d");
+                      if (!ctx) return;
+                      ctx.font = "bold 18px system-ui";
+                      ctx.fillStyle = "#0f172a";
+                      ctx.fillText("Геометрия: Треугольник ABC", 40, 240);
+                      ctx.strokeStyle = "#dc2626";
+                      ctx.lineWidth = 2;
+                      ctx.beginPath();
+                      ctx.moveTo(100, 360);
+                      ctx.lineTo(240, 360);
+                      ctx.lineTo(170, 270);
+                      ctx.closePath();
+                      ctx.stroke();
+                      ctx.font = "14px system-ui";
+                      ctx.fillStyle = "#dc2626";
+                      ctx.fillText("A", 85, 370);
+                      ctx.fillText("B", 250, 370);
+                      ctx.fillText("C", 165, 260);
+                    }}
+                    className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold transition"
+                  >
+                    + Треугольник
+                  </button>
+                </div>
+
+                <div className="h-4 w-px bg-slate-200 mx-1" />
+
                 <button
                   onClick={clearCanvas}
                   className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 text-xs transition"
