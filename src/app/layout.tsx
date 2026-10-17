@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { ShieldCheck } from "lucide-react";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import AgentationClient from "@/components/AgentationClient";
@@ -30,8 +32,16 @@ export default function RootLayout({
               <span className="font-bold text-brand-600">АйДаУмничка</span>
               <span>© {new Date().getFullYear()} Образовательный центр. Все права защищены.</span>
             </div>
-            <div className="text-xs text-slate-400">
-              Образовательный онлайн-центр
+            <div className="flex items-center gap-4 text-xs text-slate-400">
+              <span>Образовательный онлайн-центр</span>
+              <span>•</span>
+              <Link
+                href="/admin"
+                className="hover:text-blue-600 transition inline-flex items-center gap-1 font-medium"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Управление</span>
+              </Link>
             </div>
           </div>
         </footer>

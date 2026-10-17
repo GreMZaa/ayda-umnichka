@@ -14,23 +14,8 @@ export function middleware(request: NextRequest) {
     "camera=(self), microphone=(self), display-capture=(self)"
   );
 
-  // 2. Защита маршрута /admin на уровне сервера
-  const { pathname } = request.nextUrl;
-  if (pathname.startsWith("/admin")) {
-    const authHeader = request.headers.get("authorization");
-    const hasAuthToken =
-      Boolean(authHeader) ||
-      request.cookies.has("sb-access-token") ||
-      request.cookies.has("supabase-auth-token") ||
-      request.cookies.getAll().some((c) => c.name.startsWith("sb-"));
+  // 2. Безопасность: защитные заголовки для всех путей, доступ к админке защищен на странице /admin
 
-    // Если нет признака сессии в cookies/заголовках, отправляем на страницу входа
-    if (!hasAuthToken) {
-      const loginUrl = new URL("/login", request.url);
-      loginUrl.searchParams.set("redirect", pathname);
-      return NextResponse.redirect(loginUrl);
-    }
-  }
 
   return response;
 }
