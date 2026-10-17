@@ -36,8 +36,9 @@ import { ru } from "date-fns/locale";
 import { getSupabase } from "@/lib/supabase";
 
 export default function AdminPage() {
-  // Авторизация администратора
+  // Авторизация администратора через Supabase
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [adminEmail, setAdminEmail] = useState("admin@umnichka.ru");
   const [adminPassword, setAdminPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [authError, setAuthError] = useState("");
@@ -99,13 +100,21 @@ export default function AdminPage() {
   const [leadSubject, setLeadSubject] = useState("Математика и логика");
   const [leadNotes, setLeadNotes] = useState("");
 
-  // Проверка сохраненной сессии
+  // Проверка сессии в Supabase Auth
   useEffect(() => {
-    const saved = localStorage.getItem("umnichka_admin_auth");
-    if (saved === "true") {
-      setIsAuthenticated(true);
+    const client = getSupabase();
+    if (client) {
+      client.auth.getSession().then(({ data }) => {
+        if (data?.session?.user) {
+          setIsAuthenticated(true);
+        } else if (localStorage.getItem("umnichka_admin_auth") === "true") {
+          setIsAuthenticated(true);
+        }
+        setAuthChecking(false);
+      });
+    } else {
+      setAuthChecking(false);
     }
-    setAuthChecking(false);
   }, []);
 
   const showToast = (text: string, type: "success" | "error" = "success") => {
@@ -113,23 +122,54 @@ export default function AdminPage() {
     setTimeout(() => setToastMsg(null), 3500);
   };
 
-  const handleAdminLogin = (e: React.FormEvent) => {
+  const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError("");
 
-    // Допускаем мастер-пароль админа или стандартный
-    const validPasswords = ["admin123456", "password123456", "umnichka2026", "admin"];
-    if (validPasswords.includes(adminPassword.trim())) {
+    if (!adminEmail.trim() || !adminPassword) {
+      setAuthError("Пожалуйста, введите email и пароль администратора.");
+      return;
+    }
+
+    const client = getSupabase();
+    if (!client) {
+      setAuthError("Не удалось подключиться к сервису авторизации.");
+      return;
+    }
+
+    try {
+      const { data, error } = await client.auth.signInWithPassword({
+        email: adminEmail.trim(),
+        password: adminPassword,
+      });
+
+      if (error) {
+        if (error.message.includes("Invalid login")) {
+          setAuthError("Неверный email или пароль администратора.");
+        } else {
+          setAuthError(error.message);
+        }
+        return;
+      }
+
       setIsAuthenticated(true);
       localStorage.setItem("umnichka_admin_auth", "true");
       document.cookie = "admin_session=true; path=/; max-age=604800";
-      showToast("Добро пожаловать в панель управления АйДаУмничка!");
-    } else {
-      setAuthError("Неверный пароль администратора. Попробуйте еще раз.");
+      showToast("Вход в панель управления через Supabase выполнен успешно!");
+    } catch (err: any) {
+      setAuthError(err?.message || "Ошибка подключения к серверу авторизации Supabase.");
     }
   };
 
-  const handleAdminLogout = () => {
+  const handleAdminLogout = async () => {
+    const client = getSupabase();
+    if (client) {
+      try {
+        await client.auth.signOut();
+      } catch (e) {
+        console.error(e);
+      }
+    }
     setIsAuthenticated(false);
     localStorage.removeItem("umnichka_admin_auth");
     document.cookie = "admin_session=; path=/; max-age=0";
@@ -526,6 +566,23 @@ export default function AdminPage() {
             <form onSubmit={handleAdminLogin} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Email администратора (Supabase):
+                </label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                  <input
+                    type="email"
+                    required
+                    value={adminEmail}
+                    onChange={(e) => setAdminEmail(e.target.value)}
+                    placeholder="admin@umnichka.ru"
+                    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-medium focus:outline-none focus:border-blue-600 transition"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
                   Пароль администратора:
                 </label>
                 <div className="relative">
@@ -535,7 +592,7 @@ export default function AdminPage() {
                     required
                     value={adminPassword}
                     onChange={(e) => setAdminPassword(e.target.value)}
-                    placeholder="Введите пароль администратора"
+                    placeholder="Введите пароль"
                     className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-medium focus:outline-none focus:border-blue-600 transition"
                   />
                   <button
@@ -546,10 +603,6 @@ export default function AdminPage() {
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-              </div>
-
-              <div className="p-3 bg-blue-50/70 rounded-xl border border-blue-100 text-[11px] text-blue-900 leading-relaxed">
-                💡 <strong>Подсказка:</strong> Для входа используйте мастер-пароль: <code className="bg-white px-1.5 py-0.5 rounded font-mono font-bold text-blue-700">admin123456</code>
               </div>
 
               <button
