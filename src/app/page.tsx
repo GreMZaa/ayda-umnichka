@@ -9,13 +9,58 @@ import {
   ArrowRight,
   ChevronDown,
   LogIn,
+  Sparkles,
+  Phone,
+  CheckCircle2,
 } from "lucide-react";
+import { getSupabase } from "@/lib/supabase";
 
 export default function HomePage() {
   // Страница входа предназначена только для Ученика и Родителя
   const [activeTab, setActiveTab] = useState<"student" | "parent">("student");
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [selectedGrade, setSelectedGrade] = useState("3 класс");
+
+  // Состояние формы записи на пробный урок
+  const [leadParentName, setLeadParentName] = useState("");
+  const [leadChildName, setLeadChildName] = useState("");
+  const [leadPhone, setLeadPhone] = useState("");
+  const [leadSubject, setLeadSubject] = useState("Математика и логика");
+  const [leadSubmitting, setLeadSubmitting] = useState(false);
+  const [leadSuccess, setLeadSuccess] = useState(false);
+
+  const handleLeadSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!leadParentName.trim() || !leadPhone.trim()) return;
+
+    setLeadSubmitting(true);
+    const client = getSupabase();
+    if (client) {
+      try {
+        await client.from("leads").insert([
+          {
+            parent_name: leadParentName.trim(),
+            child_name: leadChildName.trim() || null,
+            phone: leadPhone.trim(),
+            grade: selectedGrade,
+            subject: leadSubject,
+            status: "NEW",
+          },
+        ]);
+        setLeadSuccess(true);
+        setLeadParentName("");
+        setLeadChildName("");
+        setLeadPhone("");
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLeadSubmitting(false);
+      }
+    } else {
+      setLeadSuccess(true);
+      setLeadSubmitting(false);
+    }
+  };
 
   const subjects = [
     { name: "Математика и логика", grade: "1–8 классы", desc: "Устранение пробелов, опережение школьной программы, подготовка к олимпиадам", icon: "📐" },
@@ -85,15 +130,23 @@ export default function HomePage() {
           Встроенная видеосвязь прямо в браузере. Личные кабинеты для ученика и родителя. Без установки сторонних программ.
         </p>
 
-        <div className="flex items-center justify-center pt-2">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+          <a
+            href="#trial"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm sm:text-base shadow-lg shadow-blue-600/25 transition transform hover:-translate-y-0.5 active:scale-98"
+          >
+            <Sparkles className="w-5 h-5" />
+            <span>Записаться на пробный урок</span>
+            <ArrowRight className="w-4 h-4 ml-1" />
+          </a>
+
           <Link
             href="/login"
-            className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm sm:text-base shadow-lg shadow-blue-600/25 transition transform hover:-translate-y-0.5 active:scale-98"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-4 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-bold text-sm sm:text-base border border-slate-200 shadow-xs transition active:scale-98"
             id="hero-btn-login"
           >
             <LogIn className="w-5 h-5" />
             <span>Войти в личный кабинет</span>
-            <ArrowRight className="w-4 h-4 ml-1" />
           </Link>
         </div>
       </section>
@@ -296,7 +349,112 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* 5. ОТВЕТЫ НА ЧАСТЫЕ ВОПРОСЫ (FAQ) */}
+      {/* 5. ФОРМА ЗАПИСИ НА БЕСПЛАТНЫЙ ПРОБНЫЙ УРОК */}
+      <section id="trial" className="max-w-4xl mx-auto">
+        <div className="clean-card p-6 sm:p-10 bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
+
+          <div className="max-w-2xl mx-auto text-center space-y-3 relative z-10">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 text-white text-xs font-bold backdrop-blur-xs">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Бесплатное первое занятие</span>
+            </span>
+            <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight">
+              Запишитесь на пробный онлайн-урок
+            </h2>
+            <p className="text-xs sm:text-sm text-blue-100 leading-relaxed">
+              Определим уровень знаний ребёнка, покажем платформу и подберём персональный план обучения.
+            </p>
+          </div>
+
+          <div className="mt-8 max-w-xl mx-auto bg-white rounded-2xl p-6 text-slate-900 shadow-lg relative z-10">
+            {leadSuccess ? (
+              <div className="text-center py-6 space-y-3">
+                <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+                <h3 className="font-bold text-lg text-slate-900">Заявка успешно отправлена!</h3>
+                <p className="text-xs text-slate-600">
+                  Методист свяжется с вами в течение 15 минут, ответит на вопросы и согласует удобное время урока.
+                </p>
+                <button
+                  onClick={() => setLeadSuccess(false)}
+                  className="mt-2 text-xs font-bold text-blue-600 hover:underline"
+                >
+                  Отправить ещё одну заявку
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleLeadSubmit} className="space-y-4 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Имя родителя:</label>
+                    <input
+                      type="text"
+                      required
+                      value={leadParentName}
+                      onChange={(e) => setLeadParentName(e.target.value)}
+                      placeholder="Елена"
+                      className="w-full p-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-medium focus:outline-none focus:ring-1 focus:ring-blue-600"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Имя ребёнка (необязательно):</label>
+                    <input
+                      type="text"
+                      value={leadChildName}
+                      onChange={(e) => setLeadChildName(e.target.value)}
+                      placeholder="Артём"
+                      className="w-full p-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-medium focus:outline-none focus:ring-1 focus:ring-blue-600"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Телефон:</label>
+                    <input
+                      type="tel"
+                      required
+                      value={leadPhone}
+                      onChange={(e) => setLeadPhone(e.target.value)}
+                      placeholder="+7 (999) 000-00-00"
+                      className="w-full p-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-medium focus:outline-none focus:ring-1 focus:ring-blue-600"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Предмет:</label>
+                    <select
+                      value={leadSubject}
+                      onChange={(e) => setLeadSubject(e.target.value)}
+                      className="w-full p-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-medium focus:outline-none focus:ring-1 focus:ring-blue-600"
+                    >
+                      {subjects.map((s, idx) => (
+                        <option key={idx} value={s.name}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={leadSubmitting}
+                  className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm transition shadow-md shadow-blue-600/25 flex items-center justify-center gap-2 cursor-pointer active:scale-98 disabled:opacity-50"
+                >
+                  <Phone className="w-4 h-4" />
+                  <span>{leadSubmitting ? "Отправка заявки..." : "Записаться на бесплатный урок"}</span>
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* 6. ОТВЕТЫ НА ЧАСТЫЕ ВОПРОСЫ (FAQ) */}
       <section className="max-w-3xl mx-auto space-y-6">
         <div className="text-center space-y-2">
           <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900">

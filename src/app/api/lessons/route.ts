@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { authenticateRequest } from "@/lib/server-auth";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limiter";
 import { CreateLessonSchema } from "@/lib/validations";
+import { getSupabase } from "@/lib/supabase";
 
 export async function GET(request: Request) {
   // 1. Rate Limiting
@@ -28,22 +29,75 @@ export async function GET(request: Request) {
   const statusFilter = (searchParams.get("status") as any) || undefined;
   const user = auth.user;
 
-  // 3. Серверное разграничение доступа (защита от IDOR)
+  // 3. Запрос уроков из Supabase (продакшн БД)
+  const client = getSupabase();
+  if (client) {
+    try {
+      let query = client
+        .from("lessons")
+        .select(`
+          id,
+          title,
+          start_time,
+          end_time,
+          status,
+          room_name,
+          subject_id,
+          teacher_id,
+          student_id,
+          subjects:subject_id (name, color),
+          teacher:teacher_id (name, avatar_url),
+          student:student_id (name, avatar_url)
+        `)
+        .order("start_time", { ascending: false });
+
+      if (statusFilter) {
+        query = query.eq("status", statusFilter);
+      }
+      if (user.role === "teacher") {
+        query = query.eq("teacher_id", user.id);
+      } else if (user.role === "student") {
+        query = query.eq("student_id", user.id);
+      }
+
+      const { data: sbLessons } = await query;
+      if (sbLessons && sbLessons.length > 0) {
+        const mappedLessons = sbLessons.map((l: any) => ({
+          id: l.id,
+          title: l.title,
+          subjectId: l.subject_id,
+          subjectName: l.subjects?.name || "Предмет",
+          subjectColor: l.subjects?.color || "#2563eb",
+          teacherId: l.teacher_id,
+          teacherName: l.teacher?.name || "Преподаватель",
+          teacherAvatar: l.teacher?.avatar_url,
+          studentId: l.student_id,
+          studentName: l.student?.name || "Ученик",
+          studentAvatar: l.student?.avatar_url,
+          startTime: l.start_time,
+          endTime: l.end_time,
+          status: l.status,
+          roomName: l.room_name,
+        }));
+        return NextResponse.json(mappedLessons);
+      }
+    } catch (err) {
+      console.error("Supabase lessons query error:", err);
+    }
+  }
+
+  // Fallback к локальной базе при необходимости
   let lessons = [];
 
   if (user.role === "admin") {
-    // Администратор имеет доступ ко всем урокам или фильтрует по запросу
     const teacherId = searchParams.get("teacherId") || undefined;
     const studentId = searchParams.get("studentId") || undefined;
     lessons = db.getLessons({ teacherId, studentId, status: statusFilter });
   } else if (user.role === "teacher") {
-    // Преподаватель видит ТОЛЬКО свои уроки
     lessons = db.getLessons({ teacherId: user.id, status: statusFilter });
   } else if (user.role === "student") {
-    // Ученик видит ТОЛЬКО свои уроки
     lessons = db.getLessons({ studentId: user.id, status: statusFilter });
   } else if (user.role === "parent") {
-    // Родитель видит уроки ТОЛЬКО своих привязанных детей
     const children = db.getParentChildren(user.id);
     const childIds = children.map((c) => c.id);
     lessons = db.getLessons({ studentIds: childIds, status: statusFilter });

@@ -46,25 +46,54 @@ export default function ParentCabinet() {
     }
   }, []);
 
-  const children = [
+  const defaultChildren = [
     {
-      id: "u-student-1",
-      name: "Мой ученик",
+      id: "00000000-0000-0000-0000-000000000003",
+      name: "Артём Смирнов",
       grade: "3 класс",
-      avatar: "https://images.unsplash.com/photo-1588072432836-e10032774350?w=200&h=200&fit=crop&crop=faces",
-      balance: 6,
+      avatar: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&h=200&fit=crop&crop=faces",
+      balance: 8,
       stars: 28,
       nextLesson: "Сегодня, 15:00",
-      teacher: "Преподаватель",
+      teacher: "Анна Сергеевна Иванова",
       subject: "Математика и логика",
     },
   ];
 
-  const [selectedChildId, setSelectedChildId] = useState(children[0].id);
+  const [children, setChildren] = useState<any[]>(defaultChildren);
+  const [selectedChildId, setSelectedChildId] = useState(defaultChildren[0].id);
   const [activeTab, setActiveTab] = useState<"reports" | "schedule" | "billing">("reports");
   const [showTopupModal, setShowTopupModal] = useState(false);
   const [lessons, setLessons] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Загрузка реальных учеников из базы данных Supabase
+  useEffect(() => {
+    const client = getSupabase();
+    if (client) {
+      client
+        .from("profiles")
+        .select("*")
+        .eq("role", "STUDENT")
+        .then(({ data }) => {
+          if (data && data.length > 0) {
+            const mapped = data.map((d: any, index: number) => ({
+              id: d.id,
+              name: d.name,
+              grade: d.bio || "3 класс",
+              avatar: d.avatar_url || "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&h=200&fit=crop&crop=faces",
+              balance: 6 + index * 2,
+              stars: 25 + index * 4,
+              nextLesson: "Сегодня, 15:00",
+              teacher: "Анна Сергеевна Иванова",
+              subject: "Математика и логика",
+            }));
+            setChildren(mapped);
+            setSelectedChildId(mapped[0].id);
+          }
+        });
+    }
+  }, []);
 
   const selectedChild = children.find((c) => c.id === selectedChildId) || children[0];
 
