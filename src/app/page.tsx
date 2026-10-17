@@ -119,8 +119,8 @@ export default function HomePage() {
                 {/* Карточка преподавателя */}
                 <div className="relative rounded-xl overflow-hidden bg-slate-900 border border-slate-200 aspect-video shadow-xs flex items-center justify-center">
                   <img
-                    src="https://images.unsplash.com/photo-1544717305-2782549b5136?w=400&h=250&fit=crop&crop=faces"
-                    alt="Учитель"
+                    src="https://images.unsplash.com/photo-1580894732444-8ecded7900cd?w=600&h=400&fit=crop&crop=faces"
+                    alt="Преподаватель"
                     className="w-full h-full object-cover"
                   />
                   <div className="absolute bottom-2 left-2 bg-slate-900/80 backdrop-blur px-2.5 py-1 rounded text-[11px] text-white font-medium">
@@ -131,7 +131,7 @@ export default function HomePage() {
                 {/* Карточка ученика */}
                 <div className="relative rounded-xl overflow-hidden bg-slate-900 border border-slate-200 aspect-video shadow-xs flex items-center justify-center">
                   <img
-                    src="https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400&h=250&fit=crop&crop=faces"
+                    src="https://images.unsplash.com/photo-1588072432836-e10032774350?w=600&h=400&fit=crop&crop=faces"
                     alt="Ученик"
                     className="w-full h-full object-cover"
                   />

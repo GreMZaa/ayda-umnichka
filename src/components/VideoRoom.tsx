@@ -427,7 +427,7 @@ export default function VideoRoom({
                     <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
                   ) : (
                     <img
-                      src="https://images.unsplash.com/photo-1544717305-2782549b5136?w=400&h=250&fit=crop&crop=faces"
+                      src="https://images.unsplash.com/photo-1580894732444-8ecded7900cd?w=600&h=400&fit=crop&crop=faces"
                       alt="Анна Сергеевна"
                       className="w-full h-full object-cover"
                     />
@@ -444,7 +444,7 @@ export default function VideoRoom({
                     <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
                   ) : (
                     <img
-                      src="https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400&h=250&fit=crop&crop=faces"
+                      src="https://images.unsplash.com/photo-1588072432836-e10032774350?w=600&h=400&fit=crop&crop=faces"
                       alt="Миша"
                       className="w-full h-full object-cover"
                     />
