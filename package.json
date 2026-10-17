@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "pocketbase": "pocketbase/pocketbase.exe serve --http=127.0.0.1:8090 --dir=pocketbase/pb_data"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",
