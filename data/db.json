@@ -1,0 +1,148 @@
+{
+  "users": [
+    {
+      "id": "u-teacher-1",
+      "email": "teacher@umnichka.ru",
+      "name": "Анна Сергеевна Иванова",
+      "phone": "+7 (999) 111-22-33",
+      "role": "TEACHER",
+      "bio": "Преподаватель высшей категории, стаж 12 лет. Математика и развитие логического мышления.",
+      "avatar": "https://images.unsplash.com/photo-1544717305-2782549b5136?w=200&h=200&fit=crop&crop=faces"
+    },
+    {
+      "id": "u-student-1",
+      "email": "misha@umnichka.ru",
+      "name": "Миша Смирнов",
+      "phone": "+7 (999) 333-44-55",
+      "role": "STUDENT",
+      "bio": "3 класс. Увлекается робототехникой, математикой и шахматами.",
+      "avatar": "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&h=200&fit=crop&crop=faces"
+    },
+    {
+      "id": "u-student-2",
+      "email": "alisa@umnichka.ru",
+      "name": "Алиса Смирнова",
+      "phone": "+7 (999) 333-44-56",
+      "role": "STUDENT",
+      "bio": "5 класс. Увлекается литературой и разговорным английским.",
+      "avatar": "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&h=200&fit=crop&crop=faces"
+    },
+    {
+      "id": "u-parent-1",
+      "email": "parent@umnichka.ru",
+      "name": "Елена Смирнова",
+      "phone": "+7 (999) 555-66-77",
+      "role": "PARENT",
+      "bio": "Мама Миши и Алисы.",
+      "avatar": "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&h=200&fit=crop&crop=faces"
+    },
+    {
+      "id": "u-admin-1",
+      "email": "admin@umnichka.ru",
+      "name": "Ольга Николаевна (Директор центра)",
+      "phone": "+7 (999) 777-88-99",
+      "role": "ADMIN",
+      "bio": "Руководитель репетиторского центра «АйДаУмничка».",
+      "avatar": "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=200&h=200&fit=crop&crop=faces"
+    }
+  ],
+  "subjects": [
+    {
+      "id": "sub-1",
+      "name": "Математика и логика",
+      "color": "#2563eb"
+    },
+    {
+      "id": "sub-2",
+      "name": "Русский язык и чтение",
+      "color": "#d946ef"
+    },
+    {
+      "id": "sub-3",
+      "name": "Английский язык",
+      "color": "#059669"
+    },
+    {
+      "id": "sub-4",
+      "name": "Подготовка к школе",
+      "color": "#d97706"
+    }
+  ],
+  "parentStudents": [
+    {
+      "parentId": "u-parent-1",
+      "studentId": "u-student-1"
+    },
+    {
+      "parentId": "u-parent-1",
+      "studentId": "u-student-2"
+    }
+  ],
+  "lessons": [
+    {
+      "id": "les-live-1",
+      "title": "Математика: Олимпиадные задачи и пространственная логика",
+      "subjectId": "sub-1",
+      "subjectName": "Математика и логика",
+      "subjectColor": "#2563eb",
+      "teacherId": "u-teacher-1",
+      "teacherName": "Анна Сергеевна Иванова",
+      "teacherAvatar": "https://images.unsplash.com/photo-1544717305-2782549b5136?w=200&h=200&fit=crop&crop=faces",
+      "studentId": "u-student-1",
+      "studentName": "Миша Смирнов",
+      "studentAvatar": "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&h=200&fit=crop&crop=faces",
+      "startTime": "2026-10-17T08:08:16.136Z",
+      "endTime": "2026-10-17T08:53:16.136Z",
+      "status": "COMPLETED",
+      "roomName": "umnichka-live-room-demo",
+      "notes": []
+    },
+    {
+      "id": "les-upcoming-1",
+      "title": "Английский: Разговорный клуб и расширение словарного запаса",
+      "subjectId": "sub-3",
+      "subjectName": "Английский язык",
+      "subjectColor": "#059669",
+      "teacherId": "u-teacher-1",
+      "teacherName": "Анна Сергеевна Иванова",
+      "teacherAvatar": "https://images.unsplash.com/photo-1544717305-2782549b5136?w=200&h=200&fit=crop&crop=faces",
+      "studentId": "u-student-2",
+      "studentName": "Алиса Смирнова",
+      "studentAvatar": "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&h=200&fit=crop&crop=faces",
+      "startTime": "2026-10-19T08:18:16.136Z",
+      "endTime": "2026-10-19T09:18:16.136Z",
+      "status": "SCHEDULED",
+      "roomName": "umnichka-eng-demo",
+      "notes": []
+    },
+    {
+      "id": "les-past-1",
+      "title": "Математика: Сложение и вычитание дробей",
+      "subjectId": "sub-1",
+      "subjectName": "Математика и логика",
+      "subjectColor": "#2563eb",
+      "teacherId": "u-teacher-1",
+      "teacherName": "Анна Сергеевна Иванова",
+      "teacherAvatar": "https://images.unsplash.com/photo-1544717305-2782549b5136?w=200&h=200&fit=crop&crop=faces",
+      "studentId": "u-student-1",
+      "studentName": "Миша Смирнов",
+      "studentAvatar": "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&h=200&fit=crop&crop=faces",
+      "startTime": "2026-10-15T08:18:16.136Z",
+      "endTime": "2026-10-15T09:18:16.136Z",
+      "status": "COMPLETED",
+      "roomName": "umnichka-past-demo",
+      "notes": [
+        {
+          "id": "note-1",
+          "lessonId": "les-past-1",
+          "authorId": "u-teacher-1",
+          "authorName": "Анна Сергеевна Иванова",
+          "content": "Успешно разобрали сложные примеры из олимпиадной части. Миша отлично понял алгоритм приведения к общему знаменателю.",
+          "grade": 5,
+          "feedback": "Рекомендуется решить 3 дополнительных примера из прикрепленного файла перед следующим уроком.",
+          "createdAt": "2026-10-15T08:18:16.136Z"
+        }
+      ]
+    }
+  ]
+}

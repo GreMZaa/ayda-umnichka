@@ -1,0 +1,79 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id            String          @id @default(uuid())
+  email         String          @unique
+  name          String
+  phone         String?
+  role          String          @default("STUDENT") // ADMIN, TEACHER, STUDENT, PARENT
+  avatar        String?
+  bio           String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  // Учитель
+  teacherLessons Lesson[]       @relation("TeacherLessons")
+  notesWritten   LessonNote[]   @relation("TeacherNotes")
+
+  // Ученик
+  studentLessons Lesson[]       @relation("StudentLessons")
+  parentLinks    ParentStudent[] @relation("StudentRelation")
+
+  // Родитель
+  childLinks     ParentStudent[] @relation("ParentRelation")
+}
+
+model ParentStudent {
+  id        String   @id @default(uuid())
+  parentId  String
+  studentId String
+  parent    User     @relation("ParentRelation", fields: [parentId], references: [id], onDelete: Cascade)
+  student   User     @relation("StudentRelation", fields: [studentId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([parentId, studentId])
+}
+
+model Subject {
+  id        String   @id @default(uuid())
+  name      String
+  color     String   @default("#4F46E5")
+  lessons   Lesson[]
+}
+
+model Lesson {
+  id          String       @id @default(uuid())
+  title       String
+  subjectId   String
+  subject     Subject      @relation(fields: [subjectId], references: [id])
+  teacherId   String
+  teacher     User         @relation("TeacherLessons", fields: [teacherId], references: [id])
+  studentId   String
+  student     User         @relation("StudentLessons", fields: [studentId], references: [id])
+  startTime   DateTime
+  endTime     DateTime
+  status      String       @default("SCHEDULED") // SCHEDULED, LIVE, COMPLETED, CANCELLED
+  roomName    String       @unique
+  notes       LessonNote[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model LessonNote {
+  id        String   @id @default(uuid())
+  lessonId  String
+  lesson    Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation("TeacherNotes", fields: [authorId], references: [id])
+  content   String
+  grade     Int?     // Оценка / балл за урок (например 5/5)
+  feedback  String?  // Заметка для родителя
+  createdAt DateTime @default(now())
+}
