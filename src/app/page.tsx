@@ -237,26 +237,16 @@ export default function HomePage() {
 
         {/* Контент активного таба */}
         <div className="clean-card p-6 sm:p-8 space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
-            <div>
-              <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">
-                {roleDetails[activeTab].badge}
-              </span>
-              <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">
-                {roleDetails[activeTab].title}
-              </h3>
-              <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-                {roleDetails[activeTab].subtitle}
-              </p>
-            </div>
-
-            <Link
-              href={roleDetails[activeTab].link}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition self-start sm:self-auto shrink-0 shadow-sm"
-            >
-              <span>{roleDetails[activeTab].btnText}</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
+          <div className="border-b border-slate-100 pb-4">
+            <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">
+              {roleDetails[activeTab].badge}
+            </span>
+            <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">
+              {roleDetails[activeTab].title}
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+              {roleDetails[activeTab].subtitle}
+            </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
