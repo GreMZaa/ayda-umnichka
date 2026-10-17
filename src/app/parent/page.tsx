@@ -24,30 +24,38 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
+import { getSupabase } from "@/lib/supabase";
 
 export default function ParentCabinet() {
+  const [parentName, setParentName] = useState("Родитель");
+
+  useEffect(() => {
+    const client = getSupabase();
+    if (client) {
+      client.auth.getSession().then(({ data }) => {
+        if (data?.session?.user) {
+          const meta = data.session.user.user_metadata || {};
+          if (meta.full_name) {
+            setParentName(meta.full_name);
+          } else if (data.session.user.email) {
+            setParentName(data.session.user.email.split("@")[0]);
+          }
+        }
+      });
+    }
+  }, []);
+
   const children = [
     {
       id: "u-student-1",
-      name: "Миша Смирнов",
+      name: "Мой ученик",
       grade: "3 класс",
       avatar: "https://images.unsplash.com/photo-1588072432836-e10032774350?w=200&h=200&fit=crop&crop=faces",
       balance: 6,
       stars: 28,
       nextLesson: "Сегодня, 15:00",
-      teacher: "Анна Сергеевна",
+      teacher: "Преподаватель",
       subject: "Математика и логика",
-    },
-    {
-      id: "u-student-2",
-      name: "Алиса Смирнова",
-      grade: "5 класс",
-      avatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&h=200&fit=crop&crop=faces",
-      balance: 4,
-      stars: 35,
-      nextLesson: "Завтра, 16:30",
-      teacher: "Ольга Викторовна",
-      subject: "Английский язык",
     },
   ];
 
@@ -64,7 +72,7 @@ export default function ParentCabinet() {
     fetch(`/api/lessons?studentId=${selectedChildId}`)
       .then((res) => res.json())
       .then((data) => {
-        setLessons(data);
+        setLessons(Array.isArray(data) ? data : []);
         setLoading(false);
       })
       .catch((err) => {
@@ -77,17 +85,17 @@ export default function ParentCabinet() {
   const upcomingLessons = lessons.filter((l) => l.status === "SCHEDULED");
   const completedLessons = lessons.filter((l) => l.status === "COMPLETED");
 
+  const initial = parentName.charAt(0).toUpperCase();
+
   return (
     <div className="space-y-6 pb-16">
       {/* 1. ШАПКА РОДИТЕЛЯ */}
       <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/90 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <div className="relative">
-            <img
-              src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&h=200&fit=crop&crop=faces"
-              alt="Елена Смирнова"
-              className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover border-2 border-white shadow-sm ring-2 ring-slate-100"
-            />
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-amber-600 text-white font-extrabold text-xl flex items-center justify-center border-2 border-white shadow-sm ring-2 ring-amber-100">
+              {initial || <Users className="w-7 h-7" />}
+            </div>
             <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center text-[10px] text-white">
               ✓
             </span>
@@ -95,14 +103,14 @@ export default function ParentCabinet() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-lg sm:text-xl font-bold text-slate-900">
-                Елена Смирнова
+                {parentName}
               </h1>
               <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
                 Родитель
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span>Договор №2026-УМ активен</span>
+              <span>Личный кабинет родителя</span>
               <span>•</span>
               <span>Детей в центре: {children.length}</span>
               <span>•</span>

@@ -12,6 +12,8 @@ import {
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 
+import { getSupabase } from "@/lib/supabase";
+
 export default function AdminPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [subjects, setSubjects] = useState<any[]>([]);
@@ -32,14 +34,33 @@ export default function AdminPage() {
     try {
       const resLessons = await fetch("/api/lessons");
       const dataLessons = await resLessons.json();
-      setLessons(dataLessons);
+      setLessons(Array.isArray(dataLessons) ? dataLessons : []);
 
-      setUsers([
-        { id: "u-teacher-1", name: "Анна Сергеевна Иванова", role: "TEACHER", email: "teacher@umnichka.ru" },
-        { id: "u-student-1", name: "Миша Смирнов (3 кл.)", role: "STUDENT", email: "misha@umnichka.ru" },
-        { id: "u-student-2", name: "Алиса Смирнова (5 кл.)", role: "STUDENT", email: "alisa@umnichka.ru" },
-        { id: "u-parent-1", name: "Елена Смирнова", role: "PARENT", email: "parent@umnichka.ru" },
-      ]);
+      const client = getSupabase();
+      let dbUsers: any[] = [];
+      if (client) {
+        try {
+          const { data: profiles } = await client.from("profiles").select("*");
+          if (profiles && profiles.length > 0) {
+            dbUsers = profiles.map((p: any) => ({
+              id: p.id,
+              name: p.full_name || p.email,
+              role: (p.role || "student").toUpperCase(),
+              email: p.email || "",
+            }));
+          }
+        } catch {}
+      }
+
+      if (dbUsers.length > 0) {
+        setUsers(dbUsers);
+      } else {
+        setUsers([
+          { id: "u-teacher-1", name: "Преподаватель центра", role: "TEACHER", email: "teacher@umnichka.ru" },
+          { id: "u-student-1", name: "Ученик (3 класс)", role: "STUDENT", email: "student@umnichka.ru" },
+          { id: "u-parent-1", name: "Родитель", role: "PARENT", email: "parent@umnichka.ru" },
+        ]);
+      }
 
       setSubjects([
         { id: "sub-1", name: "Математика и логика", color: "#2563eb" },

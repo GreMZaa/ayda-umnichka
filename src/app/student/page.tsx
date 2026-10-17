@@ -10,23 +10,37 @@ import {
   ArrowRight,
   GraduationCap,
   Star,
-  Sparkles,
-  CheckCircle2,
   Award,
-  Check,
+  User,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
+import { getSupabase } from "@/lib/supabase";
 
 export default function StudentCabinet() {
+  const [studentName, setStudentName] = useState("Ученик");
   const [lessons, setLessons] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const client = getSupabase();
+    if (client) {
+      client.auth.getSession().then(({ data }) => {
+        if (data?.session?.user) {
+          const meta = data.session.user.user_metadata || {};
+          if (meta.full_name) {
+            setStudentName(meta.full_name);
+          } else if (data.session.user.email) {
+            setStudentName(data.session.user.email.split("@")[0]);
+          }
+        }
+      });
+    }
+
     fetch("/api/lessons?studentId=u-student-1")
       .then((res) => res.json())
       .then((data) => {
-        setLessons(data);
+        setLessons(Array.isArray(data) ? data : []);
         setLoading(false);
       })
       .catch((err) => {
@@ -39,17 +53,17 @@ export default function StudentCabinet() {
   const upcomingLessons = lessons.filter((l) => l.status === "SCHEDULED");
   const completedLessons = lessons.filter((l) => l.status === "COMPLETED");
 
+  const initial = studentName.charAt(0).toUpperCase();
+
   return (
     <div className="space-y-6 pb-16">
-      {/* 1. ГЕЙМИФИЦИРОВАННАЯ ШАПКА УЧЕНИКА */}
+      {/* 1. ШАПКА УЧЕНИКА */}
       <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/90 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <div className="relative">
-            <img
-              src="https://images.unsplash.com/photo-1588072432836-e10032774350?w=200&h=200&fit=crop&crop=faces"
-              alt="Миша Смирнов"
-              className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover border-2 border-white shadow-sm ring-2 ring-emerald-100"
-            />
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-emerald-600 text-white font-extrabold text-xl flex items-center justify-center border-2 border-white shadow-sm ring-2 ring-emerald-100">
+              {initial || <User className="w-7 h-7" />}
+            </div>
             <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center text-[10px] text-white">
               ⭐
             </span>
@@ -57,10 +71,10 @@ export default function StudentCabinet() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-lg sm:text-xl font-bold text-slate-900">
-                Миша Смирнов
+                {studentName}
               </h1>
               <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                3 класс
+                Ученик центра
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-1">
@@ -123,7 +137,7 @@ export default function StudentCabinet() {
 
         {upcomingLessons.length === 0 && !liveLesson ? (
           <div className="bg-white rounded-2xl p-8 border border-slate-200 text-center text-slate-500 text-xs">
-            На ближайшие дни уроков не запланировано. Отличный повод повторить пройденное!
+            На ближайшие дни уроков не запланировано. Преподаватель добавит следующий урок в расписание.
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -145,7 +159,7 @@ export default function StudentCabinet() {
                 <div>
                   <h3 className="font-bold text-slate-900 text-base">{lesson.title}</h3>
                   <p className="text-xs text-slate-500 mt-1">
-                    Твой учитель: <strong className="text-slate-800">{lesson.teacherName}</strong>
+                    Преподаватель: <strong className="text-slate-800">{lesson.teacherName}</strong>
                   </p>
                 </div>
 
@@ -174,33 +188,39 @@ export default function StudentCabinet() {
           <span>Мои пройденные занятия и оценки</span>
         </h2>
 
-        <div className="bg-white rounded-2xl divide-y divide-slate-100 border border-slate-200 shadow-xs overflow-hidden">
-          {completedLessons.map((lesson) => (
-            <div key={lesson.id} className="p-5 space-y-2.5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-slate-900 text-sm">{lesson.title}</span>
-                  <span className="text-[11px] text-slate-400">
-                    ({format(new Date(lesson.startTime), "d MMMM yyyy", { locale: ru })})
-                  </span>
+        {completedLessons.length === 0 ? (
+          <div className="bg-white rounded-2xl p-8 border border-slate-200 text-center text-slate-500 text-xs">
+            Пройденные уроки будут отображаться здесь вместе с рекомендациями и оценками преподавателей.
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl divide-y divide-slate-100 border border-slate-200 shadow-xs overflow-hidden">
+            {completedLessons.map((lesson) => (
+              <div key={lesson.id} className="p-5 space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-900 text-sm">{lesson.title}</span>
+                    <span className="text-[11px] text-slate-400">
+                      ({format(new Date(lesson.startTime), "d MMMM yyyy", { locale: ru })})
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 text-amber-600 font-bold text-xs bg-amber-50 px-2.5 py-0.5 rounded-md self-start sm:self-auto">
+                    <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
+                    <span>5 звёзд за урок!</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1 text-amber-600 font-bold text-xs bg-amber-50 px-2.5 py-0.5 rounded-md self-start sm:self-auto">
-                  <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
-                  <span>5 звёзд за урок!</span>
-                </div>
-              </div>
 
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-700 space-y-1">
-                <span className="font-bold text-slate-900 block">
-                  Совет от учителя ({lesson.teacherName}):
-                </span>
-                <p className="text-slate-600">
-                  «Миша отлично справился со всеми олимпиадными задачами на виртуальной доске. Так держать!»
-                </p>
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-700 space-y-1">
+                  <span className="font-bold text-slate-900 block">
+                    Комментарий преподавателя ({lesson.teacherName}):
+                  </span>
+                  <p className="text-slate-600">
+                    Отличная работа с материалом урока и решение задач на виртуальной доске. Так держать!
+                  </p>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

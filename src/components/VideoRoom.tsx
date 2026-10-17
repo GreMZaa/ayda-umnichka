@@ -69,10 +69,7 @@ export default function VideoRoom({
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // Чат урока
-  const [messages, setMessages] = useState<Array<{ sender: string; text: string; time: string; isTeacher: boolean }>>([
-    { sender: "Анна Сергеевна", text: "Здравствуйте, Миша! Начнем с проверки вчерашнего задания.", time: "16:01", isTeacher: true },
-    { sender: "Миша", text: "Здравствуйте! Да, я открыл 3-ю задачу.", time: "16:02", isTeacher: false },
-  ]);
+  const [messages, setMessages] = useState<Array<{ sender: string; text: string; time: string; isTeacher: boolean }>>([]);
   const [chatInput, setChatInput] = useState("");
 
   // Таймер урока
@@ -194,7 +191,7 @@ export default function VideoRoom({
     setMessages((prev) => [
       ...prev,
       {
-        sender: userRole === "TEACHER" ? "Анна Сергеевна" : "Миша",
+        sender: userName || (userRole === "TEACHER" ? "Преподаватель" : "Ученик"),
         text: chatInput,
         time: timeStr,
         isTeacher: userRole === "TEACHER",
@@ -233,7 +230,7 @@ export default function VideoRoom({
               </span>
             </div>
             <p className="text-[11px] text-slate-500 mt-0.5 hidden sm:block">
-              Преподаватель: Анна Сергеевна • Ученик: Миша Смирнов
+              Интерактивный класс • Виртуальная доска
             </p>
           </div>
         </div>
@@ -445,12 +442,12 @@ export default function VideoRoom({
                   ) : (
                     <img
                       src="https://images.unsplash.com/photo-1588072432836-e10032774350?w=600&h=400&fit=crop&crop=faces"
-                      alt="Миша"
+                      alt="Ученик"
                       className="w-full h-full object-cover"
                     />
                   )}
                   <div className="absolute bottom-2 left-2 bg-slate-900/80 backdrop-blur px-2 py-0.5 rounded text-[11px] text-white font-medium flex items-center gap-1.5">
-                    <span>Миша Смирнов (Ученик)</span>
+                    <span>{userRole === "STUDENT" ? userName || "Ученик" : "Ученик"}</span>
                     {raisedHand && <span className="text-amber-400">✋ Рука</span>}
                   </div>
                 </div>
@@ -459,20 +456,26 @@ export default function VideoRoom({
               {/* Чат урока */}
               <div className="flex-1 flex flex-col justify-between p-3 bg-white">
                 <div className="space-y-3 overflow-y-auto max-h-56 pr-1 text-xs">
-                  {messages.map((m, i) => (
-                    <div
-                      key={i}
-                      className={`p-2 rounded-lg ${
-                        m.isTeacher ? "bg-blue-50 text-slate-800" : "bg-slate-100 text-slate-800"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between font-bold text-[11px] mb-0.5">
-                        <span className={m.isTeacher ? "text-blue-700" : "text-slate-700"}>{m.sender}</span>
-                        <span className="text-[10px] text-slate-400 font-normal">{m.time}</span>
-                      </div>
-                      <p>{m.text}</p>
+                  {messages.length === 0 ? (
+                    <div className="text-center text-slate-400 text-xs py-8">
+                      Чат готов. Напишите сообщение преподавателю или ученику.
                     </div>
-                  ))}
+                  ) : (
+                    messages.map((m, i) => (
+                      <div
+                        key={i}
+                        className={`p-2 rounded-lg ${
+                          m.isTeacher ? "bg-blue-50 text-slate-800" : "bg-slate-100 text-slate-800"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between font-bold text-[11px] mb-0.5">
+                          <span className={m.isTeacher ? "text-blue-700" : "text-slate-700"}>{m.sender}</span>
+                          <span className="text-[10px] text-slate-400 font-normal">{m.time}</span>
+                        </div>
+                        <p>{m.text}</p>
+                      </div>
+                    ))
+                  )}
                 </div>
 
                 <form onSubmit={handleSendMessage} className="mt-2 flex gap-1.5">
@@ -503,7 +506,7 @@ export default function VideoRoom({
                 className="w-full h-full object-cover"
               />
               <div className="absolute bottom-3 left-3 bg-slate-950/80 px-2.5 py-1 rounded text-xs text-white">
-                Анна Сергеевна (Преподаватель)
+                Преподаватель
               </div>
             </div>
 
@@ -514,7 +517,7 @@ export default function VideoRoom({
                 className="w-full h-full object-cover"
               />
               <div className="absolute bottom-3 left-3 bg-slate-950/80 px-2.5 py-1 rounded text-xs text-white">
-                Миша Смирнов (Ученик)
+                Ученик
               </div>
             </div>
           </div>

@@ -124,7 +124,7 @@ export default function HomePage() {
                     className="w-full h-full object-cover"
                   />
                   <div className="absolute bottom-2 left-2 bg-slate-900/80 backdrop-blur px-2.5 py-1 rounded text-[11px] text-white font-medium">
-                    Анна Сергеевна (Преподаватель)
+                    Преподаватель центра
                   </div>
                 </div>
 
@@ -136,7 +136,7 @@ export default function HomePage() {
                     className="w-full h-full object-cover"
                   />
                   <div className="absolute bottom-2 left-2 bg-slate-900/80 backdrop-blur px-2.5 py-1 rounded text-[11px] text-white font-medium">
-                    Миша Смирнов (3 класс)
+                    Ученик на занятии
                   </div>
                 </div>
               </div>

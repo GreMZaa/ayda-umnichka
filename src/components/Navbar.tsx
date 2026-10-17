@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -31,12 +31,13 @@ export default function Navbar() {
 
   // Поля авторизации в модальном окне
   const [selectedRole, setSelectedRole] = useState<"student" | "parent">("student");
-  const [email, setEmail] = useState("misha@umnichka.ru");
-  const [password, setPassword] = useState("123456");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [authProfile, setAuthProfile] = useState<{ name: string; role: string } | null>(null);
 
   const isRoom = pathname.startsWith("/room");
   const isLoginPage = pathname === "/login";
@@ -46,29 +47,60 @@ export default function Navbar() {
   const isAdmin = pathname.startsWith("/admin");
   const isInsideCabinet = isParent || isStudent || isTeacher || isAdmin;
 
-  // Определение профиля текущего вошедшего пользователя
-  const currentUser = isParent
-    ? { name: "Елена Смирнова", role: "Родитель", icon: Users, color: "bg-amber-100 text-amber-800" }
+  // Определение профиля текущего вошедшего пользователя из сессии Supabase или роли
+  const defaultCabinetName = isParent
+    ? "Личный кабинет родителя"
     : isStudent
-    ? { name: "Миша Смирнов", role: "Ученик (3 класс)", icon: User, color: "bg-emerald-100 text-emerald-800" }
+    ? "Личный кабинет ученика"
     : isTeacher
-    ? { name: "Анна Сергеевна", role: "Преподаватель", icon: GraduationCap, color: "bg-blue-100 text-blue-800" }
-    : isAdmin
-    ? { name: "Администратор", role: "Управление", icon: ShieldCheck, color: "bg-purple-100 text-purple-800" }
+    ? "Преподаватель"
+    : "Администратор";
+
+  const defaultRoleTitle = isParent
+    ? "Родитель"
+    : isStudent
+    ? "Ученик"
+    : isTeacher
+    ? "Преподаватель"
+    : "Управление";
+
+  const currentUser = isInsideCabinet
+    ? {
+        name: authProfile?.name || defaultCabinetName,
+        role: authProfile?.role || defaultRoleTitle,
+        icon: isParent ? Users : isStudent ? User : isTeacher ? GraduationCap : ShieldCheck,
+      }
     : null;
+
+  // Загружаем реальную сессию пользователя
+  useEffect(() => {
+    const client = getSupabase();
+    if (client) {
+      client.auth.getSession().then(({ data }) => {
+        if (data?.session?.user) {
+          const user = data.session.user;
+          const meta = user.user_metadata || {};
+          setAuthProfile({
+            name: meta.full_name || user.email?.split("@")[0] || defaultCabinetName,
+            role: meta.role === "parent" ? "Родитель" : meta.role === "teacher" ? "Преподаватель" : meta.role === "admin" ? "Управление" : "Ученик",
+          });
+        }
+      });
+    }
+  }, [pathname]);
 
   const handleRoleQuickSelect = (role: "student" | "parent") => {
     setSelectedRole(role);
-    if (role === "student") {
-      setEmail("misha@umnichka.ru");
-    } else {
-      setEmail("elena@umnichka.ru");
-    }
-    setPassword("123456");
+    setErrorMsg(null);
   };
 
   const handleModalLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!email.trim() || !password) {
+      setErrorMsg("Пожалуйста, введите e-mail и пароль.");
+      return;
+    }
+
     setLoading(true);
     setErrorMsg(null);
 
@@ -82,7 +114,11 @@ export default function Navbar() {
         });
 
         if (error) {
-          setErrorMsg(error.message);
+          if (error.message.includes("Invalid login credentials")) {
+            setErrorMsg("Неверный email или пароль. Если у вас ещё нет аккаунта, нажмите «Зарегистрироваться».");
+          } else {
+            setErrorMsg(error.message);
+          }
           setLoading(false);
           return;
         }
@@ -92,7 +128,7 @@ export default function Navbar() {
         router.push(`/${role}`);
         return;
       } catch (err: any) {
-        setErrorMsg(err?.message || "Ошибка соединения с Supabase.");
+        setErrorMsg(err?.message || "Ошибка подключения к серверу авторизации.");
         setLoading(false);
         return;
       }
@@ -113,6 +149,7 @@ export default function Navbar() {
         console.error(e);
       }
     }
+    setAuthProfile(null);
     router.push("/");
   };
 

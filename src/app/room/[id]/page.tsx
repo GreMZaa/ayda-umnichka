@@ -23,9 +23,8 @@ export default function RoomPage({ params }: { params: { id: string } }) {
       .catch(() => {
         setLesson({
           title: "Индивидуальный урок: Математика и логика",
-          roomName: params.id,
-          teacherName: "Анна Сергеевна",
-          studentName: "Миша Смирнов",
+          teacherName: "Преподаватель центра",
+          studentName: "Ученик",
         });
         setLoading(false);
       });
@@ -65,7 +64,7 @@ export default function RoomPage({ params }: { params: { id: string } }) {
     <div className="w-full">
       <VideoRoom
         roomName={params.id}
-        userName={currentRole === "TEACHER" ? "Анна Сергеевна" : "Миша Смирнов"}
+        userName={currentRole === "TEACHER" ? (lesson?.teacherName || "Преподаватель") : (lesson?.studentName || "Ученик")}
         userRole={currentRole}
         lessonTitle={lesson?.title || "Индивидуальный урок"}
         onEndLesson={handleEndLesson}
