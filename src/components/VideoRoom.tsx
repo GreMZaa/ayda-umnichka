@@ -235,50 +235,55 @@ export default function VideoRoom({
       return null;
     }
 
-    const pc = new RTCPeerConnection(RTC_CONFIG);
-    peerConnectionRef.current = pc;
+    try {
+      const pc = new RTCPeerConnection(RTC_CONFIG);
+      peerConnectionRef.current = pc;
 
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((track) => {
-        try {
-          pc.addTrack(track, localStreamRef.current!);
-        } catch (e) {
-          console.warn("Error adding local track to PC:", e);
-        }
-      });
-    }
-
-    pc.onicecandidate = ({ candidate }) => {
-      if (candidate && channelRef.current) {
-        channelRef.current.send({
-          type: "broadcast",
-          event: "webrtc_signal",
-          payload: {
-            senderId: myPeerId,
-            senderRole: userRole,
-            candidate: candidate.toJSON ? candidate.toJSON() : candidate,
-          },
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((track) => {
+          try {
+            pc.addTrack(track, localStreamRef.current!);
+          } catch (e) {
+            console.warn("Error adding local track to PC:", e);
+          }
         });
       }
-    };
 
-    pc.ontrack = (event) => {
-      const [stream] = event.streams;
-      const targetStream = stream || new MediaStream([event.track]);
-      remoteStreamRef.current = targetStream;
-      setRemoteStream(targetStream);
-      setPartnerCamOn(true);
-      syncRemoteVideos(targetStream);
-
-      event.track.onended = () => {
-        const hasLiveVideo = targetStream.getVideoTracks().some((t) => t.readyState === "live");
-        if (!hasLiveVideo) {
-          setPartnerCamOn(false);
+      pc.onicecandidate = ({ candidate }) => {
+        if (candidate && channelRef.current) {
+          channelRef.current.send({
+            type: "broadcast",
+            event: "webrtc_signal",
+            payload: {
+              senderId: myPeerId,
+              senderRole: userRole,
+              candidate: candidate.toJSON ? candidate.toJSON() : candidate,
+            },
+          });
         }
       };
-    };
 
-    return pc;
+      pc.ontrack = (event) => {
+        const [stream] = event.streams;
+        const targetStream = stream || new MediaStream([event.track]);
+        remoteStreamRef.current = targetStream;
+        setRemoteStream(targetStream);
+        setPartnerCamOn(true);
+        syncRemoteVideos(targetStream);
+
+        event.track.onended = () => {
+          const hasLiveVideo = targetStream.getVideoTracks().some((t) => t.readyState === "live");
+          if (!hasLiveVideo) {
+            setPartnerCamOn(false);
+          }
+        };
+      };
+
+      return pc;
+    } catch (err) {
+      console.warn("Failed to create RTCPeerConnection:", err);
+      return null;
+    }
   }, [myPeerId, userRole, syncRemoteVideos]);
 
   // Инициация звонка (отправка offer)
@@ -887,21 +892,24 @@ export default function VideoRoom({
 
         try {
           if (payload.description) {
-            const desc = new RTCSessionDescription(payload.description);
-            await pc.setRemoteDescription(desc);
+            try {
+              await pc.setRemoteDescription(payload.description);
+            } catch (e) {
+              console.warn("setRemoteDescription error:", e);
+            }
 
             while (iceCandidateQueueRef.current.length > 0) {
               const c = iceCandidateQueueRef.current.shift();
               if (c) {
                 try {
-                  await pc.addIceCandidate(new RTCIceCandidate(c));
+                  await pc.addIceCandidate(c);
                 } catch (e) {
                   console.warn("Error adding queued candidate:", e);
                 }
               }
             }
 
-            if (desc.type === "offer") {
+            if (payload.description.type === "offer") {
               const answer = await pc.createAnswer();
               await pc.setLocalDescription(answer);
               channel.send({
@@ -915,9 +923,10 @@ export default function VideoRoom({
               });
             }
           } else if (payload.candidate) {
-            const candidate = new RTCIceCandidate(payload.candidate);
             if (pc.remoteDescription && pc.remoteDescription.type) {
-              await pc.addIceCandidate(candidate);
+              try {
+                await pc.addIceCandidate(payload.candidate);
+              } catch (e) {}
             } else {
               iceCandidateQueueRef.current.push(payload.candidate);
             }

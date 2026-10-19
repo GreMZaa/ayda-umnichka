@@ -9,7 +9,12 @@ export async function fetchWithAuth(url: string, init?: RequestInit): Promise<Re
   try {
     const client = getSupabase();
     if (client) {
-      const { data } = await client.auth.getSession();
+      // Таймаут 800мс, чтобы не зависать на мобильных устройствах при блокировке IndexedDB/localStorage
+      const sessionPromise = client.auth.getSession();
+      const timeoutPromise = new Promise<{ data: { session: null } }>((resolve) =>
+        setTimeout(() => resolve({ data: { session: null } }), 800)
+      );
+      const { data } = await Promise.race([sessionPromise, timeoutPromise]);
       const token = data?.session?.access_token;
       if (token && !headers.has("Authorization")) {
         headers.set("Authorization", `Bearer ${token}`);

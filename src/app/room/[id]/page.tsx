@@ -45,30 +45,51 @@ export default function RoomPage({ params }: { params: { id: string } }) {
       }
     } catch (e) {}
 
-    // 2. Загрузка данных урока по его ID или room_name
+    // 2. Загрузка данных урока по его ID или room_name с гарантированным таймаутом
+    let isMounted = true;
+    const fallbackLesson = {
+      id: params.id,
+      title: "Индивидуальный онлайн-урок: Математика и логика",
+      subjectName: "Математика и логика",
+      subjectColor: "#2563eb",
+      teacherName: "Анна Сергеевна Иванова",
+      studentName: "Ученик",
+      roomName: params.id,
+      status: "IN_PROGRESS",
+    };
+
+    const timer = setTimeout(() => {
+      if (isMounted) {
+        setLesson((prev: any) => prev || fallbackLesson);
+        setLoading(false);
+      }
+    }, 1500);
+
     fetchWithAuth(`/api/lessons/${params.id}`)
       .then((res) => {
         if (!res.ok) throw new Error("Урок не найден в базе данных");
         return res.json();
       })
       .then((data) => {
-        setLesson(data);
-        setLoading(false);
+        if (isMounted) {
+          clearTimeout(timer);
+          setLesson(data);
+          setLoading(false);
+        }
       })
       .catch((err) => {
         console.warn("Фоллбэк для тестового класса:", err);
-        setLesson({
-          id: params.id,
-          title: "Индивидуальный онлайн-урок: Математика и логика",
-          subjectName: "Математика и логика",
-          subjectColor: "#2563eb",
-          teacherName: "Анна Сергеевна Иванова",
-          studentName: "Ученик",
-          roomName: params.id,
-          status: "IN_PROGRESS",
-        });
-        setLoading(false);
+        if (isMounted) {
+          clearTimeout(timer);
+          setLesson(fallbackLesson);
+          setLoading(false);
+        }
       });
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
   }, [params.id]);
 
   const handleEndLesson = async () => {
@@ -96,13 +117,20 @@ export default function RoomPage({ params }: { params: { id: string } }) {
 
   if (loading) {
     return (
-      <div className="fixed inset-0 z-[100] bg-white flex items-center justify-center">
-        <div className="text-center space-y-4 p-6 max-w-sm">
+      <div className="fixed inset-0 z-[100] bg-white flex items-center justify-center p-4">
+        <div className="text-center space-y-4 max-w-sm">
           <div className="w-12 h-12 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
           <h3 className="text-base font-extrabold text-slate-900">Вход в онлайн-класс...</h3>
           <p className="text-xs text-slate-500">
             Подключаем интерактивную доску и видеоканал для урока <strong>{params.id}</strong>
           </p>
+          <button
+            type="button"
+            onClick={() => setLoading(false)}
+            className="mt-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md transition cursor-pointer"
+          >
+            Войти прямо сейчас
+          </button>
         </div>
       </div>
     );
