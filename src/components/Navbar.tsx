@@ -44,7 +44,7 @@ export default function Navbar() {
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   // Поля авторизации в модальном окне
-  const [selectedRole, setSelectedRole] = useState<"student" | "parent">("student");
+  const [selectedRole, setSelectedRole] = useState<"student" | "parent" | "teacher" | "admin">("student");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -163,9 +163,12 @@ export default function Navbar() {
     }
   }, [pathname]);
 
-  const handleRoleQuickSelect = (role: "student" | "parent") => {
+  const handleRoleQuickSelect = (role: "student" | "parent" | "teacher" | "admin") => {
     setSelectedRole(role);
     setErrorMsg(null);
+    if (role === "admin" && (!email || email.includes("ivan@mail.ru"))) {
+      setEmail("admin@umnichka.ru");
+    }
   };
 
   const handleModalLogin = async (e: React.FormEvent) => {
@@ -197,7 +200,19 @@ export default function Navbar() {
           return;
         }
 
-        const role = data.user?.user_metadata?.role || selectedRole;
+        let role = (data.user?.user_metadata?.role || selectedRole).toLowerCase();
+        if (!role || role === "authenticated") {
+          try {
+            const { data: prof } = await client
+              .from("profiles")
+              .select("role")
+              .eq("id", data.user?.id)
+              .maybeSingle();
+            if (prof?.role) role = prof.role.toLowerCase();
+          } catch (e) {}
+        }
+        if (!role) role = selectedRole;
+
         setShowLoginModal(false);
         router.push(`/${role}`);
         return;
@@ -607,10 +622,12 @@ export default function Navbar() {
               <label className="block text-xs font-bold text-slate-700 mb-1.5">
                 Личный кабинет:
               </label>
-              <div className="flex p-1 bg-slate-100 rounded-xl gap-1">
+              <div className="grid grid-cols-4 p-1 bg-slate-100 rounded-xl gap-1">
                 {[
                   { id: "student" as const, label: "Ученик", icon: User },
                   { id: "parent" as const, label: "Родитель", icon: Users },
+                  { id: "teacher" as const, label: "Учитель", icon: GraduationCap },
+                  { id: "admin" as const, label: "Админ", icon: ShieldCheck },
                 ].map((r) => {
                   const Icon = r.icon;
                   const isSelected = selectedRole === r.id;
@@ -619,14 +636,14 @@ export default function Navbar() {
                       key={r.id}
                       type="button"
                       onClick={() => handleRoleQuickSelect(r.id)}
-                      className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      className={`flex items-center justify-center gap-1.5 py-2 px-1 rounded-lg text-[11px] sm:text-xs font-bold transition cursor-pointer ${
                         isSelected
                           ? "bg-white text-slate-900 shadow-xs"
                           : "text-slate-600 hover:text-slate-900"
                       }`}
                     >
-                      <Icon className={`w-3.5 h-3.5 ${isSelected ? "text-slate-800" : "text-slate-400"}`} />
-                      <span>{r.label}</span>
+                      <Icon className={`w-3.5 h-3.5 shrink-0 ${isSelected ? "text-blue-600" : "text-slate-400"}`} />
+                      <span className="truncate">{r.label}</span>
                     </button>
                   );
                 })}
@@ -648,7 +665,13 @@ export default function Navbar() {
                     autoComplete="off"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Например: ivan@mail.ru"
+                    placeholder={
+                      selectedRole === "admin"
+                        ? "admin@umnichka.ru"
+                        : selectedRole === "teacher"
+                        ? "teacher@umnichka.ru"
+                        : "Например: ivan@mail.ru"
+                    }
                     className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:border-blue-600 transition"
                   />
                 </div>
@@ -718,16 +741,29 @@ export default function Navbar() {
               </button>
             </form>
 
-            {/* Подвал модалки: ссылка на регистрацию */}
-            <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-              <span>Нет аккаунта?</span>
-              <Link
-                href="/login?mode=signup"
-                onClick={() => setShowLoginModal(false)}
-                className="font-bold text-blue-600 hover:text-blue-700 underline underline-offset-2"
-              >
-                Зарегистрироваться →
-              </Link>
+            {/* Подвал модалки: ссылка на регистрацию и переход в админку */}
+            <div className="pt-2 border-t border-slate-100 flex flex-col gap-2 text-xs text-slate-500">
+              <div className="flex items-center justify-between">
+                <span>Нет аккаунта?</span>
+                <Link
+                  href="/login?mode=signup"
+                  onClick={() => setShowLoginModal(false)}
+                  className="font-bold text-blue-600 hover:text-blue-700 underline underline-offset-2"
+                >
+                  Зарегистрироваться →
+                </Link>
+              </div>
+              <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+                <span className="text-slate-400">Управление центром:</span>
+                <Link
+                  href="/admin"
+                  onClick={() => setShowLoginModal(false)}
+                  className="font-bold text-slate-700 hover:text-blue-600 flex items-center gap-1 transition"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Панель администратора →</span>
+                </Link>
+              </div>
             </div>
           </div>
         </div>

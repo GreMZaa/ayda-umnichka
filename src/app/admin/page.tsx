@@ -110,39 +110,84 @@ export default function AdminPage() {
   const [leadSubject, setLeadSubject] = useState("Математика и логика");
   const [leadNotes, setLeadNotes] = useState("");
 
-  // Проверка сессии в Supabase Auth и загрузка профиля администратора
+  // Проверка сессии в Supabase Auth и строгая проверка роли ADMIN
   useEffect(() => {
-    const client = getSupabase();
-    if (client) {
-      client.auth.getSession().then(async ({ data }) => {
-        if (data?.session?.user) {
+    const checkAdminSession = async () => {
+      setAuthChecking(true);
+      const client = getSupabase();
+      if (!client) {
+        setIsAuthenticated(false);
+        setAuthChecking(false);
+        return;
+      }
+
+      try {
+        const { data } = await client.auth.getSession();
+        const user = data?.session?.user;
+
+        if (!user) {
+          setIsAuthenticated(false);
+          setAuthChecking(false);
+          return;
+        }
+
+        // 1. Проверяем роль в user_metadata
+        const metaRole = (user.user_metadata?.role || "").toUpperCase();
+
+        // 2. Проверяем роль в таблице profiles
+        let dbRole = "";
+        let profileData: any = null;
+        try {
+          const { data: prof } = await client
+            .from("profiles")
+            .select("*")
+            .eq("id", user.id)
+            .maybeSingle();
+
+          if (prof) {
+            profileData = prof;
+            dbRole = (prof.role || "").toUpperCase();
+          }
+        } catch (err) {
+          console.error("Supabase load admin profile error:", err);
+        }
+
+        const isAdmin = metaRole === "ADMIN" || dbRole === "ADMIN";
+
+        if (isAdmin) {
           setIsAuthenticated(true);
-          const user = data.session.user;
           setAdminId(user.id);
           if (user.email) setAdminEmail(user.email);
-          const meta = user.user_metadata || {};
-          if (meta.full_name) setAdminName(meta.full_name);
-          if (meta.avatar_url) setAdminAvatar(meta.avatar_url);
-
-          try {
-            const { data: prof } = await client.from("profiles").select("*").eq("id", user.id).maybeSingle();
-            if (prof) {
-              if (prof.name) setAdminName(prof.name);
-              if (prof.avatar_url) setAdminAvatar(prof.avatar_url);
-              if (prof.phone) setAdminPhone(prof.phone);
-              if (prof.bio) setAdminBio(prof.bio);
-            }
-          } catch (err) {
-            console.error("Supabase load admin profile error:", err);
+          const name = profileData?.name || user.user_metadata?.full_name || "Администратор центра";
+          setAdminName(name);
+          if (profileData?.avatar_url || user.user_metadata?.avatar_url) {
+            setAdminAvatar(profileData?.avatar_url || user.user_metadata?.avatar_url);
           }
-        } else if (localStorage.getItem("umnichka_admin_auth") === "true") {
-          setIsAuthenticated(true);
+          if (profileData?.phone) setAdminPhone(profileData.phone);
+          if (profileData?.bio) setAdminBio(profileData.bio);
+          document.cookie = "admin_session=true; path=/; max-age=604800";
+        } else {
+          // Пользователь залогинен, но НЕ является администратором
+          setIsAuthenticated(false);
+          const currentRoleName =
+            metaRole === "TEACHER" || dbRole === "TEACHER"
+              ? "преподаватель"
+              : metaRole === "PARENT" || dbRole === "PARENT"
+              ? "родитель"
+              : "ученик";
+          setAuthError(
+            `Вы авторизованы как «${currentRoleName}». Для доступа в панель управления необходима учетная запись администратора Supabase (роль ADMIN).`
+          );
         }
+      } catch (err) {
+        console.error("Session check error:", err);
+        setIsAuthenticated(false);
+      } finally {
         setAuthChecking(false);
-      });
-    } else {
-      setAuthChecking(false);
-    }
+      }
+    };
+
+    checkAdminSession();
 
     const handleProfileUpdated = (e: Event) => {
       const detail = (e as CustomEvent).detail;
@@ -185,15 +230,57 @@ export default function AdminPage() {
 
       if (error) {
         if (error.message.includes("Invalid login")) {
-          setAuthError("Неверный email или пароль администратора.");
+          setAuthError("Неверный email или пароль администратора в Supabase.");
         } else {
           setAuthError(error.message);
         }
         return;
       }
 
+      if (!data?.user) {
+        setAuthError("Не удалось получить данные пользователя из Supabase.");
+        return;
+      }
+
+      const user = data.user;
+      const metaRole = (user.user_metadata?.role || "").toUpperCase();
+
+      let dbRole = "";
+      let profileData: any = null;
+      try {
+        const { data: prof } = await client
+          .from("profiles")
+          .select("*")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        if (prof) {
+          profileData = prof;
+          dbRole = (prof.role || "").toUpperCase();
+        }
+      } catch (err) {
+        console.error("Supabase load admin profile error:", err);
+      }
+
+      const isAdmin = metaRole === "ADMIN" || dbRole === "ADMIN";
+
+      if (!isAdmin) {
+        await client.auth.signOut();
+        setAuthError("Доступ запрещен: данный аккаунт Supabase не имеет роли администратора (ADMIN).");
+        return;
+      }
+
       setIsAuthenticated(true);
-      localStorage.setItem("umnichka_admin_auth", "true");
+      setAdminId(user.id);
+      if (user.email) setAdminEmail(user.email);
+      const name = profileData?.name || user.user_metadata?.full_name || "Администратор центра";
+      setAdminName(name);
+      if (profileData?.avatar_url || user.user_metadata?.avatar_url) {
+        setAdminAvatar(profileData?.avatar_url || user.user_metadata?.avatar_url);
+      }
+      if (profileData?.phone) setAdminPhone(profileData.phone);
+      if (profileData?.bio) setAdminBio(profileData.bio);
+
       document.cookie = "admin_session=true; path=/; max-age=604800";
       showToast("Вход в панель управления через Supabase выполнен успешно!");
     } catch (err: any) {
@@ -213,6 +300,8 @@ export default function AdminPage() {
     setIsAuthenticated(false);
     localStorage.removeItem("umnichka_admin_auth");
     document.cookie = "admin_session=; path=/; max-age=0";
+    setAdminPassword("");
+    setAuthError("");
   };
 
   // Загрузка всех данных из Supabase
@@ -606,9 +695,18 @@ export default function AdminPage() {
 
           <div className="bg-white rounded-2xl p-6 sm:p-7 border border-slate-200/90 shadow-sm space-y-5">
             {authError && (
-              <div className="p-3.5 rounded-xl text-xs flex items-center gap-2 bg-rose-50 text-rose-800 border border-rose-200">
-                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-                <span className="font-medium">{authError}</span>
+              <div className="p-3.5 rounded-xl text-xs space-y-2 bg-rose-50 text-rose-800 border border-rose-200">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                  <span className="font-medium">{authError}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAdminLogout}
+                  className="w-full py-2 px-3 rounded-lg text-xs font-bold bg-white text-rose-700 border border-rose-300 hover:bg-rose-100 transition cursor-pointer shadow-2xs"
+                >
+                  Выйти из текущего аккаунта и войти как администратор
+                </button>
               </div>
             )}
 
@@ -647,7 +745,7 @@ export default function AdminPage() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 p-0.5"
+                    className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -663,6 +761,35 @@ export default function AdminPage() {
                 <ArrowRight className="w-4 h-4 ml-0.5" />
               </button>
             </form>
+
+            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-slate-700 flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Данные администратора в Supabase:</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAdminEmail("admin@umnichka.ru");
+                    setAdminPassword("admin123456");
+                  }}
+                  className="text-[11px] font-bold text-blue-600 hover:text-blue-700 underline cursor-pointer"
+                >
+                  Заполнить форму
+                </button>
+              </div>
+              <div className="text-[11px] space-y-1 text-slate-600 pt-1.5 border-t border-slate-200/60 font-mono">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-sans">Логин:</span>
+                  <span className="font-bold text-slate-800">admin@umnichka.ru</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-sans">Пароль:</span>
+                  <span className="font-bold text-slate-800">admin123456</span>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="text-center">

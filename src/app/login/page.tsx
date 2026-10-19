@@ -160,7 +160,19 @@ function LoginForm() {
           return;
         }
 
-        const userRole = (data.user?.user_metadata?.role || "student").toLowerCase();
+        let userRole = (data.user?.user_metadata?.role || "").toLowerCase();
+        if (!userRole || userRole === "authenticated") {
+          try {
+            const { data: prof } = await client
+              .from("profiles")
+              .select("role")
+              .eq("id", data.user.id)
+              .maybeSingle();
+            if (prof?.role) userRole = prof.role.toLowerCase();
+          } catch (e) {}
+        }
+        if (!userRole) userRole = "student";
+
         setMessage({
           type: "success",
           text: "Вход выполнен успешно! Перенаправляем в личный кабинет...",
@@ -610,9 +622,9 @@ function LoginForm() {
             </form>
 
             {/* Быстрое переключение */}
-            <div className="mt-6 pt-5 border-t border-slate-100 text-center text-xs text-slate-500">
+            <div className="mt-6 pt-5 border-t border-slate-100 text-center text-xs text-slate-500 space-y-3">
               {mode === "signin" ? (
-                <span>
+                <div>
                   Ещё нет аккаунта?{" "}
                   <button
                     type="button"
@@ -621,9 +633,9 @@ function LoginForm() {
                   >
                     Зарегистрироваться бесплатно →
                   </button>
-                </span>
+                </div>
               ) : (
-                <span>
+                <div>
                   Уже зарегистрированы?{" "}
                   <button
                     type="button"
@@ -632,8 +644,19 @@ function LoginForm() {
                   >
                     Войти в аккаунт →
                   </button>
-                </span>
+                </div>
               )}
+
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-center gap-1.5 text-xs text-slate-500">
+                <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+                <span>Управление школой:</span>
+                <Link
+                  href="/admin"
+                  className="font-bold text-slate-700 hover:text-blue-600 underline underline-offset-2 ml-1 transition"
+                >
+                  Вход для администратора →
+                </Link>
+              </div>
             </div>
           </div>
         </div>
