@@ -86,11 +86,11 @@ export default function RoomPage({ params }: { params: { id: string } }) {
 
   if (loading) {
     return (
-      <div className="fixed inset-0 z-[100] bg-slate-950 flex items-center justify-center">
+      <div className="fixed inset-0 z-[100] bg-white flex items-center justify-center">
         <div className="text-center space-y-4 p-6 max-w-sm">
-          <div className="w-12 h-12 border-3 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
-          <h3 className="text-base font-extrabold text-white">Вход в онлайн-класс...</h3>
-          <p className="text-xs text-slate-400">
+          <div className="w-12 h-12 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
+          <h3 className="text-base font-extrabold text-slate-900">Вход в онлайн-класс...</h3>
+          <p className="text-xs text-slate-500">
             Подключаем интерактивную доску и видеоканал для урока <strong>{params.id}</strong>
           </p>
         </div>

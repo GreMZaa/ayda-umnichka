@@ -10,8 +10,6 @@ import {
   PhoneOff,
   Share2,
   Users,
-  ExternalLink,
-  GraduationCap,
   PenTool,
   Eraser,
   RotateCcw,
@@ -22,7 +20,6 @@ import {
   MessageSquare,
   Send,
   Layout,
-  Check,
   ChevronLeft,
   Volume2,
   Sparkles,
@@ -35,12 +32,7 @@ import {
   FileText,
   BookOpen,
   Award,
-  Flame,
-  CheckCircle2,
-  Grid3X3,
-  List,
   Save,
-  HelpCircle,
 } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api-client";
 
@@ -61,7 +53,7 @@ interface VideoRoomProps {
 }
 
 type ToolType = "pen" | "highlighter" | "eraser" | "line" | "arrow" | "rect" | "circle" | "text";
-type BoardBgType = "grid" | "lines" | "blank" | "dark";
+type BoardBgType = "grid" | "lines" | "blank";
 
 export default function VideoRoom({
   roomName,
@@ -83,8 +75,8 @@ export default function VideoRoom({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // 2. Таймер урока (секундомер длительности)
-  const [secondsElapsed, setSecondsElapsed] = useState(15 * 60 + 35); // Старт для наглядности (15 мин)
+  // 2. Таймер урока
+  const [secondsElapsed, setSecondsElapsed] = useState(15 * 60 + 35);
   useEffect(() => {
     const timer = setInterval(() => setSecondsElapsed((p) => p + 1), 1000);
     return () => clearInterval(timer);
@@ -101,7 +93,7 @@ export default function VideoRoom({
     setTimeout(() => setToastMessage(null), 2500);
   };
 
-  // 3. Медиа-управление (микрофон, камера, экран, поднятая рука)
+  // 3. Медиа-управление
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
   const [screenSharing, setScreenSharing] = useState(false);
@@ -119,7 +111,7 @@ export default function VideoRoom({
           if (localVideoRef.current) localVideoRef.current.srcObject = s;
         })
         .catch((err) => {
-          console.warn("Камера/микрофон недоступны или заблокированы браузером:", err);
+          console.warn("Камера/микрофон недоступны или заблокированы:", err);
         });
     } else {
       if (localVideoRef.current && localVideoRef.current.srcObject) {
@@ -146,30 +138,14 @@ export default function VideoRoom({
   const [textInputPos, setTextInputPos] = useState<{ x: number; y: number } | null>(null);
   const [textInputValue, setTextInputValue] = useState("");
 
-  // Отрисовка фона доски
+  // Отрисовка фона доски (светлая школьная тетрадь)
   const redrawBackground = useCallback(
     (ctx: CanvasRenderingContext2D, width: number, height: number, bg: BoardBgType) => {
-      if (bg === "dark") {
-        ctx.fillStyle = "#0f172a";
-        ctx.fillRect(0, 0, width, height);
-        ctx.strokeStyle = "#1e293b";
-        ctx.lineWidth = 1;
-        for (let x = 0; x < width; x += 32) {
-          ctx.beginPath();
-          ctx.moveTo(x, 0);
-          ctx.lineTo(x, height);
-          ctx.stroke();
-        }
-        for (let y = 0; y < height; y += 32) {
-          ctx.beginPath();
-          ctx.moveTo(0, y);
-          ctx.lineTo(width, y);
-          ctx.stroke();
-        }
-      } else if (bg === "grid") {
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, width, height);
-        ctx.strokeStyle = "#f1f5f9";
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, width, height);
+
+      if (bg === "grid") {
+        ctx.strokeStyle = "#e2e8f0";
         ctx.lineWidth = 1;
         for (let x = 0; x < width; x += 24) {
           ctx.beginPath();
@@ -184,9 +160,7 @@ export default function VideoRoom({
           ctx.stroke();
         }
       } else if (bg === "lines") {
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, width, height);
-        ctx.strokeStyle = "#e2e8f0";
+        ctx.strokeStyle = "#cbd5e1";
         ctx.lineWidth = 1;
         for (let y = 0; y < height; y += 30) {
           ctx.beginPath();
@@ -194,9 +168,6 @@ export default function VideoRoom({
           ctx.lineTo(width, y);
           ctx.stroke();
         }
-      } else {
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, width, height);
       }
     },
     []
@@ -220,7 +191,6 @@ export default function VideoRoom({
     if (!ctx) return;
     redrawBackground(ctx, width, height, boardBg);
 
-    // Сохраняем чистый холст в историю
     const initialSnapshot = ctx.getImageData(0, 0, width, height);
     setHistory([initialSnapshot]);
   }, [boardBg, redrawBackground]);
@@ -232,7 +202,6 @@ export default function VideoRoom({
     return () => window.removeEventListener("resize", handleResize);
   }, [initCanvas, viewMode]);
 
-  // Сохранить снимок перед изменением
   const pushHistory = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -250,7 +219,7 @@ export default function VideoRoom({
     if (!ctx) return;
 
     const newHistory = [...history];
-    newHistory.pop(); // удаляем текущее состояние
+    newHistory.pop();
     const previous = newHistory[newHistory.length - 1];
     if (previous) {
       ctx.putImageData(previous, 0, 0);
@@ -279,7 +248,7 @@ export default function VideoRoom({
     showToast("Конспект урока скачан в PNG!");
   };
 
-  // Обработчики рисования (Мышь + Сенсорный ввод)
+  // Координаты рисования
   const getCanvasCoords = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
@@ -298,7 +267,7 @@ export default function VideoRoom({
   };
 
   const handleStartDraw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    if ("touches" in e && e.touches.length > 1) return; // игнор мультитача
+    if ("touches" in e && e.touches.length > 1) return;
     const coords = getCanvasCoords(e);
 
     if (currentTool === "text") {
@@ -348,14 +317,13 @@ export default function VideoRoom({
       ctx.stroke();
       ctx.globalAlpha = 1;
     } else if (currentTool === "eraser") {
-      ctx.strokeStyle = boardBg === "dark" ? "#0f172a" : "#ffffff";
-      ctx.lineWidth = brushWidth * 6;
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = brushWidth * 7;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
       ctx.lineTo(coords.x, coords.y);
       ctx.stroke();
     } else if (tempImageData && startPos) {
-      // Геометрические фигуры: восстанавливаем холст и рисуем фигуру
       ctx.putImageData(tempImageData, 0, 0);
       ctx.strokeStyle = brushColor;
       ctx.lineWidth = brushWidth;
@@ -373,7 +341,6 @@ export default function VideoRoom({
         ctx.lineTo(coords.x, coords.y);
         ctx.stroke();
 
-        // Наконечник стрелки
         const angle = Math.atan2(coords.y - startPos.y, coords.x - startPos.x);
         const headlen = 14;
         ctx.beginPath();
@@ -428,8 +395,8 @@ export default function VideoRoom({
     setTextInputValue("");
   };
 
-  // Вставка быстрых образовательных шаблонов задач на доску
-  const applyTemplate = (type: "equation" | "fractions" | "triangle" | "axis" | "rule") => {
+  // Шаблоны
+  const applyTemplate = (type: "equation" | "fractions" | "triangle" | "axis") => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -437,87 +404,75 @@ export default function VideoRoom({
 
     pushHistory();
 
-    const startX = 50;
-    const startY = 80;
+    const startX = 40;
+    const startY = 70;
 
     if (type === "equation") {
-      ctx.font = "bold 22px 'Inter', sans-serif";
+      ctx.font = "bold 20px 'Inter', sans-serif";
       ctx.fillStyle = "#2563eb";
       ctx.fillText("Уравнение: 4x + 18 = 50", startX, startY);
       ctx.font = "16px 'Inter', sans-serif";
-      ctx.fillStyle = boardBg === "dark" ? "#cbd5e1" : "#475569";
-      ctx.fillText("1) 4x = 50 - 18", startX, startY + 40);
-      ctx.fillText("2) 4x = 32", startX, startY + 75);
-      ctx.font = "bold 18px 'Inter', sans-serif";
+      ctx.fillStyle = "#334155";
+      ctx.fillText("1) 4x = 50 - 18", startX, startY + 35);
+      ctx.fillText("2) 4x = 32", startX, startY + 65);
+      ctx.font = "bold 16px 'Inter', sans-serif";
       ctx.fillStyle = "#16a34a";
-      ctx.fillText("Ответ: x = 8  ✓", startX, startY + 115);
+      ctx.fillText("Ответ: x = 8  ✓", startX, startY + 100);
     } else if (type === "fractions") {
-      ctx.font = "bold 20px 'Inter', sans-serif";
+      ctx.font = "bold 18px 'Inter', sans-serif";
       ctx.fillStyle = "#2563eb";
-      ctx.fillText("Сложение дробей с разными знаменателями:", startX, startY);
-      ctx.font = "18px 'Inter', sans-serif";
-      ctx.fillStyle = boardBg === "dark" ? "#f1f5f9" : "#0f172a";
-      ctx.fillText(" 1/2 + 3/4 = 2/4 + 3/4 = 5/4 = 1 1/4", startX, startY + 45);
+      ctx.fillText("Сложение дробей:", startX, startY);
+      ctx.font = "16px 'Inter', sans-serif";
+      ctx.fillStyle = "#0f172a";
+      ctx.fillText("1/2 + 3/4 = 2/4 + 3/4 = 5/4 = 1 1/4", startX, startY + 40);
     } else if (type === "triangle") {
       ctx.font = "bold 18px 'Inter', sans-serif";
       ctx.fillStyle = "#dc2626";
-      ctx.fillText("Геометрия: Прямоугольный треугольник ABC", startX, startY);
+      ctx.fillText("Треугольник ABC", startX, startY);
 
       ctx.strokeStyle = "#2563eb";
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 2.5;
       ctx.beginPath();
-      ctx.moveTo(startX + 20, startY + 200);
-      ctx.lineTo(startX + 200, startY + 200);
-      ctx.lineTo(startX + 20, startY + 60);
+      ctx.moveTo(startX + 10, startY + 180);
+      ctx.lineTo(startX + 180, startY + 180);
+      ctx.lineTo(startX + 10, startY + 50);
       ctx.closePath();
       ctx.stroke();
 
-      ctx.font = "bold 16px 'Inter', sans-serif";
+      ctx.font = "bold 14px 'Inter', sans-serif";
       ctx.fillStyle = "#2563eb";
-      ctx.fillText("A", startX + 5, startY + 215);
-      ctx.fillText("B", startX + 210, startY + 215);
-      ctx.fillText("C", startX + 5, startY + 50);
+      ctx.fillText("A", startX - 2, startY + 195);
+      ctx.fillText("B", startX + 190, startY + 195);
+      ctx.fillText("C", startX - 2, startY + 45);
     } else if (type === "axis") {
       ctx.font = "bold 18px 'Inter', sans-serif";
       ctx.fillStyle = "#2563eb";
       ctx.fillText("Координатная плоскость (X, Y)", startX, startY);
 
-      const cx = startX + 120;
-      const cy = startY + 120;
+      const cx = startX + 100;
+      const cy = startY + 100;
 
-      ctx.strokeStyle = boardBg === "dark" ? "#94a3b8" : "#64748b";
+      ctx.strokeStyle = "#64748b";
       ctx.lineWidth = 2;
-      // Ось X
       ctx.beginPath();
-      ctx.moveTo(cx - 100, cy);
-      ctx.lineTo(cx + 100, cy);
+      ctx.moveTo(cx - 80, cy);
+      ctx.lineTo(cx + 80, cy);
       ctx.stroke();
-      // Ось Y
       ctx.beginPath();
-      ctx.moveTo(cx, cy - 80);
-      ctx.lineTo(cx, cy + 80);
+      ctx.moveTo(cx, cy - 70);
+      ctx.lineTo(cx, cy + 70);
       ctx.stroke();
 
-      ctx.font = "bold 14px 'Inter', sans-serif";
+      ctx.font = "bold 13px 'Inter', sans-serif";
       ctx.fillStyle = "#2563eb";
-      ctx.fillText("X", cx + 105, cy + 5);
-      ctx.fillText("Y", cx - 5, cy - 85);
-    } else if (type === "rule") {
-      ctx.font = "bold 20px 'Inter', sans-serif";
-      ctx.fillStyle = "#d946ef";
-      ctx.fillText("Правило русского языка: ЖИ — ШИ", startX, startY);
-      ctx.font = "16px 'Inter', sans-serif";
-      ctx.fillStyle = boardBg === "dark" ? "#cbd5e1" : "#475569";
-      ctx.fillText("Буквосочетания ЖИ и ШИ всегда пиши с буквой И!", startX, startY + 35);
-      ctx.font = "italic 15px 'Inter', sans-serif";
-      ctx.fillStyle = "#2563eb";
-      ctx.fillText("Примеры: жизнь, ёжик, машина, тишина.", startX, startY + 65);
+      ctx.fillText("X", cx + 85, cy + 5);
+      ctx.fillText("Y", cx - 4, cy - 75);
     }
 
-    showToast("Шаблон добавлен на доску");
+    showToast("Шаблон добавлен");
   };
 
-  // 5. Чат и мгновенные реакции
+  // 5. Чат
   const [messages, setMessages] = useState<
     Array<{ id: string; sender: string; text: string; time: string; role: string }>
   >([
@@ -582,7 +537,7 @@ export default function VideoRoom({
     ]);
   };
 
-  // 6. Заметки учителя и отчёт урока
+  // 6. Заметки преподавателя
   const [teacherNotes, setTeacherNotes] = useState(
     "Ученик отлично усвоил тему линейных уравнений. Решил самостоятельно 4 задачи из 5."
   );
@@ -611,7 +566,6 @@ export default function VideoRoom({
     }
   };
 
-  // 7. Полноэкранный режим
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().catch(() => {});
@@ -625,36 +579,36 @@ export default function VideoRoom({
   const copyRoomLink = () => {
     if (typeof window !== "undefined") {
       navigator.clipboard.writeText(window.location.href);
-      showToast("Ссылка на урок скопирована в буфер!");
+      showToast("Ссылка на урок скопирована!");
     }
   };
 
   const sanitizedJitsiRoom = `AydaUmnichka_${roomName.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
 
   return (
-    <div className="fixed inset-0 z-[60] bg-slate-950 text-slate-100 flex flex-col font-sans select-none overflow-hidden h-screen w-screen">
-      {/* ВСПЛЫВАЮЩИЙ ТОСТ-УВЕДОМЛЕНИЕ */}
+    <div className="fixed inset-0 z-[60] bg-slate-100 text-slate-900 flex flex-col font-sans select-none overflow-hidden h-screen w-screen">
+      {/* ТОСТ */}
       {toastMessage && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[100] px-4 py-2.5 rounded-2xl bg-blue-600/95 backdrop-blur text-white text-xs sm:text-sm font-bold shadow-2xl flex items-center gap-2 animate-in fade-in slide-in-from-top-3 duration-200">
-          <Sparkles className="w-4 h-4 text-amber-300" />
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[100] px-4 py-2.5 rounded-2xl bg-white border border-slate-200 text-slate-800 text-xs sm:text-sm font-bold shadow-xl flex items-center gap-2 animate-in fade-in slide-in-from-top-3 duration-150">
+          <Sparkles className="w-4 h-4 text-blue-600" />
           <span>{toastMessage}</span>
         </div>
       )}
 
-      {/* ЛЕТАЮЩАЯ РЕАКЦИЯ НА ЭКРАНЕ */}
+      {/* РЕАКЦИЯ */}
       {floatingReaction && (
         <div className="absolute bottom-24 right-1/3 z-[100] text-5xl pointer-events-none animate-bounce">
           {floatingReaction}
         </div>
       )}
 
-      {/* 1. ВЕРХНИЙ ХЕДЕР ОНЛАЙН-КЛАССА */}
-      <header className="h-14 bg-slate-900 border-b border-slate-800 px-3 sm:px-5 flex items-center justify-between gap-3 shrink-0">
-        {/* Слева: Кнопка Назад + Название и статус */}
+      {/* 1. ВЕРХНИЙ ХЕДЕР (Светлый, чистый, аккуратный) */}
+      <header className="h-14 bg-white border-b border-slate-200 px-3 sm:px-5 flex items-center justify-between gap-3 shrink-0">
+        {/* Слева: Кнопка назад + название + статус */}
         <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
           <Link
             href={userRole === "TEACHER" ? "/teacher" : userRole === "PARENT" ? "/parent" : "/student"}
-            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer shrink-0"
+            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 transition cursor-pointer shrink-0"
             title="Выйти из урока в кабинет"
           >
             <ChevronLeft className="w-5 h-5" />
@@ -663,33 +617,34 @@ export default function VideoRoom({
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span
-                style={{ backgroundColor: `${subjectColor}25`, borderColor: subjectColor, color: subjectColor }}
-                className="px-2 py-0.5 rounded-md text-[10px] sm:text-xs font-bold border truncate"
+                style={{ backgroundColor: `${subjectColor}15`, borderColor: `${subjectColor}40`, color: subjectColor }}
+                className="px-2.5 py-0.5 rounded-lg text-[10px] sm:text-xs font-bold border truncate"
               >
                 {subjectName}
               </span>
-              <h1 className="font-extrabold text-xs sm:text-sm text-white truncate max-w-[140px] sm:max-w-xs md:max-w-md">
+              <h1 className="font-extrabold text-xs sm:text-sm text-slate-900 truncate max-w-[140px] sm:max-w-xs md:max-w-md">
                 {lessonTitle}
               </h1>
-              <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
                 В эфире
               </span>
             </div>
-            <p className="text-[10px] text-slate-400 truncate hidden md:block">
-              Преподаватель: {teacherName} • Ученик: {studentName}
+            <p className="text-[11px] text-slate-500 truncate hidden md:block">
+              Преподаватель: <strong className="text-slate-700">{teacherName}</strong> • Ученик:{" "}
+              <strong className="text-slate-700">{studentName}</strong>
             </p>
           </div>
         </div>
 
-        {/* Центр: Переключатель режимов экрана */}
-        <div className="hidden lg:flex items-center bg-slate-800/80 p-1 rounded-2xl border border-slate-700/60 text-xs">
+        {/* Центр: Переключатель режимов */}
+        <div className="hidden lg:flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200 text-xs">
           <button
             onClick={() => setViewMode("split")}
-            className={`px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 cursor-pointer ${
               viewMode === "split"
-                ? "bg-blue-600 text-white shadow-sm"
-                : "text-slate-400 hover:text-slate-200"
+                ? "bg-white text-blue-600 shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
             }`}
           >
             <Layout className="w-3.5 h-3.5" />
@@ -697,10 +652,10 @@ export default function VideoRoom({
           </button>
           <button
             onClick={() => setViewMode("board")}
-            className={`px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 cursor-pointer ${
               viewMode === "board"
-                ? "bg-blue-600 text-white shadow-sm"
-                : "text-slate-400 hover:text-slate-200"
+                ? "bg-white text-blue-600 shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
             }`}
           >
             <PenTool className="w-3.5 h-3.5" />
@@ -708,10 +663,10 @@ export default function VideoRoom({
           </button>
           <button
             onClick={() => setViewMode("video")}
-            className={`px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 cursor-pointer ${
               viewMode === "video"
-                ? "bg-blue-600 text-white shadow-sm"
-                : "text-slate-400 hover:text-slate-200"
+                ? "bg-white text-blue-600 shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
             }`}
           >
             <Video className="w-3.5 h-3.5" />
@@ -719,10 +674,10 @@ export default function VideoRoom({
           </button>
           <button
             onClick={() => setViewMode("materials")}
-            className={`px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 cursor-pointer ${
               viewMode === "materials"
-                ? "bg-blue-600 text-white shadow-sm"
-                : "text-slate-400 hover:text-slate-200"
+                ? "bg-white text-blue-600 shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
             }`}
           >
             <BookOpen className="w-3.5 h-3.5" />
@@ -730,29 +685,29 @@ export default function VideoRoom({
           </button>
         </div>
 
-        {/* Справа: Таймер + Действия */}
+        {/* Справа: Таймер + Роль + Действия */}
         <div className="flex items-center gap-2 text-xs">
           {/* Таймер */}
-          <div className="flex items-center gap-1.5 font-mono font-bold text-slate-200 bg-slate-800 px-2.5 sm:px-3 py-1.5 rounded-xl border border-slate-700">
-            <Clock className="w-3.5 h-3.5 text-blue-400" />
+          <div className="flex items-center gap-1.5 font-mono font-bold text-slate-800 bg-slate-100 px-2.5 sm:px-3 py-1.5 rounded-xl border border-slate-200">
+            <Clock className="w-3.5 h-3.5 text-blue-600" />
             <span>{formatTimer(secondsElapsed)}</span>
           </div>
 
           {/* Быстрый выбор роли */}
           {onRoleChange && (
-            <div className="hidden xl:flex items-center bg-slate-800 p-0.5 rounded-xl border border-slate-700 text-[11px]">
+            <div className="hidden xl:flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 text-[11px]">
               <button
                 onClick={() => onRoleChange("TEACHER")}
-                className={`px-2 py-1 rounded-lg font-semibold transition ${
-                  userRole === "TEACHER" ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white"
+                className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer ${
+                  userRole === "TEACHER" ? "bg-white text-blue-600 shadow-xs font-bold" : "text-slate-600 hover:text-slate-900"
                 }`}
               >
                 Я: Учитель
               </button>
               <button
                 onClick={() => onRoleChange("STUDENT")}
-                className={`px-2 py-1 rounded-lg font-semibold transition ${
-                  userRole === "STUDENT" ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white"
+                className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer ${
+                  userRole === "STUDENT" ? "bg-white text-blue-600 shadow-xs font-bold" : "text-slate-600 hover:text-slate-900"
                 }`}
               >
                 Я: Ученик
@@ -763,27 +718,27 @@ export default function VideoRoom({
           {/* Копировать ссылку */}
           <button
             onClick={copyRoomLink}
-            className="p-2 sm:px-3 sm:py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 font-bold transition flex items-center gap-1.5 cursor-pointer"
+            className="p-2 sm:px-3 sm:py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 font-bold transition flex items-center gap-1.5 cursor-pointer"
             title="Скопировать ссылку на урок"
           >
             <Share2 className="w-4 h-4" />
             <span className="hidden sm:inline">Ссылка</span>
           </button>
 
-          {/* Полноэкранный режим */}
+          {/* Полный экран */}
           <button
             onClick={toggleFullscreen}
-            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition cursor-pointer"
+            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer"
             title={isFullscreen ? "Выйти из полного экрана" : "На весь экран"}
           >
             {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>
 
-          {/* Завершить урок */}
+          {/* Завершить */}
           <button
             onClick={onEndLesson}
-            className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold transition flex items-center gap-1.5 shadow-md shadow-rose-950/40 cursor-pointer"
-            title="Завершить занятие"
+            className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold transition flex items-center gap-1.5 cursor-pointer"
+            title="Завершить урок"
           >
             <PhoneOff className="w-4 h-4" />
             <span className="hidden sm:inline">Завершить</span>
@@ -791,12 +746,12 @@ export default function VideoRoom({
         </div>
       </header>
 
-      {/* МОБИЛЬНАЯ ПАНЕЛЬ ПЕРЕКЛЮЧЕНИЯ РЕЖИМОВ (ТОЛЬКО НА СМАРТФОНАХ) */}
-      <div className="lg:hidden bg-slate-900 border-b border-slate-800 px-2 py-1.5 flex items-center justify-around gap-1 text-[11px]">
+      {/* МОБИЛЬНЫЙ ПЕРЕКЛЮЧАТЕЛЬ РЕЖИМОВ */}
+      <div className="lg:hidden bg-white border-b border-slate-200 px-2 py-1.5 flex items-center justify-around gap-1 text-[11px]">
         <button
           onClick={() => setViewMode("split")}
-          className={`flex-1 py-1.5 rounded-lg font-bold flex items-center justify-center gap-1 ${
-            viewMode === "split" ? "bg-blue-600 text-white" : "text-slate-400"
+          className={`flex-1 py-1.5 rounded-lg font-bold flex items-center justify-center gap-1 cursor-pointer ${
+            viewMode === "split" ? "bg-blue-50 text-blue-700 border border-blue-200" : "text-slate-600"
           }`}
         >
           <Layout className="w-3.5 h-3.5" />
@@ -804,8 +759,8 @@ export default function VideoRoom({
         </button>
         <button
           onClick={() => setViewMode("board")}
-          className={`flex-1 py-1.5 rounded-lg font-bold flex items-center justify-center gap-1 ${
-            viewMode === "board" ? "bg-blue-600 text-white" : "text-slate-400"
+          className={`flex-1 py-1.5 rounded-lg font-bold flex items-center justify-center gap-1 cursor-pointer ${
+            viewMode === "board" ? "bg-blue-50 text-blue-700 border border-blue-200" : "text-slate-600"
           }`}
         >
           <PenTool className="w-3.5 h-3.5" />
@@ -813,8 +768,8 @@ export default function VideoRoom({
         </button>
         <button
           onClick={() => setViewMode("video")}
-          className={`flex-1 py-1.5 rounded-lg font-bold flex items-center justify-center gap-1 ${
-            viewMode === "video" ? "bg-blue-600 text-white" : "text-slate-400"
+          className={`flex-1 py-1.5 rounded-lg font-bold flex items-center justify-center gap-1 cursor-pointer ${
+            viewMode === "video" ? "bg-blue-50 text-blue-700 border border-blue-200" : "text-slate-600"
           }`}
         >
           <Video className="w-3.5 h-3.5" />
@@ -822,8 +777,8 @@ export default function VideoRoom({
         </button>
         <button
           onClick={() => setViewMode("materials")}
-          className={`flex-1 py-1.5 rounded-lg font-bold flex items-center justify-center gap-1 ${
-            viewMode === "materials" ? "bg-blue-600 text-white" : "text-slate-400"
+          className={`flex-1 py-1.5 rounded-lg font-bold flex items-center justify-center gap-1 cursor-pointer ${
+            viewMode === "materials" ? "bg-blue-50 text-blue-700 border border-blue-200" : "text-slate-600"
           }`}
         >
           <BookOpen className="w-3.5 h-3.5" />
@@ -831,19 +786,19 @@ export default function VideoRoom({
         </button>
       </div>
 
-      {/* 2. ОСНОВНОЕ РАБОЧЕЕ ПРОСТРАНСТВО */}
+      {/* 2. ОСНОВНАЯ ЗОНА */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
-        {/* РЕЖИМ 1 И 2: ДОСКА ДЛЯ РИСОВАНИЯ (SPLIT ИЛИ BOARD) */}
+        {/* РЕЖИМ 1 И 2: ИНТЕРАКТИВНАЯ ДОСКА (SPLIT ИЛИ BOARD) */}
         {(viewMode === "split" || viewMode === "board") && (
           <div className="flex-1 flex flex-col bg-white relative overflow-hidden">
-            {/* ПЛАВАЮЩИЙ ТУЛБАР ИНСТРУМЕНТОВ ДОСКИ */}
-            <div className="absolute top-2.5 left-2.5 right-2.5 sm:right-auto z-20 bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-2xl shadow-2xl p-1.5 flex flex-wrap items-center gap-1.5 text-xs">
-              {/* Инструменты рисования */}
+            {/* ПЛАВАЮЩИЙ СВЕТЛЫЙ ТУЛБАР ДОСКИ */}
+            <div className="absolute top-2.5 left-2.5 right-2.5 sm:right-auto z-20 bg-white/95 backdrop-blur-md border border-slate-200 rounded-2xl shadow-md p-1.5 flex flex-wrap items-center gap-1.5 text-xs">
+              {/* Инструменты */}
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => setCurrentTool("pen")}
-                  className={`p-2 rounded-xl transition flex items-center gap-1 ${
-                    currentTool === "pen" ? "bg-blue-600 text-white font-bold" : "text-slate-300 hover:bg-slate-800"
+                  className={`p-2 rounded-xl transition flex items-center gap-1 cursor-pointer ${
+                    currentTool === "pen" ? "bg-blue-600 text-white font-bold" : "text-slate-700 hover:bg-slate-100"
                   }`}
                   title="Маркер (Перо)"
                 >
@@ -853,23 +808,23 @@ export default function VideoRoom({
 
                 <button
                   onClick={() => setCurrentTool("highlighter")}
-                  className={`p-2 rounded-xl transition flex items-center gap-1 ${
+                  className={`p-2 rounded-xl transition flex items-center gap-1 cursor-pointer ${
                     currentTool === "highlighter"
-                      ? "bg-amber-500 text-slate-950 font-bold"
-                      : "text-slate-300 hover:bg-slate-800"
+                      ? "bg-amber-100 text-amber-900 border border-amber-300 font-bold"
+                      : "text-slate-700 hover:bg-slate-100"
                   }`}
-                  title="Маркер-выделитель"
+                  title="Маркер-выделитель текста"
                 >
                   <Sparkles className="w-4 h-4" />
-                  <span className="hidden xl:inline">Маркер-текст</span>
+                  <span className="hidden xl:inline">Выделитель</span>
                 </button>
 
                 <button
                   onClick={() => setCurrentTool("eraser")}
-                  className={`p-2 rounded-xl transition flex items-center gap-1 ${
+                  className={`p-2 rounded-xl transition flex items-center gap-1 cursor-pointer ${
                     currentTool === "eraser"
                       ? "bg-blue-600 text-white font-bold"
-                      : "text-slate-300 hover:bg-slate-800"
+                      : "text-slate-700 hover:bg-slate-100"
                   }`}
                   title="Ластик"
                 >
@@ -880,17 +835,17 @@ export default function VideoRoom({
                 {/* Фигуры */}
                 <button
                   onClick={() => setCurrentTool("line")}
-                  className={`p-2 rounded-xl transition ${
-                    currentTool === "line" ? "bg-blue-600 text-white" : "text-slate-300 hover:bg-slate-800"
+                  className={`p-2 rounded-xl transition cursor-pointer ${
+                    currentTool === "line" ? "bg-blue-600 text-white" : "text-slate-700 hover:bg-slate-100"
                   }`}
-                  title="Прямая линия"
+                  title="Линия"
                 >
                   <Minus className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => setCurrentTool("arrow")}
-                  className={`p-2 rounded-xl transition ${
-                    currentTool === "arrow" ? "bg-blue-600 text-white" : "text-slate-300 hover:bg-slate-800"
+                  className={`p-2 rounded-xl transition cursor-pointer ${
+                    currentTool === "arrow" ? "bg-blue-600 text-white" : "text-slate-700 hover:bg-slate-100"
                   }`}
                   title="Стрелка"
                 >
@@ -898,8 +853,8 @@ export default function VideoRoom({
                 </button>
                 <button
                   onClick={() => setCurrentTool("rect")}
-                  className={`p-2 rounded-xl transition ${
-                    currentTool === "rect" ? "bg-blue-600 text-white" : "text-slate-300 hover:bg-slate-800"
+                  className={`p-2 rounded-xl transition cursor-pointer ${
+                    currentTool === "rect" ? "bg-blue-600 text-white" : "text-slate-700 hover:bg-slate-100"
                   }`}
                   title="Прямоугольник"
                 >
@@ -907,27 +862,27 @@ export default function VideoRoom({
                 </button>
                 <button
                   onClick={() => setCurrentTool("circle")}
-                  className={`p-2 rounded-xl transition ${
-                    currentTool === "circle" ? "bg-blue-600 text-white" : "text-slate-300 hover:bg-slate-800"
+                  className={`p-2 rounded-xl transition cursor-pointer ${
+                    currentTool === "circle" ? "bg-blue-600 text-white" : "text-slate-700 hover:bg-slate-100"
                   }`}
-                  title="Круг / Окружность"
+                  title="Круг"
                 >
                   <Circle className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => setCurrentTool("text")}
-                  className={`p-2 rounded-xl transition ${
-                    currentTool === "text" ? "bg-blue-600 text-white" : "text-slate-300 hover:bg-slate-800"
+                  className={`p-2 rounded-xl transition cursor-pointer ${
+                    currentTool === "text" ? "bg-blue-600 text-white" : "text-slate-700 hover:bg-slate-100"
                   }`}
-                  title="Текст на доске"
+                  title="Текст"
                 >
                   <Type className="w-4 h-4" />
                 </button>
               </div>
 
-              <div className="h-5 w-px bg-slate-700 mx-1 hidden sm:block" />
+              <div className="h-5 w-px bg-slate-200 mx-1 hidden sm:block" />
 
-              {/* Палитра цветов */}
+              {/* Цвета (сочные классические чистые цвета) */}
               <div className="flex items-center gap-1.5">
                 {[
                   { color: "#0f172a", name: "Черный" },
@@ -944,19 +899,19 @@ export default function VideoRoom({
                       if (currentTool === "eraser") setCurrentTool("pen");
                     }}
                     style={{ backgroundColor: c.color }}
-                    className={`w-5 h-5 rounded-full transition transform hover:scale-110 ${
+                    className={`w-5 h-5 rounded-full transition transform hover:scale-110 cursor-pointer ${
                       brushColor === c.color && currentTool !== "eraser"
                         ? "ring-2 ring-offset-2 ring-blue-500 scale-110"
-                        : ""
+                        : "border border-slate-300"
                     }`}
                     title={c.name}
                   />
                 ))}
               </div>
 
-              <div className="h-5 w-px bg-slate-700 mx-1 hidden sm:block" />
+              <div className="h-5 w-px bg-slate-200 mx-1 hidden sm:block" />
 
-              {/* Толщина кисти */}
+              {/* Толщина */}
               <div className="hidden sm:flex items-center gap-1">
                 {[
                   { w: 2, label: "Тонкий" },
@@ -966,8 +921,8 @@ export default function VideoRoom({
                   <button
                     key={t.w}
                     onClick={() => setBrushWidth(t.w)}
-                    className={`px-2 py-1 rounded-lg text-[10px] font-bold transition ${
-                      brushWidth === t.w ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white"
+                    className={`px-2 py-1 rounded-lg text-[10px] font-bold transition cursor-pointer ${
+                      brushWidth === t.w ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-100"
                     }`}
                   >
                     {t.label}
@@ -975,76 +930,76 @@ export default function VideoRoom({
                 ))}
               </div>
 
-              <div className="h-5 w-px bg-slate-700 mx-1 hidden md:block" />
+              <div className="h-5 w-px bg-slate-200 mx-1 hidden md:block" />
 
               {/* Фон доски */}
               <div className="hidden md:flex items-center gap-1">
                 <button
-                  onClick={() => setBoardBg(boardBg === "grid" ? "blank" : boardBg === "blank" ? "dark" : "grid")}
-                  className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold transition"
-                  title="Сменить фон (Клетка / Чистый лист / Темная доска)"
+                  onClick={() => setBoardBg(boardBg === "grid" ? "lines" : boardBg === "lines" ? "blank" : "grid")}
+                  className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition cursor-pointer border border-slate-200"
+                  title="Сменить фон (Клетка / Линейка / Чистый лист)"
                 >
-                  {boardBg === "grid" ? "📐 Клетка" : boardBg === "blank" ? "📄 Лист" : "⬛ Тёмная"}
+                  {boardBg === "grid" ? "📐 Клетка" : boardBg === "lines" ? "📝 Линейка" : "📄 Лист"}
                 </button>
               </div>
 
-              <div className="h-5 w-px bg-slate-700 mx-1 hidden lg:block" />
+              <div className="h-5 w-px bg-slate-200 mx-1 hidden lg:block" />
 
-              {/* Быстрые шаблоны задач */}
+              {/* Шаблоны задач */}
               <div className="hidden 2xl:flex items-center gap-1">
                 <button
                   onClick={() => applyTemplate("equation")}
-                  className="px-2 py-1 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 text-[10px] font-bold border border-blue-500/40"
+                  className="px-2 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10px] font-bold border border-blue-200 cursor-pointer"
                 >
                   + Уравнение
                 </button>
                 <button
                   onClick={() => applyTemplate("fractions")}
-                  className="px-2 py-1 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 text-[10px] font-bold border border-blue-500/40"
+                  className="px-2 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10px] font-bold border border-blue-200 cursor-pointer"
                 >
                   + Дроби
                 </button>
                 <button
                   onClick={() => applyTemplate("triangle")}
-                  className="px-2 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-[10px] font-bold border border-rose-500/40"
+                  className="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-[10px] font-bold border border-rose-200 cursor-pointer"
                 >
                   + Геометрия
                 </button>
               </div>
 
-              <div className="h-5 w-px bg-slate-700 mx-1" />
+              <div className="h-5 w-px bg-slate-200 mx-1" />
 
               {/* Undo / Clear / Save */}
               <div className="flex items-center gap-1 ml-auto sm:ml-0">
                 <button
                   onClick={handleUndo}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
-                  title="Отменить последнее действие"
+                  className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                  title="Отменить действие"
                 >
                   <RotateCcw className="w-4 h-4" />
                 </button>
                 <button
                   onClick={handleClear}
-                  className="p-1.5 rounded-lg text-rose-400 hover:text-rose-300 hover:bg-slate-800 transition"
-                  title="Очистить доску полностью"
+                  className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                  title="Очистить доску"
                 >
                   <Eraser className="w-4 h-4" />
                 </button>
                 <button
                   onClick={handleDownload}
-                  className="p-1.5 rounded-lg text-emerald-400 hover:text-emerald-300 hover:bg-slate-800 transition"
-                  title="Скачать снимок доски (PNG)"
+                  className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition cursor-pointer"
+                  title="Скачать конспект (PNG)"
                 >
                   <Download className="w-4 h-4" />
                 </button>
               </div>
             </div>
 
-            {/* Ввод текста на доске */}
+            {/* Ввод текста */}
             {textInputPos && (
               <div
                 style={{ left: textInputPos.x, top: textInputPos.y }}
-                className="absolute z-30 bg-white border border-blue-500 rounded-xl shadow-xl p-2 flex items-center gap-1.5"
+                className="absolute z-30 bg-white border border-blue-600 rounded-xl shadow-xl p-2 flex items-center gap-1.5"
               >
                 <input
                   type="text"
@@ -1053,24 +1008,24 @@ export default function VideoRoom({
                   onChange={(e) => setTextInputValue(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleAddText()}
                   placeholder="Введите текст или формулу..."
-                  className="text-xs sm:text-sm text-slate-900 px-2 py-1 border rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-[200px]"
+                  className="text-xs sm:text-sm text-slate-900 px-2 py-1 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-600 min-w-[200px]"
                 />
                 <button
                   onClick={handleAddText}
-                  className="px-2.5 py-1 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700"
+                  className="px-2.5 py-1 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 cursor-pointer"
                 >
                   OK
                 </button>
                 <button
                   onClick={() => setTextInputPos(null)}
-                  className="px-2 py-1 rounded-lg text-slate-500 hover:bg-slate-100 text-xs"
+                  className="px-2 py-1 rounded-lg text-slate-500 hover:bg-slate-100 text-xs cursor-pointer"
                 >
                   ✕
                 </button>
               </div>
             )}
 
-            {/* ХОЛСТ ДОСКИ */}
+            {/* Холст */}
             <div className="flex-1 w-full h-full relative cursor-crosshair overflow-hidden touch-none">
               <canvas
                 ref={canvasRef}
@@ -1087,13 +1042,13 @@ export default function VideoRoom({
           </div>
         )}
 
-        {/* ПРАВАЯ ПАНЕЛЬ В РЕЖИМЕ SPLIT: ВИДЕО + ЧАТ */}
+        {/* ПРАВАЯ ПАНЕЛЬ В РЕЖИМЕ SPLIT: ВИДЕО + ЧАТ (Светлая, чистая) */}
         {viewMode === "split" && (
-          <div className="w-full md:w-80 lg:w-96 bg-slate-900 border-t md:border-t-0 md:border-l border-slate-800 flex flex-col shrink-0">
+          <div className="w-full md:w-80 lg:w-96 bg-white border-t md:border-t-0 md:border-l border-slate-200 flex flex-col shrink-0">
             {/* Видео-плитки */}
-            <div className="p-3 space-y-2.5 border-b border-slate-800">
-              {/* Плитка преподавателя */}
-              <div className="rounded-2xl overflow-hidden bg-slate-950 aspect-video relative border border-slate-800 shadow-inner">
+            <div className="p-3 space-y-2.5 border-b border-slate-200 bg-slate-50">
+              {/* Преподаватель */}
+              <div className="rounded-2xl overflow-hidden bg-slate-200 aspect-video relative border border-slate-300/80 shadow-xs">
                 {userRole === "TEACHER" && camOn ? (
                   <video
                     ref={localVideoRef}
@@ -1112,14 +1067,14 @@ export default function VideoRoom({
                     className="w-full h-full object-cover"
                   />
                 )}
-                <div className="absolute bottom-2 left-2 bg-slate-900/80 backdrop-blur px-2.5 py-1 rounded-lg text-[11px] text-white font-bold flex items-center gap-1.5 border border-slate-700/60">
+                <div className="absolute bottom-2 left-2 bg-slate-900/75 backdrop-blur px-2.5 py-1 rounded-lg text-[11px] text-white font-bold flex items-center gap-1.5">
                   <Volume2 className="w-3 h-3 text-emerald-400" />
                   <span className="truncate max-w-[150px]">{teacherName} (Учитель)</span>
                 </div>
               </div>
 
-              {/* Плитка ученика */}
-              <div className="rounded-2xl overflow-hidden bg-slate-950 aspect-video relative border border-slate-800 shadow-inner">
+              {/* Ученик */}
+              <div className="rounded-2xl overflow-hidden bg-slate-200 aspect-video relative border border-slate-300/80 shadow-xs">
                 {userRole === "STUDENT" && camOn ? (
                   <video
                     ref={localVideoRef}
@@ -1138,21 +1093,21 @@ export default function VideoRoom({
                     className="w-full h-full object-cover"
                   />
                 )}
-                <div className="absolute bottom-2 left-2 bg-slate-900/80 backdrop-blur px-2.5 py-1 rounded-lg text-[11px] text-white font-bold flex items-center gap-1.5 border border-slate-700/60">
+                <div className="absolute bottom-2 left-2 bg-slate-900/75 backdrop-blur px-2.5 py-1 rounded-lg text-[11px] text-white font-bold flex items-center gap-1.5">
                   <span className="truncate max-w-[150px]">{studentName} (Ученик)</span>
-                  {raisedHand && <span className="text-amber-400 font-extrabold animate-bounce">✋ Рука</span>}
+                  {raisedHand && <span className="text-amber-300 font-extrabold animate-bounce">✋ Рука</span>}
                 </div>
               </div>
             </div>
 
             {/* ЧАТ УРОКА */}
-            <div className="flex-1 flex flex-col justify-between p-3 bg-slate-900 overflow-hidden">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-800 text-xs">
-                <span className="font-extrabold text-slate-300 flex items-center gap-1.5">
-                  <MessageSquare className="w-3.5 h-3.5 text-blue-400" />
+            <div className="flex-1 flex flex-col justify-between p-3 bg-white overflow-hidden">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200 text-xs">
+                <span className="font-extrabold text-slate-800 flex items-center gap-1.5">
+                  <MessageSquare className="w-3.5 h-3.5 text-blue-600" />
                   Чат урока
                 </span>
-                <span className="text-[10px] text-slate-500">{messages.length} сообщ.</span>
+                <span className="text-[11px] text-slate-400">{messages.length} сообщ.</span>
               </div>
 
               {/* Список сообщений */}
@@ -1166,8 +1121,8 @@ export default function VideoRoom({
                       key={m.id}
                       className={`p-2.5 rounded-2xl max-w-[90%] ${
                         isMe
-                          ? "bg-blue-600/90 text-white ml-auto border border-blue-500/40"
-                          : "bg-slate-800 text-slate-200 mr-auto border border-slate-700/60"
+                          ? "bg-blue-600 text-white ml-auto shadow-xs"
+                          : "bg-slate-100 text-slate-800 mr-auto border border-slate-200"
                       }`}
                     >
                       <div className="flex items-center justify-between gap-3 text-[10px] opacity-75 mb-0.5">
@@ -1180,7 +1135,7 @@ export default function VideoRoom({
                 })}
               </div>
 
-              {/* Панель быстрых реакций */}
+              {/* Палитра быстрых реакций */}
               <div className="flex items-center gap-1 py-1.5 overflow-x-auto">
                 {[
                   { e: "⭐", l: "Отлично!" },
@@ -1192,10 +1147,10 @@ export default function VideoRoom({
                   <button
                     key={r.l}
                     onClick={() => handleSendReaction(r.e, r.l)}
-                    className="px-2 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-200 transition shrink-0 border border-slate-700/60"
+                    className="px-2 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-[11px] text-slate-700 transition shrink-0 border border-slate-200 cursor-pointer"
                   >
                     <span>{r.e}</span>
-                    <span className="hidden sm:inline ml-1 text-[10px]">{r.l}</span>
+                    <span className="hidden sm:inline ml-1 text-[10px] font-medium">{r.l}</span>
                   </button>
                 ))}
               </div>
@@ -1207,7 +1162,7 @@ export default function VideoRoom({
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
                   placeholder="Сообщение..."
-                  className="flex-1 text-xs p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="flex-1 text-xs p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-blue-600 transition"
                 />
                 <button
                   type="submit"
@@ -1221,11 +1176,10 @@ export default function VideoRoom({
           </div>
         )}
 
-        {/* РЕЖИМ 3: ПОЛНОРАЗМЕРНАЯ ВИДЕОКОНФЕРЕНЦИЯ JITSI / WEBRTC */}
+        {/* РЕЖИМ 3: ВИДЕОКОНФЕРЕНЦИЯ JITSI */}
         {viewMode === "video" && (
-          <div className="flex-1 bg-slate-950 p-2 sm:p-4 flex flex-col relative overflow-hidden">
-            <div className="flex-1 rounded-3xl overflow-hidden border border-slate-800 bg-slate-900 relative shadow-2xl">
-              {/* Интеграция реальной защищённой комнаты Jitsi Meet */}
+          <div className="flex-1 bg-slate-100 p-2 sm:p-4 flex flex-col relative overflow-hidden">
+            <div className="flex-1 rounded-3xl overflow-hidden border border-slate-200 bg-white relative shadow-sm">
               <iframe
                 src={`https://meet.jit.si/${sanitizedJitsiRoom}#config.prejoinPageEnabled=false&config.startWithAudioMuted=${!micOn}&config.startWithVideoMuted=${!camOn}&userInfo.displayName=${encodeURIComponent(
                   userName || (userRole === "TEACHER" ? teacherName : studentName)
@@ -1239,69 +1193,69 @@ export default function VideoRoom({
 
         {/* РЕЖИМ 4: МАТЕРИАЛЫ УРОКА, ПЛАН И ОТЧЁТ РЕПЕТИТОРА */}
         {viewMode === "materials" && (
-          <div className="flex-1 bg-slate-900 p-4 sm:p-6 overflow-y-auto">
-            <div className="max-w-4xl mx-auto space-y-6">
-              {/* Карточка информации об уроке */}
-              <div className="p-5 sm:p-6 rounded-3xl bg-slate-800 border border-slate-700/80 shadow-xl space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-700">
+          <div className="flex-1 bg-slate-50 p-4 sm:p-6 overflow-y-auto">
+            <div className="max-w-4xl mx-auto space-y-5">
+              {/* Карточка урока */}
+              <div className="p-5 sm:p-6 rounded-3xl bg-white border border-slate-200 shadow-xs space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
                   <div>
                     <span
-                      style={{ backgroundColor: `${subjectColor}25`, color: subjectColor, borderColor: subjectColor }}
+                      style={{ backgroundColor: `${subjectColor}15`, color: subjectColor, borderColor: `${subjectColor}40` }}
                       className="px-2.5 py-0.5 rounded-md text-xs font-bold border"
                     >
                       {subjectName}
                     </span>
-                    <h2 className="text-xl sm:text-2xl font-black text-white mt-1.5">{lessonTitle}</h2>
+                    <h2 className="text-xl sm:text-2xl font-black text-slate-900 mt-1.5">{lessonTitle}</h2>
                   </div>
-                  <div className="text-right text-xs text-slate-400">
-                    <p className="font-mono text-slate-200 font-bold">
-                      ID урока: <span className="text-blue-400">{lessonId || roomName}</span>
+                  <div className="text-right text-xs text-slate-500">
+                    <p className="font-mono text-slate-800 font-bold">
+                      ID урока: <span className="text-blue-600">{lessonId || roomName}</span>
                     </p>
                     <p>Продолжительность: 45 минут</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                  <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-700/60 flex items-center gap-3">
+                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-center gap-3">
                     <img
                       src={
                         teacherAvatar ||
                         "https://images.unsplash.com/photo-1544717305-2782549b5136?w=240&h=240&fit=crop&crop=faces"
                       }
                       alt={teacherName}
-                      className="w-12 h-12 rounded-2xl object-cover border border-slate-700"
+                      className="w-12 h-12 rounded-2xl object-cover border border-slate-200"
                     />
                     <div>
-                      <span className="text-slate-400 text-[10px]">Преподаватель:</span>
-                      <h4 className="font-bold text-white text-sm">{teacherName}</h4>
-                      <p className="text-blue-400 text-[11px]">Педагог центра «АйДаУмничка»</p>
+                      <span className="text-slate-500 text-[10px]">Преподаватель:</span>
+                      <h4 className="font-bold text-slate-900 text-sm">{teacherName}</h4>
+                      <p className="text-blue-600 text-[11px] font-medium">Педагог центра «АйДаУмничка»</p>
                     </div>
                   </div>
 
-                  <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-700/60 flex items-center gap-3">
+                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-center gap-3">
                     <img
                       src={
                         studentAvatar ||
                         "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&h=200&fit=crop&crop=faces"
                       }
                       alt={studentName}
-                      className="w-12 h-12 rounded-2xl object-cover border border-slate-700"
+                      className="w-12 h-12 rounded-2xl object-cover border border-slate-200"
                     />
                     <div>
-                      <span className="text-slate-400 text-[10px]">Ученик:</span>
-                      <h4 className="font-bold text-white text-sm">{studentName}</h4>
-                      <p className="text-emerald-400 text-[11px]">3 класс • Активный статус</p>
+                      <span className="text-slate-500 text-[10px]">Ученик:</span>
+                      <h4 className="font-bold text-slate-900 text-sm">{studentName}</h4>
+                      <p className="text-emerald-600 text-[11px] font-medium">3 класс • Активный статус</p>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Блок отчёта и заметок преподавателя */}
-              <div className="p-5 sm:p-6 rounded-3xl bg-slate-800 border border-slate-700/80 shadow-xl space-y-4">
+              {/* Блок отчёта и заметок */}
+              <div className="p-5 sm:p-6 rounded-3xl bg-white border border-slate-200 shadow-xs space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <FileText className="w-5 h-5 text-blue-400" />
-                    <h3 className="text-base font-bold text-white">Журнал и конспект урока</h3>
+                    <FileText className="w-5 h-5 text-blue-600" />
+                    <h3 className="text-base font-bold text-slate-900">Журнал и конспект урока</h3>
                   </div>
                   <button
                     onClick={handleSaveNotes}
@@ -1313,7 +1267,7 @@ export default function VideoRoom({
                   </button>
                 </div>
 
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-slate-500">
                   Запишите ключевые достижения ученика, разобранные задачи и рекомендации для родителей:
                 </p>
 
@@ -1322,19 +1276,19 @@ export default function VideoRoom({
                   value={teacherNotes}
                   onChange={(e) => setTeacherNotes(e.target.value)}
                   placeholder="Заметки по ходу урока..."
-                  className="w-full p-4 rounded-2xl bg-slate-900 border border-slate-700 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
+                  className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-blue-600 transition"
                 />
               </div>
 
-              {/* Домашнее задание к уроку */}
-              <div className="p-5 sm:p-6 rounded-3xl bg-slate-800 border border-slate-700/80 shadow-xl space-y-3">
+              {/* Домашнее задание */}
+              <div className="p-5 sm:p-6 rounded-3xl bg-white border border-slate-200 shadow-xs space-y-3">
                 <div className="flex items-center gap-2">
-                  <Award className="w-5 h-5 text-amber-400" />
-                  <h3 className="text-base font-bold text-white">Домашнее задание</h3>
+                  <Award className="w-5 h-5 text-amber-500" />
+                  <h3 className="text-base font-bold text-slate-900">Домашнее задание</h3>
                 </div>
-                <div className="p-4 rounded-2xl bg-slate-900 border border-slate-700 text-xs text-slate-300 space-y-2">
-                  <p className="font-bold text-white text-sm">Учебник, страница 48: задания № 12, 14, 15.</p>
-                  <p className="text-slate-400">
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-700 space-y-1.5">
+                  <p className="font-bold text-slate-900 text-sm">Учебник, страница 48: задания № 12, 14, 15.</p>
+                  <p className="text-slate-500">
                     Решить уравнения в тетради и прикрепить фото решения в личном кабинете ученика к следующему
                     занятию.
                   </p>
@@ -1345,16 +1299,16 @@ export default function VideoRoom({
         )}
       </div>
 
-      {/* 3. НИЖНЯЯ ПАНЕЛЬ УПРАВЛЕНИЯ ЗВОНКОМ (CLEAN ZOOM / GOOGLE MEET STYLE) */}
-      <footer className="h-16 bg-slate-900 border-t border-slate-800 px-4 flex items-center justify-between shrink-0">
+      {/* 3. НИЖНЯЯ ПАНЕЛЬ УПРАВЛЕНИЯ ЗВОНКОМ (Светлая, чистая) */}
+      <footer className="h-16 bg-white border-t border-slate-200 px-4 flex items-center justify-between shrink-0">
         {/* Инфо слева */}
-        <div className="text-xs text-slate-400 hidden sm:flex items-center gap-2 truncate max-w-xs">
+        <div className="text-xs text-slate-600 hidden sm:flex items-center gap-2 truncate max-w-xs">
           <span className="w-2 h-2 rounded-full bg-emerald-500" />
           <span className="truncate">
-            Урок: <strong className="text-white">{subjectName}</strong>
+            Урок: <strong className="text-slate-900">{subjectName}</strong>
           </span>
-          <span className="text-slate-600">•</span>
-          <span className="text-emerald-400 font-medium">Сеть 100%</span>
+          <span className="text-slate-300">•</span>
+          <span className="text-emerald-700 font-medium">Сеть 100%</span>
         </div>
 
         {/* Кнопки медиа-управления по центру */}
@@ -1362,8 +1316,8 @@ export default function VideoRoom({
           {/* Микрофон */}
           <button
             onClick={() => setMicOn(!micOn)}
-            className={`w-11 h-11 rounded-full flex items-center justify-center transition cursor-pointer shadow-md ${
-              micOn ? "bg-slate-800 hover:bg-slate-700 text-white border border-slate-700" : "bg-rose-600 text-white"
+            className={`w-11 h-11 rounded-full flex items-center justify-center transition cursor-pointer shadow-xs ${
+              micOn ? "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200" : "bg-rose-600 text-white"
             }`}
             title={micOn ? "Выключить микрофон" : "Включить микрофон"}
           >
@@ -1373,8 +1327,8 @@ export default function VideoRoom({
           {/* Камера */}
           <button
             onClick={() => setCamOn(!camOn)}
-            className={`w-11 h-11 rounded-full flex items-center justify-center transition cursor-pointer shadow-md ${
-              camOn ? "bg-slate-800 hover:bg-slate-700 text-white border border-slate-700" : "bg-rose-600 text-white"
+            className={`w-11 h-11 rounded-full flex items-center justify-center transition cursor-pointer shadow-xs ${
+              camOn ? "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200" : "bg-rose-600 text-white"
             }`}
             title={camOn ? "Выключить камеру" : "Включить камеру"}
           >
@@ -1387,10 +1341,10 @@ export default function VideoRoom({
               setScreenSharing(!screenSharing);
               showToast(screenSharing ? "Демонстрация экрана остановлена" : "Демонстрация экрана запущена");
             }}
-            className={`w-11 h-11 rounded-full flex items-center justify-center transition cursor-pointer shadow-md ${
+            className={`w-11 h-11 rounded-full flex items-center justify-center transition cursor-pointer shadow-xs ${
               screenSharing
                 ? "bg-blue-600 text-white"
-                : "bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700"
+                : "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200"
             }`}
             title="Демонстрация экрана"
           >
@@ -1403,10 +1357,10 @@ export default function VideoRoom({
               setRaisedHand(!raisedHand);
               showToast(raisedHand ? "Рука опущена" : "✋ Вы подняли руку!");
             }}
-            className={`w-11 h-11 rounded-full flex items-center justify-center transition cursor-pointer shadow-md ${
+            className={`w-11 h-11 rounded-full flex items-center justify-center transition cursor-pointer shadow-xs ${
               raisedHand
-                ? "bg-amber-500 text-slate-950 font-black animate-pulse"
-                : "bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700"
+                ? "bg-amber-400 text-slate-950 font-black animate-pulse"
+                : "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200"
             }`}
             title={raisedHand ? "Опустить руку" : "Поднять руку"}
           >
@@ -1416,7 +1370,7 @@ export default function VideoRoom({
           {/* Завершить урок */}
           <button
             onClick={onEndLesson}
-            className="w-11 h-11 rounded-full bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center transition cursor-pointer shadow-lg shadow-rose-950/40 ml-2"
+            className="w-11 h-11 rounded-full bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center transition cursor-pointer shadow-sm ml-2"
             title="Завершить занятие"
           >
             <PhoneOff className="w-5 h-5" />
@@ -1424,10 +1378,10 @@ export default function VideoRoom({
         </div>
 
         {/* Быстрые переключатели справа */}
-        <div className="text-xs text-slate-400 hidden sm:flex items-center gap-2">
+        <div className="text-xs text-slate-600 hidden sm:flex items-center gap-2">
           <button
             onClick={() => setViewMode(viewMode === "board" ? "split" : "board")}
-            className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold transition cursor-pointer"
+            className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 font-bold transition cursor-pointer"
           >
             {viewMode === "board" ? "Свернуть доску" : "Доска на весь экран"}
           </button>
