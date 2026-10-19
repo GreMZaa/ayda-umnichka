@@ -598,6 +598,22 @@ export default function VideoRoom({
           });
         }
       })
+      .on("broadcast", { event: "homework_update" }, ({ payload }) => {
+        if (payload) {
+          if (typeof payload.homeworkText === "string") setHomeworkText(payload.homeworkText);
+          if (typeof payload.homeworkDeadline === "string") setHomeworkDeadline(payload.homeworkDeadline);
+          if (typeof payload.teacherNotes === "string") setTeacherNotes(payload.teacherNotes);
+          if (typeof payload.lessonGrade === "string") setLessonGrade(payload.lessonGrade);
+          if (typeof payload.studentHomeworkNotes === "string") setStudentHomeworkNotes(payload.studentHomeworkNotes);
+          if (typeof payload.studentHomeworkDone === "boolean") setStudentHomeworkDone(payload.studentHomeworkDone);
+
+          if (userRole === "STUDENT" || userRole === "PARENT") {
+            showToast("Преподаватель обновил домашнее задание! 📝");
+          } else {
+            showToast("Данные урока синхронизированы");
+          }
+        }
+      })
       .on("broadcast", { event: "raise_hand" }, ({ payload }) => {
         if (userRole === "TEACHER") {
           setRaisedHand(Boolean(payload?.raised));
@@ -971,25 +987,10 @@ export default function VideoRoom({
     setTextInputValue("");
   };
 
-  // 5. Чат (большой, просторный, удобный)
+  // 5. Чат (большой, просторный, удобный) — тестовые данные удалены
   const [messages, setMessages] = useState<
     Array<{ id: string; sender: string; text: string; time: string; isTeacher: boolean }>
-  >([
-    {
-      id: "1",
-      sender: teacherName,
-      text: "Здравствуйте! Начнём разбор домашней работы и новой темы.",
-      time: "10:00",
-      isTeacher: true,
-    },
-    {
-      id: "2",
-      sender: studentName,
-      text: "Здравствуйте, Анна Сергеевна! Доску вижу, готов к уроку.",
-      time: "10:01",
-      isTeacher: false,
-    },
-  ]);
+  >([]);
   const [chatInput, setChatInput] = useState("");
 
   const handleSendMessage = (e: React.FormEvent) => {
@@ -1029,30 +1030,88 @@ export default function VideoRoom({
     showToast(next ? "Вы подняли руку ✋" : "Вы опустили руку");
   };
 
-  // 6. Заметки преподавателя
-  const [teacherNotes, setTeacherNotes] = useState(
-    "Ученик отлично усвоил тему линейных уравнений. Решил самостоятельно 4 задачи из 5."
-  );
+  // 6. Домашнее задание и заметки преподавателя (без тестовых данных, полностью редактируемые)
+  const [homeworkText, setHomeworkText] = useState("");
+  const [homeworkDeadline, setHomeworkDeadline] = useState("");
+  const [teacherNotes, setTeacherNotes] = useState("");
+  const [lessonGrade, setLessonGrade] = useState("5");
+  const [studentHomeworkNotes, setStudentHomeworkNotes] = useState("");
+  const [studentHomeworkDone, setStudentHomeworkDone] = useState(false);
   const [savingNotes, setSavingNotes] = useState(false);
   const [notesSaved, setNotesSaved] = useState(false);
 
-  const handleSaveNotes = async () => {
-    if (!lessonId) {
-      showToast("Заметка сохранена!");
-      return;
+  // Загрузка сохранённого домашнего задания и заметок из localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem(`lesson_notes_${roomName}`);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.homeworkText) setHomeworkText(parsed.homeworkText);
+          if (parsed.homeworkDeadline) setHomeworkDeadline(parsed.homeworkDeadline);
+          if (parsed.teacherNotes) setTeacherNotes(parsed.teacherNotes);
+          if (parsed.lessonGrade) setLessonGrade(parsed.lessonGrade);
+          if (parsed.studentHomeworkNotes) setStudentHomeworkNotes(parsed.studentHomeworkNotes);
+          if (typeof parsed.studentHomeworkDone === "boolean") setStudentHomeworkDone(parsed.studentHomeworkDone);
+        }
+      } catch (e) {}
     }
+  }, [roomName]);
+
+  const handleSaveNotes = async () => {
     setSavingNotes(true);
     try {
-      await fetchWithAuth(`/api/lessons/${lessonId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: teacherNotes, grade: "5", feedback: "Молодец!" }),
+      // 1. Сохраняем в localStorage для надежности
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(
+            `lesson_notes_${roomName}`,
+            JSON.stringify({
+              homeworkText,
+              homeworkDeadline,
+              teacherNotes,
+              lessonGrade,
+              studentHomeworkNotes,
+              studentHomeworkDone,
+            })
+          );
+        } catch (e) {}
+      }
+
+      // 2. Отправляем в Supabase Realtime чтобы собеседник увидел сразу
+      channelRef.current?.send({
+        type: "broadcast",
+        event: "homework_update",
+        payload: {
+          homeworkText,
+          homeworkDeadline,
+          teacherNotes,
+          lessonGrade,
+          studentHomeworkNotes,
+          studentHomeworkDone,
+        },
       });
+
+      // 3. Отправляем на бэкенд
+      if (lessonId) {
+        try {
+          await fetchWithAuth(`/api/lessons/${lessonId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              content: teacherNotes || "Заметки по уроку сохранены",
+              grade: Number(lessonGrade) || 5,
+              feedback: homeworkText ? `Д/З: ${homeworkText}` : undefined,
+            }),
+          });
+        } catch (err) {}
+      }
+
       setNotesSaved(true);
-      showToast("Отчёт по уроку сохранён!");
+      showToast("Домашнее задание и заметки сохранены! ✓");
       setTimeout(() => setNotesSaved(false), 2200);
     } catch (e) {
-      showToast("Заметка сохранена");
+      showToast("Сохранено локально ✓");
     } finally {
       setSavingNotes(false);
     }
@@ -1524,7 +1583,7 @@ export default function VideoRoom({
             )}
           </div>
 
-        {/* РЕЖИМ 2: ЗАМЕТКИ И МАТЕРИАЛЫ */}
+        {/* РЕЖИМ 2: ЗАМЕТКИ УРОКА И ДОМАШНЕЕ ЗАДАНИЕ */}
         <div
           className={`flex-1 bg-slate-50 p-4 sm:p-6 overflow-y-auto ${
             activeTab === "notes" ? "md:block" : "md:hidden"
@@ -1533,47 +1592,202 @@ export default function VideoRoom({
           }`}
         >
           <div className="max-w-3xl mx-auto space-y-5">
-            <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div>
-                  <h2 className="text-lg font-bold text-slate-900">{lessonTitle}</h2>
-                  <p className="text-xs text-slate-500">
-                    Преподаватель: {teacherName} • Ученик: {studentName}
-                  </p>
-                </div>
-                <button
-                  onClick={handleSaveNotes}
-                  disabled={savingNotes}
-                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs flex items-center gap-2 transition cursor-pointer"
-                >
-                  <Save className="w-4 h-4" />
-                  <span>{savingNotes ? "Сохранение..." : notesSaved ? "Сохранено ✓" : "Сохранить"}</span>
-                </button>
-              </div>
-
+            {/* Карточка заголовка */}
+            <div className="p-5 sm:p-6 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Заметки преподавателя по уроку:
-                </label>
-                <textarea
-                  rows={4}
-                  value={teacherNotes}
-                  onChange={(e) => setTeacherNotes(e.target.value)}
-                  placeholder="Напишите заметки..."
-                  className="w-full p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-blue-600 transition"
-                />
+                <span className="inline-block px-2.5 py-0.5 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 mb-1.5">
+                  {subjectName}
+                </span>
+                <h2 className="text-lg sm:text-xl font-bold text-slate-900">{lessonTitle}</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Преподаватель: <strong className="text-slate-700">{teacherName}</strong> • Ученик: <strong className="text-slate-700">{studentName}</strong>
+                </p>
               </div>
+              <button
+                onClick={handleSaveNotes}
+                disabled={savingNotes}
+                className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-xs shrink-0"
+              >
+                <Save className="w-4 h-4" />
+                <span>{savingNotes ? "Сохранение..." : notesSaved ? "Сохранено ✓" : "Сохранить всё"}</span>
+              </button>
             </div>
 
-            <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-2">
-              <div className="flex items-center gap-2">
-                <Award className="w-4 h-4 text-amber-500" />
-                <h3 className="text-sm font-bold text-slate-900">Домашнее задание</h3>
+            {/* Карточка 1: Домашнее задание (Homework) */}
+            <div className="p-5 sm:p-6 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-200">
+                    <Award className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-extrabold text-slate-900">Домашнее задание</h3>
+                    <p className="text-[11px] text-slate-500">
+                      {isTeacher ? "Задайте домашнюю работу ученику к следующему занятию" : "Задание от преподавателя"}
+                    </p>
+                  </div>
+                </div>
+
+                {homeworkDeadline && (
+                  <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                    Срок: {homeworkDeadline}
+                  </span>
+                )}
               </div>
-              <p className="text-sm text-slate-700 font-medium">Учебник, страница 48: задания № 12, 14, 15.</p>
-              <p className="text-xs text-slate-500">
-                Решить уравнения в тетради и прикрепить фото решения в личном кабинете.
-              </p>
+
+              {isTeacher ? (
+                /* Режим редактирования для учителя */
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Текст домашнего задания:
+                    </label>
+                    <textarea
+                      rows={4}
+                      value={homeworkText}
+                      onChange={(e) => setHomeworkText(e.target.value)}
+                      placeholder="Напишите номера заданий, параграфы учебника или инструкции для ученика..."
+                      className="w-full p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-blue-600 transition"
+                    />
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs font-bold text-slate-700">Срок сдачи:</label>
+                      <input
+                        type="date"
+                        value={homeworkDeadline}
+                        onChange={(e) => setHomeworkDeadline(e.target.value)}
+                        className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 font-medium focus:outline-none focus:bg-white focus:border-blue-600"
+                      />
+                    </div>
+
+                    {/* Быстрые шаблоны */}
+                    <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                      <span className="text-slate-400 text-xs">Шаблоны:</span>
+                      {[
+                        "Учебник: упр. №",
+                        "Повторить правила",
+                        "Решить задачи в тетради",
+                      ].map((t) => (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => setHomeworkText((prev) => (prev ? `${prev}\n${t} ` : `${t} `))}
+                          className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
+                        >
+                          + {t}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Режим просмотра для ученика и родителя */
+                <div className="space-y-3">
+                  {homeworkText ? (
+                    <div className="p-4 rounded-xl bg-amber-50/50 border border-amber-200/60 text-sm text-slate-800 whitespace-pre-wrap font-medium">
+                      {homeworkText}
+                    </div>
+                  ) : (
+                    <div className="p-6 rounded-xl bg-slate-50 border border-slate-200 text-center text-slate-400 text-xs">
+                      Преподаватель пока не оставил домашнее задание. Оно появится здесь после заполнения.
+                    </div>
+                  )}
+
+                  {/* Чекбокс выполнения для ученика */}
+                  {homeworkText && (
+                    <div className="flex items-center justify-between pt-2">
+                      <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={studentHomeworkDone}
+                          onChange={(e) => {
+                            setStudentHomeworkDone(e.target.checked);
+                            handleSaveNotes();
+                          }}
+                          className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-xs font-bold text-slate-700">
+                          {studentHomeworkDone ? "Выполнено ✓" : "Отметить как выполненное"}
+                        </span>
+                      </label>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Карточка 2: Заметки и рекомендации преподавателя */}
+            <div className="p-5 sm:p-6 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-200">
+                    <BookOpen className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-extrabold text-slate-900">Заметки и рекомендации урока</h3>
+                    <p className="text-[11px] text-slate-500">
+                      {isTeacher ? "Ваш отчет о занятии и комментарии к прогрессу" : "Отзыв и рекомендации преподавателя"}
+                    </p>
+                  </div>
+                </div>
+
+                {isTeacher && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-slate-600">Оценка:</span>
+                    <select
+                      value={lessonGrade}
+                      onChange={(e) => setLessonGrade(e.target.value)}
+                      className="px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs font-bold text-blue-600 focus:outline-none focus:bg-white"
+                    >
+                      <option value="5">5 (Отлично)</option>
+                      <option value="4">4 (Хорошо)</option>
+                      <option value="3">3 (Удовл.)</option>
+                      <option value="зачёт">Зачёт</option>
+                      <option value="б/о">Без оценки</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              {isTeacher ? (
+                <div>
+                  <textarea
+                    rows={4}
+                    value={teacherNotes}
+                    onChange={(e) => setTeacherNotes(e.target.value)}
+                    placeholder="Напишите заметки по уроку: что усвоено, какие были трудности, что повторить..."
+                    className="w-full p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-blue-600 transition"
+                  />
+                </div>
+              ) : (
+                <div>
+                  {teacherNotes ? (
+                    <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-800 whitespace-pre-wrap font-medium">
+                      {teacherNotes}
+                    </div>
+                  ) : (
+                    <div className="p-6 rounded-xl bg-slate-50 border border-slate-200 text-center text-slate-400 text-xs">
+                      Заметки преподавателя появятся здесь в ходе или по окончании занятия.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Нижняя кнопка сохранения для учителя */}
+              {isTeacher && (
+                <div className="flex justify-end pt-2">
+                  <button
+                    onClick={handleSaveNotes}
+                    disabled={savingNotes}
+                    className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs flex items-center gap-2 transition cursor-pointer shadow-xs"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>{savingNotes ? "Сохранение..." : notesSaved ? "Сохранено ✓" : "Сохранить домашнее задание и заметки"}</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1681,8 +1895,8 @@ export default function VideoRoom({
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 pointer-events-none" />
 
-                  {/* Верхняя плашка */}
-                  <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between">
+                  {/* Верхняя плашка (показывается только при наведении) */}
+                  <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-auto">
                     <div className="bg-slate-900/85 backdrop-blur px-2.5 py-1 rounded-lg text-white font-bold text-xs flex items-center gap-1.5 border border-slate-700/60 shadow-xs">
                       <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                       <span className="truncate">{partnerName}</span>
@@ -1699,8 +1913,8 @@ export default function VideoRoom({
                     </button>
                   </div>
 
-                  {/* Нижняя информация */}
-                  <div className="absolute bottom-2.5 left-2.5 flex items-center gap-1.5">
+                  {/* Нижняя информация (показывается только при наведении) */}
+                  <div className="absolute bottom-2.5 left-2.5 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
                     <span className="bg-slate-900/85 backdrop-blur px-2 py-0.5 rounded text-[11px] text-slate-300 font-medium border border-slate-700/40">
                       {partnerRole}
                     </span>
@@ -1728,7 +1942,7 @@ export default function VideoRoom({
                         className="w-full h-full object-cover"
                       />
                     )}
-                    <div className="absolute bottom-0.5 left-0.5 bg-slate-900/85 px-1 py-0.2 rounded text-[9px] text-white font-bold">
+                    <div className="absolute bottom-0.5 left-0.5 bg-slate-900/85 px-1 py-0.2 rounded text-[9px] text-white font-bold opacity-0 hover:opacity-100 transition-opacity">
                       Вы
                     </div>
                   </div>
@@ -1752,10 +1966,12 @@ export default function VideoRoom({
                         {messages.length}
                       </span>
                     </div>
-                    {messages.length > 0 && (
+                    {messages.length > 0 ? (
                       <p className="text-[11px] text-slate-500 truncate max-w-[150px] sm:max-w-[180px]">
                         {messages[messages.length - 1].sender}: {messages[messages.length - 1].text}
                       </p>
+                    ) : (
+                      <p className="text-[11px] text-slate-400">Сообщений пока нет</p>
                     )}
                   </div>
                 </div>
@@ -1777,7 +1993,7 @@ export default function VideoRoom({
               {/* Компактный блок видео */}
               <div className="p-3 border-b border-slate-200 bg-slate-50 grid grid-cols-2 gap-2">
                 {/* Преподаватель */}
-                <div className="rounded-xl overflow-hidden bg-slate-200 aspect-video relative border border-slate-300 group">
+                <div className="rounded-xl overflow-hidden bg-slate-200 aspect-video relative border border-slate-300 group cursor-pointer">
                   {userRole === "TEACHER" && camOn ? (
                     <video
                       ref={localVideoRef}
@@ -1796,7 +2012,8 @@ export default function VideoRoom({
                       className="w-full h-full object-cover"
                     />
                   )}
-                  <div className="absolute bottom-1 left-1 right-1 bg-slate-900/80 backdrop-blur px-1.5 py-0.5 rounded text-[10px] text-white font-bold truncate">
+                  {/* Имя скрыто по умолчанию, показывается при наведении */}
+                  <div className="absolute bottom-1 left-1 right-1 bg-slate-900/80 backdrop-blur px-1.5 py-0.5 rounded text-[10px] text-white font-bold truncate opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
                     {teacherName}
                   </div>
                   <button
@@ -1804,7 +2021,7 @@ export default function VideoRoom({
                       setActiveTab("video");
                       setMobileTab("video");
                     }}
-                    className="absolute top-1 right-1 p-1 rounded-md bg-slate-900/70 hover:bg-blue-600 text-white opacity-80 hover:opacity-100 transition shadow-xs cursor-pointer"
+                    className="absolute top-1 right-1 p-1 rounded-md bg-slate-900/70 hover:bg-blue-600 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 shadow-xs cursor-pointer"
                     title="Вывести в главное окно"
                   >
                     <Maximize2 className="w-3 h-3" />
@@ -1812,7 +2029,7 @@ export default function VideoRoom({
                 </div>
 
                 {/* Ученик */}
-                <div className="rounded-xl overflow-hidden bg-slate-200 aspect-video relative border border-slate-300 group">
+                <div className="rounded-xl overflow-hidden bg-slate-200 aspect-video relative border border-slate-300 group cursor-pointer">
                   {userRole === "STUDENT" && camOn ? (
                     <video
                       ref={localVideoRef}
@@ -1831,7 +2048,8 @@ export default function VideoRoom({
                       className="w-full h-full object-cover"
                     />
                   )}
-                  <div className="absolute bottom-1 left-1 right-1 bg-slate-900/80 backdrop-blur px-1.5 py-0.5 rounded text-[10px] text-white font-bold truncate flex items-center justify-between">
+                  {/* Имя скрыто по умолчанию, показывается при наведении */}
+                  <div className="absolute bottom-1 left-1 right-1 bg-slate-900/80 backdrop-blur px-1.5 py-0.5 rounded text-[10px] text-white font-bold truncate flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
                     <span className="truncate">{studentName}</span>
                     {raisedHand && <span className="text-amber-300 ml-1">✋</span>}
                   </div>
@@ -1840,7 +2058,7 @@ export default function VideoRoom({
                       setActiveTab("video");
                       setMobileTab("video");
                     }}
-                    className="absolute top-1 right-1 p-1 rounded-md bg-slate-900/70 hover:bg-blue-600 text-white opacity-80 hover:opacity-100 transition shadow-xs cursor-pointer"
+                    className="absolute top-1 right-1 p-1 rounded-md bg-slate-900/70 hover:bg-blue-600 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 shadow-xs cursor-pointer"
                     title="Вывести в главное окно"
                   >
                     <Maximize2 className="w-3 h-3" />
@@ -1869,27 +2087,37 @@ export default function VideoRoom({
 
                 {/* Список сообщений (крупный, удобный) */}
                 <div className="flex-1 overflow-y-auto space-y-3 py-3 pr-1">
-                  {messages.map((m) => {
-                    const isMe =
-                      (userRole === "TEACHER" && m.isTeacher) ||
-                      (userRole === "STUDENT" && !m.isTeacher);
-                    return (
-                      <div
-                        key={m.id}
-                        className={`p-3 rounded-2xl max-w-[85%] text-sm ${
-                          isMe
-                            ? "bg-blue-600 text-white ml-auto shadow-xs"
-                            : "bg-slate-100 text-slate-900 mr-auto border border-slate-200"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-3 text-xs opacity-80 mb-1">
-                          <span className="font-bold">{m.sender}</span>
-                          <span className="text-[11px]">{m.time}</span>
-                        </div>
-                        <p className="font-medium text-sm leading-relaxed break-words">{m.text}</p>
+                  {messages.length === 0 ? (
+                    <div className="h-full min-h-[140px] flex flex-col items-center justify-center text-center p-4 text-slate-400">
+                      <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center mb-1.5 text-slate-400">
+                        <MessageSquare className="w-4 h-4" />
                       </div>
-                    );
-                  })}
+                      <p className="text-xs font-semibold text-slate-600">В чате пока нет сообщений</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">Напишите вопрос или реплику в поле ниже</p>
+                    </div>
+                  ) : (
+                    messages.map((m) => {
+                      const isMe =
+                        (userRole === "TEACHER" && m.isTeacher) ||
+                        (userRole === "STUDENT" && !m.isTeacher);
+                      return (
+                        <div
+                          key={m.id}
+                          className={`p-3 rounded-2xl max-w-[85%] text-sm ${
+                            isMe
+                              ? "bg-blue-600 text-white ml-auto shadow-xs"
+                              : "bg-slate-100 text-slate-900 mr-auto border border-slate-200"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-3 text-xs opacity-80 mb-1">
+                            <span className="font-bold">{m.sender}</span>
+                            <span className="text-[11px]">{m.time}</span>
+                          </div>
+                          <p className="font-medium text-sm leading-relaxed break-words">{m.text}</p>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
 
                 {/* Форма ввода */}
