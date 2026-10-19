@@ -59,6 +59,25 @@ interface VideoRoomProps {
 type ToolType = "pen" | "highlighter" | "eraser" | "line" | "arrow" | "rect" | "circle" | "text";
 type BoardBgType = "grid" | "lines" | "blank";
 
+function LessonTimer({ initialSeconds = 15 * 60 + 35 }: { initialSeconds?: number }) {
+  const [seconds, setSeconds] = useState(initialSeconds);
+  useEffect(() => {
+    const timer = setInterval(() => setSeconds((p) => p + 1), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  const formatted = `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+
+  return (
+    <div className="flex items-center gap-1 font-mono font-bold text-slate-700 bg-slate-100 px-2 sm:px-3 py-1.5 rounded-xl border border-slate-200 text-xs shrink-0">
+      <Clock className="w-3.5 h-3.5 text-blue-600" />
+      <span>{formatted}</span>
+    </div>
+  );
+}
+
 export default function VideoRoom({
   roomName,
   userName,
@@ -80,25 +99,12 @@ export default function VideoRoom({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // 2. Таймер урока
-  const [secondsElapsed, setSecondsElapsed] = useState(15 * 60 + 35);
-  useEffect(() => {
-    const timer = setInterval(() => setSecondsElapsed((p) => p + 1), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const formatTimer = (s: number) => {
-    const mins = Math.floor(s / 60);
-    const secs = s % 60;
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-  };
-
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 2200);
   };
 
-  // 3. Медиа-управление: настоящая Камера, Микрофон и Демонстрация экрана
+  // 2. Медиа-управление: настоящая Камера, Микрофон и Демонстрация экрана
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(false);
   const [screenSharing, setScreenSharing] = useState(false);
@@ -106,6 +112,7 @@ export default function VideoRoom({
   const localStreamRef = useRef<MediaStream | null>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
+  const screenVideoRef = useRef<HTMLVideoElement>(null);
 
   // Включение / выключение реальной веб-камеры
   const toggleCamera = async () => {
@@ -158,6 +165,9 @@ export default function VideoRoom({
         screenStreamRef.current.getTracks().forEach((t) => t.stop());
         screenStreamRef.current = null;
       }
+      if (screenVideoRef.current) {
+        screenVideoRef.current.srcObject = null;
+      }
       setScreenSharing(false);
     } else {
       try {
@@ -173,6 +183,9 @@ export default function VideoRoom({
         stream.getVideoTracks()[0].onended = () => {
           setScreenSharing(false);
           screenStreamRef.current = null;
+          if (screenVideoRef.current) {
+            screenVideoRef.current.srcObject = null;
+          }
         };
         setScreenSharing(true);
       } catch (err) {
@@ -180,6 +193,15 @@ export default function VideoRoom({
       }
     }
   };
+
+  useEffect(() => {
+    if (screenSharing && screenVideoRef.current && screenStreamRef.current) {
+      if (screenVideoRef.current.srcObject !== screenStreamRef.current) {
+        screenVideoRef.current.srcObject = screenStreamRef.current;
+        screenVideoRef.current.play().catch(() => {});
+      }
+    }
+  }, [screenSharing]);
 
   // 4. Интерактивная доска (Whiteboard)
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -1145,10 +1167,7 @@ export default function VideoRoom({
 
         {/* Справа: Таймер + Ссылка + Завершить */}
         <div className="flex items-center gap-1.5 text-xs shrink-0">
-          <div className="flex items-center gap-1 font-mono font-bold text-slate-700 bg-slate-100 px-2 sm:px-3 py-1.5 rounded-xl border border-slate-200 text-xs">
-            <Clock className="w-3.5 h-3.5 text-blue-600" />
-            <span>{formatTimer(secondsElapsed)}</span>
-          </div>
+          <LessonTimer />
 
           <button
             onClick={copyRoomLink}
@@ -1193,13 +1212,9 @@ export default function VideoRoom({
             <div className="flex-1 bg-slate-900 flex flex-col relative overflow-hidden">
               <div className="flex-1 flex items-center justify-center p-3">
                 <video
-                  ref={(el) => {
-                    if (el && screenStreamRef.current) {
-                      el.srcObject = screenStreamRef.current;
-                      el.play().catch(() => {});
-                    }
-                  }}
+                  ref={screenVideoRef}
                   autoPlay
+                  muted
                   playsInline
                   className="max-h-full max-w-full rounded-2xl shadow-xl object-contain bg-black"
                 />
