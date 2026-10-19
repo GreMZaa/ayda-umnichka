@@ -18,7 +18,6 @@ import {
   ArrowRight,
   ShieldCheck,
   AlertCircle,
-  LayoutGrid,
   ChevronDown,
   Phone,
   Sparkles,
@@ -36,9 +35,7 @@ export default function Navbar() {
   // Состояние модальных окон и выпадающих меню
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [catalogOpen, setCatalogOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const catalogRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   // Поля авторизации в модальном окне
@@ -59,12 +56,9 @@ export default function Navbar() {
   const isAdmin = pathname.startsWith("/admin");
   const isInsideCabinet = isParent || isStudent || isTeacher || isAdmin;
 
-  // Закрытие выпадающих меню по клику снаружи
+  // Закрытие выпадающего меню пользователя по клику снаружи
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (catalogRef.current && !catalogRef.current.contains(event.target as Node)) {
-        setCatalogOpen(false);
-      }
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
         setUserMenuOpen(false);
       }
@@ -202,61 +196,28 @@ export default function Navbar() {
     router.push("/");
   };
 
-  // Каталог курсов в стиле Фоксфорда
-  const catalogCategories = [
-    {
-      title: "1–4 классы",
-      subtitle: "Начальная школа и подготовка",
-      icon: "🎒",
-      href: "/#subjects",
-      items: ["Математика и логика", "Русский язык и каллиграфия", "Английский для детей", "Подготовка к школе"],
-    },
-    {
-      title: "5–8 классы",
-      subtitle: "Средняя школа и уверенные оценки",
-      icon: "📐",
-      href: "/#subjects",
-      items: ["Алгебра и геометрия", "Русский язык", "Английский язык", "Олимпиадная математика"],
-    },
-    {
-      title: "9–11 классы",
-      subtitle: "Подготовка к экзаменам",
-      icon: "🎯",
-      href: "/#subjects",
-      items: ["Подготовка к ОГЭ", "Подготовка к ЕГЭ", "Индивидуальный план поступления"],
-    },
-    {
-      title: "1:1 с репетитором",
-      subtitle: "Индивидуальные уроки онлайн",
-      icon: "✨",
-      href: "/#trial",
-      items: ["Персональный подбор педагога", "Удобное время занятий", "Встроенная интерактивная комната"],
-    },
-  ];
-
   return (
     <>
-      {/* 1. ВЕРХНИЙ ИНФО-БАР (Фоксфорд стиль: телефон + преимущества) */}
-      <div className="bg-slate-900 text-slate-300 text-[11px] sm:text-xs py-1.5 px-4 sm:px-6">
+      {/* 1. ВЕРХНИЙ ИНФО-БАР (Белый фон, телефон + преимущества) */}
+      <div className="bg-white border-b border-slate-100 text-slate-600 text-[11px] sm:text-xs py-1.5 px-4 sm:px-6">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <span className="flex items-center gap-1.5 text-emerald-400 font-medium">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="flex items-center gap-1.5 text-emerald-600 font-semibold">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               Онлайн-уроки с репетитором по всей России
             </span>
-            <span className="hidden md:inline text-slate-500">|</span>
-            <span className="hidden md:inline text-slate-400">
+            <span className="hidden md:inline text-slate-300">|</span>
+            <span className="hidden md:inline text-slate-500 font-medium">
               Первый пробный урок — бесплатно
             </span>
           </div>
           <div className="flex items-center gap-4">
             <a
-              href="tel:88003020412"
-              className="flex items-center gap-1.5 text-slate-300 hover:text-white font-semibold transition"
+              href="tel:+79954854667"
+              className="flex items-center gap-1.5 text-slate-700 hover:text-blue-600 font-bold transition"
             >
-              <Phone className="w-3.5 h-3.5 text-blue-400" />
-              <span>8 800 302-04-12</span>
-              <span className="hidden sm:inline text-slate-400 text-[10px] font-normal">(бесплатно по РФ)</span>
+              <Phone className="w-3.5 h-3.5 text-blue-600" />
+              <span>8 995 485 46 67</span>
             </a>
           </div>
         </div>
@@ -266,8 +227,8 @@ export default function Navbar() {
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/90 shadow-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 sm:h-[70px]">
-            {/* Левая группа: Логотип и Каталог */}
-            <div className="flex items-center gap-4 sm:gap-6">
+            {/* Левая группа: Логотип и Навигация */}
+            <div className="flex items-center gap-6 sm:gap-8">
               {/* Логотип Фоксфорд-стиль */}
               <Link href="/" className="flex items-center gap-2.5 group shrink-0">
                 <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/25 group-hover:scale-105 transition transform">
@@ -288,67 +249,10 @@ export default function Navbar() {
                 </div>
               </Link>
 
-              {/* Кнопка «Каталог» с выпадающим меню как в Foxford */}
-              <div className="relative hidden md:block" ref={catalogRef}>
-                <button
-                  type="button"
-                  onClick={() => setCatalogOpen(!catalogOpen)}
-                  className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer ${
-                    catalogOpen
-                      ? "bg-blue-600 text-white shadow-sm shadow-blue-500/20"
-                      : "bg-slate-100 hover:bg-slate-200/80 text-slate-800"
-                  }`}
-                >
-                  <LayoutGrid className="w-4 h-4" />
-                  <span>Каталог</span>
-                  <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${catalogOpen ? "rotate-180" : ""}`} />
-                </button>
-
-                {/* Выпадающее меню каталога */}
-                {catalogOpen && (
-                  <div className="absolute top-full left-0 mt-2 w-[520px] bg-white rounded-2xl shadow-2xl border border-slate-200 p-4 grid grid-cols-2 gap-3 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-                    {catalogCategories.map((cat, idx) => (
-                      <Link
-                        key={idx}
-                        href={cat.href}
-                        onClick={() => setCatalogOpen(false)}
-                        className="group p-3 rounded-xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50/50 transition flex flex-col justify-between"
-                      >
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-lg">{cat.icon}</span>
-                            <span className="font-bold text-sm text-slate-900 group-hover:text-blue-600 transition">
-                              {cat.title}
-                            </span>
-                          </div>
-                          <p className="text-xs text-slate-500 line-clamp-1 mb-2">
-                            {cat.subtitle}
-                          </p>
-                          <ul className="space-y-1">
-                            {cat.items.slice(0, 2).map((item, i) => (
-                              <li key={i} className="text-[11px] text-slate-600 flex items-center gap-1.5">
-                                <span className="w-1 h-1 rounded-full bg-blue-500" />
-                                <span>{item}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                        <span className="mt-3 text-[11px] font-bold text-blue-600 group-hover:underline flex items-center gap-1">
-                          Смотреть программы →
-                        </span>
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </div>
-
               {/* Навигационные ссылки */}
-              <nav className="hidden lg:flex items-center gap-5 text-xs sm:text-sm font-semibold text-slate-600">
+              <nav className="hidden lg:flex items-center gap-6 text-xs sm:text-sm font-semibold text-slate-600">
                 <Link href="/#trial" className="hover:text-blue-600 transition">
                   Пробный урок
-                </Link>
-                <Link href="/#reviews" className="hover:text-blue-600 transition">
-                  Отзывы
                 </Link>
                 <Link href="/#faq" className="hover:text-blue-600 transition">
                   Вопросы и ответы
@@ -516,11 +420,11 @@ export default function Navbar() {
 
             <div className="border-t border-slate-100 pt-3 space-y-2">
               <a
-                href="tel:88003020412"
+                href="tel:+79954854667"
                 className="flex items-center gap-2 p-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-50"
               >
                 <Phone className="w-4 h-4 text-blue-600" />
-                <span>8 800 302-04-12 (Бесплатно)</span>
+                <span>8 995 485 46 67</span>
               </a>
             </div>
           </div>
