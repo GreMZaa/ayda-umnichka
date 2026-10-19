@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -30,6 +30,12 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
+
+  useEffect(() => {
+    setPassword("");
+    setEmail("");
+    setFullName("");
+  }, [mode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -255,7 +261,7 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
             {/* Поле имени при регистрации */}
             {mode === "signup" && (
               <div>
@@ -267,6 +273,8 @@ export default function LoginPage() {
                   <input
                     type="text"
                     required
+                    name="reg_fullname"
+                    autoComplete="off"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     placeholder="Например: Анна Смирнова"
@@ -286,6 +294,8 @@ export default function LoginPage() {
                 <input
                   type="email"
                   required
+                  name="user_login_email"
+                  autoComplete="off"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Например: ivan@mail.ru"
@@ -316,6 +326,8 @@ export default function LoginPage() {
                   type={showPassword ? "text" : "password"}
                   required
                   minLength={6}
+                  name="user_login_password"
+                  autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Не менее 6 символов"

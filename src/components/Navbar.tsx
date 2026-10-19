@@ -284,7 +284,7 @@ export default function Navbar() {
             </div>
 
             {/* Форма ввода Email и Пароля */}
-            <form onSubmit={handleModalLogin} className="space-y-3.5">
+            <form onSubmit={handleModalLogin} className="space-y-3.5" autoComplete="off">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
                   Электронная почта (Email):
@@ -294,6 +294,8 @@ export default function Navbar() {
                   <input
                     type="email"
                     required
+                    name="modal_email"
+                    autoComplete="off"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="Например: ivan@mail.ru"
@@ -320,6 +322,8 @@ export default function Navbar() {
                   <input
                     type={showPassword ? "text" : "password"}
                     required
+                    name="modal_password"
+                    autoComplete="new-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Не менее 6 символов"
