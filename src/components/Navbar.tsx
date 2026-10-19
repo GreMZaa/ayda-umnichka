@@ -388,33 +388,63 @@ export default function Navbar() {
                   <button
                     type="button"
                     onClick={() => setUserMenuOpen(!userMenuOpen)}
-                    className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition active:scale-95 cursor-pointer shadow-xs"
+                    className="flex items-center gap-2 sm:gap-2.5 py-1.5 px-2 sm:px-3 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200/90 shadow-2xs hover:shadow-xs transition active:scale-98 cursor-pointer group text-left"
                     id="btn-cabinet-header"
+                    title={authProfile.name}
                   >
-                    <div className="w-6 h-6 rounded-lg bg-blue-600 text-white font-bold text-xs flex items-center justify-center shrink-0 overflow-hidden">
+                    {/* Аватар с градиентом или фото */}
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-extrabold text-xs flex items-center justify-center shrink-0 overflow-hidden ring-2 ring-blue-50 shadow-2xs">
                       {currentUserAvatar ? (
-                        <img src={currentUserAvatar} alt={authProfile.name} className="w-full h-full object-cover" />
+                        <img src={currentUserAvatar} alt="" className="w-full h-full object-cover" />
                       ) : (
                         authProfile.name.charAt(0).toUpperCase()
                       )}
                     </div>
-                    <span className="max-w-[80px] sm:max-w-none truncate">{authProfile.name}</span>
-                    <span className="hidden sm:inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-200/80 text-blue-800">
-                      {authProfile.role}
-                    </span>
-                    <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${userMenuOpen ? "rotate-180" : ""}`} />
+
+                    {/* Текстовый блок: Имя и роль в две аккуратные строки */}
+                    <div className="min-w-0 max-w-[110px] sm:max-w-[150px] leading-tight text-left">
+                      <div className="text-xs sm:text-sm font-extrabold text-slate-900 group-hover:text-blue-600 transition truncate">
+                        {authProfile.name}
+                      </div>
+                      <div className="text-[10px] font-semibold text-slate-500 truncate flex items-center gap-1 mt-0.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                        <span>{authProfile.role}</span>
+                      </div>
+                    </div>
+
+                    <ChevronDown className={`w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 transition-transform duration-200 shrink-0 ${userMenuOpen ? "rotate-180" : ""}`} />
                   </button>
 
                   {/* Меню профиля */}
                   {userMenuOpen && (
-                    <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-200 p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                    <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-slate-200/90 p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                      {/* Карточка профиля в шапке меню */}
+                      <div className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-50/80 border border-slate-100 mb-1.5">
+                        <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-extrabold text-sm flex items-center justify-center shrink-0 overflow-hidden ring-2 ring-white shadow-xs">
+                          {currentUserAvatar ? (
+                            <img src={currentUserAvatar} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            authProfile.name.charAt(0).toUpperCase()
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-extrabold text-xs text-slate-900 truncate">
+                            {authProfile.name}
+                          </div>
+                          <div className="text-[10px] font-bold text-blue-600 flex items-center gap-1 mt-0.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
+                            <span>{authProfile.role}</span>
+                          </div>
+                        </div>
+                      </div>
+
                       <Link
                         href={`/${authProfile.roleKey}`}
                         onClick={() => setUserMenuOpen(false)}
-                        className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-slate-800 hover:bg-blue-50 hover:text-blue-700 transition"
+                        className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-800 hover:bg-blue-50 hover:text-blue-700 transition"
                       >
-                        <User className="w-4 h-4 text-blue-600" />
-                        <span>Перейти в кабинет</span>
+                        <User className="w-4 h-4 text-blue-600 shrink-0" />
+                        <span>Перейти в личный кабинет</span>
                       </Link>
                       <button
                         type="button"
@@ -422,25 +452,26 @@ export default function Navbar() {
                           setUserMenuOpen(false);
                           setEditProfileModalOpen(true);
                         }}
-                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition cursor-pointer text-left"
+                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition cursor-pointer text-left"
                       >
-                        <Edit3 className="w-4 h-4 text-slate-500" />
+                        <Edit3 className="w-4 h-4 text-slate-500 shrink-0" />
                         <span>Редактировать профиль</span>
                       </button>
                       <Link
                         href={`/${authProfile.roleKey}`}
                         onClick={() => setUserMenuOpen(false)}
-                        className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+                        className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
                       >
-                        <Calendar className="w-4 h-4 text-slate-500" />
+                        <Calendar className="w-4 h-4 text-slate-500 shrink-0" />
                         <span>Моё расписание</span>
                       </Link>
                       <div className="my-1 border-t border-slate-100" />
                       <button
+                        type="button"
                         onClick={handleLogout}
-                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 transition cursor-pointer text-left"
+                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 transition cursor-pointer text-left"
                       >
-                        <LogOut className="w-4 h-4" />
+                        <LogOut className="w-4 h-4 shrink-0" />
                         <span>Выйти из аккаунта</span>
                       </button>
                     </div>
