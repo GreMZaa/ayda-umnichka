@@ -23,11 +23,54 @@ import {
   HelpCircle,
   ShieldCheck,
   User,
+  Plus,
+  Pencil,
+  Trash2,
+  ChevronLeft,
+  SlidersHorizontal,
+  LayoutGrid,
+  List,
+  X,
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, startOfWeek, addDays, isSameDay, addWeeks, subWeeks } from "date-fns";
 import { ru } from "date-fns/locale";
 import { getSupabase } from "@/lib/supabase";
 import { fetchWithAuth } from "@/lib/api-client";
+
+interface Child {
+  id: string;
+  name: string;
+  grade: string;
+  avatar: string;
+  balance: number;
+  stars: number;
+  nextLesson: string;
+  teacher: string;
+  subject: string;
+}
+
+const AVATAR_OPTIONS = [
+  "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&h=200&fit=crop&crop=faces",
+  "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&h=200&fit=crop&crop=faces",
+  "https://images.unsplash.com/photo-1588072432836-e10032774350?w=200&h=200&fit=crop&crop=faces",
+  "https://images.unsplash.com/photo-1544717305-2782549b5136?w=200&h=200&fit=crop&crop=faces",
+  "https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=200&h=200&fit=crop&crop=faces",
+];
+
+const GRADES = [
+  "Дошкольник",
+  "1 класс",
+  "2 класс",
+  "3 класс",
+  "4 класс",
+  "5 класс",
+  "6 класс",
+  "7 класс",
+  "8 класс",
+  "9 класс",
+  "10 класс",
+  "11 класс",
+];
 
 export default function ParentCabinet() {
   const [parentName, setParentName] = useState("Родитель");
@@ -48,28 +91,82 @@ export default function ParentCabinet() {
     }
   }, []);
 
-  const defaultChildren = [
+  const defaultChildren: Child[] = [
     {
       id: "00000000-0000-0000-0000-000000000003",
       name: "Артём Смирнов",
       grade: "3 класс",
-      avatar: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&h=200&fit=crop&crop=faces",
+      avatar: AVATAR_OPTIONS[0],
       balance: 8,
       stars: 28,
       nextLesson: "Сегодня, 15:00",
       teacher: "Анна Сергеевна Иванова",
       subject: "Математика и логика",
     },
+    {
+      id: "00000000-0000-0000-0000-000000000004",
+      name: "Алиса Смирнова",
+      grade: "1 класс",
+      avatar: AVATAR_OPTIONS[1],
+      balance: 6,
+      stars: 19,
+      nextLesson: "Завтра, 16:30",
+      teacher: "Елена Викторовна Смирнова",
+      subject: "Русский язык и чтение",
+    },
   ];
 
-  const [children, setChildren] = useState<any[]>(defaultChildren);
-  const [selectedChildId, setSelectedChildId] = useState(defaultChildren[0].id);
+  const [children, setChildren] = useState<Child[]>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("ayda_parent_children");
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    }
+    return defaultChildren;
+  });
+
+  const [selectedChildId, setSelectedChildId] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("ayda_parent_children");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed && parsed.length > 0) return parsed[0].id;
+        } catch (e) {}
+      }
+    }
+    return defaultChildren[0].id;
+  });
+
   const [activeTab, setActiveTab] = useState<"reports" | "schedule" | "billing">("reports");
   const [showTopupModal, setShowTopupModal] = useState(false);
   const [lessons, setLessons] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Загрузка реальных учеников из базы данных Supabase
+  // Состояние модального окна добавления / редактирования ребенка
+  const [childModalOpen, setChildModalOpen] = useState(false);
+  const [editingChild, setEditingChild] = useState<Child | null>(null);
+  const [childFormName, setChildFormName] = useState("");
+  const [childFormGrade, setChildFormGrade] = useState("3 класс");
+  const [childFormAvatar, setChildFormAvatar] = useState(AVATAR_OPTIONS[0]);
+
+  // Состояние Фоксфорд-календаря
+  const [calendarDate, setCalendarDate] = useState(new Date());
+  const [calendarViewMode, setCalendarViewMode] = useState<"calendar" | "list">("calendar");
+
+  // Сохранение детей в localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("ayda_parent_children", JSON.stringify(children));
+    }
+  }, [children]);
+
+  // Загрузка реальных учеников из Supabase
   useEffect(() => {
     const client = getSupabase();
     if (client) {
@@ -79,11 +176,11 @@ export default function ParentCabinet() {
         .eq("role", "STUDENT")
         .then(({ data }) => {
           if (data && data.length > 0) {
-            const mapped = data.map((d: any, index: number) => ({
+            const mapped: Child[] = data.map((d: any, index: number) => ({
               id: d.id,
               name: d.name,
               grade: d.bio || "3 класс",
-              avatar: d.avatar_url || "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&h=200&fit=crop&crop=faces",
+              avatar: d.avatar_url || AVATAR_OPTIONS[index % AVATAR_OPTIONS.length],
               balance: 6 + index * 2,
               stars: 25 + index * 4,
               nextLesson: "Сегодня, 15:00",
@@ -91,13 +188,15 @@ export default function ParentCabinet() {
               subject: "Математика и логика",
             }));
             setChildren(mapped);
-            setSelectedChildId(mapped[0].id);
+            if (!mapped.some((c) => c.id === selectedChildId)) {
+              setSelectedChildId(mapped[0].id);
+            }
           }
         });
     }
   }, []);
 
-  const selectedChild = children.find((c) => c.id === selectedChildId) || children[0];
+  const selectedChild = children.find((c) => c.id === selectedChildId) || children[0] || defaultChildren[0];
 
   useEffect(() => {
     setLoading(true);
@@ -119,9 +218,92 @@ export default function ParentCabinet() {
 
   const initial = parentName.charAt(0).toUpperCase();
 
+  // Открытие модалки добавления ребенка
+  const handleOpenAddChild = () => {
+    setEditingChild(null);
+    setChildFormName("");
+    setChildFormGrade("3 класс");
+    setChildFormAvatar(AVATAR_OPTIONS[0]);
+    setChildModalOpen(true);
+  };
+
+  // Открытие модалки редактирования ребенка
+  const handleOpenEditChild = (e: React.MouseEvent, child: Child) => {
+    e.stopPropagation();
+    setEditingChild(child);
+    setChildFormName(child.name);
+    setChildFormGrade(child.grade);
+    setChildFormAvatar(child.avatar);
+    setChildModalOpen(true);
+  };
+
+  // Удаление ребенка
+  const handleDeleteChild = (e: React.MouseEvent, childId: string) => {
+    e.stopPropagation();
+    if (children.length <= 1) {
+      alert("В кабинете должен оставаться как минимум один ребёнок.");
+      return;
+    }
+    const target = children.find((c) => c.id === childId);
+    if (!confirm(`Вы действительно хотите удалить профиль «${target?.name}»?`)) {
+      return;
+    }
+    const nextList = children.filter((c) => c.id !== childId);
+    setChildren(nextList);
+    if (selectedChildId === childId) {
+      setSelectedChildId(nextList[0].id);
+    }
+  };
+
+  // Сохранение ребенка (добавление или редактирование)
+  const handleSaveChild = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!childFormName.trim()) return;
+
+    if (editingChild) {
+      // Редактирование
+      const updated = children.map((c) =>
+        c.id === editingChild.id
+          ? {
+              ...c,
+              name: childFormName.trim(),
+              grade: childFormGrade,
+              avatar: childFormAvatar,
+            }
+          : c
+      );
+      setChildren(updated);
+    } else {
+      // Добавление нового
+      const newChild: Child = {
+        id: "child-" + Date.now(),
+        name: childFormName.trim(),
+        grade: childFormGrade,
+        avatar: childFormAvatar,
+        balance: 8,
+        stars: 10,
+        nextLesson: "Расписание формируется",
+        teacher: "Анна Сергеевна Иванова",
+        subject: "Математика и логика",
+      };
+      setChildren([...children, newChild]);
+      setSelectedChildId(newChild.id);
+    }
+
+    setChildModalOpen(false);
+  };
+
+  // Расчёт дней недели для Фоксфорд-календаря
+  const weekStart = startOfWeek(calendarDate, { weekStartsOn: 1 }); // Понедельник
+  const weekEnd = addDays(weekStart, 6); // Воскресенье
+  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+
+  // Временные слоты (с 10:00 до 18:00 как на фото Фоксфорда)
+  const timeSlots = ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00"];
+
   return (
     <div className="space-y-6 pb-20">
-      {/* 1. ШАПКА РОДИТЕЛЯ В СТИЛЕ FOXFORD */}
+      {/* 1. ШАПКА РОДИТЕЛЯ В СТИЛЕ FOXFORD (Без кнопки «Пополнить баланс» по требованию) */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-sm relative overflow-hidden">
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative z-10">
           <div className="flex items-center gap-4 sm:gap-5">
@@ -148,51 +330,50 @@ export default function ParentCabinet() {
                 <span>•</span>
                 <span>Детей на обучении: {children.length}</span>
                 <span>•</span>
-                <span className="font-bold text-slate-700">Баланс уроков: {selectedChild.balance}</span>
+                <span className="font-bold text-slate-700">Баланс уроков: {selectedChild?.balance || 0}</span>
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 w-full lg:w-auto">
-            <button
-              onClick={() => setShowTopupModal(true)}
-              className="flex-1 lg:flex-none inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm shadow-md shadow-blue-500/25 transition cursor-pointer active:scale-98"
-            >
-              <CreditCard className="w-4 h-4" />
-              <span>Пополнить баланс</span>
-            </button>
-
+          <div className="flex items-center gap-2.5 sm:gap-3 w-full lg:w-auto">
             <a
-              href="tel:88003020412"
-              className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200/80 text-slate-700 font-bold text-xs sm:text-sm transition border border-slate-200/80"
+              href="tel:+79954854667"
+              className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200/80 text-slate-700 font-bold text-xs sm:text-sm transition border border-slate-200/80 cursor-pointer"
               title="Связаться с куратором центра"
             >
               <PhoneCall className="w-4 h-4 text-slate-500" />
-              <span className="hidden sm:inline">Куратор центра</span>
+              <span>Куратор центра</span>
             </a>
           </div>
         </div>
       </div>
 
-      {/* 2. СЕЛЕКТОР ДЕТЕЙ (FAMILY HUB В СТИЛЕ ФОКСФОРДА) */}
+      {/* 2. СЕЛЕКТОР ДЕТЕЙ: ДОБАВЛЕНИЕ, РЕДАКТИРОВАНИЕ, УДАЛЕНИЕ */}
       <div className="space-y-3">
         <div className="flex items-center justify-between px-1">
-          <span className="text-xs font-extrabold uppercase tracking-wider text-slate-600">
-            Обучающиеся дети:
-          </span>
-          <span className="text-xs text-slate-500 font-medium">
-            Выберите ребёнка для отчетов и расписания
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-extrabold uppercase tracking-wider text-slate-600">
+              Обучающиеся дети ({children.length}):
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={handleOpenAddChild}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 font-bold text-xs transition cursor-pointer shadow-2xs active:scale-95"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Добавить ребёнка</span>
+          </button>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {children.map((child) => {
             const isSelected = child.id === selectedChildId;
             return (
-              <button
+              <div
                 key={child.id}
                 onClick={() => setSelectedChildId(child.id)}
-                className={`p-4 sm:p-5 rounded-3xl border text-left transition flex items-center justify-between gap-4 relative cursor-pointer ${
+                className={`p-4 sm:p-5 rounded-3xl border text-left transition flex items-center justify-between gap-4 relative cursor-pointer group ${
                   isSelected
                     ? "bg-white border-blue-600 shadow-md ring-2 ring-blue-500/10"
                     : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50"
@@ -217,16 +398,35 @@ export default function ParentCabinet() {
                   </div>
                 </div>
 
-                <div className="text-right shrink-0">
-                  <div className="text-xs font-black text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
-                    Остаток: {child.balance} уроков
+                <div className="flex flex-col items-end gap-2 shrink-0">
+                  <div className="flex items-center gap-1">
+                    {/* Кнопка Редактировать */}
+                    <button
+                      type="button"
+                      onClick={(e) => handleOpenEditChild(e, child)}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition cursor-pointer"
+                      title="Редактировать профиль ребёнка"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    {/* Кнопка Удалить */}
+                    <button
+                      type="button"
+                      onClick={(e) => handleDeleteChild(e, child.id)}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                      title="Удалить ребёнка"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
-                  <div className="text-[11px] text-amber-600 font-bold mt-1.5 flex items-center justify-end gap-1">
-                    <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
-                    <span>{child.stars} звёзд</span>
+
+                  <div className="text-right">
+                    <div className="text-xs font-black text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200">
+                      Остаток: {child.balance} ур.
+                    </div>
                   </div>
                 </div>
-              </button>
+              </div>
             );
           })}
         </div>
@@ -259,7 +459,7 @@ export default function ParentCabinet() {
         </div>
       )}
 
-      {/* 4. СЕКЦИИ И ТАБЫ РОДИТЕЛЯ В СТИЛЕ ФОКСФОРДА */}
+      {/* 4. СЕКЦИИ И ТАБЫ РОДИТЕЛЯ */}
       <div className="space-y-4">
         <div className="flex p-1.5 bg-slate-100 rounded-2xl max-w-lg gap-1">
           <button
@@ -377,50 +577,239 @@ export default function ParentCabinet() {
           </div>
         )}
 
-        {/* ВКЛАДКА 2: РАСПИСАНИЕ УРОКОВ */}
+        {/* ВКЛАДКА 2: РАСПИСАНИЕ-КАЛЕНДАРЬ КАК В ФОКСФОРДЕ (ПО ФОТО) */}
         {activeTab === "schedule" && (
           <div className="space-y-4">
-            {upcomingLessons.length === 0 ? (
-              <div className="bg-white rounded-3xl p-10 border border-slate-200 text-center text-slate-500 text-xs">
-                Все запланированные уроки завершены. Обратитесь к куратору для составления нового расписания.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {upcomingLessons.map((lesson) => (
-                  <div
-                    key={lesson.id}
-                    className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-3 hover:border-blue-300 transition"
+            {/* Панель управления календарем: фильтр + переключатель недель + режим */}
+            <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer"
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Настройки</span>
+                </button>
+
+                <div className="flex p-0.5 bg-slate-100 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setCalendarViewMode("calendar")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                      calendarViewMode === "calendar" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-500"
+                    }`}
                   >
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-blue-700 bg-blue-50 px-3 py-1 rounded-xl">
-                        {lesson.subjectName}
-                      </span>
-                      <span className="font-semibold text-slate-700 flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-xl">
-                        <Clock className="w-3.5 h-3.5 text-blue-600" />
-                        {format(new Date(lesson.startTime), "d MMMM, HH:mm", { locale: ru })}
-                      </span>
-                    </div>
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                    <span>Сетка</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCalendarViewMode("list")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                      calendarViewMode === "list" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-500"
+                    }`}
+                  >
+                    <List className="w-3.5 h-3.5" />
+                    <span>Списком</span>
+                  </button>
+                </div>
+              </div>
 
-                    <div>
-                      <h4 className="font-extrabold text-slate-900 text-base">{lesson.title}</h4>
-                      <p className="text-xs text-slate-500 mt-1">
-                        Преподаватель: <strong className="text-slate-800">{lesson.teacherName}</strong>
-                      </p>
-                    </div>
+              {/* Навигатор по неделям */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCalendarDate(subWeeks(calendarDate, 1))}
+                  className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition cursor-pointer"
+                  title="Предыдущая неделя"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
 
-                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                      <span className="text-[11px] text-slate-400">
-                        Ссылка активируется за 5 мин до урока
-                      </span>
-                      <button
-                        onClick={() => alert("Запрос на перенос урока отправлен куратору центра")}
-                        className="text-xs font-bold text-blue-600 hover:underline cursor-pointer"
-                      >
-                        Перенести урок
-                      </button>
-                    </div>
+                <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800">
+                  <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                  <span>
+                    {format(weekStart, "d")} – {format(weekEnd, "d MMMM yyyy", { locale: ru })}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setCalendarDate(addWeeks(calendarDate, 1))}
+                  className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition cursor-pointer"
+                  title="Следующая неделя"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setCalendarDate(new Date())}
+                  className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-blue-600 hover:bg-blue-50 transition cursor-pointer"
+                >
+                  Сегодня
+                </button>
+              </div>
+            </div>
+
+            {/* РЕЖИМ 1: ИНТЕРАКТИВНАЯ СЕТКА-КАЛЕНДАРЬ ФОКСФОРДА */}
+            {calendarViewMode === "calendar" && (
+              <div className="bg-white rounded-3xl border border-slate-200/90 shadow-xs overflow-hidden">
+                {/* Заголовки дней недели (7 колонок) */}
+                <div className="grid grid-cols-8 border-b border-slate-200 bg-slate-50/50 text-center">
+                  <div className="p-3 border-r border-slate-200 text-[11px] font-bold text-slate-400 flex items-center justify-center">
+                    МСК
                   </div>
-                ))}
+                  {weekDays.map((day, idx) => {
+                    const isToday = isSameDay(day, new Date());
+                    return (
+                      <div
+                        key={idx}
+                        className={`p-3 border-r border-slate-200 last:border-r-0 text-xs font-bold transition ${
+                          isToday ? "bg-blue-50/70" : ""
+                        }`}
+                      >
+                        <div
+                          className={`inline-block px-2.5 py-1 rounded-xl ${
+                            isToday ? "bg-blue-600 text-white shadow-xs" : "text-slate-700"
+                          }`}
+                        >
+                          <span>{format(day, "EE", { locale: ru })} · {format(day, "d MMM", { locale: ru })}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Сетка времени и уроков */}
+                <div className="relative divide-y divide-slate-100">
+                  {/* Красная линия текущего времени (как в Фоксфорде) */}
+                  <div
+                    className="absolute left-0 right-0 z-20 pointer-events-none flex items-center"
+                    style={{ top: "85px" }}
+                  >
+                    <div className="w-[12.5%] text-right pr-2">
+                      <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500 text-white">
+                        {format(new Date(), "HH:mm")}
+                      </span>
+                    </div>
+                    <div className="flex-1 h-[2px] bg-rose-500" />
+                  </div>
+
+                  {timeSlots.map((timeStr, slotIdx) => (
+                    <div key={slotIdx} className="grid grid-cols-8 min-h-[70px]">
+                      {/* Метка времени слева */}
+                      <div className="p-2 border-r border-slate-200/70 text-right pr-3 text-xs font-bold text-slate-400 select-none">
+                        {timeStr}
+                      </div>
+
+                      {/* 7 колонок для уроков */}
+                      {weekDays.map((day, dayIdx) => {
+                        const dayLessons = lessons.filter((l) => {
+                          const lDate = new Date(l.startTime);
+                          return isSameDay(lDate, day) && format(lDate, "HH:00") === timeStr;
+                        });
+
+                        return (
+                          <div
+                            key={dayIdx}
+                            className={`p-1.5 border-r border-slate-100 last:border-r-0 relative transition hover:bg-slate-50/40 ${
+                              isSameDay(day, new Date()) ? "bg-blue-50/20" : ""
+                            }`}
+                          >
+                            {dayLessons.map((l) => (
+                              <div
+                                key={l.id}
+                                className="p-2.5 rounded-xl bg-blue-600 text-white shadow-sm hover:shadow-md transition text-xs space-y-1"
+                              >
+                                <div className="font-bold leading-tight">{l.subjectName}</div>
+                                <div className="text-[10px] text-blue-100 line-clamp-1">{l.teacherName}</div>
+                                <div className="text-[10px] text-blue-200 flex items-center justify-between pt-1">
+                                  <span>{format(new Date(l.startTime), "HH:mm")}</span>
+                                  <Link
+                                    href={`/room/${l.roomName}`}
+                                    className="px-2 py-0.5 rounded bg-white text-blue-700 font-bold hover:bg-blue-50"
+                                  >
+                                    Войти
+                                  </Link>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Баннер в стиле Фоксфорда, если на неделе мало или нет уроков */}
+                {upcomingLessons.length === 0 && (
+                  <div className="p-10 text-center space-y-3 bg-gradient-to-b from-transparent to-slate-50/80 border-t border-slate-100">
+                    <div className="text-4xl">🦊</div>
+                    <h3 className="text-xl font-extrabold text-slate-900">
+                      В расписании на эту неделю пока ничего нет
+                    </h3>
+                    <p className="text-xs text-slate-500 max-w-md mx-auto">
+                      Самое время подобрать подходящий формат обучения и добавить индивидуальные уроки с репетитором
+                    </p>
+                    <Link
+                      href="/#trial"
+                      className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition"
+                    >
+                      <span>Подобрать занятия</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </Link>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* РЕЖИМ 2: СПИСКОМ */}
+            {calendarViewMode === "list" && (
+              <div className="space-y-3">
+                {upcomingLessons.length === 0 ? (
+                  <div className="bg-white rounded-3xl p-10 border border-slate-200 text-center text-slate-500 text-xs">
+                    Все запланированные уроки завершены.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {upcomingLessons.map((lesson) => (
+                      <div
+                        key={lesson.id}
+                        className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-3 hover:border-blue-300 transition"
+                      >
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-bold text-blue-700 bg-blue-50 px-3 py-1 rounded-xl">
+                            {lesson.subjectName}
+                          </span>
+                          <span className="font-semibold text-slate-700 flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-xl">
+                            <Clock className="w-3.5 h-3.5 text-blue-600" />
+                            {format(new Date(lesson.startTime), "d MMMM, HH:mm", { locale: ru })}
+                          </span>
+                        </div>
+
+                        <div>
+                          <h4 className="font-extrabold text-slate-900 text-base">{lesson.title}</h4>
+                          <p className="text-xs text-slate-500 mt-1">
+                            Преподаватель: <strong className="text-slate-800">{lesson.teacherName}</strong>
+                          </p>
+                        </div>
+
+                        <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                          <span className="text-[11px] text-slate-400">
+                            Ссылка активируется за 5 мин до урока
+                          </span>
+                          <button
+                            onClick={() => alert("Запрос на перенос урока отправлен куратору центра")}
+                            className="text-xs font-bold text-blue-600 hover:underline cursor-pointer"
+                          >
+                            Перенести урок
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -485,7 +874,101 @@ export default function ParentCabinet() {
         )}
       </div>
 
-      {/* МОДАЛЬНОЕ ОКНО ПОПОЛНЕНИЯ БАЛАНСА */}
+      {/* 5. МОДАЛЬНОЕ ОКНО ДОБАВЛЕНИЯ / РЕДАКТИРОВАНИЯ РЕБЁНКА */}
+      {childModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 space-y-5 shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <User className="w-5 h-5 text-blue-600" />
+                <h3 className="font-extrabold text-slate-900 text-base">
+                  {editingChild ? "Редактировать ребёнка" : "Добавить ребёнка"}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setChildModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveChild} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Имя и фамилия ребёнка:
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={childFormName}
+                  onChange={(e) => setChildFormName(e.target.value)}
+                  placeholder="Например: Артём Смирнов"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition placeholder:text-slate-400"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Класс обучения:
+                </label>
+                <select
+                  value={childFormGrade}
+                  onChange={(e) => setChildFormGrade(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition cursor-pointer"
+                >
+                  {GRADES.map((g, idx) => (
+                    <option key={idx} value={g}>
+                      {g}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-2">
+                  Выберите аватарку:
+                </label>
+                <div className="flex items-center gap-2.5">
+                  {AVATAR_OPTIONS.map((av, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setChildFormAvatar(av)}
+                      className={`relative rounded-2xl overflow-hidden border-2 transition cursor-pointer ${
+                        childFormAvatar === av
+                          ? "border-blue-600 ring-2 ring-blue-600/30 scale-105"
+                          : "border-slate-200 hover:border-slate-300 opacity-70 hover:opacity-100"
+                      }`}
+                    >
+                      <img src={av} alt="avatar" className="w-12 h-12 object-cover" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setChildModalOpen(false)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+                >
+                  Отмена
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 transition cursor-pointer"
+                >
+                  {editingChild ? "Сохранить изменения" : "Добавить"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 6. МОДАЛЬНОЕ ОКНО ПОПОЛНЕНИЯ БАЛАНСА */}
       {showTopupModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 space-y-4 shadow-2xl border border-slate-200">
