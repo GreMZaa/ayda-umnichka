@@ -37,7 +37,7 @@ export default function Navbar() {
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [authProfile, setAuthProfile] = useState<{ name: string; role: string } | null>(null);
+  const [authProfile, setAuthProfile] = useState<{ name: string; role: string; roleKey: string } | null>(null);
 
   const isRoom = pathname.startsWith("/room");
   const isLoginPage = pathname === "/login";
@@ -76,16 +76,38 @@ export default function Navbar() {
   useEffect(() => {
     const client = getSupabase();
     if (client) {
-      client.auth.getSession().then(({ data }) => {
-        if (data?.session?.user) {
-          const user = data.session.user;
+      const updateProfile = (user: any) => {
+        if (user) {
           const meta = user.user_metadata || {};
+          const rKey = (meta.role || "student").toLowerCase();
           setAuthProfile({
             name: meta.full_name || user.email?.split("@")[0] || defaultCabinetName,
-            role: meta.role === "parent" ? "Родитель" : meta.role === "teacher" ? "Преподаватель" : meta.role === "admin" ? "Управление" : "Ученик",
+            role:
+              rKey === "parent"
+                ? "Родитель"
+                : rKey === "teacher"
+                ? "Преподаватель"
+                : rKey === "admin"
+                ? "Управление"
+                : "Ученик",
+            roleKey: rKey,
           });
+        } else {
+          setAuthProfile(null);
         }
+      };
+
+      client.auth.getSession().then(({ data }) => {
+        updateProfile(data?.session?.user);
       });
+
+      const { data: authListener } = client.auth.onAuthStateChange((_event, session) => {
+        updateProfile(session?.user);
+      });
+
+      return () => {
+        authListener?.subscription?.unsubscribe();
+      };
     }
   }, [pathname]);
 
@@ -206,6 +228,28 @@ export default function Navbar() {
                   >
                     <LogOut className="w-3.5 h-3.5" />
                     <span>Выйти</span>
+                  </button>
+                </div>
+              ) : authProfile ? (
+                /* Пользователь авторизован, но перешёл на главную страницу: показываем кнопку перехода в его кабинет */
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <Link
+                    href={`/${authProfile.roleKey}`}
+                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-500/20 transition active:scale-95 cursor-pointer"
+                    id="btn-cabinet-header"
+                  >
+                    <User className="w-4 h-4" />
+                    <span>Личный кабинет ({authProfile.role})</span>
+                    <ArrowRight className="w-3.5 h-3.5 ml-0.5" />
+                  </Link>
+
+                  <button
+                    onClick={handleLogout}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 transition cursor-pointer"
+                    title="Выйти из аккаунта"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Выйти</span>
                   </button>
                 </div>
               ) : (
