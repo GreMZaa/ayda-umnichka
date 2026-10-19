@@ -2,6 +2,15 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // Автоматический редирект для путей с заглавными буквами (например, /ADMIN -> /admin)
+  if (pathname !== pathname.toLowerCase()) {
+    const url = request.nextUrl.clone();
+    url.pathname = pathname.toLowerCase();
+    return NextResponse.redirect(url, 308);
+  }
+
   const response = NextResponse.next();
 
   // 1. Установка защитных HTTP-заголовков (Hardening)
@@ -13,9 +22,6 @@ export function middleware(request: NextRequest) {
     "Permissions-Policy",
     "camera=(self), microphone=(self), display-capture=(self)"
   );
-
-  // 2. Безопасность: защитные заголовки для всех путей, доступ к админке защищен на странице /admin
-
 
   return response;
 }
