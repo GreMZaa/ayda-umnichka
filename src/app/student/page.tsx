@@ -223,17 +223,79 @@ export default function StudentCabinet() {
     };
     window.addEventListener("ayda:profile-updated", handleProfileUpdate);
 
-    // 3. Уроки из API (синхронизированы с Supabase)
-    fetchWithAuth("/api/lessons")
-      .then((res) => res.json())
-      .then((data) => {
-        setLessons(Array.isArray(data) ? data : []);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error(err);
-        setLoading(false);
-      });
+    // 3. Загрузка уроков ученика напрямую из Supabase с фоллбеком на API
+    const loadStudentLessons = async () => {
+      const client = getSupabase();
+      if (client) {
+        try {
+          const { data: sbLessons, error: sbErr } = await client
+            .from("lessons")
+            .select(`
+              id,
+              title,
+              start_time,
+              end_time,
+              status,
+              room_name,
+              subject_id,
+              teacher_id,
+              student_id,
+              subjects:subject_id (name, color),
+              teacher:teacher_id (name, avatar_url),
+              student:student_id (name, avatar_url)
+            `)
+            .order("start_time", { ascending: false });
+
+          if (!sbErr && sbLessons && sbLessons.length > 0) {
+            const mapped = sbLessons.map((l: any) => ({
+              id: l.id,
+              title: l.title,
+              subjectId: l.subject_id,
+              subjectName: l.subjects?.name || "Предмет",
+              subjectColor: l.subjects?.color || "#2563eb",
+              teacherId: l.teacher_id,
+              teacherName: l.teacher?.name || "Преподаватель",
+              teacherAvatar: l.teacher?.avatar_url,
+              studentId: l.student_id,
+              studentName: l.student?.name || "Ученик",
+              studentAvatar: l.student?.avatar_url,
+              startTime: l.start_time,
+              endTime: l.end_time,
+              status: l.status,
+              roomName: l.room_name,
+            }));
+            setLessons(mapped);
+            setLoading(false);
+            return;
+          }
+        } catch (e) {
+          console.error("Student supabase lessons load error:", e);
+        }
+      }
+
+      fetchWithAuth("/api/lessons")
+        .then((res) => res.json())
+        .then((data) => {
+          setLessons(Array.isArray(data) ? data : []);
+          setLoading(false);
+        })
+        .catch((err) => {
+          console.error(err);
+          setLoading(false);
+        });
+    };
+
+    loadStudentLessons();
+
+    const handleLessonsUpdate = () => {
+      loadStudentLessons();
+    };
+    window.addEventListener("ayda:lessons-updated", handleLessonsUpdate);
+
+    return () => {
+      window.removeEventListener("ayda:profile-updated", handleProfileUpdate);
+      window.removeEventListener("ayda:lessons-updated", handleLessonsUpdate);
+    };
   }, []);
 
   const liveLesson = lessons.find((l) => l.status === "LIVE");

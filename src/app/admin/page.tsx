@@ -305,6 +305,9 @@ export default function AdminPage() {
       showToast("Урок успешно запланирован!");
       setShowAddLessonModal(false);
       setLessonTitle("");
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("ayda:lessons-updated"));
+      }
       loadAllData();
     } catch (err: any) {
       console.error(err);
@@ -319,6 +322,9 @@ export default function AdminPage() {
       const { error } = await client.from("lessons").update({ status: newStatus }).eq("id", lessonId);
       if (error) throw error;
       showToast(`Статус урока изменен на: ${newStatus === "LIVE" ? "В эфире" : newStatus === "COMPLETED" ? "Завершен" : "Запланирован"}`);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("ayda:lessons-updated"));
+      }
       loadAllData();
     } catch (err: any) {
       showToast("Ошибка обновления урока", "error");
@@ -333,6 +339,9 @@ export default function AdminPage() {
       const { error } = await client.from("lessons").delete().eq("id", lessonId);
       if (error) throw error;
       showToast("Урок удален");
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("ayda:lessons-updated"));
+      }
       loadAllData();
     } catch (err: any) {
       showToast("Ошибка удаления урока", "error");

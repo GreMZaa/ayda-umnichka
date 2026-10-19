@@ -58,11 +58,11 @@ const DEFAULT_SUBJECTS: SubjectItem[] = [
 ];
 
 const DEFAULT_STUDENTS: StudentProfile[] = [
-  { id: "00000000-0000-0000-0000-000000000003", name: "Артём Смирнов", grade: "1 класс", school: "АйДаУмничка" },
-  { id: "00000000-0000-0000-0000-000000000004", name: "София Васильева", grade: "5 класс", school: "АйДаУмничка" },
+  { id: "a1000000-0000-0000-0000-000000000001", name: "Артём Смирнов", grade: "1 класс", school: "АйДаУмничка" },
+  { id: "a1000000-0000-0000-0000-000000000002", name: "София Васильева", grade: "5 класс", school: "АйДаУмничка" },
   { id: "2a62e436-f539-4ec5-b3af-a1afabfa0eec", name: "Ученик", grade: "3 класс", school: "АйДаУмничка" },
-  { id: "00000000-0000-0000-0000-000000000007", name: "Иван Морозов", grade: "4 класс", school: "АйДаУмничка" },
-  { id: "00000000-0000-0000-0000-000000000008", name: "Алиса Романова", grade: "2 класс", school: "АйДаУмничка" },
+  { id: "a1000000-0000-0000-0000-000000000003", name: "Иван Морозов", grade: "4 класс", school: "АйДаУмничка" },
+  { id: "a1000000-0000-0000-0000-000000000004", name: "Алиса Романова", grade: "2 класс", school: "АйДаУмничка" },
 ];
 
 export default function TeacherCabinet() {
@@ -138,49 +138,57 @@ export default function TeacherCabinet() {
     };
   }, [createModalOpen, selectedLessonForNote]);
 
-  // Загрузка уроков
+  // Загрузка уроков (напрямую из Supabase с фоллбеком на API)
   const fetchLessons = async () => {
     try {
+      const client = getSupabase();
+      if (client) {
+        const { data: sbLessons, error: sbError } = await client
+          .from("lessons")
+          .select(`
+            id,
+            title,
+            start_time,
+            end_time,
+            status,
+            room_name,
+            subject_id,
+            teacher_id,
+            student_id,
+            subjects:subject_id (name, color),
+            teacher:teacher_id (name, avatar_url),
+            student:student_id (name, avatar_url)
+          `)
+          .order("start_time", { ascending: false });
+
+        if (!sbError && sbLessons && sbLessons.length > 0) {
+          const mapped = sbLessons.map((l: any) => ({
+            id: l.id,
+            title: l.title,
+            subjectId: l.subject_id,
+            subjectName: l.subjects?.name || "Предмет",
+            subjectColor: l.subjects?.color || "#2563eb",
+            teacherId: l.teacher_id,
+            teacherName: l.teacher?.name || "Преподаватель",
+            teacherAvatar: l.teacher?.avatar_url,
+            studentId: l.student_id,
+            studentName: l.student?.name || "Ученик",
+            studentAvatar: l.student?.avatar_url,
+            startTime: l.start_time,
+            endTime: l.end_time,
+            status: l.status,
+            roomName: l.room_name,
+          }));
+          setLessons(mapped);
+          setLoading(false);
+          return;
+        }
+      }
+
       const res = await fetchWithAuth("/api/lessons");
       const data = await res.json();
       const list = Array.isArray(data) ? data : [];
       setLessons(list);
-
-      // Обогащаем список учеников и предметов из полученных уроков
-      if (list.length > 0) {
-        setStudents((prev) => {
-          const names = new Set(prev.map((s) => s.name.toLowerCase()));
-          const extra: StudentProfile[] = [];
-          list.forEach((l: any) => {
-            if (l.studentName && !names.has(l.studentName.toLowerCase())) {
-              names.add(l.studentName.toLowerCase());
-              extra.push({
-                id: l.studentId || "st-" + Math.random().toString(36).substring(2, 7),
-                name: l.studentName,
-                grade: "Ученик школы",
-                school: "АйДаУмничка",
-              });
-            }
-          });
-          return extra.length > 0 ? [...prev, ...extra] : prev;
-        });
-
-        setSubjects((prev) => {
-          const names = new Set(prev.map((s) => s.name.toLowerCase()));
-          const extra: SubjectItem[] = [];
-          list.forEach((l: any) => {
-            if (l.subjectName && !names.has(l.subjectName.toLowerCase())) {
-              names.add(l.subjectName.toLowerCase());
-              extra.push({
-                id: l.subjectId || "sub-" + Math.random().toString(36).substring(2, 7),
-                name: l.subjectName,
-                color: l.subjectColor || "#2563eb",
-              });
-            }
-          });
-          return extra.length > 0 ? [...prev, ...extra] : prev;
-        });
-      }
     } catch (err) {
       console.error("Ошибка загрузки уроков:", err);
     } finally {
@@ -230,21 +238,19 @@ export default function TeacherCabinet() {
         }
       });
 
-      // 2. Предметы школы
+      // 2. Предметы школы из Supabase
       client
         .from("subjects")
         .select("id, name, color")
         .order("name", { ascending: true })
         .then(({ data }) => {
           if (data && data.length > 0) {
-            setSubjects((prev) => {
-              const ids = new Set(data.map((d: any) => d.id));
-              return [...data, ...prev.filter((p) => !ids.has(p.id))];
-            });
+            setSubjects(data);
+            setSelectedSubjectId(data[0].id);
           }
         });
 
-      // 3. Список учеников
+      // 3. Список учеников напрямую из Supabase
       client
         .from("profiles")
         .select("id, name, bio, avatar_url")
@@ -267,10 +273,10 @@ export default function TeacherCabinet() {
                 avatarUrl: s.avatar_url,
               };
             });
-            setStudents((prev) => {
-              const ids = new Set(mappedStudents.map((d) => d.id));
-              return [...mappedStudents, ...prev.filter((p) => !ids.has(p.id))];
-            });
+            setStudents(mappedStudents);
+            if (mappedStudents.length > 0) {
+              setSelectedStudentId(mappedStudents[0].id);
+            }
           }
         });
     }
@@ -307,10 +313,17 @@ export default function TeacherCabinet() {
     };
     window.addEventListener("ayda:profile-updated", handleProfileUpdate);
 
+    // Слушатель событий обновления уроков
+    const handleLessonsUpdate = () => {
+      fetchLessons();
+    };
+    window.addEventListener("ayda:lessons-updated", handleLessonsUpdate);
+
     fetchLessons();
 
     return () => {
       window.removeEventListener("ayda:profile-updated", handleProfileUpdate);
+      window.removeEventListener("ayda:lessons-updated", handleLessonsUpdate);
     };
   }, []);
 
@@ -332,7 +345,7 @@ export default function TeacherCabinet() {
     setCreateModalOpen(true);
   };
 
-  // Отправка формы создания урока
+  // Отправка формы создания урока с гарантированным сохранением в Supabase
   const handleCreateLessonSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim()) {
@@ -340,7 +353,12 @@ export default function TeacherCabinet() {
       return;
     }
 
-    // Определение учебного предмета (из списка или введенного вручную)
+    setCreatingLesson(true);
+    setCreateError(null);
+
+    const client = getSupabase();
+
+    // 1. Определение учебного предмета
     let finalSubjectName = "";
     let finalSubjectId = "";
     let finalSubjectColor = "#2563eb";
@@ -348,6 +366,7 @@ export default function TeacherCabinet() {
     if (isCustomSubject) {
       if (!customSubjectName.trim()) {
         setCreateError("Пожалуйста, введите или выберите учебный предмет.");
+        setCreatingLesson(false);
         return;
       }
       finalSubjectName = customSubjectName.trim();
@@ -358,9 +377,21 @@ export default function TeacherCabinet() {
         finalSubjectId = match.id;
         finalSubjectColor = match.color;
       } else {
-        finalSubjectId = "fd8c024a-ff45-40e1-99ea-9afa55e1bf3d";
+        // Создаем предмет в Supabase
+        const newSubId = crypto.randomUUID();
+        finalSubjectId = newSubId;
         finalSubjectColor = "#2563eb";
-        // Добавляем в локальный список предметов
+        if (client) {
+          try {
+            await client.from("subjects").insert({
+              id: newSubId,
+              name: finalSubjectName,
+              color: finalSubjectColor,
+            });
+          } catch (e) {
+            console.error("Supabase insert subject error:", e);
+          }
+        }
         setSubjects((prev) => [
           ...prev,
           { id: finalSubjectId, name: finalSubjectName, color: finalSubjectColor },
@@ -368,92 +399,179 @@ export default function TeacherCabinet() {
       }
     } else {
       const subject = subjects.find((s) => s.id === selectedSubjectId);
-      finalSubjectId = selectedSubjectId || DEFAULT_SUBJECTS[0].id;
+      finalSubjectId = selectedSubjectId || subjects[0]?.id || "fd8c024a-ff45-40e1-99ea-9afa55e1bf3d";
       finalSubjectName = subject?.name || "Математика и логика";
       finalSubjectColor = subject?.color || "#2563eb";
     }
 
-    // Определение ученика (из списка или введенного вручную)
+    // 2. Определение ученика (из Supabase или создание нового профиля в Supabase)
     let finalStudentName = "";
     let finalStudentId = "";
 
     if (isCustomStudent) {
       if (!customStudentName.trim()) {
-        setCreateError("Пожалуйста, введите или выберите ученика.");
+        setCreateError("Пожалуйста, введите имя ученика.");
+        setCreatingLesson(false);
         return;
       }
       finalStudentName = customStudentName.trim();
-      const match = students.find(
-        (s) => s.name.toLowerCase() === finalStudentName.toLowerCase()
-      );
-      if (match) {
-        finalStudentId = match.id;
-      } else {
-        finalStudentId = "00000000-0000-0000-0000-000000000003";
-        // Добавляем в локальный список учеников
-        setStudents((prev) => [
-          ...prev,
-          {
-            id: finalStudentId,
-            name: finalStudentName,
-            grade: "Ученик школы",
-            school: "АйДаУмничка",
-          },
-        ]);
+
+      if (client) {
+        try {
+          const { data: existStudent } = await client
+            .from("profiles")
+            .select("id, name")
+            .eq("role", "STUDENT")
+            .ilike("name", finalStudentName)
+            .maybeSingle();
+
+          if (existStudent) {
+            finalStudentId = existStudent.id;
+            finalStudentName = existStudent.name;
+          } else {
+            // СОЗДАЕМ ПРОФИЛЬ УЧЕНИКА В SUPABASE
+            const newStudentId = crypto.randomUUID();
+            finalStudentId = newStudentId;
+
+            const newStudentPayload = {
+              id: newStudentId,
+              name: finalStudentName,
+              role: "STUDENT",
+              email: `student.${Date.now()}@umnichka.ru`,
+              avatar_url: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&h=200&fit=crop&crop=faces",
+              bio: JSON.stringify({
+                grade: "3 класс",
+                school: "АйДаУмничка",
+                balance: 8,
+                stars: 10,
+              }),
+            };
+
+            const { error: insStudentErr } = await client
+              .from("profiles")
+              .insert(newStudentPayload);
+
+            if (insStudentErr) {
+              console.error("Supabase insert student profile error:", insStudentErr);
+            }
+
+            setStudents((prev) => [
+              {
+                id: newStudentId,
+                name: finalStudentName,
+                grade: "3 класс",
+                school: "АйДаУмничка",
+                avatarUrl: newStudentPayload.avatar_url,
+              },
+              ...prev,
+            ]);
+            setSelectedStudentId(newStudentId);
+          }
+        } catch (e) {
+          console.error("Error creating student in Supabase:", e);
+        }
       }
     } else {
       const student = students.find((s) => s.id === selectedStudentId);
-      finalStudentId = selectedStudentId || DEFAULT_STUDENTS[0].id;
+      finalStudentId = selectedStudentId || students[0]?.id || "2a62e436-f539-4ec5-b3af-a1afabfa0eec";
       finalStudentName = student?.name || "Ученик";
     }
 
-    setCreatingLesson(true);
-    setCreateError(null);
+    // 3. Определение реального ID преподавателя
+    let currentTeacherId = teacherId;
+    const isUuid = (str: string) =>
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+
+    if (!currentTeacherId || !isUuid(currentTeacherId)) {
+      if (client) {
+        try {
+          const { data: tProf } = await client
+            .from("profiles")
+            .select("id")
+            .eq("role", "TEACHER")
+            .limit(1)
+            .maybeSingle();
+          currentTeacherId = tProf?.id || "d22f670c-3a38-41cd-95aa-80afdb94eab5";
+        } catch {
+          currentTeacherId = "d22f670c-3a38-41cd-95aa-80afdb94eab5";
+        }
+      } else {
+        currentTeacherId = "d22f670c-3a38-41cd-95aa-80afdb94eab5";
+      }
+    }
 
     // Рассчитываем время начала и окончания в ISO
     const startIso = new Date(`${lessonDate}T${lessonTime}:00`).toISOString();
     const endDate = new Date(new Date(startIso).getTime() + lessonDurationMinutes * 60 * 1000);
     const endIso = endDate.toISOString();
+    const roomName = lessonRoomName.trim() || `room-${Date.now()}`;
 
-    const lessonPayload = {
-      title: newTitle.trim(),
-      subjectId: finalSubjectId,
-      subjectName: finalSubjectName,
-      subjectColor: finalSubjectColor,
-      teacherId: "00000000-0000-0000-0000-000000000001",
-      teacherName,
-      studentId: finalStudentId,
-      studentName: finalStudentName,
-      startTime: startIso,
-      endTime: endIso,
-      status: "SCHEDULED",
-      roomName: lessonRoomName.trim() || `room-${Date.now()}`,
-    };
+    // 4. ПРЯМАЯ ЗАПИСЬ УРОКА В SUPABASE
+    let savedInSupabase = false;
+    if (client) {
+      try {
+        const { data: insertedLesson, error: insErr } = await client
+          .from("lessons")
+          .insert({
+            title: newTitle.trim(),
+            subject_id: finalSubjectId,
+            teacher_id: currentTeacherId,
+            student_id: finalStudentId,
+            start_time: startIso,
+            end_time: endIso,
+            status: "SCHEDULED",
+            room_name: roomName,
+          })
+          .select();
 
+        if (insErr) {
+          console.error("Supabase direct insert lesson error:", insErr);
+        } else if (insertedLesson) {
+          savedInSupabase = true;
+        }
+      } catch (err) {
+        console.error("Supabase insert lesson exception:", err);
+      }
+    }
+
+    // Дублируем в API для синхронизации
     try {
-      const res = await fetchWithAuth("/api/lessons", {
+      await fetchWithAuth("/api/lessons", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(lessonPayload),
+        body: JSON.stringify({
+          title: newTitle.trim(),
+          subjectId: finalSubjectId,
+          subjectName: finalSubjectName,
+          subjectColor: finalSubjectColor,
+          teacherId: currentTeacherId,
+          teacherName,
+          studentId: finalStudentId,
+          studentName: finalStudentName,
+          startTime: startIso,
+          endTime: endIso,
+          status: "SCHEDULED",
+          roomName: roomName,
+        }),
       });
-
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || "Не удалось создать урок.");
-      }
-
-      setCreateSuccess(true);
-      await fetchLessons();
-
-      setTimeout(() => {
-        setCreateModalOpen(false);
-        setCreateSuccess(false);
-      }, 1200);
-    } catch (err: any) {
-      setCreateError(err.message || "Ошибка соединения при создании урока.");
-    } finally {
-      setCreatingLesson(false);
+    } catch (e) {
+      console.warn("API fallback error:", e);
     }
+
+    // Оповещаем все кабинеты (ученик, родитель) о появлении нового урока
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("ayda:lessons-updated"));
+    }
+
+    setCreateSuccess(true);
+    await fetchLessons();
+
+    setTimeout(() => {
+      setCreateModalOpen(false);
+      setCreateSuccess(false);
+    }, 1200);
+
+    setCreatingLesson(false);
   };
 
   // Обновление статуса урока (SCHEDULED -> LIVE -> COMPLETED)

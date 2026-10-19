@@ -20,10 +20,12 @@ export async function GET(request: Request) {
   const auth = await authenticateRequest(request);
   const { searchParams } = new URL(request.url);
   const statusFilter = (searchParams.get("status") as any) || undefined;
+  const isUuid = (str: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
   
   const user = auth.user || {
-    id: "00000000-0000-0000-0000-000000000001",
-    email: "demo-teacher@ayda-umnichka.ru",
+    id: "d22f670c-3a38-41cd-95aa-80afdb94eab5",
+    email: "teacher@ayda-umnichka.ru",
     role: (searchParams.get("role") as any) || "teacher",
     name: "Анна Сергеевна Иванова",
   };
@@ -56,20 +58,20 @@ export async function GET(request: Request) {
       if (statusFilter) {
         query = query.eq("status", statusFilter);
       }
-      if (studentIdParam) {
+      if (studentIdParam && isUuid(studentIdParam)) {
         query = query.eq("student_id", studentIdParam);
-      } else if (user.role === "student") {
-        query = query.eq("student_id", user.id);
+      } else if (auth.user && auth.user.role === "student" && isUuid(auth.user.id)) {
+        query = query.eq("student_id", auth.user.id);
       }
 
-      if (teacherIdParam) {
+      if (teacherIdParam && isUuid(teacherIdParam)) {
         query = query.eq("teacher_id", teacherIdParam);
-      } else if (user.role === "teacher") {
-        query = query.eq("teacher_id", user.id);
+      } else if (auth.user && auth.user.role === "teacher" && isUuid(auth.user.id)) {
+        query = query.eq("teacher_id", auth.user.id);
       }
 
-      const { data: sbLessons } = await query;
-      if (sbLessons && sbLessons.length > 0) {
+      const { data: sbLessons, error: sbError } = await query;
+      if (!sbError && sbLessons) {
         const mappedLessons = sbLessons.map((l: any) => ({
           id: l.id,
           title: l.title,
@@ -130,7 +132,7 @@ export async function POST(request: Request) {
   // 2. Серверная аутентификация с поддержкой демо-режима
   const auth = await authenticateRequest(request);
   const user = auth.user || {
-    id: "00000000-0000-0000-0000-000000000001",
+    id: "d22f670c-3a38-41cd-95aa-80afdb94eab5",
     email: "teacher@ayda-umnichka.ru",
     role: "teacher",
     name: "Анна Сергеевна Иванова",
@@ -163,31 +165,77 @@ export async function POST(request: Request) {
     }
 
     const lessonData = validation.data;
-
-    // 5. Защита от подмены преподавателя
-    if (user.role === "teacher" && !lessonData.teacherId) {
-      lessonData.teacherId = user.id;
-      if (user.name) lessonData.teacherName = user.name;
-    }
+    const isUuid = (str: string) =>
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 
     // Сохранение в Supabase
     const client = getSupabase();
     if (client) {
       try {
-        const isUuid = (str: string) =>
-          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+        // Разрешение ID преподавателя в Supabase
+        let teacherIdToSave = isUuid(lessonData.teacherId) ? lessonData.teacherId : null;
+        if (!teacherIdToSave) {
+          const { data: tProf } = await client.from("profiles").select("id").eq("role", "TEACHER").limit(1).maybeSingle();
+          teacherIdToSave = tProf?.id || "d22f670c-3a38-41cd-95aa-80afdb94eab5";
+        }
 
-        const subjectIdToSave = isUuid(lessonData.subjectId)
-          ? lessonData.subjectId
-          : "fd8c024a-ff45-40e1-99ea-9afa55e1bf3d";
+        // Разрешение или автоматическое создание профиля ученика в Supabase
+        let studentIdToSave = isUuid(lessonData.studentId) ? lessonData.studentId : null;
+        if (!studentIdToSave) {
+          if (lessonData.studentName) {
+            const { data: sProf } = await client
+              .from("profiles")
+              .select("id")
+              .eq("role", "STUDENT")
+              .ilike("name", lessonData.studentName.trim())
+              .maybeSingle();
 
-        const studentIdToSave = isUuid(lessonData.studentId)
-          ? lessonData.studentId
-          : "00000000-0000-0000-0000-000000000003";
+            if (sProf) {
+              studentIdToSave = sProf.id;
+            } else {
+              // Создаем профиль нового ученика в Supabase
+              const newStId = crypto.randomUUID();
+              await client.from("profiles").insert({
+                id: newStId,
+                name: lessonData.studentName.trim(),
+                role: "STUDENT",
+                email: `student.${Date.now()}@umnichka.ru`,
+                avatar_url: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&h=200&fit=crop&crop=faces",
+                bio: JSON.stringify({ grade: "3 класс", school: "АйДаУмничка", balance: 8, stars: 10 }),
+              });
+              studentIdToSave = newStId;
+            }
+          } else {
+            const { data: sProf } = await client.from("profiles").select("id").eq("role", "STUDENT").limit(1).maybeSingle();
+            studentIdToSave = sProf?.id || "2a62e436-f539-4ec5-b3af-a1afabfa0eec";
+          }
+        }
 
-        const teacherIdToSave = isUuid(lessonData.teacherId)
-          ? lessonData.teacherId
-          : "00000000-0000-0000-0000-000000000001";
+        // Разрешение или создание учебного предмета в Supabase
+        let subjectIdToSave = isUuid(lessonData.subjectId) ? lessonData.subjectId : null;
+        if (!subjectIdToSave) {
+          if (lessonData.subjectName) {
+            const { data: sSub } = await client
+              .from("subjects")
+              .select("id")
+              .ilike("name", lessonData.subjectName.trim())
+              .maybeSingle();
+
+            if (sSub) {
+              subjectIdToSave = sSub.id;
+            } else {
+              const newSubId = crypto.randomUUID();
+              await client.from("subjects").insert({
+                id: newSubId,
+                name: lessonData.subjectName.trim(),
+                color: lessonData.subjectColor || "#2563eb",
+              });
+              subjectIdToSave = newSubId;
+            }
+          } else {
+            subjectIdToSave = "fd8c024a-ff45-40e1-99ea-9afa55e1bf3d";
+          }
+        }
 
         const { data: created, error } = await client
           .from("lessons")
@@ -239,10 +287,10 @@ export async function POST(request: Request) {
             { status: 201 }
           );
         } else if (error) {
-          console.error("Supabase insert lesson error:", error);
+          console.error("Supabase insert lesson error in API:", error);
         }
       } catch (sbErr) {
-        console.error("Supabase create lesson exception:", sbErr);
+        console.error("Supabase insert exception in API:", sbErr);
       }
     }
 
