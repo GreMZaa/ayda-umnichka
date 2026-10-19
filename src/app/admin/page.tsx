@@ -30,10 +30,12 @@ import {
   Inbox,
   Check,
   X,
+  Edit3,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { getSupabase } from "@/lib/supabase";
+import EditProfileModal from "@/components/EditProfileModal";
 
 export default function AdminPage() {
   // Авторизация администратора через Supabase
@@ -43,6 +45,14 @@ export default function AdminPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [authError, setAuthError] = useState("");
   const [authChecking, setAuthChecking] = useState(true);
+
+  // Профиль администратора
+  const [adminId, setAdminId] = useState("");
+  const [adminName, setAdminName] = useState("Администратор");
+  const [adminAvatar, setAdminAvatar] = useState("");
+  const [adminPhone, setAdminPhone] = useState("");
+  const [adminBio, setAdminBio] = useState("");
+  const [editProfileModalOpen, setEditProfileModalOpen] = useState(false);
 
   // Навигация по вкладкам
   const [activeTab, setActiveTab] = useState<
@@ -100,13 +110,31 @@ export default function AdminPage() {
   const [leadSubject, setLeadSubject] = useState("Математика и логика");
   const [leadNotes, setLeadNotes] = useState("");
 
-  // Проверка сессии в Supabase Auth
+  // Проверка сессии в Supabase Auth и загрузка профиля администратора
   useEffect(() => {
     const client = getSupabase();
     if (client) {
-      client.auth.getSession().then(({ data }) => {
+      client.auth.getSession().then(async ({ data }) => {
         if (data?.session?.user) {
           setIsAuthenticated(true);
+          const user = data.session.user;
+          setAdminId(user.id);
+          if (user.email) setAdminEmail(user.email);
+          const meta = user.user_metadata || {};
+          if (meta.full_name) setAdminName(meta.full_name);
+          if (meta.avatar_url) setAdminAvatar(meta.avatar_url);
+
+          try {
+            const { data: prof } = await client.from("profiles").select("*").eq("id", user.id).maybeSingle();
+            if (prof) {
+              if (prof.name) setAdminName(prof.name);
+              if (prof.avatar_url) setAdminAvatar(prof.avatar_url);
+              if (prof.phone) setAdminPhone(prof.phone);
+              if (prof.bio) setAdminBio(prof.bio);
+            }
+          } catch (err) {
+            console.error("Supabase load admin profile error:", err);
+          }
         } else if (localStorage.getItem("umnichka_admin_auth") === "true") {
           setIsAuthenticated(true);
         }
@@ -115,6 +143,18 @@ export default function AdminPage() {
     } else {
       setAuthChecking(false);
     }
+
+    const handleProfileUpdated = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (!detail) return;
+      if (detail.name) setAdminName(detail.name);
+      if (detail.avatarUrl !== undefined) setAdminAvatar(detail.avatarUrl);
+      if (detail.phone !== undefined) setAdminPhone(detail.phone);
+      if (detail.bio !== undefined) setAdminBio(detail.bio);
+    };
+
+    window.addEventListener("ayda:profile-updated", handleProfileUpdated);
+    return () => window.removeEventListener("ayda:profile-updated", handleProfileUpdated);
   }, []);
 
   const showToast = (text: string, type: "success" | "error" = "success") => {
@@ -649,25 +689,42 @@ export default function AdminPage() {
       {/* Верхняя шапка админ-панели */}
       <div className="clean-card p-5 sm:p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-sm shadow-blue-600/30">
-            <ShieldCheck className="w-6 h-6" />
-          </div>
+          {adminAvatar ? (
+            <img
+              src={adminAvatar}
+              alt={adminName}
+              className="w-12 h-12 rounded-xl object-cover ring-2 ring-blue-500/30 border border-slate-200 shadow-sm"
+            />
+          ) : (
+            <div className="w-12 h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-sm shadow-blue-600/30 font-black text-lg">
+              {adminName.slice(0, 1).toUpperCase() || <ShieldCheck className="w-6 h-6" />}
+            </div>
+          )}
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight">
-                Панель управления центром
+                {adminName}
               </h1>
               <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-                Онлайн
+                Администратор
               </span>
             </div>
             <p className="text-xs text-slate-500">
-              «АйДаУмничка» • Синхронизация с базой данных в реальном времени
+              «АйДаУмничка» • {adminEmail} • Синхронизация в реальном времени
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 w-full md:w-auto justify-end">
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
+          <button
+            onClick={() => setEditProfileModalOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition cursor-pointer shadow-2xs active:scale-95"
+            title="Редактировать профиль и заменить фото"
+          >
+            <Edit3 className="w-3.5 h-3.5" />
+            <span>Редактировать профиль</span>
+          </button>
+
           <button
             onClick={loadAllData}
             disabled={loading}
@@ -1884,6 +1941,21 @@ export default function AdminPage() {
           </div>
         </div>
       )}
+
+      {/* Модальное окно редактирования профиля администратора */}
+      <EditProfileModal
+        isOpen={editProfileModalOpen}
+        onClose={() => setEditProfileModalOpen(false)}
+        defaultRole="ADMIN"
+        initialData={{
+          id: adminId,
+          name: adminName,
+          email: adminEmail,
+          phone: adminPhone,
+          avatarUrl: adminAvatar,
+          bio: adminBio,
+        }}
+      />
     </div>
   );
 }

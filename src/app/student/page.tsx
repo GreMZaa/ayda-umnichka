@@ -24,12 +24,14 @@ import {
   X,
   ChevronRight,
   AlertCircle,
+  Edit3,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { getSupabase } from "@/lib/supabase";
 import { fetchWithAuth } from "@/lib/api-client";
 import ScheduleCalendar from "@/components/ScheduleCalendar";
+import EditProfileModal from "@/components/EditProfileModal";
 
 interface HomeworkItem {
   id: string;
@@ -48,10 +50,15 @@ interface HomeworkItem {
 }
 
 export default function StudentCabinet() {
+  const [studentId, setStudentId] = useState("");
   const [studentName, setStudentName] = useState("Ученик");
+  const [avatarUrl, setAvatarUrl] = useState("");
   const [grade, setGrade] = useState("3 класс");
+  const [school, setSchool] = useState("Онлайн-школа «АйДаУмничка»");
+  const [bio, setBio] = useState("");
   const [balance, setBalance] = useState(8);
   const [stars, setStars] = useState(28);
+  const [editProfileModalOpen, setEditProfileModalOpen] = useState(false);
   const [lessons, setLessons] = useState<any[]>([]);
   const [schoolSubjects, setSchoolSubjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -157,7 +164,9 @@ export default function StudentCabinet() {
         .then(({ data }) => {
           if (data && data.length > 0) {
             const profile = data[0];
+            setStudentId(profile.id);
             setStudentName(profile.name || "Ученик");
+            if (profile.avatar_url) setAvatarUrl(profile.avatar_url);
 
             let parsedBio: any = {};
             try {
@@ -169,6 +178,8 @@ export default function StudentCabinet() {
             } catch (e) {}
 
             if (parsedBio.grade) setGrade(parsedBio.grade);
+            if (parsedBio.school) setSchool(parsedBio.school);
+            if (parsedBio.bio) setBio(parsedBio.bio);
             if (typeof parsedBio.balance === "number") setBalance(parsedBio.balance);
             if (typeof parsedBio.stars === "number") setStars(parsedBio.stars);
           }
@@ -185,6 +196,32 @@ export default function StudentCabinet() {
           }
         });
     }
+
+    // Читаем локально сохраненный профиль
+    try {
+      const saved = localStorage.getItem("ayda_profile_student") || localStorage.getItem("ayda_current_user_profile");
+      if (saved) {
+        const p = JSON.parse(saved);
+        if (p.name) setStudentName(p.name);
+        if (p.avatarUrl) setAvatarUrl(p.avatarUrl);
+        if (p.grade) setGrade(p.grade);
+        if (p.school) setSchool(p.school);
+        if (p.bio) setBio(p.bio);
+      }
+    } catch (e) {}
+
+    // Слушатель глобального обновления профиля
+    const handleProfileUpdate = (e: any) => {
+      const p = e.detail;
+      if (p && (p.role === "STUDENT" || !p.role)) {
+        if (p.name) setStudentName(p.name);
+        if (p.avatarUrl !== undefined) setAvatarUrl(p.avatarUrl);
+        if (p.grade) setGrade(p.grade);
+        if (p.school) setSchool(p.school);
+        if (p.bio) setBio(p.bio);
+      }
+    };
+    window.addEventListener("ayda:profile-updated", handleProfileUpdate);
 
     // 3. Уроки из API (синхронизированы с Supabase)
     fetchWithAuth("/api/lessons")
@@ -326,13 +363,22 @@ export default function StudentCabinet() {
 
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative z-10">
           <div className="flex items-center gap-4 sm:gap-5">
-            <div className="relative">
-              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-black text-2xl sm:text-3xl flex items-center justify-center shadow-lg shadow-blue-500/25 ring-4 ring-blue-50">
-                {initial || <User className="w-8 h-8" />}
+            <div className="relative group">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-black text-2xl sm:text-3xl flex items-center justify-center shadow-lg shadow-blue-500/25 ring-4 ring-blue-50 overflow-hidden">
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt={studentName} className="w-full h-full object-cover" />
+                ) : (
+                  initial || <User className="w-8 h-8" />
+                )}
               </div>
-              <span className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-amber-400 border-2 border-white flex items-center justify-center text-xs shadow-xs" title="Звёздный ученик">
-                ⭐
-              </span>
+              <button
+                type="button"
+                onClick={() => setEditProfileModalOpen(true)}
+                className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-blue-600 hover:bg-blue-700 text-white border-2 border-white flex items-center justify-center text-xs shadow-xs cursor-pointer transition active:scale-95"
+                title="Сменить фото / редактировать профиль"
+              >
+                <Edit3 className="w-3 h-3" />
+              </button>
             </div>
 
             <div>
@@ -343,9 +389,18 @@ export default function StudentCabinet() {
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800">
                   {grade}
                 </span>
+                <button
+                  type="button"
+                  onClick={() => setEditProfileModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 text-xs font-bold transition border border-slate-200 hover:border-blue-200 cursor-pointer shadow-2xs active:scale-95"
+                  title="Редактировать профиль и сменить фото"
+                >
+                  <Edit3 className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Редактировать</span>
+                </button>
               </div>
               <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                Твой персональный образовательный трек в онлайн-школе «АйДаУмничка»
+                {school || "Онлайн-школа «АйДаУмничка»"} {bio ? `• ${bio}` : "• Персональный образовательный трек"}
               </p>
             </div>
           </div>
@@ -846,6 +901,29 @@ export default function StudentCabinet() {
         </div>,
         document.body
       )}
+
+      {/* Модальное окно редактирования профиля ученика */}
+      <EditProfileModal
+        isOpen={editProfileModalOpen}
+        onClose={() => setEditProfileModalOpen(false)}
+        defaultRole="STUDENT"
+        initialProfile={{
+          id: studentId,
+          name: studentName,
+          avatarUrl,
+          grade,
+          school,
+          bio,
+          role: "STUDENT",
+        }}
+        onProfileUpdated={(upd) => {
+          if (upd.name) setStudentName(upd.name);
+          if (upd.avatarUrl !== undefined) setAvatarUrl(upd.avatarUrl);
+          if (upd.grade) setGrade(upd.grade);
+          if (upd.school) setSchool(upd.school);
+          if (upd.bio) setBio(upd.bio);
+        }}
+      />
     </div>
   );
 }

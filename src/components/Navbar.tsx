@@ -27,8 +27,10 @@ import {
   Award,
   HelpCircle,
   Smartphone,
+  Edit3,
 } from "lucide-react";
 import { getSupabase } from "@/lib/supabase";
+import EditProfileModal from "@/components/EditProfileModal";
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -36,6 +38,8 @@ export default function Navbar() {
 
   // Состояние модальных окон и выпадающих меню
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [editProfileModalOpen, setEditProfileModalOpen] = useState(false);
+  const [currentUserAvatar, setCurrentUserAvatar] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -127,8 +131,35 @@ export default function Navbar() {
         updateProfile(session?.user);
       });
 
+      // Подгрузка аватара из сохраненного профиля
+      try {
+        const curRole = isTeacher ? "teacher" : isStudent ? "student" : isParent ? "parent" : "admin";
+        const saved =
+          localStorage.getItem(`ayda_profile_${curRole}`) ||
+          localStorage.getItem("ayda_current_user_profile");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.avatarUrl) setCurrentUserAvatar(parsed.avatarUrl);
+        }
+      } catch (e) {}
+
+      // Слушатель событий обновления профиля
+      const handleProfileUpdate = (e: any) => {
+        const p = e.detail;
+        if (p) {
+          if (p.avatarUrl !== undefined) setCurrentUserAvatar(p.avatarUrl);
+          if (p.name) {
+            setAuthProfile((prev: any) =>
+              prev ? { ...prev, name: p.name } : null
+            );
+          }
+        }
+      };
+      window.addEventListener("ayda:profile-updated", handleProfileUpdate);
+
       return () => {
         authListener?.subscription?.unsubscribe();
+        window.removeEventListener("ayda:profile-updated", handleProfileUpdate);
       };
     }
   }, [pathname]);
@@ -295,12 +326,23 @@ export default function Navbar() {
               ) : isInsideCabinet && currentUser ? (
                 /* Пользователь ВНУТРИ личного кабинета: аватар, имя и кнопка выхода */
                 <div className="flex items-center gap-1.5 sm:gap-3">
-                  <div className="flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
-                    <div className="w-7 h-7 rounded-lg bg-blue-600 text-white font-bold flex items-center justify-center text-xs shrink-0">
-                      {currentUser.name.charAt(0).toUpperCase()}
+                  <div
+                    onClick={() => setEditProfileModalOpen(true)}
+                    className="flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-blue-50/70 border border-slate-200 hover:border-blue-200 text-xs transition cursor-pointer group"
+                    title="Нажмите для редактирования профиля"
+                  >
+                    <div className="w-7 h-7 rounded-lg bg-blue-600 text-white font-bold flex items-center justify-center text-xs shrink-0 overflow-hidden ring-1 ring-blue-500/20">
+                      {currentUserAvatar ? (
+                        <img src={currentUserAvatar} alt={currentUser.name} className="w-full h-full object-cover" />
+                      ) : (
+                        currentUser.name.charAt(0).toUpperCase()
+                      )}
                     </div>
                     <div className="hidden sm:block text-left">
-                      <div className="font-bold text-slate-800 leading-tight">{currentUser.name}</div>
+                      <div className="font-bold text-slate-800 leading-tight group-hover:text-blue-600 transition flex items-center gap-1">
+                        <span>{currentUser.name}</span>
+                        <Edit3 className="w-3 h-3 text-slate-400 group-hover:text-blue-500 opacity-60 transition" />
+                      </div>
                       <div className="text-[10px] text-slate-500">{currentUser.role}</div>
                     </div>
                   </div>
@@ -323,8 +365,12 @@ export default function Navbar() {
                     className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition active:scale-95 cursor-pointer shadow-xs"
                     id="btn-cabinet-header"
                   >
-                    <div className="w-6 h-6 rounded-lg bg-blue-600 text-white font-bold text-xs flex items-center justify-center shrink-0">
-                      {authProfile.name.charAt(0).toUpperCase()}
+                    <div className="w-6 h-6 rounded-lg bg-blue-600 text-white font-bold text-xs flex items-center justify-center shrink-0 overflow-hidden">
+                      {currentUserAvatar ? (
+                        <img src={currentUserAvatar} alt={authProfile.name} className="w-full h-full object-cover" />
+                      ) : (
+                        authProfile.name.charAt(0).toUpperCase()
+                      )}
                     </div>
                     <span className="max-w-[80px] sm:max-w-none truncate">{authProfile.name}</span>
                     <span className="hidden sm:inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-200/80 text-blue-800">
@@ -344,6 +390,17 @@ export default function Navbar() {
                         <User className="w-4 h-4 text-blue-600" />
                         <span>Перейти в кабинет</span>
                       </Link>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUserMenuOpen(false);
+                          setEditProfileModalOpen(true);
+                        }}
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition cursor-pointer text-left"
+                      >
+                        <Edit3 className="w-4 h-4 text-slate-500" />
+                        <span>Редактировать профиль</span>
+                      </button>
                       <Link
                         href={`/${authProfile.roleKey}`}
                         onClick={() => setUserMenuOpen(false)}
@@ -668,6 +725,21 @@ export default function Navbar() {
           </div>
         </div>
       )}
+
+      {/* Модальное окно редактирования профиля */}
+      <EditProfileModal
+        isOpen={editProfileModalOpen}
+        onClose={() => setEditProfileModalOpen(false)}
+        defaultRole={isTeacher ? "TEACHER" : isStudent ? "STUDENT" : isParent ? "PARENT" : "ADMIN"}
+        onProfileUpdated={(updated) => {
+          if (updated.avatarUrl !== undefined) setCurrentUserAvatar(updated.avatarUrl);
+          if (updated.name) {
+            setAuthProfile((prev: any) =>
+              prev ? { ...prev, name: updated.name } : null
+            );
+          }
+        }}
+      />
     </>
   );
 }

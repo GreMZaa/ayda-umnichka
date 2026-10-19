@@ -31,12 +31,14 @@ import {
   LayoutGrid,
   List,
   X,
+  Edit3,
 } from "lucide-react";
 import { format, startOfWeek, addDays, isSameDay, addWeeks, subWeeks } from "date-fns";
 import { ru } from "date-fns/locale";
 import { getSupabase } from "@/lib/supabase";
 import { fetchWithAuth } from "@/lib/api-client";
 import ScheduleCalendar from "@/components/ScheduleCalendar";
+import EditProfileModal from "@/components/EditProfileModal";
 
 interface Child {
   id: string;
@@ -74,22 +76,73 @@ const GRADES = [
 ];
 
 export default function ParentCabinet() {
+  const [parentId, setParentId] = useState("");
   const [parentName, setParentName] = useState("Родитель");
+  const [parentEmail, setParentEmail] = useState("");
+  const [parentPhone, setParentPhone] = useState("");
+  const [parentAvatar, setParentAvatar] = useState("");
+  const [parentBio, setParentBio] = useState("");
+  const [parentPreferredContact, setParentPreferredContact] = useState("telegram");
+  const [editProfileModalOpen, setEditProfileModalOpen] = useState(false);
 
   useEffect(() => {
     const client = getSupabase();
     if (client) {
-      client.auth.getSession().then(({ data }) => {
+      client.auth.getSession().then(async ({ data }) => {
         if (data?.session?.user) {
-          const meta = data.session.user.user_metadata || {};
-          if (meta.full_name) {
-            setParentName(meta.full_name);
-          } else if (data.session.user.email) {
-            setParentName(data.session.user.email.split("@")[0]);
+          const user = data.session.user;
+          setParentId(user.id);
+          const meta = user.user_metadata || {};
+          if (meta.full_name) setParentName(meta.full_name);
+          else if (user.email) setParentName(user.email.split("@")[0]);
+          if (user.email) setParentEmail(user.email);
+          if (meta.avatar_url) setParentAvatar(meta.avatar_url);
+
+          try {
+            const { data: prof } = await client.from("profiles").select("*").eq("id", user.id).maybeSingle();
+            if (prof) {
+              if (prof.name) setParentName(prof.name);
+              if (prof.avatar_url) setParentAvatar(prof.avatar_url);
+              if (prof.phone) setParentPhone(prof.phone);
+              if (prof.email) setParentEmail(prof.email);
+              if (prof.bio) {
+                setParentBio(prof.bio);
+                try {
+                  const parsed = JSON.parse(prof.bio);
+                  if (parsed.preferredContact) setParentPreferredContact(parsed.preferredContact);
+                } catch {
+                  // ignored
+                }
+              }
+            } else {
+              // Try finding any PARENT profile
+              const { data: parentProf } = await client.from("profiles").select("*").eq("role", "PARENT").limit(1).maybeSingle();
+              if (parentProf) {
+                if (parentProf.name) setParentName(parentProf.name);
+                if (parentProf.avatar_url) setParentAvatar(parentProf.avatar_url);
+                if (parentProf.phone) setParentPhone(parentProf.phone);
+                if (parentProf.email) setParentEmail(parentProf.email);
+              }
+            }
+          } catch (err) {
+            console.error("Supabase load parent profile error:", err);
           }
         }
       });
     }
+
+    const handleProfileUpdated = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (!detail) return;
+      if (detail.name) setParentName(detail.name);
+      if (detail.avatarUrl !== undefined) setParentAvatar(detail.avatarUrl);
+      if (detail.phone !== undefined) setParentPhone(detail.phone);
+      if (detail.bio !== undefined) setParentBio(detail.bio);
+      if (detail.preferredContact !== undefined) setParentPreferredContact(detail.preferredContact);
+    };
+
+    window.addEventListener("ayda:profile-updated", handleProfileUpdated);
+    return () => window.removeEventListener("ayda:profile-updated", handleProfileUpdated);
   }, []);
 
   const defaultChildren: Child[] = [
@@ -369,13 +422,26 @@ export default function ParentCabinet() {
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-sm relative overflow-hidden">
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative z-10">
           <div className="flex items-center gap-4 sm:gap-5">
-            <div className="relative">
-              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-600 text-white font-black text-2xl sm:text-3xl flex items-center justify-center shadow-lg shadow-amber-500/20 ring-4 ring-amber-50">
-                {initial || <Users className="w-8 h-8" />}
-              </div>
-              <span className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center text-xs text-white shadow-xs">
-                ✓
-              </span>
+            <div className="relative group">
+              {parentAvatar ? (
+                <img
+                  src={parentAvatar}
+                  alt={parentName}
+                  className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover shadow-lg shadow-amber-500/10 ring-4 ring-amber-50 border border-amber-200"
+                />
+              ) : (
+                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-600 text-white font-black text-2xl sm:text-3xl flex items-center justify-center shadow-lg shadow-amber-500/20 ring-4 ring-amber-50">
+                  {initial || <Users className="w-8 h-8" />}
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => setEditProfileModalOpen(true)}
+                className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center text-[10px] shadow-sm border-2 border-white cursor-pointer transition active:scale-95"
+                title="Изменить фото профиля"
+              >
+                <Pencil className="w-3 h-3" />
+              </button>
             </div>
 
             <div>
@@ -397,7 +463,17 @@ export default function ParentCabinet() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 sm:gap-3 w-full lg:w-auto">
+          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 w-full lg:w-auto">
+            <button
+              type="button"
+              onClick={() => setEditProfileModalOpen(true)}
+              className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs sm:text-sm transition border border-amber-200/80 cursor-pointer shadow-2xs active:scale-95"
+              title="Настройки профиля и замена фото"
+            >
+              <Edit3 className="w-4 h-4 text-amber-700" />
+              <span>Редактировать профиль</span>
+            </button>
+
             <a
               href="tel:+79954854667"
               className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200/80 text-slate-700 font-bold text-xs sm:text-sm transition border border-slate-200/80 cursor-pointer"
@@ -869,6 +945,22 @@ export default function ParentCabinet() {
           </div>
         </div>
       )}
+
+      {/* 7. УНИВЕРСАЛЬНОЕ МОДАЛЬНОЕ ОКНО РЕДАКТИРОВАНИЯ ПРОФИЛЯ РОДИТЕЛЯ */}
+      <EditProfileModal
+        isOpen={editProfileModalOpen}
+        onClose={() => setEditProfileModalOpen(false)}
+        defaultRole="PARENT"
+        initialData={{
+          id: parentId,
+          name: parentName,
+          email: parentEmail,
+          phone: parentPhone,
+          avatarUrl: parentAvatar,
+          bio: parentBio,
+          preferredContact: parentPreferredContact,
+        }}
+      />
     </div>
   );
 }
