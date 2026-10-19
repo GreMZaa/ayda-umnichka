@@ -71,34 +71,48 @@ export default function AdminPage() {
   // Поисковые строки
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Модальные окна добавления
+  // Модальные окна добавления и редактирования
   const [showAddLessonModal, setShowAddLessonModal] = useState(false);
   const [showAddStudentModal, setShowAddStudentModal] = useState(false);
   const [showAddTeacherModal, setShowAddTeacherModal] = useState(false);
   const [showAddLeadModal, setShowAddLeadModal] = useState(false);
   const [showAddSubjectModal, setShowAddSubjectModal] = useState(false);
+  const [showEditParentModal, setShowEditParentModal] = useState(false);
 
-  // Форма нового урока
+  // ID редактируемых сущностей (если null - создание новой)
+  const [editingLessonId, setEditingLessonId] = useState<string | null>(null);
+  const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
+  const [editingTeacherId, setEditingTeacherId] = useState<string | null>(null);
+  const [editingSubjectId, setEditingSubjectId] = useState<string | null>(null);
+  const [editingParentId, setEditingParentId] = useState<string | null>(null);
+
+  // Форма урока
   const [lessonTitle, setLessonTitle] = useState("");
   const [lessonSubjectId, setLessonSubjectId] = useState("");
   const [lessonTeacherId, setLessonTeacherId] = useState("");
   const [lessonStudentId, setLessonStudentId] = useState("");
   const [lessonDateTime, setLessonDateTime] = useState("");
 
-  // Форма нового ученика
+  // Форма ученика
   const [studentName, setStudentName] = useState("");
   const [studentPhone, setStudentPhone] = useState("");
   const [studentEmail, setStudentEmail] = useState("");
   const [studentGrade, setStudentGrade] = useState("3 класс");
   const [studentParentId, setStudentParentId] = useState("");
 
-  // Форма нового учителя
+  // Форма учителя
   const [teacherName, setTeacherName] = useState("");
   const [teacherPhone, setTeacherPhone] = useState("");
   const [teacherEmail, setTeacherEmail] = useState("");
   const [teacherBio, setTeacherBio] = useState("");
 
-  // Форма нового предмета
+  // Форма родителя
+  const [parentName, setParentName] = useState("");
+  const [parentPhone, setParentPhone] = useState("");
+  const [parentEmail, setParentEmail] = useState("");
+  const [parentBio, setParentBio] = useState("");
+
+  // Форма предмета
   const [subjectName, setSubjectName] = useState("");
   const [subjectColor, setSubjectColor] = useState("#2563eb");
 
@@ -363,8 +377,34 @@ export default function AdminPage() {
   const students = profiles.filter((p) => p.role === "STUDENT");
   const parents = profiles.filter((p) => p.role === "PARENT");
 
-  // СОЗДАНИЕ УРОКА
-  const handleCreateLesson = async (e: React.FormEvent) => {
+  // 1. УРОК: ОТКРЫТИЕ И СОХРАНЕНИЕ
+  const handleOpenCreateLesson = () => {
+    setEditingLessonId(null);
+    setLessonTitle("");
+    if (subjects.length > 0) setLessonSubjectId(subjects[0].id);
+    if (teachers.length > 0) setLessonTeacherId(teachers[0].id);
+    if (students.length > 0) setLessonStudentId(students[0].id);
+    setLessonDateTime("");
+    setShowAddLessonModal(true);
+  };
+
+  const handleOpenEditLesson = (les: any) => {
+    setEditingLessonId(les.id);
+    setLessonTitle(les.title || "");
+    setLessonSubjectId(les.subject_id || (subjects[0]?.id || ""));
+    setLessonTeacherId(les.teacher_id || (teachers[0]?.id || ""));
+    setLessonStudentId(les.student_id || (students[0]?.id || ""));
+    if (les.start_time) {
+      const d = new Date(les.start_time);
+      const pad = (n: number) => String(n).padStart(2, "0");
+      setLessonDateTime(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
+    } else {
+      setLessonDateTime("");
+    }
+    setShowAddLessonModal(true);
+  };
+
+  const handleSaveLesson = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!lessonTitle || !lessonSubjectId || !lessonTeacherId || !lessonStudentId) {
       showToast("Заполните обязательные поля урока", "error");
@@ -372,27 +412,47 @@ export default function AdminPage() {
     }
 
     const client = getSupabase();
+    if (!client) return;
+
     const start = lessonDateTime ? new Date(lessonDateTime) : new Date(Date.now() + 24 * 60 * 60 * 1000);
     const end = new Date(start.getTime() + 50 * 60 * 1000);
-    const roomName = "umnichka-" + Math.random().toString(36).substring(2, 9);
-
-    const newLesson = {
-      title: lessonTitle.trim(),
-      subject_id: lessonSubjectId,
-      teacher_id: lessonTeacherId,
-      student_id: lessonStudentId,
-      start_time: start.toISOString(),
-      end_time: end.toISOString(),
-      status: "SCHEDULED",
-      room_name: roomName,
-    };
 
     try {
-      const { data, error } = await client.from("lessons").insert([newLesson]).select();
-      if (error) throw error;
+      if (editingLessonId) {
+        const { error } = await client
+          .from("lessons")
+          .update({
+            title: lessonTitle.trim(),
+            subject_id: lessonSubjectId,
+            teacher_id: lessonTeacherId,
+            student_id: lessonStudentId,
+            start_time: start.toISOString(),
+            end_time: end.toISOString(),
+          })
+          .eq("id", editingLessonId);
 
-      showToast("Урок успешно запланирован!");
+        if (error) throw error;
+        showToast("Урок успешно обновлён!");
+      } else {
+        const roomName = "umnichka-" + Math.random().toString(36).substring(2, 9);
+        const newLesson = {
+          title: lessonTitle.trim(),
+          subject_id: lessonSubjectId,
+          teacher_id: lessonTeacherId,
+          student_id: lessonStudentId,
+          start_time: start.toISOString(),
+          end_time: end.toISOString(),
+          status: "SCHEDULED",
+          room_name: roomName,
+        };
+
+        const { error } = await client.from("lessons").insert([newLesson]);
+        if (error) throw error;
+        showToast("Урок успешно запланирован!");
+      }
+
       setShowAddLessonModal(false);
+      setEditingLessonId(null);
       setLessonTitle("");
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("ayda:lessons-updated"));
@@ -400,7 +460,7 @@ export default function AdminPage() {
       loadAllData();
     } catch (err: any) {
       console.error(err);
-      showToast("Ошибка создания урока: " + (err.message || ""), "error");
+      showToast("Ошибка сохранения урока: " + (err.message || ""), "error");
     }
   };
 
@@ -437,81 +497,206 @@ export default function AdminPage() {
     }
   };
 
-  // ДОБАВЛЕНИЕ УЧЕНИКА
-  const handleCreateStudent = async (e: React.FormEvent) => {
+  // 2. УЧЕНИК: ОТКРЫТИЕ И СОХРАНЕНИЕ
+  const handleOpenCreateStudent = () => {
+    setEditingStudentId(null);
+    setStudentName("");
+    setStudentPhone("");
+    setStudentEmail("");
+    setStudentGrade("3 класс");
+    setStudentParentId(parents[0]?.id || "");
+    setShowAddStudentModal(true);
+  };
+
+  const handleOpenEditStudent = (stud: any, currentParentId?: string) => {
+    setEditingStudentId(stud.id);
+    setStudentName(stud.name || "");
+    setStudentPhone(stud.phone || "");
+    setStudentEmail(stud.email || "");
+    setStudentGrade(stud.bio || "3 класс");
+    setStudentParentId(currentParentId || "");
+    setShowAddStudentModal(true);
+  };
+
+  const handleSaveStudent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!studentName.trim()) return;
 
     const client = getSupabase();
+    if (!client) return;
+
     try {
-      const email = studentEmail.trim() || `student_${Date.now()}@umnichka.ru`;
-      const { data: newProfile, error } = await client
-        .from("profiles")
-        .insert([
-          {
+      if (editingStudentId) {
+        const { error } = await client
+          .from("profiles")
+          .update({
             name: studentName.trim(),
-            role: "STUDENT",
-            email: email,
             phone: studentPhone.trim() || null,
+            email: studentEmail.trim() || null,
             bio: studentGrade || "3 класс",
-            avatar_url: `https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&h=200&fit=crop&crop=faces`,
-          },
-        ])
-        .select()
-        .single();
+          })
+          .eq("id", editingStudentId);
 
-      if (error) throw error;
+        if (error) throw error;
 
-      if (studentParentId && newProfile?.id) {
-        await client.from("parent_students").insert([
-          {
-            parent_id: studentParentId,
-            student_id: newProfile.id,
-          },
-        ]);
+        // Обновляем связь с родителем
+        await client.from("parent_students").delete().eq("student_id", editingStudentId);
+        if (studentParentId) {
+          await client.from("parent_students").insert([
+            {
+              parent_id: studentParentId,
+              student_id: editingStudentId,
+            },
+          ]);
+        }
+
+        showToast(`Ученик «${studentName}» успешно обновлен!`);
+      } else {
+        const email = studentEmail.trim() || `student_${Date.now()}@umnichka.ru`;
+        const { data: newProfile, error } = await client
+          .from("profiles")
+          .insert([
+            {
+              name: studentName.trim(),
+              role: "STUDENT",
+              email: email,
+              phone: studentPhone.trim() || null,
+              bio: studentGrade || "3 класс",
+              avatar_url: `https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&h=200&fit=crop&crop=faces`,
+            },
+          ])
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        if (studentParentId && newProfile?.id) {
+          await client.from("parent_students").insert([
+            {
+              parent_id: studentParentId,
+              student_id: newProfile.id,
+            },
+          ]);
+        }
+
+        showToast(`Ученик «${studentName}» успешно добавлен!`);
       }
 
-      showToast(`Ученик ${studentName} успешно добавлен!`);
       setShowAddStudentModal(false);
+      setEditingStudentId(null);
       setStudentName("");
       setStudentPhone("");
       setStudentEmail("");
       loadAllData();
     } catch (err: any) {
-      showToast("Ошибка добавления ученика: " + (err.message || ""), "error");
+      showToast("Ошибка сохранения ученика: " + (err.message || ""), "error");
     }
   };
 
-  // ДОБАВЛЕНИЕ ПРЕПОДАВАТЕЛЯ
-  const handleCreateTeacher = async (e: React.FormEvent) => {
+  // 3. ПРЕПОДАВАТЕЛЬ: ОТКРЫТИЕ И СОХРАНЕНИЕ
+  const handleOpenCreateTeacher = () => {
+    setEditingTeacherId(null);
+    setTeacherName("");
+    setTeacherPhone("");
+    setTeacherEmail("");
+    setTeacherBio("");
+    setShowAddTeacherModal(true);
+  };
+
+  const handleOpenEditTeacher = (teacher: any) => {
+    setEditingTeacherId(teacher.id);
+    setTeacherName(teacher.name || "");
+    setTeacherPhone(teacher.phone || "");
+    setTeacherEmail(teacher.email || "");
+    setTeacherBio(teacher.bio || "");
+    setShowAddTeacherModal(true);
+  };
+
+  const handleSaveTeacher = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!teacherName.trim()) return;
 
     const client = getSupabase();
+    if (!client) return;
+
     try {
-      const email = teacherEmail.trim() || `teacher_${Date.now()}@umnichka.ru`;
-      const { error } = await client.from("profiles").insert([
-        {
-          name: teacherName.trim(),
-          role: "TEACHER",
-          email: email,
-          phone: teacherPhone.trim() || null,
-          bio: teacherBio.trim() || "Преподаватель центра «АйДаУмничка»",
-          avatar_url: `https://images.unsplash.com/photo-1544717305-2782549b5136?w=200&h=200&fit=crop&crop=faces`,
-        },
-      ]);
+      if (editingTeacherId) {
+        const { error } = await client
+          .from("profiles")
+          .update({
+            name: teacherName.trim(),
+            phone: teacherPhone.trim() || null,
+            email: teacherEmail.trim() || null,
+            bio: teacherBio.trim() || null,
+          })
+          .eq("id", editingTeacherId);
 
-      if (error) throw error;
+        if (error) throw error;
+        showToast(`Преподаватель «${teacherName}» обновлен!`);
+      } else {
+        const email = teacherEmail.trim() || `teacher_${Date.now()}@umnichka.ru`;
+        const { error } = await client.from("profiles").insert([
+          {
+            name: teacherName.trim(),
+            role: "TEACHER",
+            email: email,
+            phone: teacherPhone.trim() || null,
+            bio: teacherBio.trim() || "Преподаватель центра «АйДаУмничка»",
+            avatar_url: `https://images.unsplash.com/photo-1544717305-2782549b5136?w=200&h=200&fit=crop&crop=faces`,
+          },
+        ]);
 
-      showToast(`Преподаватель ${teacherName} успешно добавлен!`);
+        if (error) throw error;
+        showToast(`Преподаватель «${teacherName}» успешно добавлен!`);
+      }
+
       setShowAddTeacherModal(false);
+      setEditingTeacherId(null);
       setTeacherName("");
       setTeacherPhone("");
       setTeacherEmail("");
       setTeacherBio("");
       loadAllData();
     } catch (err: any) {
-      showToast("Ошибка добавления преподавателя: " + (err.message || ""), "error");
+      showToast("Ошибка сохранения преподавателя: " + (err.message || ""), "error");
+    }
+  };
+
+  // 4. РОДИТЕЛЬ: ОТКРЫТИЕ И СОХРАНЕНИЕ
+  const handleOpenEditParent = (parent: any) => {
+    setEditingParentId(parent.id);
+    setParentName(parent.name || "");
+    setParentPhone(parent.phone || "");
+    setParentEmail(parent.email || "");
+    setParentBio(parent.bio || "");
+    setShowEditParentModal(true);
+  };
+
+  const handleSaveParent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!parentName.trim()) return;
+
+    const client = getSupabase();
+    if (!client || !editingParentId) return;
+
+    try {
+      const { error } = await client
+        .from("profiles")
+        .update({
+          name: parentName.trim(),
+          phone: parentPhone.trim() || null,
+          email: parentEmail.trim() || null,
+          bio: parentBio.trim() || null,
+        })
+        .eq("id", editingParentId);
+
+      if (error) throw error;
+      showToast(`Профиль родителя «${parentName}» обновлен!`);
+      setShowEditParentModal(false);
+      setEditingParentId(null);
+      loadAllData();
+    } catch (err: any) {
+      showToast("Ошибка обновления родителя: " + (err.message || ""), "error");
     }
   };
 
@@ -529,27 +714,57 @@ export default function AdminPage() {
     }
   };
 
-  // ДОБАВЛЕНИЕ ПРЕДМЕТА
-  const handleCreateSubject = async (e: React.FormEvent) => {
+  // 5. ПРЕДМЕТ: ОТКРЫТИЕ И СОХРАНЕНИЕ
+  const handleOpenCreateSubject = () => {
+    setEditingSubjectId(null);
+    setSubjectName("");
+    setSubjectColor("#2563eb");
+    setShowAddSubjectModal(true);
+  };
+
+  const handleOpenEditSubject = (sub: any) => {
+    setEditingSubjectId(sub.id);
+    setSubjectName(sub.name || "");
+    setSubjectColor(sub.color || "#2563eb");
+    setShowAddSubjectModal(true);
+  };
+
+  const handleSaveSubject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!subjectName.trim()) return;
 
     const client = getSupabase();
-    try {
-      const { error } = await client.from("subjects").insert([
-        {
-          name: subjectName.trim(),
-          color: subjectColor || "#2563eb",
-        },
-      ]);
-      if (error) throw error;
+    if (!client) return;
 
-      showToast(`Предмет «${subjectName}» добавлен`);
+    try {
+      if (editingSubjectId) {
+        const { error } = await client
+          .from("subjects")
+          .update({
+            name: subjectName.trim(),
+            color: subjectColor || "#2563eb",
+          })
+          .eq("id", editingSubjectId);
+
+        if (error) throw error;
+        showToast(`Предмет «${subjectName}» обновлен!`);
+      } else {
+        const { error } = await client.from("subjects").insert([
+          {
+            name: subjectName.trim(),
+            color: subjectColor || "#2563eb",
+          },
+        ]);
+        if (error) throw error;
+        showToast(`Предмет «${subjectName}» добавлен!`);
+      }
+
       setShowAddSubjectModal(false);
+      setEditingSubjectId(null);
       setSubjectName("");
       loadAllData();
     } catch (err: any) {
-      showToast("Ошибка добавления предмета: " + (err.message || ""), "error");
+      showToast("Ошибка сохранения предмета: " + (err.message || ""), "error");
     }
   };
 
@@ -973,28 +1188,28 @@ export default function AdminPage() {
             </h2>
             <div className="flex flex-wrap gap-2.5">
               <button
-                onClick={() => setShowAddLessonModal(true)}
+                onClick={handleOpenCreateLesson}
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Назначить урок</span>
               </button>
               <button
-                onClick={() => setShowAddStudentModal(true)}
+                onClick={handleOpenCreateStudent}
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 transition cursor-pointer"
               >
                 <UserPlus className="w-3.5 h-3.5" />
                 <span>Добавить ученика</span>
               </button>
               <button
-                onClick={() => setShowAddTeacherModal(true)}
+                onClick={handleOpenCreateTeacher}
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 transition cursor-pointer"
               >
                 <GraduationCap className="w-3.5 h-3.5" />
                 <span>Добавить преподавателя</span>
               </button>
               <button
-                onClick={() => setShowAddSubjectModal(true)}
+                onClick={handleOpenCreateSubject}
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 transition cursor-pointer"
               >
                 <BookOpen className="w-3.5 h-3.5" />
@@ -1176,7 +1391,7 @@ export default function AdminPage() {
               </div>
 
               <button
-                onClick={() => setShowAddStudentModal(true)}
+                onClick={handleOpenCreateStudent}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -1225,13 +1440,22 @@ export default function AdminPage() {
                         )}
                       </td>
                       <td className="py-3 px-3 text-right">
-                        <button
-                          onClick={() => handleDeleteProfile(stud.id, stud.name)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                          title="Удалить ученика"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => handleOpenEditStudent(stud, psLink?.parent_id)}
+                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
+                            title="Редактировать данные ученика"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteProfile(stud.id, stud.name)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                            title="Удалить ученика"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1252,7 +1476,7 @@ export default function AdminPage() {
             </div>
 
             <button
-              onClick={() => setShowAddTeacherModal(true)}
+              onClick={handleOpenCreateTeacher}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition cursor-pointer self-start sm:self-auto"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -1279,13 +1503,22 @@ export default function AdminPage() {
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => handleDeleteProfile(teacher.id, teacher.name)}
-                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                    title="Удалить педагога"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleOpenEditTeacher(teacher)}
+                      className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
+                      title="Редактировать преподавателя"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteProfile(teacher.id, teacher.name)}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                      title="Удалить педагога"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
 
                 <p className="text-xs text-slate-600 leading-relaxed">{teacher.bio || "Преподаватель центра"}</p>
@@ -1356,13 +1589,22 @@ export default function AdminPage() {
                       </td>
                       <td className="py-3 px-3 text-slate-600">{par.bio || "—"}</td>
                       <td className="py-3 px-3 text-right">
-                        <button
-                          onClick={() => handleDeleteProfile(par.id, par.name)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                          title="Удалить профиль"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => handleOpenEditParent(par)}
+                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
+                            title="Редактировать данные родителя"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteProfile(par.id, par.name)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                            title="Удалить профиль"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1395,7 +1637,7 @@ export default function AdminPage() {
               </div>
 
               <button
-                onClick={() => setShowAddLessonModal(true)}
+                onClick={handleOpenCreateLesson}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -1459,8 +1701,16 @@ export default function AdminPage() {
                           </Link>
 
                           <button
+                            onClick={() => handleOpenEditLesson(les)}
+                            className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition cursor-pointer"
+                            title="Редактировать занятие"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
                             onClick={() => handleDeleteLesson(les.id)}
-                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"
+                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
                             title="Удалить занятие"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -1572,7 +1822,7 @@ export default function AdminPage() {
             </div>
 
             <button
-              onClick={() => setShowAddSubjectModal(true)}
+              onClick={handleOpenCreateSubject}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -1584,20 +1834,29 @@ export default function AdminPage() {
             {subjects.map((sub) => (
               <div
                 key={sub.id}
-                className="p-4 rounded-xl border border-slate-200 bg-white space-y-2 hover:border-slate-300 transition"
+                className="p-4 rounded-xl border border-slate-200 bg-white space-y-2 hover:border-blue-300 transition"
               >
                 <div className="flex items-center justify-between">
                   <span
                     className="w-3.5 h-3.5 rounded-full"
                     style={{ backgroundColor: sub.color || "#2563eb" }}
                   />
-                  <button
-                    onClick={() => handleDeleteSubject(sub.id, sub.name)}
-                    className="text-slate-400 hover:text-rose-600 transition p-1"
-                    title="Удалить"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleOpenEditSubject(sub)}
+                      className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
+                      title="Редактировать предмет"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteSubject(sub.id, sub.name)}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                      title="Удалить предмет"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
                 <div className="font-bold text-sm text-slate-900">{sub.name}</div>
                 <div className="text-[10px] text-slate-400 font-mono">Цвет: {sub.color}</div>
@@ -1607,24 +1866,24 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* МОДАЛЬНОЕ ОКНО: НАЗНАЧИТЬ УРОК */}
+      {/* МОДАЛЬНОЕ ОКНО: НАЗНАЧИТЬ / РЕДАКТИРОВАТЬ УРОК */}
       {showAddLessonModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-blue-600" />
-                <span>Назначить новое занятие</span>
+                <span>{editingLessonId ? "Редактировать занятие" : "Назначить новое занятие"}</span>
               </h3>
               <button
                 onClick={() => setShowAddLessonModal(false)}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateLesson} className="space-y-3.5 text-xs">
+            <form onSubmit={handleSaveLesson} className="space-y-3.5 text-xs">
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Тема занятия:</label>
                 <input
@@ -1700,15 +1959,15 @@ export default function AdminPage() {
                 <button
                   type="button"
                   onClick={() => setShowAddLessonModal(false)}
-                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold transition"
+                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold transition cursor-pointer"
                 >
                   Отмена
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition shadow-sm"
+                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition shadow-sm cursor-pointer"
                 >
-                  Создать урок
+                  {editingLessonId ? "Сохранить изменения" : "Создать урок"}
                 </button>
               </div>
             </form>
@@ -1716,24 +1975,24 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* МОДАЛЬНОЕ ОКНО: ДОБАВИТЬ УЧЕНИКА */}
+      {/* МОДАЛЬНОЕ ОКНО: ДОБАВИТЬ / РЕДАКТИРОВАТЬ УЧЕНИКА */}
       {showAddStudentModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <UserPlus className="w-4 h-4 text-blue-600" />
-                <span>Добавить нового ученика</span>
+                <span>{editingStudentId ? "Редактировать ученика" : "Добавить нового ученика"}</span>
               </h3>
               <button
                 onClick={() => setShowAddStudentModal(false)}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateStudent} className="space-y-3.5 text-xs">
+            <form onSubmit={handleSaveStudent} className="space-y-3.5 text-xs">
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Имя и фамилия ученика:</label>
                 <input
@@ -1776,6 +2035,17 @@ export default function AdminPage() {
               </div>
 
               <div>
+                <label className="block font-bold text-slate-700 mb-1">Email ученика:</label>
+                <input
+                  type="email"
+                  value={studentEmail}
+                  onChange={(e) => setStudentEmail(e.target.value)}
+                  placeholder="student@umnichka.ru"
+                  className="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
+                />
+              </div>
+
+              <div>
                 <label className="block font-bold text-slate-700 mb-1">Привязать к родителю:</label>
                 <select
                   value={studentParentId}
@@ -1795,15 +2065,15 @@ export default function AdminPage() {
                 <button
                   type="button"
                   onClick={() => setShowAddStudentModal(false)}
-                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold transition"
+                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold transition cursor-pointer"
                 >
                   Отмена
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition shadow-sm"
+                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition shadow-sm cursor-pointer"
                 >
-                  Добавить ученика
+                  {editingStudentId ? "Сохранить изменения" : "Добавить ученика"}
                 </button>
               </div>
             </form>
@@ -1811,24 +2081,24 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* МОДАЛЬНОЕ ОКНО: ДОБАВИТЬ ПРЕПОДАВАТЕЛЯ */}
+      {/* МОДАЛЬНОЕ ОКНО: ДОБАВИТЬ / РЕДАКТИРОВАТЬ ПРЕПОДАВАТЕЛЯ */}
       {showAddTeacherModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <GraduationCap className="w-4 h-4 text-blue-600" />
-                <span>Добавить преподавателя</span>
+                <span>{editingTeacherId ? "Редактировать преподавателя" : "Добавить преподавателя"}</span>
               </h3>
               <button
                 onClick={() => setShowAddTeacherModal(false)}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateTeacher} className="space-y-3.5 text-xs">
+            <form onSubmit={handleSaveTeacher} className="space-y-3.5 text-xs">
               <div>
                 <label className="block font-bold text-slate-700 mb-1">ФИО преподавателя:</label>
                 <input
@@ -1880,15 +2150,15 @@ export default function AdminPage() {
                 <button
                   type="button"
                   onClick={() => setShowAddTeacherModal(false)}
-                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold transition"
+                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold transition cursor-pointer"
                 >
                   Отмена
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition shadow-sm"
+                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition shadow-sm cursor-pointer"
                 >
-                  Сохранить
+                  {editingTeacherId ? "Сохранить изменения" : "Добавить преподавателя"}
                 </button>
               </div>
             </form>
@@ -1896,24 +2166,109 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* МОДАЛЬНОЕ ОКНО: ДОБАВИТЬ ПРЕДМЕТ */}
+      {/* МОДАЛЬНОЕ ОКНО: РЕДАКТИРОВАТЬ РОДИТЕЛЯ */}
+      {showEditParentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <UserCheck className="w-4 h-4 text-blue-600" />
+                <span>Редактировать данные родителя</span>
+              </h3>
+              <button
+                onClick={() => setShowEditParentModal(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveParent} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">ФИО родителя:</label>
+                <input
+                  type="text"
+                  required
+                  value={parentName}
+                  onChange={(e) => setParentName(e.target.value)}
+                  placeholder="Елена Смирнова"
+                  className="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Телефон:</label>
+                  <input
+                    type="tel"
+                    value={parentPhone}
+                    onChange={(e) => setParentPhone(e.target.value)}
+                    placeholder="+7 (999) 000-00-00"
+                    className="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Email:</label>
+                  <input
+                    type="email"
+                    value={parentEmail}
+                    onChange={(e) => setParentEmail(e.target.value)}
+                    placeholder="parent@mail.ru"
+                    className="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Заметка / Баланс:</label>
+                <input
+                  type="text"
+                  value={parentBio}
+                  onChange={(e) => setParentBio(e.target.value)}
+                  placeholder="Баланс: 8 занятий"
+                  className="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowEditParentModal(false)}
+                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold transition cursor-pointer"
+                >
+                  Отмена
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition shadow-sm cursor-pointer"
+                >
+                  Сохранить изменения
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* МОДАЛЬНОЕ ОКНО: ДОБАВИТЬ / РЕДАКТИРОВАТЬ ПРЕДМЕТ */}
       {showAddSubjectModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in">
           <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <BookOpen className="w-4 h-4 text-blue-600" />
-                <span>Новый предмет</span>
+                <span>{editingSubjectId ? "Редактировать предмет" : "Новый предмет"}</span>
               </h3>
               <button
                 onClick={() => setShowAddSubjectModal(false)}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateSubject} className="space-y-3.5 text-xs">
+            <form onSubmit={handleSaveSubject} className="space-y-3.5 text-xs">
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Название предмета:</label>
                 <input
@@ -1948,15 +2303,15 @@ export default function AdminPage() {
                 <button
                   type="button"
                   onClick={() => setShowAddSubjectModal(false)}
-                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold transition"
+                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold transition cursor-pointer"
                 >
                   Отмена
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition shadow-sm"
+                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition shadow-sm cursor-pointer"
                 >
-                  Добавить предмет
+                  {editingSubjectId ? "Сохранить изменения" : "Добавить предмет"}
                 </button>
               </div>
             </form>
