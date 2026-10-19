@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import {
@@ -71,6 +71,7 @@ export default function StudentCabinet() {
   const [attachedFileName, setAttachedFileName] = useState("");
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const modalMouseDownRef = useRef<EventTarget | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -810,12 +811,22 @@ export default function StudentCabinet() {
       {/* 8. ИНТЕРАКТИВНОЕ МОДАЛЬНОЕ ОКНО ДОМАШНЕГО ЗАДАНИЯ (Портал прямо в body, закрывает 100% экрана) */}
       {homeworkModalOpen && selectedHomework && mounted && createPortal(
         <div
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setHomeworkModalOpen(false);
+          onMouseDown={(e) => {
+            modalMouseDownRef.current = e.target;
+          }}
+          onMouseUp={(e) => {
+            if (modalMouseDownRef.current === e.currentTarget && e.target === e.currentTarget) {
+              setHomeworkModalOpen(false);
+            }
+            modalMouseDownRef.current = null;
           }}
           className="fixed inset-0 z-[100] w-screen h-screen min-h-screen bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
         >
-          <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-7 space-y-5 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto relative animate-in fade-in zoom-in-95 duration-150">
+          <div
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-7 space-y-5 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto relative animate-in fade-in zoom-in-95 duration-150"
+          >
             {/* Заголовок модального окна */}
             <div className="flex items-start justify-between border-b border-slate-100 pb-4">
               <div className="space-y-1">
