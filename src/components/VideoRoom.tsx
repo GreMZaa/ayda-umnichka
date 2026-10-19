@@ -100,7 +100,6 @@ export default function VideoRoom({
   const [mobileTab, setMobileTab] = useState<"board" | "video" | "chat" | "notes">("board");
   const [chatCollapsed, setChatCollapsed] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Собеседник и текущий пользователь
   const isTeacher = userRole === "TEACHER";
@@ -115,10 +114,8 @@ export default function VideoRoom({
     ? teacherAvatar || "https://images.unsplash.com/photo-1544717305-2782549b5136?w=400&h=300&fit=crop&crop=faces"
     : studentAvatar || "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400&h=300&fit=crop&crop=faces";
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 2200);
-  };
+  // Всплывающие уведомления полностью отключены по запросу пользователя
+  const showToast = (_msg: string) => {};
 
   // 2. Медиа-управление: настоящая Камера, Микрофон и Демонстрация экрана
   const [micOn, setMicOn] = useState(true);
@@ -1136,14 +1133,6 @@ export default function VideoRoom({
 
   return (
     <div className="fixed inset-0 z-[60] bg-slate-100 text-slate-900 flex flex-col font-sans select-none overflow-hidden h-[100dvh] max-h-[100dvh] w-screen">
-      {/* ЛАКОНИЧНЫЙ ТОСТ (ТОЛЬКО ДЛЯ ВАЖНЫХ ДЕЙСТВИЙ) */}
-      {toastMessage && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[100] px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs sm:text-sm font-bold shadow-lg flex items-center gap-2 animate-in fade-in duration-150">
-          <Sparkles className="w-4 h-4 text-blue-600" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
-
       {/* 1. АДАПТИВНЫЙ ВЕРХНИЙ ХЕДЕР */}
       <header className="h-14 bg-white border-b border-slate-200 px-2.5 sm:px-5 flex items-center justify-between gap-2 shrink-0 z-30">
         {/* Слева: Кнопка назад + название + статус */}
