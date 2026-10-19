@@ -281,16 +281,46 @@ export default function ParentCabinet() {
 
   useEffect(() => {
     setLoading(true);
-    fetchWithAuth(`/api/lessons?studentId=${selectedChildId}`)
-      .then((res) => res.json())
-      .then((data) => {
-        setLessons(Array.isArray(data) ? data : []);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error(err);
-        setLoading(false);
-      });
+    const loadParentLessons = () => {
+      fetchWithAuth(`/api/lessons?studentId=${selectedChildId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          const list = Array.isArray(data) ? data : [];
+          const enriched = list.map((l: any) => {
+            let notes = l.notes || [];
+            if (!notes || notes.length === 0) {
+              try {
+                const raw = localStorage.getItem(`ayda_lesson_notes_${l.id}`);
+                if (raw) notes = JSON.parse(raw);
+              } catch (e) {}
+            }
+            return {
+              ...l,
+              status: notes && notes.length > 0 ? "COMPLETED" : l.status,
+              notes,
+            };
+          });
+          setLessons(enriched);
+          setLoading(false);
+        })
+        .catch((err) => {
+          console.error(err);
+          setLoading(false);
+        });
+    };
+
+    loadParentLessons();
+
+    const handleReportSaved = () => {
+      loadParentLessons();
+    };
+
+    window.addEventListener("ayda:report-saved", handleReportSaved);
+    window.addEventListener("ayda:lessons-updated", handleReportSaved);
+    return () => {
+      window.removeEventListener("ayda:report-saved", handleReportSaved);
+      window.removeEventListener("ayda:lessons-updated", handleReportSaved);
+    };
   }, [selectedChildId]);
 
   const liveLesson = lessons.find((l) => l.status === "LIVE");
@@ -658,74 +688,87 @@ export default function ParentCabinet() {
                 Пока нет завершённых уроков с отчётами для {selectedChild.name}
               </div>
             ) : (
-              completedLessons.map((lesson) => (
-                <div
-                  key={lesson.id}
-                  className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-4 hover:border-blue-200 transition"
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
-                    <div>
+              completedLessons.map((lesson) => {
+                const note = lesson.notes && lesson.notes.length > 0 ? lesson.notes[lesson.notes.length - 1] : null;
+                return (
+                  <div
+                    key={lesson.id}
+                    className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-4 hover:border-blue-200 transition"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-blue-700 uppercase tracking-wider">
+                            {lesson.subjectName}
+                          </span>
+                          <span className="text-xs text-slate-400">•</span>
+                          <span className="text-xs text-slate-500 font-medium">
+                            {format(new Date(lesson.startTime), "d MMMM yyyy, HH:mm", { locale: ru })}
+                          </span>
+                        </div>
+                        <h3 className="font-extrabold text-slate-900 text-base mt-1">
+                          {lesson.title}
+                        </h3>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        {note?.grade ? (
+                          <div className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 font-extrabold text-xs">
+                            <Star className="w-4 h-4 fill-amber-400 text-amber-500" />
+                            <span>Оценка: {note.grade} / 5</span>
+                          </div>
+                        ) : (
+                          <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-xl">
+                            Без оценки
+                          </span>
+                        )}
+                        <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          Урок проведён
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                      <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-1.5">
+                        <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                          <GraduationCap className="w-4 h-4 text-blue-600" />
+                          <span>Что прошли на занятии:</span>
+                        </div>
+                        <p className="text-slate-700 leading-relaxed">
+                          {note?.content || `Урок по теме «${lesson.title}» успешно завершён.`}
+                        </p>
+                      </div>
+
+                      <div className="p-4 rounded-2xl bg-blue-50/60 border border-blue-100 space-y-1.5">
+                        <div className="flex items-center gap-1.5 font-bold text-blue-900">
+                          <Sparkles className="w-4 h-4 text-blue-600" />
+                          <span>Совет родителям на дом:</span>
+                        </div>
+                        <p className="text-slate-700 leading-relaxed">
+                          {note?.feedback || "Продолжайте регулярные занятия и поддерживайте интерес ребёнка к предмету!"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-500 pt-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-blue-700 uppercase tracking-wider">
-                          {lesson.subjectName}
-                        </span>
-                        <span className="text-xs text-slate-400">•</span>
-                        <span className="text-xs text-slate-500 font-medium">
-                          {format(new Date(lesson.startTime), "d MMMM yyyy, HH:mm", { locale: ru })}
-                        </span>
+                        <span className="text-slate-400">Преподаватель:</span>
+                        <strong className="text-slate-800">{note?.authorName || lesson.teacherName}</strong>
                       </div>
-                      <h3 className="font-extrabold text-slate-900 text-base mt-1">
-                        {lesson.title}
-                      </h3>
-                    </div>
 
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 font-extrabold text-xs">
-                        <Star className="w-4 h-4 fill-amber-400 text-amber-500" />
-                        <span>Оценка: 5 / 5</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-400">Статус отчёта:</span>
+                        {note ? (
+                          <span className="font-bold text-emerald-700">✓ Отчёт получен и проверен</span>
+                        ) : (
+                          <span className="text-amber-700 font-medium">Ожидает отчёта преподавателя</span>
+                        )}
                       </div>
-                      <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        Урок проведён
-                      </span>
                     </div>
                   </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                    <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-1.5">
-                      <div className="flex items-center gap-1.5 font-bold text-slate-800">
-                        <GraduationCap className="w-4 h-4 text-blue-600" />
-                        <span>Что прошли на занятии:</span>
-                      </div>
-                      <p className="text-slate-600 leading-relaxed">
-                        Разобрали тему «Олимпиадные логические задачи и уравнения». {selectedChild.name} отлично усвоил новый метод решения, активно работал на доске.
-                      </p>
-                    </div>
-
-                    <div className="p-4 rounded-2xl bg-blue-50/60 border border-blue-100 space-y-1.5">
-                      <div className="flex items-center gap-1.5 font-bold text-blue-900">
-                        <Sparkles className="w-4 h-4 text-blue-600" />
-                        <span>Совет родителям на дом:</span>
-                      </div>
-                      <p className="text-slate-700 leading-relaxed">
-                        Обязательно похвалите за самостоятельное решение 3-й задачи! Дома закрепить таблицу умножения на 7 и решить 2 коротких примера на стр. 14.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-500 pt-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-400">Преподаватель:</span>
-                      <strong className="text-slate-800">{lesson.teacherName}</strong>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-400">Домашнее задание:</span>
-                      <span className="font-bold text-emerald-700">✓ Проверено учителем</span>
-                    </div>
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         )}
