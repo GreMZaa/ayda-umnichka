@@ -81,6 +81,34 @@ function LessonTimer({ initialSeconds = 15 * 60 + 35 }: { initialSeconds?: numbe
   );
 }
 
+const RTC_CONFIG: RTCConfiguration = {
+  iceServers: [
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" },
+    { urls: "stun:stun2.l.google.com:19302" },
+    { urls: "stun:stun3.l.google.com:19302" },
+    { urls: "stun:stun4.l.google.com:19302" },
+    { urls: "stun:stun.cloudflare.com:3478" },
+    { urls: "stun:stun.services.mozilla.com" },
+    {
+      urls: "turn:openrelay.metered.ca:80",
+      username: "openrelayproject",
+      credential: "openrelayproject",
+    },
+    {
+      urls: "turn:openrelay.metered.ca:443",
+      username: "openrelayproject",
+      credential: "openrelayproject",
+    },
+    {
+      urls: "turn:openrelay.metered.ca:443?transport=tcp",
+      username: "openrelayproject",
+      credential: "openrelayproject",
+    },
+  ],
+  iceCandidatePoolSize: 10,
+};
+
 export default function VideoRoom({
   roomName,
   userName,
@@ -120,7 +148,7 @@ export default function VideoRoom({
   // Всплывающие уведомления полностью отключены по запросу пользователя
   const showToast = (_msg: string) => {};
 
-  // 2. Медиа-управление: настоящая Камера, Микрофон и Демонстрация экрана
+  // 2. Медиа-управление: настоящая Камера, Микрофон, WebRTC и Демонстрация экрана
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(false);
   const [screenSharing, setScreenSharing] = useState(false);
@@ -132,6 +160,27 @@ export default function VideoRoom({
   const mobileVideoRef = useRef<HTMLVideoElement>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
   const screenVideoRef = useRef<HTMLVideoElement>(null);
+
+  // WebRTC и удалённый поток собеседника
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [partnerCamOn, setPartnerCamOn] = useState(false);
+  const [partnerMicOn, setPartnerMicOn] = useState(true);
+  const remoteStreamRef = useRef<MediaStream | null>(null);
+
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteVideoSideRef = useRef<HTMLVideoElement>(null);
+  const remoteVideoMainRef = useRef<HTMLVideoElement>(null);
+  const remoteVideoMobileRef = useRef<HTMLVideoElement>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement>(null);
+
+  const myPeerId = useRef(typeof window !== "undefined" ? Math.random().toString(36).substring(2, 9) : "peer").current;
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const iceCandidateQueueRef = useRef<RTCIceCandidateInit[]>([]);
+
+  const currentCamOnRef = useRef(camOn);
+  currentCamOnRef.current = camOn;
+  const currentMicOnRef = useRef(micOn);
+  currentMicOnRef.current = micOn;
 
   // Синхронизация всех активных video-элементов локальной камеры
   const syncLocalVideos = useCallback((stream: MediaStream | null) => {
@@ -153,35 +202,228 @@ export default function VideoRoom({
     }
   }, []);
 
+  // Синхронизация всех активных video/audio-элементов удалённой камеры собеседника
+  const syncRemoteVideos = useCallback((stream: MediaStream | null) => {
+    if (remoteVideoRef.current && remoteVideoRef.current.srcObject !== stream) {
+      remoteVideoRef.current.srcObject = stream;
+      if (stream) remoteVideoRef.current.play().catch(() => {});
+    }
+    if (remoteVideoSideRef.current && remoteVideoSideRef.current.srcObject !== stream) {
+      remoteVideoSideRef.current.srcObject = stream;
+      if (stream) remoteVideoSideRef.current.play().catch(() => {});
+    }
+    if (remoteVideoMainRef.current && remoteVideoMainRef.current.srcObject !== stream) {
+      remoteVideoMainRef.current.srcObject = stream;
+      if (stream) remoteVideoMainRef.current.play().catch(() => {});
+    }
+    if (remoteVideoMobileRef.current && remoteVideoMobileRef.current.srcObject !== stream) {
+      remoteVideoMobileRef.current.srcObject = stream;
+      if (stream) remoteVideoMobileRef.current.play().catch(() => {});
+    }
+    if (remoteAudioRef.current && remoteAudioRef.current.srcObject !== stream) {
+      remoteAudioRef.current.srcObject = stream;
+      if (stream) remoteAudioRef.current.play().catch(() => {});
+    }
+  }, []);
+
+  // Функция создания PeerConnection
+  const getOrCreatePeerConnection = useCallback(() => {
+    if (peerConnectionRef.current) {
+      return peerConnectionRef.current;
+    }
+    if (typeof window === "undefined" || typeof RTCPeerConnection === "undefined") {
+      return null;
+    }
+
+    const pc = new RTCPeerConnection(RTC_CONFIG);
+    peerConnectionRef.current = pc;
+
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((track) => {
+        try {
+          pc.addTrack(track, localStreamRef.current!);
+        } catch (e) {
+          console.warn("Error adding local track to PC:", e);
+        }
+      });
+    }
+
+    pc.onicecandidate = ({ candidate }) => {
+      if (candidate && channelRef.current) {
+        channelRef.current.send({
+          type: "broadcast",
+          event: "webrtc_signal",
+          payload: {
+            senderId: myPeerId,
+            senderRole: userRole,
+            candidate: candidate.toJSON ? candidate.toJSON() : candidate,
+          },
+        });
+      }
+    };
+
+    pc.ontrack = (event) => {
+      const [stream] = event.streams;
+      const targetStream = stream || new MediaStream([event.track]);
+      remoteStreamRef.current = targetStream;
+      setRemoteStream(targetStream);
+      setPartnerCamOn(true);
+      syncRemoteVideos(targetStream);
+
+      event.track.onended = () => {
+        const hasLiveVideo = targetStream.getVideoTracks().some((t) => t.readyState === "live");
+        if (!hasLiveVideo) {
+          setPartnerCamOn(false);
+        }
+      };
+    };
+
+    return pc;
+  }, [myPeerId, userRole, syncRemoteVideos]);
+
+  // Инициация звонка (отправка offer)
+  const initiateCall = useCallback(async () => {
+    const pc = getOrCreatePeerConnection();
+    if (!pc || !channelRef.current) return;
+
+    try {
+      const offer = await pc.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: true,
+      });
+      await pc.setLocalDescription(offer);
+
+      channelRef.current.send({
+        type: "broadcast",
+        event: "webrtc_signal",
+        payload: {
+          senderId: myPeerId,
+          senderRole: userRole,
+          description: pc.localDescription,
+        },
+      });
+    } catch (err) {
+      console.error("WebRTC createOffer error:", err);
+    }
+  }, [getOrCreatePeerConnection, myPeerId, userRole]);
+
   // Включение / выключение реальной веб-камеры
   const toggleCamera = async () => {
     if (camOn) {
       if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach((track) => track.stop());
-        localStreamRef.current = null;
+        localStreamRef.current.getVideoTracks().forEach((track) => {
+          track.stop();
+          localStreamRef.current?.removeTrack(track);
+        });
       }
-      syncLocalVideos(null);
+      if (peerConnectionRef.current) {
+        const videoSender = peerConnectionRef.current.getSenders().find((s) => s.track && s.track.kind === "video");
+        if (videoSender) {
+          try {
+            peerConnectionRef.current.removeTrack(videoSender);
+          } catch (e) {}
+        }
+      }
       setCamOn(false);
+      syncLocalVideos(localStreamRef.current);
+      initiateCall();
+      channelRef.current?.send({
+        type: "broadcast",
+        event: "webrtc_media_state",
+        payload: { senderId: myPeerId, senderRole: userRole, camOn: false, micOn },
+      });
     } else {
       try {
         let stream: MediaStream;
         try {
           stream = await navigator.mediaDevices.getUserMedia({
             video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
-            audio: false,
+            audio: micOn,
           });
         } catch {
-          stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         }
 
-        localStreamRef.current = stream;
+        if (localStreamRef.current) {
+          stream.getTracks().forEach((t) => localStreamRef.current?.addTrack(t));
+        } else {
+          localStreamRef.current = stream;
+        }
+
         setCamOn(true);
-        syncLocalVideos(stream);
+        syncLocalVideos(localStreamRef.current);
+
+        const pc = getOrCreatePeerConnection();
+        if (pc) {
+          const videoTrack = stream.getVideoTracks()[0];
+          if (videoTrack) {
+            const senders = pc.getSenders();
+            const existingSender = senders.find((s) => s.track?.kind === "video");
+            if (existingSender) {
+              existingSender.replaceTrack(videoTrack);
+            } else {
+              pc.addTrack(videoTrack, localStreamRef.current);
+            }
+          }
+          const audioTrack = stream.getAudioTracks()[0];
+          if (audioTrack) {
+            const senders = pc.getSenders();
+            const existingSender = senders.find((s) => s.track?.kind === "audio");
+            if (existingSender) {
+              existingSender.replaceTrack(audioTrack);
+            } else {
+              pc.addTrack(audioTrack, localStreamRef.current);
+            }
+          }
+        }
+
+        initiateCall();
+        channelRef.current?.send({
+          type: "broadcast",
+          event: "webrtc_media_state",
+          payload: { senderId: myPeerId, senderRole: userRole, camOn: true, micOn },
+        });
       } catch (err: any) {
         console.error("Ошибка доступа к камере:", err);
-        alert("Не удалось запустить камеру. Пожалуйста, разрешите браузеру доступ к веб-камере.");
+        alert("Не удалось запустить камеру. Пожалуйста, разрешите браузеру доступ к веб-камере в настройках.");
       }
     }
+  };
+
+  // Включение / выключение микрофона
+  const toggleMic = async () => {
+    const nextMicState = !micOn;
+    setMicOn(nextMicState);
+
+    if (localStreamRef.current && localStreamRef.current.getAudioTracks().length > 0) {
+      localStreamRef.current.getAudioTracks().forEach((track) => {
+        track.enabled = nextMicState;
+      });
+    } else if (nextMicState) {
+      try {
+        const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const audioTrack = audioStream.getAudioTracks()[0];
+        if (audioTrack) {
+          if (!localStreamRef.current) {
+            localStreamRef.current = new MediaStream();
+          }
+          localStreamRef.current.addTrack(audioTrack);
+          const pc = getOrCreatePeerConnection();
+          if (pc) {
+            pc.addTrack(audioTrack, localStreamRef.current);
+            initiateCall();
+          }
+        }
+      } catch (e) {
+        console.warn("Could not capture microphone:", e);
+      }
+    }
+
+    channelRef.current?.send({
+      type: "broadcast",
+      event: "webrtc_media_state",
+      payload: { senderId: myPeerId, senderRole: userRole, camOn, micOn: nextMicState },
+    });
   };
 
   useEffect(() => {
@@ -189,6 +431,12 @@ export default function VideoRoom({
       syncLocalVideos(localStreamRef.current);
     }
   }, [camOn, chatCollapsed, activeTab, mobileTab, syncLocalVideos]);
+
+  useEffect(() => {
+    if (remoteStreamRef.current) {
+      syncRemoteVideos(remoteStreamRef.current);
+    }
+  }, [remoteStream, partnerCamOn, chatCollapsed, activeTab, mobileTab, mobileSplitView, mobilePipOpen, syncRemoteVideos]);
 
   // Включение / выключение настоящей демонстрации экрана
   const toggleScreenShare = async () => {
@@ -631,8 +879,102 @@ export default function VideoRoom({
           }
         }
       })
+      .on("broadcast", { event: "webrtc_signal" }, async ({ payload }) => {
+        if (!payload || payload.senderId === myPeerId) return;
+
+        const pc = getOrCreatePeerConnection();
+        if (!pc) return;
+
+        try {
+          if (payload.description) {
+            const desc = new RTCSessionDescription(payload.description);
+            await pc.setRemoteDescription(desc);
+
+            while (iceCandidateQueueRef.current.length > 0) {
+              const c = iceCandidateQueueRef.current.shift();
+              if (c) {
+                try {
+                  await pc.addIceCandidate(new RTCIceCandidate(c));
+                } catch (e) {
+                  console.warn("Error adding queued candidate:", e);
+                }
+              }
+            }
+
+            if (desc.type === "offer") {
+              const answer = await pc.createAnswer();
+              await pc.setLocalDescription(answer);
+              channel.send({
+                type: "broadcast",
+                event: "webrtc_signal",
+                payload: {
+                  senderId: myPeerId,
+                  senderRole: userRole,
+                  description: pc.localDescription,
+                },
+              });
+            }
+          } else if (payload.candidate) {
+            const candidate = new RTCIceCandidate(payload.candidate);
+            if (pc.remoteDescription && pc.remoteDescription.type) {
+              await pc.addIceCandidate(candidate);
+            } else {
+              iceCandidateQueueRef.current.push(payload.candidate);
+            }
+          }
+        } catch (err) {
+          console.error("WebRTC signal handling error:", err);
+        }
+      })
+      .on("broadcast", { event: "webrtc_media_state" }, ({ payload }) => {
+        if (!payload || payload.senderId === myPeerId) return;
+        if (typeof payload.camOn === "boolean") {
+          setPartnerCamOn(payload.camOn);
+        }
+        if (typeof payload.micOn === "boolean") {
+          setPartnerMicOn(payload.micOn);
+        }
+      })
+      .on("broadcast", { event: "webrtc_presence" }, ({ payload }) => {
+        if (!payload || payload.senderId === myPeerId) return;
+        channel.send({
+          type: "broadcast",
+          event: "webrtc_presence_ack",
+          payload: {
+            senderId: myPeerId,
+            senderRole: userRole,
+            camOn: currentCamOnRef.current,
+            micOn: currentMicOnRef.current,
+          },
+        });
+        if (userRole === "TEACHER" || currentCamOnRef.current) {
+          initiateCall();
+        }
+      })
+      .on("broadcast", { event: "webrtc_presence_ack" }, ({ payload }) => {
+        if (!payload || payload.senderId === myPeerId) return;
+        if (typeof payload.camOn === "boolean") {
+          setPartnerCamOn(payload.camOn);
+        }
+        if (typeof payload.micOn === "boolean") {
+          setPartnerMicOn(payload.micOn);
+        }
+        if (userRole === "TEACHER" || currentCamOnRef.current) {
+          initiateCall();
+        }
+      })
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
+          channel.send({
+            type: "broadcast",
+            event: "webrtc_presence",
+            payload: {
+              senderId: myPeerId,
+              senderRole: userRole,
+              camOn: currentCamOnRef.current,
+              micOn: currentMicOnRef.current,
+            },
+          });
           if (userRole === "STUDENT") {
             channel.send({
               type: "broadcast",
@@ -646,8 +988,16 @@ export default function VideoRoom({
     return () => {
       supabase.removeChannel(channel);
       channelRef.current = null;
+      if (peerConnectionRef.current) {
+        peerConnectionRef.current.close();
+        peerConnectionRef.current = null;
+      }
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((t) => t.stop());
+        localStreamRef.current = null;
+      }
     };
-  }, [roomName, userRole]);
+  }, [roomName, userRole, initiateCall, getOrCreatePeerConnection, myPeerId]);
 
   // Управление правами ученика со стороны преподавателя
   const toggleStudentPermission = () => {
@@ -1284,6 +1634,9 @@ export default function VideoRoom({
 
       {/* 2. ОСНОВНАЯ ЗОНА */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative min-h-0">
+        {/* Фоновое воспроизведение звука собеседника (не прерывается при смене вкладок) */}
+        <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
+
         {/* РЕЖИМ 1: ДОСКА ДЛЯ РИСОВАНИЯ ИЛИ ПОКАЗ ЭКРАНА */}
         <div
           className={`flex-1 flex flex-col bg-white relative overflow-hidden min-h-0 ${
@@ -1322,13 +1675,13 @@ export default function VideoRoom({
               {/* НА ТЕЛЕФОНЕ: СПЛИТ-ЭКРАН — КАМЕРА УЧИТЕЛЯ СВЕРХУ */}
               {mobileSplitView && (
                 <div className="md:hidden w-full h-44 xs:h-48 shrink-0 bg-slate-950 border-b border-slate-300 relative overflow-hidden group">
-                  {userRole === "TEACHER" && camOn ? (
+                  {(isTeacher ? camOn : (partnerCamOn && remoteStream)) ? (
                     <video
-                      ref={mobileVideoRef}
+                      ref={isTeacher ? mobileVideoRef : remoteVideoMobileRef}
                       autoPlay
-                      muted
+                      muted={isTeacher}
                       playsInline
-                      className="w-full h-full object-cover transform -scale-x-100"
+                      className={`w-full h-full object-cover ${isTeacher ? "transform -scale-x-100" : ""}`}
                     />
                   ) : (
                     <img
@@ -1342,7 +1695,7 @@ export default function VideoRoom({
                   {/* Верхняя плашка с именем и кнопкой свернуть в PiP */}
                   <div className="absolute top-2 left-2 right-2 flex items-center justify-between pointer-events-auto">
                     <div className="bg-slate-900/85 backdrop-blur px-2.5 py-1 rounded-lg text-white font-bold text-xs flex items-center gap-1.5 border border-slate-700/60 shadow-xs">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className={`w-2 h-2 rounded-full ${isTeacher ? (camOn ? "bg-emerald-400" : "bg-slate-400") : (partnerCamOn ? "bg-emerald-400 animate-pulse" : "bg-slate-400")}`} />
                       <span className="truncate">{isTeacher ? "Камера учителя (Вы)" : `Камера: ${partnerName}`}</span>
                     </div>
                     <button
@@ -1632,13 +1985,13 @@ export default function VideoRoom({
                   {/* НА ТЕЛЕФОНЕ: ПЛАВАЮЩЕЕ ОКНО КАМЕРЫ УЧИТЕЛЯ (PiP поверх доски) */}
                   {!mobileSplitView && mobilePipOpen && (
                     <div className="md:hidden absolute bottom-3 right-3 z-30 w-32 xs:w-36 aspect-video rounded-2xl overflow-hidden bg-slate-950 border-2 border-white shadow-2xl group transition-all">
-                      {userRole === "TEACHER" && camOn ? (
+                      {(isTeacher ? camOn : (partnerCamOn && remoteStream)) ? (
                         <video
-                          ref={mobileVideoRef}
+                          ref={isTeacher ? mobileVideoRef : remoteVideoMobileRef}
                           autoPlay
-                          muted
+                          muted={isTeacher}
                           playsInline
-                          className="w-full h-full object-cover transform -scale-x-100"
+                          className={`w-full h-full object-cover ${isTeacher ? "transform -scale-x-100" : ""}`}
                         />
                       ) : (
                         <img
@@ -1654,7 +2007,7 @@ export default function VideoRoom({
                         <span className="text-[10px] font-bold text-white truncate max-w-[80px]">
                           {isTeacher ? "Вы" : partnerName.split(" ")[0]}
                         </span>
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                        <span className={`w-1.5 h-1.5 rounded-full ${isTeacher ? (camOn ? "bg-emerald-400" : "bg-slate-400") : (partnerCamOn ? "bg-emerald-400 animate-pulse" : "bg-slate-400")} shrink-0`} />
                       </div>
 
                       {/* Кнопки управления окном */}
@@ -1942,17 +2295,36 @@ export default function VideoRoom({
           {/* Большое центрированное видео/изображение собеседника */}
           <div className="flex-1 flex items-center justify-center p-3 sm:p-6 relative">
             <div className="w-full h-full max-w-5xl rounded-3xl overflow-hidden relative shadow-2xl bg-slate-900 border border-slate-800 flex items-center justify-center">
-              <img
-                src={partnerAvatar}
-                alt={partnerName}
-                className="w-full h-full object-cover sm:object-contain"
-              />
+              {partnerCamOn && remoteStream ? (
+                <video
+                  ref={remoteVideoMainRef}
+                  autoPlay
+                  playsInline
+                  className="w-full h-full object-cover sm:object-contain"
+                />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center relative bg-slate-950">
+                  <img
+                    src={partnerAvatar}
+                    alt={partnerName}
+                    className="w-full h-full object-cover sm:object-contain opacity-70"
+                  />
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40">
+                    <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-white/60 shadow-xl mb-3">
+                      <img src={partnerAvatar} alt={partnerName} className="w-full h-full object-cover" />
+                    </div>
+                    <span className="text-white font-bold text-xs bg-slate-900/85 backdrop-blur px-3 py-1.5 rounded-full border border-slate-700 shadow-md">
+                      Камера {partnerRole === "Ученик" ? "ученика" : "учителя"} выключена
+                    </span>
+                  </div>
+                </div>
+              )}
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 pointer-events-none" />
 
               {/* Бейдж собеседника внизу экрана */}
               <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between pointer-events-none">
                 <div className="bg-slate-900/80 backdrop-blur px-3 py-1.5 rounded-xl border border-slate-700/60 text-white flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <div className={`w-2 h-2 rounded-full ${partnerCamOn ? "bg-emerald-400 animate-pulse" : "bg-slate-400"}`} />
                   <span className="text-sm font-bold truncate">{partnerName}</span>
                   <span className="text-xs text-slate-400">({partnerRole})</span>
                 </div>
@@ -1998,17 +2370,26 @@ export default function VideoRoom({
               <div className="flex-1 flex flex-col p-3 bg-slate-100 min-h-0 overflow-hidden">
                 {/* Камера собеседника на весь размер панели */}
                 <div className="flex-1 w-full min-h-0 relative rounded-2xl overflow-hidden bg-slate-900 border border-slate-300 shadow-sm flex items-center justify-center group">
-                  <img
-                    src={partnerAvatar}
-                    alt={partnerName}
-                    className="w-full h-full object-cover"
-                  />
+                  {partnerCamOn && remoteStream ? (
+                    <video
+                      ref={remoteVideoSideRef}
+                      autoPlay
+                      playsInline
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <img
+                      src={partnerAvatar}
+                      alt={partnerName}
+                      className="w-full h-full object-cover"
+                    />
+                  )}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 pointer-events-none" />
 
                   {/* Верхняя плашка (показывается только при наведении) */}
                   <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-auto">
                     <div className="bg-slate-900/85 backdrop-blur px-2.5 py-1 rounded-lg text-white font-bold text-xs flex items-center gap-1.5 border border-slate-700/60 shadow-xs">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className={`w-2 h-2 rounded-full ${partnerCamOn ? "bg-emerald-400 animate-pulse" : "bg-slate-400"}`} />
                       <span className="truncate">{partnerName}</span>
                     </div>
                     <button
@@ -2104,27 +2485,48 @@ export default function VideoRoom({
               <div className="p-3 border-b border-slate-200 bg-slate-50 grid grid-cols-2 gap-2">
                 {/* Преподаватель */}
                 <div className="rounded-xl overflow-hidden bg-slate-200 aspect-video relative border border-slate-300 group cursor-pointer">
-                  {userRole === "TEACHER" && camOn ? (
-                    <video
-                      ref={localVideoRef}
-                      autoPlay
-                      muted
-                      playsInline
-                      className="w-full h-full object-cover transform -scale-x-100"
-                    />
+                  {isTeacher ? (
+                    camOn ? (
+                      <video
+                        ref={localVideoRef}
+                        autoPlay
+                        muted
+                        playsInline
+                        className="w-full h-full object-cover transform -scale-x-100"
+                      />
+                    ) : (
+                      <img
+                        src={
+                          teacherAvatar ||
+                          "https://images.unsplash.com/photo-1544717305-2782549b5136?w=400&h=300&fit=crop&crop=faces"
+                        }
+                        alt={teacherName}
+                        className="w-full h-full object-cover"
+                      />
+                    )
                   ) : (
-                    <img
-                      src={
-                        teacherAvatar ||
-                        "https://images.unsplash.com/photo-1544717305-2782549b5136?w=400&h=300&fit=crop&crop=faces"
-                      }
-                      alt={teacherName}
-                      className="w-full h-full object-cover"
-                    />
+                    partnerCamOn && remoteStream ? (
+                      <video
+                        ref={remoteVideoRef}
+                        autoPlay
+                        playsInline
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <img
+                        src={
+                          teacherAvatar ||
+                          "https://images.unsplash.com/photo-1544717305-2782549b5136?w=400&h=300&fit=crop&crop=faces"
+                        }
+                        alt={teacherName}
+                        className="w-full h-full object-cover"
+                      />
+                    )
                   )}
                   {/* Имя скрыто по умолчанию, показывается при наведении */}
-                  <div className="absolute bottom-1 left-1 right-1 bg-slate-900/80 backdrop-blur px-1.5 py-0.5 rounded text-[10px] text-white font-bold truncate opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                    {teacherName}
+                  <div className="absolute bottom-1 left-1 right-1 bg-slate-900/80 backdrop-blur px-1.5 py-0.5 rounded text-[10px] text-white font-bold truncate flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                    <span className="truncate">{teacherName} {isTeacher ? "(Вы)" : ""}</span>
+                    <span className={`w-1.5 h-1.5 rounded-full ${isTeacher ? (camOn ? "bg-emerald-400" : "bg-slate-400") : (partnerCamOn ? "bg-emerald-400 animate-pulse" : "bg-slate-400")}`} />
                   </div>
                   <button
                     onClick={() => {
@@ -2140,28 +2542,51 @@ export default function VideoRoom({
 
                 {/* Ученик */}
                 <div className="rounded-xl overflow-hidden bg-slate-200 aspect-video relative border border-slate-300 group cursor-pointer">
-                  {userRole === "STUDENT" && camOn ? (
-                    <video
-                      ref={localVideoRef}
-                      autoPlay
-                      muted
-                      playsInline
-                      className="w-full h-full object-cover transform -scale-x-100"
-                    />
+                  {!isTeacher ? (
+                    camOn ? (
+                      <video
+                        ref={localVideoRef}
+                        autoPlay
+                        muted
+                        playsInline
+                        className="w-full h-full object-cover transform -scale-x-100"
+                      />
+                    ) : (
+                      <img
+                        src={
+                          studentAvatar ||
+                          "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400&h=300&fit=crop&crop=faces"
+                        }
+                        alt={studentName}
+                        className="w-full h-full object-cover"
+                      />
+                    )
                   ) : (
-                    <img
-                      src={
-                        studentAvatar ||
-                        "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400&h=300&fit=crop&crop=faces"
-                      }
-                      alt={studentName}
-                      className="w-full h-full object-cover"
-                    />
+                    partnerCamOn && remoteStream ? (
+                      <video
+                        ref={remoteVideoRef}
+                        autoPlay
+                        playsInline
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <img
+                        src={
+                          studentAvatar ||
+                          "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400&h=300&fit=crop&crop=faces"
+                        }
+                        alt={studentName}
+                        className="w-full h-full object-cover"
+                      />
+                    )
                   )}
                   {/* Имя скрыто по умолчанию, показывается при наведении */}
                   <div className="absolute bottom-1 left-1 right-1 bg-slate-900/80 backdrop-blur px-1.5 py-0.5 rounded text-[10px] text-white font-bold truncate flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                    <span className="truncate">{studentName}</span>
-                    {raisedHand && <span className="text-amber-300 ml-1">✋</span>}
+                    <span className="truncate">{studentName} {!isTeacher ? "(Вы)" : ""}</span>
+                    <div className="flex items-center gap-1">
+                      {raisedHand && <span className="text-amber-300">✋</span>}
+                      <span className={`w-1.5 h-1.5 rounded-full ${!isTeacher ? (camOn ? "bg-emerald-400" : "bg-slate-400") : (partnerCamOn ? "bg-emerald-400 animate-pulse" : "bg-slate-400")}`} />
+                    </div>
                   </div>
                   <button
                     onClick={() => {
@@ -2258,7 +2683,7 @@ export default function VideoRoom({
         <div className="flex items-center justify-around w-full max-w-md md:justify-center md:gap-3">
           {/* Микрофон */}
           <button
-            onClick={() => setMicOn(!micOn)}
+            onClick={toggleMic}
             className={`w-11 h-11 rounded-full flex items-center justify-center transition cursor-pointer shadow-xs ${
               micOn ? "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200" : "bg-rose-600 text-white"
             }`}
