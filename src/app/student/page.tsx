@@ -148,7 +148,7 @@ export default function StudentCabinet() {
                 className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs space-y-3 hover:border-slate-300 transition"
               >
                 <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-md">
+                  <span className="font-semibold text-slate-700 bg-slate-100 border border-slate-200/80 px-2.5 py-0.5 rounded-md">
                     {lesson.subjectName}
                   </span>
                   <span className="font-semibold text-slate-700 flex items-center gap-1">

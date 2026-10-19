@@ -271,11 +271,11 @@ export default function Navbar() {
                       onClick={() => handleRoleQuickSelect(r.id)}
                       className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition ${
                         isSelected
-                          ? "bg-white text-blue-700 shadow-xs"
+                          ? "bg-white text-slate-900 shadow-xs"
                           : "text-slate-600 hover:text-slate-900"
                       }`}
                     >
-                      <Icon className={`w-3.5 h-3.5 ${isSelected ? "text-blue-600" : "text-slate-400"}`} />
+                      <Icon className={`w-3.5 h-3.5 ${isSelected ? "text-slate-800" : "text-slate-400"}`} />
                       <span>{r.label}</span>
                     </button>
                   );
@@ -296,8 +296,8 @@ export default function Navbar() {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="name@example.com"
-                    className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm font-medium focus:outline-none focus:border-blue-600 transition"
+                    placeholder="Например: ivan@mail.ru"
+                    className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:border-blue-600 transition"
                   />
                 </div>
               </div>
@@ -322,8 +322,8 @@ export default function Navbar() {
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Введите пароль"
-                    className="w-full pl-9 pr-9 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm font-medium focus:outline-none focus:border-blue-600 transition"
+                    placeholder="Не менее 6 символов"
+                    className="w-full pl-9 pr-9 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:border-blue-600 transition"
                   />
                   <button
                     type="button"

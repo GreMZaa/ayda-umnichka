@@ -208,10 +208,10 @@ export default function HomePage() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div>
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-blue-600">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                       Интерактивная доска урока
                     </span>
-                    <h3 className="font-bold text-slate-900 text-base">
+                    <h3 className="font-bold text-slate-900 text-base leading-snug">
                       Тема: Решение олимпиадных логических задач
                     </h3>
                   </div>
@@ -222,10 +222,10 @@ export default function HomePage() {
 
                 {/* Иллюстрация решения задачи на виртуальной доске */}
                 <div className="p-4 rounded-xl bg-slate-50 border border-dashed border-slate-300 font-mono text-xs text-slate-800 space-y-2">
-                  <p className="text-slate-500 font-sans font-medium">
+                  <p className="text-slate-600 font-sans font-medium">
                     Задача 3: В корзине лежат красные и синие шары...
                   </p>
-                  <p className="font-bold text-blue-700 text-sm">
+                  <p className="font-bold text-slate-900 text-sm">
                     2x + 4 = 18 &nbsp;➔&nbsp; 2x = 14 &nbsp;➔&nbsp; x = 7 шаров!
                   </p>
                   <div className="inline-block px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-sans font-bold text-[11px]">
@@ -233,7 +233,7 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                <p className="text-xs text-slate-500 leading-relaxed font-sans">
+                <p className="text-xs text-slate-600 leading-relaxed font-sans">
                   Преподаватель и ученик рисуют и пишут формулы на одном экране в реальном времени. Все материалы сохраняются в кабинете.
                 </p>
               </div>
@@ -259,13 +259,13 @@ export default function HomePage() {
       {/* 3. ИНТЕРАКТИВНЫЕ ЛИЧНЫЕ КАБИНЕТЫ (ТОЛЬКО УЧЕНИК И РОДИТЕЛЬ) */}
       <section id="cabinets" className="max-w-4xl mx-auto space-y-6">
         <div className="text-center space-y-2">
-          <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
             Личные кабинеты
           </span>
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-[1.2]">
             Всё необходимое для учебы и контроля
           </h2>
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-slate-600 leading-relaxed">
             Выберите роль, чтобы посмотреть возможности кабинета
           </p>
         </div>
@@ -291,13 +291,13 @@ export default function HomePage() {
         {/* Контент активного таба */}
         <div className="clean-card p-6 sm:p-8 space-y-6">
           <div className="border-b border-slate-100 pb-4">
-            <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">
+            <span className="inline-flex px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200/80 uppercase tracking-wider">
               {roleDetails[activeTab].badge}
             </span>
-            <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">
+            <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mt-2 leading-tight">
               {roleDetails[activeTab].title}
             </h3>
-            <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+            <p className="text-xs sm:text-sm text-slate-600 mt-1 leading-relaxed">
               {roleDetails[activeTab].subtitle}
             </p>
           </div>
@@ -318,10 +318,10 @@ export default function HomePage() {
       {/* 4. НАПРАВЛЕНИЯ ЗАНЯТИЙ */}
       <section className="max-w-4xl mx-auto space-y-6">
         <div className="text-center space-y-2">
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-[1.2]">
             Предметы и программы занятий
           </h2>
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-slate-600 leading-relaxed">
             Индивидуальные занятия с преподавателями нашего центра
           </p>
         </div>
@@ -337,7 +337,7 @@ export default function HomePage() {
                   <span className="text-2xl">{sub.icon}</span>
                   <h3 className="font-bold text-sm text-slate-900">{sub.name}</h3>
                 </div>
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100">
+                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200/80">
                   {sub.grade}
                 </span>
               </div>
@@ -357,11 +357,11 @@ export default function HomePage() {
 
           {/* Заголовок секции */}
           <div className="text-center space-y-3 pt-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold">
-              <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-800 border border-slate-200 text-xs font-bold">
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
               <span>Бесплатное первое занятие</span>
             </span>
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-[1.2]">
               Запишитесь на вводный онлайн-урок
             </h2>
             <p className="text-xs sm:text-sm text-slate-600 max-w-lg mx-auto leading-relaxed">

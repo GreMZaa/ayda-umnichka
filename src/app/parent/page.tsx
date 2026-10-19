@@ -254,41 +254,41 @@ export default function ParentCabinet() {
         </div>
       )}
 
-      {/* 4. ОСНОВНЫЕ ВКЛАДКИ КАБИНЕТА РОДИТЕЛЯ */}
+      {/* 4. ОСНОВНЫЕ ВКЛАДКИ КАБИНЕТА РОДИТЕЛЯ (Спокойный стиль табов по Правилу 6) */}
       <div className="space-y-4">
         {/* Переключатель вкладок */}
-        <div className="flex p-1 bg-slate-200/80 rounded-xl max-w-md">
+        <div className="flex p-1 bg-slate-100 rounded-xl max-w-md">
           <button
             onClick={() => setActiveTab("reports")}
             className={`flex-1 py-2 text-xs font-bold rounded-lg transition flex items-center justify-center gap-1.5 ${
               activeTab === "reports"
-                ? "bg-white text-blue-600 shadow-xs"
+                ? "bg-white text-slate-900 shadow-xs"
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            <FileText className="w-3.5 h-3.5" />
+            <FileText className={`w-3.5 h-3.5 ${activeTab === "reports" ? "text-slate-700" : "text-slate-400"}`} />
             <span>Отчёты и оценки ({completedLessons.length})</span>
           </button>
           <button
             onClick={() => setActiveTab("schedule")}
             className={`flex-1 py-2 text-xs font-bold rounded-lg transition flex items-center justify-center gap-1.5 ${
               activeTab === "schedule"
-                ? "bg-white text-blue-600 shadow-xs"
+                ? "bg-white text-slate-900 shadow-xs"
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            <Calendar className="w-3.5 h-3.5" />
+            <Calendar className={`w-3.5 h-3.5 ${activeTab === "schedule" ? "text-slate-700" : "text-slate-400"}`} />
             <span>Расписание ({upcomingLessons.length})</span>
           </button>
           <button
             onClick={() => setActiveTab("billing")}
             className={`flex-1 py-2 text-xs font-bold rounded-lg transition flex items-center justify-center gap-1.5 ${
               activeTab === "billing"
-                ? "bg-white text-blue-600 shadow-xs"
+                ? "bg-white text-slate-900 shadow-xs"
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            <CreditCard className="w-3.5 h-3.5" />
+            <CreditCard className={`w-3.5 h-3.5 ${activeTab === "billing" ? "text-slate-700" : "text-slate-400"}`} />
             <span>Абонемент</span>
           </button>
         </div>
@@ -297,7 +297,7 @@ export default function ParentCabinet() {
         {activeTab === "reports" && (
           <div className="space-y-3">
             {completedLessons.length === 0 ? (
-              <div className="bg-white rounded-2xl p-8 border border-slate-200 text-center text-slate-500 text-xs">
+              <div className="bg-white rounded-2xl p-8 border border-slate-200 text-center text-slate-600 text-xs">
                 Пока нет завершённых уроков с отчётами для {selectedChild.name}
               </div>
             ) : (
@@ -306,11 +306,11 @@ export default function ParentCabinet() {
                   key={lesson.id}
                   className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200 shadow-xs space-y-4 hover:border-slate-300 transition"
                 >
-                  {/* Верхняя строка отчета */}
+                  {/* Верхняя строка отчета (Правило 5: некликабельный бейдж серым, а не синим) */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">
+                        <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
                           {lesson.subjectName}
                         </span>
                         <span className="text-xs text-slate-400">•</span>

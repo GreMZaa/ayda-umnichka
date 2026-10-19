@@ -156,18 +156,18 @@ export default function LoginPage() {
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-blue-600 text-white shadow-md shadow-blue-500/20 mb-1">
             <GraduationCap className="w-6 h-6" />
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-[1.2]">
             {mode === "signin" ? "Вход в личный кабинет" : "Регистрация в центре"}
           </h1>
-          <p className="text-xs sm:text-sm text-slate-600">
+          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
             {mode === "signin"
               ? "Введите e-mail и пароль для входа"
               : "Создайте аккаунт ученика или родителя"}
           </p>
         </div>
 
-        {/* Переключатель Вход / Регистрация */}
-        <div className="flex p-1 bg-slate-200/80 rounded-xl">
+        {/* Переключатель Вход / Регистрация (Спокойный стиль табов по Правилу 6) */}
+        <div className="flex p-1 bg-slate-100 rounded-xl">
           <button
             type="button"
             onClick={() => {
@@ -176,11 +176,11 @@ export default function LoginPage() {
             }}
             className={`flex-1 py-2 text-xs font-bold rounded-lg transition flex items-center justify-center gap-1.5 ${
               mode === "signin"
-                ? "bg-white text-blue-600 shadow-xs"
+                ? "bg-white text-slate-900 shadow-xs"
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            <LogIn className="w-3.5 h-3.5" />
+            <LogIn className={`w-3.5 h-3.5 ${mode === "signin" ? "text-slate-700" : "text-slate-400"}`} />
             <span>Вход по Email</span>
           </button>
           <button
@@ -191,11 +191,11 @@ export default function LoginPage() {
             }}
             className={`flex-1 py-2 text-xs font-bold rounded-lg transition flex items-center justify-center gap-1.5 ${
               mode === "signup"
-                ? "bg-white text-blue-600 shadow-xs"
+                ? "bg-white text-slate-900 shadow-xs"
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            <UserPlus className="w-3.5 h-3.5" />
+            <UserPlus className={`w-3.5 h-3.5 ${mode === "signup" ? "text-slate-700" : "text-slate-400"}`} />
             <span>Регистрация</span>
           </button>
         </div>
@@ -221,7 +221,7 @@ export default function LoginPage() {
             </div>
           )}
 
-          {/* Выбор роли (Ученик или Родитель) как сегментированный контрол (Правило 12) */}
+          {/* Выбор роли (Ученик или Родитель) как сегментированный контрол (Правило 12, Правило 6) */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1.5">
               Личный кабинет:
@@ -243,11 +243,11 @@ export default function LoginPage() {
                     }}
                     className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition ${
                       isSelected
-                        ? "bg-white text-blue-700 shadow-xs"
+                        ? "bg-white text-slate-900 shadow-xs"
                         : "text-slate-600 hover:text-slate-900"
                     }`}
                   >
-                    <Icon className={`w-4 h-4 ${isSelected ? "text-blue-600" : "text-slate-400"}`} />
+                    <Icon className={`w-4 h-4 ${isSelected ? "text-slate-800" : "text-slate-400"}`} />
                     <span>{r.label}</span>
                   </button>
                 );
@@ -269,14 +269,14 @@ export default function LoginPage() {
                     required
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    placeholder="Ваше имя и фамилия"
-                    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-medium focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition"
+                    placeholder="Например: Анна Смирнова"
+                    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition"
                   />
                 </div>
               </div>
             )}
 
-            {/* Поле Email */}
+            {/* Поле Email (Правило 13: серый плейсхолдер с примером) */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1.5">
                 Электронная почта (Email):
@@ -288,8 +288,8 @@ export default function LoginPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@example.ru"
-                  className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-medium focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition"
+                  placeholder="Например: ivan@mail.ru"
+                  className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition"
                 />
               </div>
             </div>
@@ -318,8 +318,8 @@ export default function LoginPage() {
                   minLength={6}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Минимум 6 символов"
-                  className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-medium focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition"
+                  placeholder="Не менее 6 символов"
+                  className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition"
                 />
                 <button
                   type="button"
