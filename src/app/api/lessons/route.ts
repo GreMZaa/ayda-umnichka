@@ -174,13 +174,28 @@ export async function POST(request: Request) {
     const client = getSupabase();
     if (client) {
       try {
+        const isUuid = (str: string) =>
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+
+        const subjectIdToSave = isUuid(lessonData.subjectId)
+          ? lessonData.subjectId
+          : "fd8c024a-ff45-40e1-99ea-9afa55e1bf3d";
+
+        const studentIdToSave = isUuid(lessonData.studentId)
+          ? lessonData.studentId
+          : "00000000-0000-0000-0000-000000000003";
+
+        const teacherIdToSave = isUuid(lessonData.teacherId)
+          ? lessonData.teacherId
+          : "00000000-0000-0000-0000-000000000001";
+
         const { data: created, error } = await client
           .from("lessons")
           .insert({
             title: lessonData.title,
-            subject_id: lessonData.subjectId,
-            teacher_id: lessonData.teacherId,
-            student_id: lessonData.studentId,
+            subject_id: subjectIdToSave,
+            teacher_id: teacherIdToSave,
+            student_id: studentIdToSave,
             start_time: lessonData.startTime,
             end_time: lessonData.endTime,
             status: lessonData.status || "SCHEDULED",
@@ -208,13 +223,13 @@ export async function POST(request: Request) {
               id: created.id,
               title: created.title,
               subjectId: created.subject_id,
-              subjectName: (created.subjects as any)?.name || "Предмет",
-              subjectColor: (created.subjects as any)?.color || "#2563eb",
+              subjectName: lessonData.subjectName || (created.subjects as any)?.name || "Предмет",
+              subjectColor: lessonData.subjectColor || (created.subjects as any)?.color || "#2563eb",
               teacherId: created.teacher_id,
-              teacherName: (created.teacher as any)?.name || "Преподаватель",
+              teacherName: lessonData.teacherName || (created.teacher as any)?.name || "Преподаватель",
               teacherAvatar: (created.teacher as any)?.avatar_url,
               studentId: created.student_id,
-              studentName: (created.student as any)?.name || "Ученик",
+              studentName: lessonData.studentName || (created.student as any)?.name || "Ученик",
               studentAvatar: (created.student as any)?.avatar_url,
               startTime: created.start_time,
               endTime: created.end_time,
@@ -223,9 +238,11 @@ export async function POST(request: Request) {
             },
             { status: 201 }
           );
+        } else if (error) {
+          console.error("Supabase insert lesson error:", error);
         }
       } catch (sbErr) {
-        console.error("Supabase create lesson error:", sbErr);
+        console.error("Supabase create lesson exception:", sbErr);
       }
     }
 

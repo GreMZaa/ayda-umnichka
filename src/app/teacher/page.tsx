@@ -45,11 +45,29 @@ interface SubjectItem {
   color: string;
 }
 
+const DEFAULT_SUBJECTS: SubjectItem[] = [
+  { id: "fd8c024a-ff45-40e1-99ea-9afa55e1bf3d", name: "Математика и логика", color: "#2563eb" },
+  { id: "6cd8b625-b9ee-4f5c-866b-4c94f504afa5", name: "Русский язык и каллиграфия", color: "#d946ef" },
+  { id: "dc85f0c2-0b64-41aa-80c1-436af66ddaab", name: "Английский язык", color: "#059669" },
+  { id: "b86f3458-9418-4a57-8106-cf4c3db47f97", name: "Подготовка к школе", color: "#d97706" },
+  { id: "e1234567-89ab-cdef-0123-456789abcdef", name: "Окружающий мир", color: "#0284c7" },
+  { id: "e2234567-89ab-cdef-0123-456789abcdef", name: "Физика и естествознание", color: "#7c3aed" },
+  { id: "e3234567-89ab-cdef-0123-456789abcdef", name: "Программирование и IT", color: "#0d9488" },
+];
+
+const DEFAULT_STUDENTS: StudentProfile[] = [
+  { id: "00000000-0000-0000-0000-000000000003", name: "Артём Смирнов", grade: "1 класс", school: "АйДаУмничка" },
+  { id: "00000000-0000-0000-0000-000000000004", name: "София Васильева", grade: "5 класс", school: "АйДаУмничка" },
+  { id: "2a62e436-f539-4ec5-b3af-a1afabfa0eec", name: "Ученик", grade: "3 класс", school: "АйДаУмничка" },
+  { id: "00000000-0000-0000-0000-000000000007", name: "Иван Морозов", grade: "4 класс", school: "АйДаУмничка" },
+  { id: "00000000-0000-0000-0000-000000000008", name: "Алиса Романова", grade: "2 класс", school: "АйДаУмничка" },
+];
+
 export default function TeacherCabinet() {
   const [teacherName, setTeacherName] = useState("Анна Сергеевна Иванова");
   const [lessons, setLessons] = useState<any[]>([]);
-  const [subjects, setSubjects] = useState<SubjectItem[]>([]);
-  const [students, setStudents] = useState<StudentProfile[]>([]);
+  const [subjects, setSubjects] = useState<SubjectItem[]>(DEFAULT_SUBJECTS);
+  const [students, setStudents] = useState<StudentProfile[]>(DEFAULT_STUDENTS);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"schedule" | "lessons" | "students" | "journal">("schedule");
   const [mounted, setMounted] = useState(false);
@@ -60,10 +78,16 @@ export default function TeacherCabinet() {
   const [createSuccess, setCreateSuccess] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
-  // Поля формы создания урока
+  // Поля формы создания урока (выбор или ручной ввод)
   const [newTitle, setNewTitle] = useState("");
-  const [selectedSubjectId, setSelectedSubjectId] = useState("");
-  const [selectedStudentId, setSelectedStudentId] = useState("");
+  const [selectedSubjectId, setSelectedSubjectId] = useState(DEFAULT_SUBJECTS[0].id);
+  const [isCustomSubject, setIsCustomSubject] = useState(false);
+  const [customSubjectName, setCustomSubjectName] = useState("");
+
+  const [selectedStudentId, setSelectedStudentId] = useState(DEFAULT_STUDENTS[0].id);
+  const [isCustomStudent, setIsCustomStudent] = useState(false);
+  const [customStudentName, setCustomStudentName] = useState("");
+
   const [lessonDate, setLessonDate] = useState(() => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -105,7 +129,44 @@ export default function TeacherCabinet() {
     try {
       const res = await fetchWithAuth("/api/lessons");
       const data = await res.json();
-      setLessons(Array.isArray(data) ? data : []);
+      const list = Array.isArray(data) ? data : [];
+      setLessons(list);
+
+      // Обогащаем список учеников и предметов из полученных уроков
+      if (list.length > 0) {
+        setStudents((prev) => {
+          const names = new Set(prev.map((s) => s.name.toLowerCase()));
+          const extra: StudentProfile[] = [];
+          list.forEach((l: any) => {
+            if (l.studentName && !names.has(l.studentName.toLowerCase())) {
+              names.add(l.studentName.toLowerCase());
+              extra.push({
+                id: l.studentId || "st-" + Math.random().toString(36).substring(2, 7),
+                name: l.studentName,
+                grade: "Ученик школы",
+                school: "АйДаУмничка",
+              });
+            }
+          });
+          return extra.length > 0 ? [...prev, ...extra] : prev;
+        });
+
+        setSubjects((prev) => {
+          const names = new Set(prev.map((s) => s.name.toLowerCase()));
+          const extra: SubjectItem[] = [];
+          list.forEach((l: any) => {
+            if (l.subjectName && !names.has(l.subjectName.toLowerCase())) {
+              names.add(l.subjectName.toLowerCase());
+              extra.push({
+                id: l.subjectId || "sub-" + Math.random().toString(36).substring(2, 7),
+                name: l.subjectName,
+                color: l.subjectColor || "#2563eb",
+              });
+            }
+          });
+          return extra.length > 0 ? [...prev, ...extra] : prev;
+        });
+      }
     } catch (err) {
       console.error("Ошибка загрузки уроков:", err);
     } finally {
@@ -131,8 +192,10 @@ export default function TeacherCabinet() {
         .order("name", { ascending: true })
         .then(({ data }) => {
           if (data && data.length > 0) {
-            setSubjects(data);
-            if (!selectedSubjectId) setSelectedSubjectId(data[0].id);
+            setSubjects((prev) => {
+              const ids = new Set(data.map((d: any) => d.id));
+              return [...data, ...prev.filter((p) => !ids.has(p.id))];
+            });
           }
         });
 
@@ -159,8 +222,10 @@ export default function TeacherCabinet() {
                 avatarUrl: s.avatar_url,
               };
             });
-            setStudents(mappedStudents);
-            if (!selectedStudentId) setSelectedStudentId(mappedStudents[0].id);
+            setStudents((prev) => {
+              const ids = new Set(mappedStudents.map((d) => d.id));
+              return [...mappedStudents, ...prev.filter((p) => !ids.has(p.id))];
+            });
           }
         });
     }
@@ -170,8 +235,16 @@ export default function TeacherCabinet() {
 
   // Открытие модалки создания урока (с возможностью предвыбора ученика)
   const handleOpenCreateModal = (studentId?: string) => {
-    if (studentId) setSelectedStudentId(studentId);
+    if (studentId) {
+      setSelectedStudentId(studentId);
+      setIsCustomStudent(false);
+    } else {
+      setIsCustomStudent(false);
+      setCustomStudentName("");
+    }
     setNewTitle("");
+    setIsCustomSubject(false);
+    setCustomSubjectName("");
     setLessonRoomName(`room-${Math.random().toString(36).substring(2, 8)}`);
     setCreateError(null);
     setCreateSuccess(false);
@@ -185,20 +258,76 @@ export default function TeacherCabinet() {
       setCreateError("Пожалуйста, введите название урока.");
       return;
     }
-    if (!selectedSubjectId) {
-      setCreateError("Пожалуйста, выберите предмет.");
-      return;
+
+    // Определение учебного предмета (из списка или введенного вручную)
+    let finalSubjectName = "";
+    let finalSubjectId = "";
+    let finalSubjectColor = "#2563eb";
+
+    if (isCustomSubject) {
+      if (!customSubjectName.trim()) {
+        setCreateError("Пожалуйста, введите или выберите учебный предмет.");
+        return;
+      }
+      finalSubjectName = customSubjectName.trim();
+      const match = subjects.find(
+        (s) => s.name.toLowerCase() === finalSubjectName.toLowerCase()
+      );
+      if (match) {
+        finalSubjectId = match.id;
+        finalSubjectColor = match.color;
+      } else {
+        finalSubjectId = "fd8c024a-ff45-40e1-99ea-9afa55e1bf3d";
+        finalSubjectColor = "#2563eb";
+        // Добавляем в локальный список предметов
+        setSubjects((prev) => [
+          ...prev,
+          { id: finalSubjectId, name: finalSubjectName, color: finalSubjectColor },
+        ]);
+      }
+    } else {
+      const subject = subjects.find((s) => s.id === selectedSubjectId);
+      finalSubjectId = selectedSubjectId || DEFAULT_SUBJECTS[0].id;
+      finalSubjectName = subject?.name || "Математика и логика";
+      finalSubjectColor = subject?.color || "#2563eb";
     }
-    if (!selectedStudentId) {
-      setCreateError("Пожалуйста, выберите ученика.");
-      return;
+
+    // Определение ученика (из списка или введенного вручную)
+    let finalStudentName = "";
+    let finalStudentId = "";
+
+    if (isCustomStudent) {
+      if (!customStudentName.trim()) {
+        setCreateError("Пожалуйста, введите или выберите ученика.");
+        return;
+      }
+      finalStudentName = customStudentName.trim();
+      const match = students.find(
+        (s) => s.name.toLowerCase() === finalStudentName.toLowerCase()
+      );
+      if (match) {
+        finalStudentId = match.id;
+      } else {
+        finalStudentId = "00000000-0000-0000-0000-000000000003";
+        // Добавляем в локальный список учеников
+        setStudents((prev) => [
+          ...prev,
+          {
+            id: finalStudentId,
+            name: finalStudentName,
+            grade: "Ученик школы",
+            school: "АйДаУмничка",
+          },
+        ]);
+      }
+    } else {
+      const student = students.find((s) => s.id === selectedStudentId);
+      finalStudentId = selectedStudentId || DEFAULT_STUDENTS[0].id;
+      finalStudentName = student?.name || "Ученик";
     }
 
     setCreatingLesson(true);
     setCreateError(null);
-
-    const subject = subjects.find((s) => s.id === selectedSubjectId);
-    const student = students.find((s) => s.id === selectedStudentId);
 
     // Рассчитываем время начала и окончания в ISO
     const startIso = new Date(`${lessonDate}T${lessonTime}:00`).toISOString();
@@ -207,13 +336,13 @@ export default function TeacherCabinet() {
 
     const lessonPayload = {
       title: newTitle.trim(),
-      subjectId: selectedSubjectId,
-      subjectName: subject?.name || "Математика и логика",
-      subjectColor: subject?.color || "#2563eb",
+      subjectId: finalSubjectId,
+      subjectName: finalSubjectName,
+      subjectColor: finalSubjectColor,
       teacherId: "00000000-0000-0000-0000-000000000001",
       teacherName,
-      studentId: selectedStudentId,
-      studentName: student?.name || "Ученик",
+      studentId: finalStudentId,
+      studentName: finalStudentName,
       startTime: startIso,
       endTime: endIso,
       status: "SCHEDULED",
@@ -880,40 +1009,132 @@ export default function TeacherCabinet() {
                 />
               </div>
 
-              {/* Выбор предмета */}
+              {/* Выбор или ввод предмета */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Учебный предмет:
-                </label>
-                <select
-                  value={selectedSubjectId}
-                  onChange={(e) => setSelectedSubjectId(e.target.value)}
-                  className="w-full p-3 rounded-2xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 bg-white"
-                >
-                  {subjects.map((sub) => (
-                    <option key={sub.id} value={sub.id}>
-                      {sub.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Учебный предмет:
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCustomSubject(!isCustomSubject);
+                      if (!isCustomSubject && !customSubjectName) {
+                        const cur = subjects.find((s) => s.id === selectedSubjectId);
+                        if (cur) setCustomSubjectName(cur.name);
+                      }
+                    }}
+                    className="text-[11px] text-blue-600 font-bold hover:text-blue-800 transition inline-flex items-center gap-1 cursor-pointer"
+                  >
+                    {isCustomSubject ? "📋 Выбрать из списка" : "✏️ Вписать свой предмет"}
+                  </button>
+                </div>
+
+                {isCustomSubject ? (
+                  <div className="space-y-1">
+                    <input
+                      type="text"
+                      required
+                      value={customSubjectName}
+                      onChange={(e) => setCustomSubjectName(e.target.value)}
+                      placeholder="Например: Ментальная арифметика, Шахматы, Немецкий"
+                      list="subjects-datalist"
+                      className="w-full p-3 rounded-2xl border-2 border-blue-500 text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 bg-blue-50/20 shadow-2xs"
+                      autoFocus
+                    />
+                    <datalist id="subjects-datalist">
+                      {subjects.map((sub) => (
+                        <option key={sub.id} value={sub.name} />
+                      ))}
+                    </datalist>
+                    <p className="text-[10px] text-slate-400">
+                      Введите название предмета или выберите подсказку
+                    </p>
+                  </div>
+                ) : (
+                  <select
+                    value={selectedSubjectId}
+                    onChange={(e) => {
+                      if (e.target.value === "__custom__") {
+                        setIsCustomSubject(true);
+                      } else {
+                        setSelectedSubjectId(e.target.value);
+                      }
+                    }}
+                    className="w-full p-3 rounded-2xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 bg-white"
+                  >
+                    {subjects.map((sub) => (
+                      <option key={sub.id} value={sub.id}>
+                        {sub.name}
+                      </option>
+                    ))}
+                    <option value="__custom__">✏️ Вписать свой предмет вручную...</option>
+                  </select>
+                )}
               </div>
 
-              {/* Выбор ученика */}
+              {/* Выбор или ввод ученика */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Ученик:
-                </label>
-                <select
-                  value={selectedStudentId}
-                  onChange={(e) => setSelectedStudentId(e.target.value)}
-                  className="w-full p-3 rounded-2xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 bg-white"
-                >
-                  {students.map((st) => (
-                    <option key={st.id} value={st.id}>
-                      {st.name} ({st.grade})
-                    </option>
-                  ))}
-                </select>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Ученик:
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCustomStudent(!isCustomStudent);
+                      if (!isCustomStudent && !customStudentName) {
+                        const cur = students.find((s) => s.id === selectedStudentId);
+                        if (cur) setCustomStudentName(cur.name);
+                      }
+                    }}
+                    className="text-[11px] text-blue-600 font-bold hover:text-blue-800 transition inline-flex items-center gap-1 cursor-pointer"
+                  >
+                    {isCustomStudent ? "📋 Выбрать из списка" : "✏️ Вписать имя ученика"}
+                  </button>
+                </div>
+
+                {isCustomStudent ? (
+                  <div className="space-y-1">
+                    <input
+                      type="text"
+                      required
+                      value={customStudentName}
+                      onChange={(e) => setCustomStudentName(e.target.value)}
+                      placeholder="Например: Иван Смирнов (3 класс) или Михаил"
+                      list="students-datalist"
+                      className="w-full p-3 rounded-2xl border-2 border-blue-500 text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 bg-blue-50/20 shadow-2xs"
+                      autoFocus
+                    />
+                    <datalist id="students-datalist">
+                      {students.map((st) => (
+                        <option key={st.id} value={st.name} />
+                      ))}
+                    </datalist>
+                    <p className="text-[10px] text-slate-400">
+                      Введите имя ученика или выберите из подсказок
+                    </p>
+                  </div>
+                ) : (
+                  <select
+                    value={selectedStudentId}
+                    onChange={(e) => {
+                      if (e.target.value === "__custom__") {
+                        setIsCustomStudent(true);
+                      } else {
+                        setSelectedStudentId(e.target.value);
+                      }
+                    }}
+                    className="w-full p-3 rounded-2xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 bg-white"
+                  >
+                    {students.map((st) => (
+                      <option key={st.id} value={st.id}>
+                        {st.name} {st.grade ? `(${st.grade})` : ""}
+                      </option>
+                    ))}
+                    <option value="__custom__">✏️ Вписать имя нового ученика вручную...</option>
+                  </select>
+                )}
               </div>
 
               {/* Дата и время */}
