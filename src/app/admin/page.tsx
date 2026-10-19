@@ -41,7 +41,7 @@ import EditProfileModal from "@/components/EditProfileModal";
 export default function AdminPage() {
   // Авторизация администратора через Supabase
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [adminEmail, setAdminEmail] = useState("admin@umnichka.ru");
+  const [adminEmail, setAdminEmail] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [authError, setAuthError] = useState("");
@@ -941,7 +941,7 @@ export default function AdminPage() {
                     required
                     value={adminEmail}
                     onChange={(e) => setAdminEmail(e.target.value)}
-                    placeholder="admin@umnichka.ru"
+                    placeholder="Введите email администратора"
                     className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm font-medium focus:outline-none focus:border-blue-600 transition"
                   />
                 </div>
@@ -980,35 +980,6 @@ export default function AdminPage() {
                 <ArrowRight className="w-4 h-4 ml-0.5" />
               </button>
             </form>
-
-            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-slate-700 flex items-center gap-1.5">
-                  <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Данные администратора в Supabase:</span>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAdminEmail("admin@umnichka.ru");
-                    setAdminPassword("admin123456");
-                  }}
-                  className="text-[11px] font-bold text-blue-600 hover:text-blue-700 underline cursor-pointer"
-                >
-                  Заполнить форму
-                </button>
-              </div>
-              <div className="text-[11px] space-y-1 text-slate-600 pt-1.5 border-t border-slate-200/60 font-mono">
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-500 font-sans">Логин:</span>
-                  <span className="font-bold text-slate-800">admin@umnichka.ru</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-500 font-sans">Пароль:</span>
-                  <span className="font-bold text-slate-800">admin123456</span>
-                </div>
-              </div>
-            </div>
           </div>
 
           <div className="text-center">
