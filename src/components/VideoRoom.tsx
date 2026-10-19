@@ -33,8 +33,12 @@ import {
   Save,
   Monitor,
   MonitorOff,
+  Lock,
+  Unlock,
+  Check,
 } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api-client";
+import { getSupabase } from "@/lib/supabase";
 
 interface VideoRoomProps {
   roomName: string;
@@ -68,6 +72,7 @@ export default function VideoRoom({
   studentAvatar,
   lessonId,
   onEndLesson,
+  onRoleChange,
 }: VideoRoomProps) {
   // 1. Навигация: только 2 лаконичных режима — Доска и Заметки
   const [activeTab, setActiveTab] = useState<"board" | "notes">("board");
@@ -188,6 +193,25 @@ export default function VideoRoom({
   const [textInputPos, setTextInputPos] = useState<{ x: number; y: number } | null>(null);
   const [textInputValue, setTextInputValue] = useState("");
 
+  // Разрешение на рисование для ученика (по умолчанию выключено)
+  const [studentCanDraw, setStudentCanDraw] = useState(false);
+  const canDraw = userRole === "TEACHER" || studentCanDraw;
+
+  // Рефы для синхронизации в реальном времени через Supabase Realtime
+  const channelRef = useRef<any>(null);
+  const lastPointRef = useRef<{ x: number; y: number } | null>(null);
+  const currentPosRef = useRef<{ x: number; y: number } | null>(null);
+  const currentBoardBgRef = useRef(boardBg);
+  const currentStudentCanDrawRef = useRef(studentCanDraw);
+
+  useEffect(() => {
+    currentBoardBgRef.current = boardBg;
+  }, [boardBg]);
+
+  useEffect(() => {
+    currentStudentCanDrawRef.current = studentCanDraw;
+  }, [studentCanDraw]);
+
   // CSS стиль фона (сетка не рисуется на холсте, поэтому ластик её никогда не стирает)
   const getBoardBackgroundStyle = () => {
     if (boardBg === "grid") {
@@ -242,6 +266,141 @@ export default function VideoRoom({
     }
   };
 
+  // Отрисовка удалённых штрихов (от преподавателя или ученика)
+  const drawRemoteSegment = (payload: any) => {
+    if (!payload || !payload.from || !payload.to) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const w = canvas.width;
+    const h = canvas.height;
+    const fromX = payload.from.x * w;
+    const fromY = payload.from.y * h;
+    const toX = payload.to.x * w;
+    const toY = payload.to.y * h;
+
+    ctx.save();
+    if (payload.tool === "eraser") {
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.lineWidth = (payload.width || 3) * 8;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.beginPath();
+      ctx.moveTo(fromX, fromY);
+      ctx.lineTo(toX, toY);
+      ctx.stroke();
+    } else if (payload.tool === "highlighter") {
+      ctx.globalCompositeOperation = "source-over";
+      ctx.strokeStyle = payload.color || "#2563eb";
+      ctx.lineWidth = (payload.width || 3) * 3.5;
+      ctx.lineCap = "square";
+      ctx.globalAlpha = 0.35;
+      ctx.beginPath();
+      ctx.moveTo(fromX, fromY);
+      ctx.lineTo(toX, toY);
+      ctx.stroke();
+    } else {
+      ctx.globalCompositeOperation = "source-over";
+      ctx.strokeStyle = payload.color || "#2563eb";
+      ctx.lineWidth = payload.width || 3;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.globalAlpha = 1;
+      ctx.beginPath();
+      ctx.moveTo(fromX, fromY);
+      ctx.lineTo(toX, toY);
+      ctx.stroke();
+    }
+    ctx.restore();
+  };
+
+  const drawRemoteShape = (payload: any) => {
+    if (!payload || !payload.start || !payload.end) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const w = canvas.width;
+    const h = canvas.height;
+    const startX = payload.start.x * w;
+    const startY = payload.start.y * h;
+    const endX = payload.end.x * w;
+    const endY = payload.end.y * h;
+
+    ctx.save();
+    ctx.globalCompositeOperation = "source-over";
+    ctx.strokeStyle = payload.color || "#2563eb";
+    ctx.lineWidth = payload.width || 3;
+    ctx.fillStyle = payload.color || "#2563eb";
+    ctx.globalAlpha = 1;
+
+    if (payload.tool === "line") {
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(endX, endY);
+      ctx.stroke();
+    } else if (payload.tool === "arrow") {
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(endX, endY);
+      ctx.stroke();
+
+      const angle = Math.atan2(endY - startY, endX - startX);
+      const headlen = 14;
+      ctx.beginPath();
+      ctx.moveTo(endX, endY);
+      ctx.lineTo(
+        endX - headlen * Math.cos(angle - Math.PI / 6),
+        endY - headlen * Math.sin(angle - Math.PI / 6)
+      );
+      ctx.lineTo(
+        endX - headlen * Math.cos(angle + Math.PI / 6),
+        endY - headlen * Math.sin(angle + Math.PI / 6)
+      );
+      ctx.closePath();
+      ctx.fill();
+    } else if (payload.tool === "rect") {
+      ctx.strokeRect(startX, startY, endX - startX, endY - startY);
+    } else if (payload.tool === "circle") {
+      const rx = Math.abs(endX - startX) / 2;
+      const ry = Math.abs(endY - startY) / 2;
+      const cx = Math.min(startX, endX) + rx;
+      const cy = Math.min(startY, endY) + ry;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rx, ry, 0, 0, 2 * Math.PI);
+      ctx.stroke();
+    }
+    ctx.restore();
+  };
+
+  const drawRemoteText = (payload: any) => {
+    if (!payload || !payload.text) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.save();
+    ctx.globalCompositeOperation = "source-over";
+    ctx.font = `bold ${Math.max(16, (payload.width || 3) * 5)}px 'Inter', sans-serif`;
+    ctx.fillStyle = payload.color || "#2563eb";
+    ctx.fillText(payload.text, payload.x * w, payload.y * h + 16);
+    ctx.restore();
+  };
+
+  const handleRemoteClear = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  };
+
   // Инициализация размеров canvas
   const initCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -253,6 +412,16 @@ export default function VideoRoom({
     const height = parent.clientHeight;
     if (width === 0 || height === 0) return;
 
+    if (canvas.width === width && canvas.height === height) return;
+
+    let tempImg: ImageData | null = null;
+    if (canvas.width > 0 && canvas.height > 0) {
+      try {
+        const ctx = canvas.getContext("2d");
+        if (ctx) tempImg = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      } catch (e) {}
+    }
+
     canvas.width = width;
     canvas.height = height;
 
@@ -260,8 +429,14 @@ export default function VideoRoom({
     if (!ctx) return;
     ctx.clearRect(0, 0, width, height);
 
+    if (tempImg) {
+      try {
+        ctx.putImageData(tempImg, 0, 0);
+      } catch (e) {}
+    }
+
     const initialSnapshot = ctx.getImageData(0, 0, width, height);
-    setHistory([initialSnapshot]);
+    setHistory((prev) => (prev.length > 0 ? prev : [initialSnapshot]));
   }, []);
 
   useEffect(() => {
@@ -270,6 +445,147 @@ export default function VideoRoom({
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, [initCanvas, activeTab, screenSharing]);
+
+  // Подключение Supabase Realtime Broadcast для мгновенной синхронизации доски и чата
+  useEffect(() => {
+    const supabase = getSupabase();
+    const cleanRoom = (roomName || "room").replace(/[^a-zA-Z0-9_-]/g, "_");
+    const channel = supabase.channel(`classroom_${cleanRoom}`, {
+      config: {
+        broadcast: { ack: false, self: false },
+      },
+    });
+
+    channelRef.current = channel;
+
+    channel
+      .on("broadcast", { event: "draw_segment" }, ({ payload }) => {
+        drawRemoteSegment(payload);
+      })
+      .on("broadcast", { event: "draw_shape" }, ({ payload }) => {
+        drawRemoteShape(payload);
+      })
+      .on("broadcast", { event: "draw_text" }, ({ payload }) => {
+        drawRemoteText(payload);
+      })
+      .on("broadcast", { event: "clear_board" }, () => {
+        handleRemoteClear();
+      })
+      .on("broadcast", { event: "canvas_snapshot" }, ({ payload }) => {
+        if (payload?.dataUrl && canvasRef.current) {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+            const ctx = canvas.getContext("2d");
+            if (!ctx) return;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          };
+          img.src = payload.dataUrl;
+        }
+      })
+      .on("broadcast", { event: "board_bg" }, ({ payload }) => {
+        if (payload?.bg) {
+          setBoardBg(payload.bg);
+        }
+      })
+      .on("broadcast", { event: "permission_change" }, ({ payload }) => {
+        if (userRole === "STUDENT") {
+          setStudentCanDraw(Boolean(payload?.canDraw));
+          showToast(
+            payload?.canDraw
+              ? "Учитель разрешил вам рисовать на доске! ✏️"
+              : "Учитель перевёл доску в режим просмотра 🔒"
+          );
+        }
+      })
+      .on("broadcast", { event: "request_canvas_sync" }, () => {
+        if (userRole === "TEACHER" && canvasRef.current) {
+          const dataUrl = canvasRef.current.toDataURL("image/png");
+          channel.send({
+            type: "broadcast",
+            event: "response_canvas_sync",
+            payload: {
+              dataUrl,
+              boardBg: currentBoardBgRef.current,
+              studentCanDraw: currentStudentCanDrawRef.current,
+            },
+          });
+        }
+      })
+      .on("broadcast", { event: "response_canvas_sync" }, ({ payload }) => {
+        if (userRole === "STUDENT") {
+          if (typeof payload?.studentCanDraw === "boolean") {
+            setStudentCanDraw(payload.studentCanDraw);
+          }
+          if (payload?.boardBg) {
+            setBoardBg(payload.boardBg);
+          }
+          if (payload?.dataUrl && canvasRef.current) {
+            const img = new Image();
+            img.onload = () => {
+              const canvas = canvasRef.current;
+              if (!canvas) return;
+              const ctx = canvas.getContext("2d");
+              if (!ctx) return;
+              ctx.clearRect(0, 0, canvas.width, canvas.height);
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            };
+            img.src = payload.dataUrl;
+          }
+        }
+      })
+      .on("broadcast", { event: "chat_message" }, ({ payload }) => {
+        if (payload && payload.id) {
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === payload.id)) return prev;
+            return [...prev, payload];
+          });
+        }
+      })
+      .on("broadcast", { event: "raise_hand" }, ({ payload }) => {
+        if (userRole === "TEACHER") {
+          setRaisedHand(Boolean(payload?.raised));
+          if (payload?.raised) {
+            showToast(`${payload.name || "Ученик"} поднял руку! ✋`);
+          }
+        }
+      })
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          if (userRole === "STUDENT") {
+            channel.send({
+              type: "broadcast",
+              event: "request_canvas_sync",
+              payload: {},
+            });
+          }
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+      channelRef.current = null;
+    };
+  }, [roomName, userRole]);
+
+  // Управление правами ученика со стороны преподавателя
+  const toggleStudentPermission = () => {
+    if (userRole !== "TEACHER") return;
+    const next = !studentCanDraw;
+    setStudentCanDraw(next);
+    channelRef.current?.send({
+      type: "broadcast",
+      event: "permission_change",
+      payload: { canDraw: next },
+    });
+    showToast(
+      next
+        ? "Рисование для ученика разрешено ✓"
+        : "Рисование для ученика заблокировано 🔒"
+    );
+  };
 
   const pushHistory = () => {
     const canvas = canvasRef.current;
@@ -281,7 +597,7 @@ export default function VideoRoom({
   };
 
   const handleUndo = () => {
-    if (history.length <= 1) return;
+    if (!canDraw || history.length <= 1) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -293,16 +609,41 @@ export default function VideoRoom({
     if (previous) {
       ctx.putImageData(previous, 0, 0);
       setHistory(newHistory);
+
+      const dataUrl = canvas.toDataURL("image/png");
+      channelRef.current?.send({
+        type: "broadcast",
+        event: "canvas_snapshot",
+        payload: { dataUrl },
+      });
     }
   };
 
   const handleClear = () => {
+    if (!canDraw) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     pushHistory();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    channelRef.current?.send({
+      type: "broadcast",
+      event: "clear_board",
+      payload: {},
+    });
+  };
+
+  const handleToggleBoardBg = () => {
+    if (!canDraw) return;
+    const nextBg: BoardBgType = boardBg === "grid" ? "lines" : boardBg === "lines" ? "blank" : "grid";
+    setBoardBg(nextBg);
+    channelRef.current?.send({
+      type: "broadcast",
+      event: "board_bg",
+      payload: { bg: nextBg },
+    });
   };
 
   const handleDownload = () => {
@@ -341,6 +682,10 @@ export default function VideoRoom({
   };
 
   const handleStartDraw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    if (!canDraw) {
+      showToast("Рисование заблокировано учителем 🔒");
+      return;
+    }
     if ("touches" in e && e.touches.length > 1) return;
     const coords = getCanvasCoords(e);
 
@@ -357,6 +702,8 @@ export default function VideoRoom({
     pushHistory();
     setDrawing(true);
     setStartPos(coords);
+    lastPointRef.current = coords;
+    currentPosRef.current = coords;
     setTempImageData(ctx.getImageData(0, 0, canvas.width, canvas.height));
 
     if (currentTool === "pen" || currentTool === "highlighter") {
@@ -371,39 +718,94 @@ export default function VideoRoom({
   };
 
   const handleDrawingMove = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    if (!drawing) return;
+    if (!drawing || !canDraw) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
     const coords = getCanvasCoords(e);
+    currentPosRef.current = coords;
 
     if (currentTool === "pen") {
+      const prev = lastPointRef.current || coords;
       ctx.globalCompositeOperation = "source-over";
       ctx.strokeStyle = brushColor;
       ctx.lineWidth = brushWidth;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
       ctx.globalAlpha = 1;
+      ctx.beginPath();
+      ctx.moveTo(prev.x, prev.y);
       ctx.lineTo(coords.x, coords.y);
       ctx.stroke();
+
+      if (canvas.width > 0 && canvas.height > 0) {
+        channelRef.current?.send({
+          type: "broadcast",
+          event: "draw_segment",
+          payload: {
+            tool: currentTool,
+            color: brushColor,
+            width: brushWidth,
+            from: { x: prev.x / canvas.width, y: prev.y / canvas.height },
+            to: { x: coords.x / canvas.width, y: coords.y / canvas.height },
+          },
+        });
+      }
+      lastPointRef.current = coords;
     } else if (currentTool === "highlighter") {
+      const prev = lastPointRef.current || coords;
       ctx.globalCompositeOperation = "source-over";
       ctx.strokeStyle = brushColor;
       ctx.lineWidth = brushWidth * 3.5;
       ctx.lineCap = "square";
       ctx.globalAlpha = 0.35;
+      ctx.beginPath();
+      ctx.moveTo(prev.x, prev.y);
       ctx.lineTo(coords.x, coords.y);
       ctx.stroke();
       ctx.globalAlpha = 1;
+
+      if (canvas.width > 0 && canvas.height > 0) {
+        channelRef.current?.send({
+          type: "broadcast",
+          event: "draw_segment",
+          payload: {
+            tool: currentTool,
+            color: brushColor,
+            width: brushWidth,
+            from: { x: prev.x / canvas.width, y: prev.y / canvas.height },
+            to: { x: coords.x / canvas.width, y: coords.y / canvas.height },
+          },
+        });
+      }
+      lastPointRef.current = coords;
     } else if (currentTool === "eraser") {
+      const prev = lastPointRef.current || coords;
       ctx.globalCompositeOperation = "destination-out";
       ctx.lineWidth = brushWidth * 8;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
+      ctx.beginPath();
+      ctx.moveTo(prev.x, prev.y);
       ctx.lineTo(coords.x, coords.y);
       ctx.stroke();
+
+      if (canvas.width > 0 && canvas.height > 0) {
+        channelRef.current?.send({
+          type: "broadcast",
+          event: "draw_segment",
+          payload: {
+            tool: currentTool,
+            color: brushColor,
+            width: brushWidth,
+            from: { x: prev.x / canvas.width, y: prev.y / canvas.height },
+            to: { x: coords.x / canvas.width, y: coords.y / canvas.height },
+          },
+        });
+      }
+      lastPointRef.current = coords;
     } else if (tempImageData && startPos) {
       ctx.putImageData(tempImageData, 0, 0);
       ctx.globalCompositeOperation = "source-over";
@@ -452,10 +854,29 @@ export default function VideoRoom({
   };
 
   const handleEndDraw = () => {
+    if (!drawing) return;
     setDrawing(false);
-    setStartPos(null);
-    setTempImageData(null);
+
     const canvas = canvasRef.current;
+    if (canvas && startPos && currentPosRef.current && ["line", "arrow", "rect", "circle"].includes(currentTool)) {
+      channelRef.current?.send({
+        type: "broadcast",
+        event: "draw_shape",
+        payload: {
+          tool: currentTool,
+          color: brushColor,
+          width: brushWidth,
+          start: { x: startPos.x / canvas.width, y: startPos.y / canvas.height },
+          end: { x: currentPosRef.current.x / canvas.width, y: currentPosRef.current.y / canvas.height },
+        },
+      });
+    }
+
+    setStartPos(null);
+    currentPosRef.current = null;
+    lastPointRef.current = null;
+    setTempImageData(null);
+
     if (canvas) {
       const ctx = canvas.getContext("2d");
       if (ctx) ctx.globalCompositeOperation = "source-over";
@@ -463,6 +884,7 @@ export default function VideoRoom({
   };
 
   const handleAddText = () => {
+    if (!canDraw) return;
     if (!textInputPos || !textInputValue.trim()) {
       setTextInputPos(null);
       setTextInputValue("");
@@ -478,6 +900,18 @@ export default function VideoRoom({
     ctx.font = `bold ${Math.max(16, brushWidth * 5)}px 'Inter', sans-serif`;
     ctx.fillStyle = brushColor;
     ctx.fillText(textInputValue, textInputPos.x, textInputPos.y + 16);
+
+    channelRef.current?.send({
+      type: "broadcast",
+      event: "draw_text",
+      payload: {
+        text: textInputValue,
+        color: brushColor,
+        width: brushWidth,
+        x: textInputPos.x / canvas.width,
+        y: textInputPos.y / canvas.height,
+      },
+    });
 
     setTextInputPos(null);
     setTextInputValue("");
@@ -513,17 +947,32 @@ export default function VideoRoom({
       .toString()
       .padStart(2, "0")}`;
 
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: String(Date.now()),
-        sender: userName || (userRole === "TEACHER" ? teacherName : studentName),
-        text: chatInput,
-        time: timeStr,
-        isTeacher: userRole === "TEACHER",
-      },
-    ]);
+    const newMsg = {
+      id: String(Date.now()),
+      sender: userName || (userRole === "TEACHER" ? teacherName : studentName),
+      text: chatInput,
+      time: timeStr,
+      isTeacher: userRole === "TEACHER",
+    };
+
+    setMessages((prev) => [...prev, newMsg]);
+    channelRef.current?.send({
+      type: "broadcast",
+      event: "chat_message",
+      payload: newMsg,
+    });
     setChatInput("");
+  };
+
+  const handleToggleRaisedHand = () => {
+    const next = !raisedHand;
+    setRaisedHand(next);
+    channelRef.current?.send({
+      type: "broadcast",
+      event: "raise_hand",
+      payload: { raised: next, name: userName || studentName },
+    });
+    showToast(next ? "Вы подняли руку ✋" : "Вы опустили руку");
   };
 
   // 6. Заметки преподавателя
@@ -608,6 +1057,23 @@ export default function VideoRoom({
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
               В эфире
             </span>
+
+            {onRoleChange ? (
+              <button
+                onClick={() => onRoleChange(userRole === "TEACHER" ? "STUDENT" : "TEACHER")}
+                className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer"
+                title="Нажмите для проверки роли (Преподаватель / Ученик)"
+              >
+                <span>Роль:</span>
+                <span className={userRole === "TEACHER" ? "text-blue-600 font-extrabold" : "text-emerald-600 font-extrabold"}>
+                  {userRole === "TEACHER" ? "Преподаватель 👨‍🏫" : "Ученик 🎒"}
+                </span>
+              </button>
+            ) : (
+              <span className="hidden md:inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                {userRole === "TEACHER" ? "Преподаватель" : "Ученик"}
+              </span>
+            )}
           </div>
         </div>
 
@@ -708,146 +1174,197 @@ export default function VideoRoom({
               </div>
             ) : (
               <>
-                {/* ЛАКОНИЧНЫЙ ТУЛБАР ДОСКИ (БЕЗ ЛИШНЕГО) */}
-                <div className="absolute top-2.5 left-2.5 z-20 bg-white border border-slate-200 rounded-xl shadow-md p-1 flex items-center gap-1 text-xs">
-                  <button
-                    onClick={() => setCurrentTool("pen")}
-                    className={`p-2 rounded-lg transition cursor-pointer ${
-                      currentTool === "pen" ? "bg-blue-600 text-white font-bold" : "text-slate-700 hover:bg-slate-100"
-                    }`}
-                    title="Маркер"
-                  >
-                    <PenTool className="w-4 h-4" />
-                  </button>
-
-                  <button
-                    onClick={() => setCurrentTool("highlighter")}
-                    className={`p-2 rounded-lg transition cursor-pointer ${
-                      currentTool === "highlighter"
-                        ? "bg-amber-100 text-amber-900 border border-amber-300 font-bold"
-                        : "text-slate-700 hover:bg-slate-100"
-                    }`}
-                    title="Выделитель"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                  </button>
-
-                  <button
-                    onClick={() => setCurrentTool("eraser")}
-                    className={`p-2 rounded-lg transition cursor-pointer ${
-                      currentTool === "eraser"
-                        ? "bg-blue-600 text-white font-bold"
-                        : "text-slate-700 hover:bg-slate-100"
-                    }`}
-                    title="Ластик"
-                  >
-                    <Eraser className="w-4 h-4" />
-                  </button>
-
-                  <div className="h-4 w-px bg-slate-200 mx-0.5" />
-
-                  <button
-                    onClick={() => setCurrentTool("line")}
-                    className={`p-2 rounded-lg transition cursor-pointer ${
-                      currentTool === "line" ? "bg-blue-600 text-white" : "text-slate-700 hover:bg-slate-100"
-                    }`}
-                    title="Линия"
-                  >
-                    <Minus className="w-4 h-4" />
-                  </button>
-
-                  <button
-                    onClick={() => setCurrentTool("rect")}
-                    className={`p-2 rounded-lg transition cursor-pointer ${
-                      currentTool === "rect" ? "bg-blue-600 text-white" : "text-slate-700 hover:bg-slate-100"
-                    }`}
-                    title="Прямоугольник"
-                  >
-                    <Square className="w-4 h-4" />
-                  </button>
-
-                  <button
-                    onClick={() => setCurrentTool("circle")}
-                    className={`p-2 rounded-lg transition cursor-pointer ${
-                      currentTool === "circle" ? "bg-blue-600 text-white" : "text-slate-700 hover:bg-slate-100"
-                    }`}
-                    title="Круг"
-                  >
-                    <Circle className="w-4 h-4" />
-                  </button>
-
-                  <button
-                    onClick={() => setCurrentTool("text")}
-                    className={`p-2 rounded-lg transition cursor-pointer ${
-                      currentTool === "text" ? "bg-blue-600 text-white" : "text-slate-700 hover:bg-slate-100"
-                    }`}
-                    title="Текст"
-                  >
-                    <Type className="w-4 h-4" />
-                  </button>
-
-                  <div className="h-4 w-px bg-slate-200 mx-0.5" />
-
-                  {/* 4 классических цвета */}
-                  <div className="flex items-center gap-1 px-1">
-                    {[
-                      { color: "#0f172a", name: "Черный" },
-                      { color: "#2563eb", name: "Синий" },
-                      { color: "#dc2626", name: "Красный" },
-                      { color: "#16a34a", name: "Зеленый" },
-                    ].map((c) => (
-                      <button
-                        key={c.color}
-                        onClick={() => {
-                          setBrushColor(c.color);
-                          if (currentTool === "eraser") setCurrentTool("pen");
-                        }}
-                        style={{ backgroundColor: c.color }}
-                        className={`w-4 h-4 rounded-full transition transform hover:scale-110 cursor-pointer ${
-                          brushColor === c.color && currentTool !== "eraser"
-                            ? "ring-2 ring-offset-1 ring-blue-500 scale-110"
-                            : "border border-slate-300"
-                        }`}
-                        title={c.name}
-                      />
-                    ))}
+                {/* ЕСЛИ РИСОВАНИЕ ДЛЯ УЧЕНИКА ВЫКЛЮЧЕНО */}
+                {userRole === "STUDENT" && !studentCanDraw ? (
+                  <div className="absolute top-2.5 left-2.5 z-20 bg-white/95 backdrop-blur border border-amber-200 text-amber-900 rounded-xl shadow-md px-3.5 py-2 flex items-center gap-2.5 text-xs font-semibold">
+                    <Lock className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Режим просмотра • Преподаватель пока не открыл доступ к рисованию</span>
                   </div>
+                ) : (
+                  /* ЛАКОНИЧНЫЙ ТУЛБАР ДОСКИ */
+                  <div className="absolute top-2.5 left-2.5 z-20 bg-white border border-slate-200 rounded-xl shadow-md p-1 flex items-center gap-1 text-xs">
+                    <button
+                      onClick={() => setCurrentTool("pen")}
+                      className={`p-2 rounded-lg transition cursor-pointer ${
+                        currentTool === "pen" ? "bg-blue-600 text-white font-bold" : "text-slate-700 hover:bg-slate-100"
+                      }`}
+                      title="Маркер"
+                    >
+                      <PenTool className="w-4 h-4" />
+                    </button>
 
-                  <div className="h-4 w-px bg-slate-200 mx-0.5" />
+                    <button
+                      onClick={() => setCurrentTool("highlighter")}
+                      className={`p-2 rounded-lg transition cursor-pointer ${
+                        currentTool === "highlighter"
+                          ? "bg-amber-100 text-amber-900 border border-amber-300 font-bold"
+                          : "text-slate-700 hover:bg-slate-100"
+                      }`}
+                      title="Выделитель"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                    </button>
 
-                  {/* Смена фона (клетка / линейка / лист) */}
-                  <button
-                    onClick={() => setBoardBg(boardBg === "grid" ? "lines" : boardBg === "lines" ? "blank" : "grid")}
-                    className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition cursor-pointer"
-                    title="Сменить фон"
-                  >
-                    {boardBg === "grid" ? "Клетка" : boardBg === "lines" ? "Линейка" : "Лист"}
-                  </button>
+                    <button
+                      onClick={() => setCurrentTool("eraser")}
+                      className={`p-2 rounded-lg transition cursor-pointer ${
+                        currentTool === "eraser"
+                          ? "bg-blue-600 text-white font-bold"
+                          : "text-slate-700 hover:bg-slate-100"
+                      }`}
+                      title="Ластик"
+                    >
+                      <Eraser className="w-4 h-4" />
+                    </button>
 
-                  <div className="h-4 w-px bg-slate-200 mx-0.5" />
+                    <div className="h-4 w-px bg-slate-200 mx-0.5" />
 
-                  <button
-                    onClick={handleUndo}
-                    className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 transition cursor-pointer"
-                    title="Отменить"
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={handleClear}
-                    className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 transition cursor-pointer"
-                    title="Очистить"
-                  >
-                    <Eraser className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={handleDownload}
-                    className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition cursor-pointer"
-                    title="Скачать PNG"
-                  >
-                    <Download className="w-4 h-4" />
-                  </button>
-                </div>
+                    <button
+                      onClick={() => setCurrentTool("line")}
+                      className={`p-2 rounded-lg transition cursor-pointer ${
+                        currentTool === "line" ? "bg-blue-600 text-white" : "text-slate-700 hover:bg-slate-100"
+                      }`}
+                      title="Линия"
+                    >
+                      <Minus className="w-4 h-4" />
+                    </button>
+
+                    <button
+                      onClick={() => setCurrentTool("rect")}
+                      className={`p-2 rounded-lg transition cursor-pointer ${
+                        currentTool === "rect" ? "bg-blue-600 text-white" : "text-slate-700 hover:bg-slate-100"
+                      }`}
+                      title="Прямоугольник"
+                    >
+                      <Square className="w-4 h-4" />
+                    </button>
+
+                    <button
+                      onClick={() => setCurrentTool("circle")}
+                      className={`p-2 rounded-lg transition cursor-pointer ${
+                        currentTool === "circle" ? "bg-blue-600 text-white" : "text-slate-700 hover:bg-slate-100"
+                      }`}
+                      title="Круг"
+                    >
+                      <Circle className="w-4 h-4" />
+                    </button>
+
+                    <button
+                      onClick={() => setCurrentTool("text")}
+                      className={`p-2 rounded-lg transition cursor-pointer ${
+                        currentTool === "text" ? "bg-blue-600 text-white" : "text-slate-700 hover:bg-slate-100"
+                      }`}
+                      title="Текст"
+                    >
+                      <Type className="w-4 h-4" />
+                    </button>
+
+                    <div className="h-4 w-px bg-slate-200 mx-0.5" />
+
+                    {/* 4 классических цвета */}
+                    <div className="flex items-center gap-1 px-1">
+                      {[
+                        { color: "#0f172a", name: "Черный" },
+                        { color: "#2563eb", name: "Синий" },
+                        { color: "#dc2626", name: "Красный" },
+                        { color: "#16a34a", name: "Зеленый" },
+                      ].map((c) => (
+                        <button
+                          key={c.color}
+                          onClick={() => {
+                            setBrushColor(c.color);
+                            if (currentTool === "eraser") setCurrentTool("pen");
+                          }}
+                          style={{ backgroundColor: c.color }}
+                          className={`w-4 h-4 rounded-full transition transform hover:scale-110 cursor-pointer ${
+                            brushColor === c.color && currentTool !== "eraser"
+                              ? "ring-2 ring-offset-1 ring-blue-500 scale-110"
+                              : "border border-slate-300"
+                          }`}
+                          title={c.name}
+                        />
+                      ))}
+                    </div>
+
+                    <div className="h-4 w-px bg-slate-200 mx-0.5" />
+
+                    {/* Смена фона (клетка / линейка / лист) */}
+                    <button
+                      onClick={handleToggleBoardBg}
+                      className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition cursor-pointer"
+                      title="Сменить фон"
+                    >
+                      {boardBg === "grid" ? "Клетка" : boardBg === "lines" ? "Линейка" : "Лист"}
+                    </button>
+
+                    <div className="h-4 w-px bg-slate-200 mx-0.5" />
+
+                    <button
+                      onClick={handleUndo}
+                      className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                      title="Отменить"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={handleClear}
+                      className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                      title="Очистить"
+                    >
+                      <Eraser className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={handleDownload}
+                      className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition cursor-pointer"
+                      title="Скачать PNG"
+                    >
+                      <Download className="w-4 h-4" />
+                    </button>
+
+                    {/* Кнопка управления правами рисования для преподавателя */}
+                    {userRole === "TEACHER" && (
+                      <>
+                        <div className="h-4 w-px bg-slate-200 mx-0.5" />
+                        <button
+                          onClick={toggleStudentPermission}
+                          className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                            studentCanDraw
+                              ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                              : "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300"
+                          }`}
+                          title={
+                            studentCanDraw
+                              ? "Запретить ученику рисовать на доске"
+                              : "Разрешить ученику рисовать на доске"
+                          }
+                        >
+                          {studentCanDraw ? (
+                            <>
+                              <Unlock className="w-3.5 h-3.5" />
+                              <span>Ученик: Доступ открыт</span>
+                            </>
+                          ) : (
+                            <>
+                              <Lock className="w-3.5 h-3.5 text-amber-600" />
+                              <span>Ученик: Доступ закрыт</span>
+                            </>
+                          )}
+                        </button>
+                      </>
+                    )}
+
+                    {/* Статус для ученика, когда рисование разрешено */}
+                    {userRole === "STUDENT" && studentCanDraw && (
+                      <>
+                        <div className="h-4 w-px bg-slate-200 mx-0.5" />
+                        <div className="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold flex items-center gap-1">
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Рисование доступно</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
 
                 {/* Ввод текста */}
                 {textInputPos && (
@@ -1103,7 +1620,7 @@ export default function VideoRoom({
 
           {/* Поднять руку */}
           <button
-            onClick={() => setRaisedHand(!raisedHand)}
+            onClick={handleToggleRaisedHand}
             className={`w-11 h-11 rounded-full flex items-center justify-center transition cursor-pointer shadow-xs ${
               raisedHand
                 ? "bg-amber-400 text-slate-950 font-black animate-pulse"
