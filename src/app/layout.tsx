@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import AgentationClient from "@/components/AgentationClient";
-import InstallPwaPrompt from "@/components/InstallPwaPrompt";
 
 export const metadata: Metadata = {
   title: "АйДаУмничка — Платформа для репетиторов и онлайн-уроков",
@@ -79,7 +78,6 @@ export default function RootLayout({
             </div>
           </div>
         </footer>
-        <InstallPwaPrompt />
         <AgentationClient />
       </body>
     </html>

@@ -26,7 +26,6 @@ import {
   Video,
   Award,
   HelpCircle,
-  Smartphone,
   Edit3,
 } from "lucide-react";
 import { getSupabase } from "@/lib/supabase";
@@ -497,23 +496,6 @@ export default function Navbar() {
                 </div>
                 <span className="text-slate-400">→</span>
               </Link>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  if (typeof window !== "undefined") {
-                    window.dispatchEvent(new CustomEvent("open-pwa-install"));
-                  }
-                }}
-                className="w-full flex items-center justify-between p-3 rounded-2xl bg-blue-50 border border-blue-200 text-xs font-bold text-blue-900 transition hover:bg-blue-100 cursor-pointer"
-              >
-                <div className="flex items-center gap-2.5">
-                  <Smartphone className="w-4 h-4 text-blue-600" />
-                  <span>Установить приложение на телефон</span>
-                </div>
-                <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded-lg font-bold">PWA</span>
-              </button>
             </div>
 
             {/* Программы обучения */}
