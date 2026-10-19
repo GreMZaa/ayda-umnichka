@@ -5,6 +5,9 @@ import { checkRateLimit, getClientIp } from "@/lib/rate-limiter";
 import { UpdateLessonStatusSchema, AddLessonNoteSchema } from "@/lib/validations";
 import { getSupabase } from "@/lib/supabase";
 
+const isUuid = (str: string) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+
 export async function GET(
   request: Request,
   { params }: { params: { id: string } }
@@ -30,9 +33,10 @@ export async function GET(
 
   // Поиск в Supabase
   const client = getSupabase();
+
   if (client) {
     try {
-      const { data: sbLesson } = await client
+      let query = client
         .from("lessons")
         .select(`
           id,
@@ -45,11 +49,17 @@ export async function GET(
           teacher_id,
           student_id,
           subjects:subject_id (name, color),
-          teacher:teacher_id (name, avatar_url),
-          student:student_id (name, avatar_url)
-        `)
-        .eq("id", params.id)
-        .single();
+          teacher:teacher_id (name, avatar_url, phone),
+          student:student_id (name, avatar_url, phone)
+        `);
+
+      if (isUuid(params.id)) {
+        query = query.eq("id", params.id);
+      } else {
+        query = query.eq("room_name", params.id);
+      }
+
+      const { data: sbLesson } = await query.maybeSingle();
 
       if (sbLesson) {
         return NextResponse.json({
@@ -67,10 +77,33 @@ export async function GET(
           startTime: sbLesson.start_time,
           endTime: sbLesson.end_time,
           status: sbLesson.status,
-          roomName: sbLesson.room_name,
+          roomName: sbLesson.room_name || sbLesson.id,
         });
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error("Error looking up lesson by id/room:", e);
+    }
+  }
+
+  // Если это тестовая комната или урок не найден в БД
+  if (params.id === "umnichka-test-room" || params.id === "test-room") {
+    return NextResponse.json({
+      id: "umnichka-test-room",
+      title: "Индивидуальный онлайн-урок: Математика и логика",
+      subjectId: "fd8c024a-ff45-40e1-99ea-9afa55e1bf3d",
+      subjectName: "Математика и логика",
+      subjectColor: "#2563eb",
+      teacherId: "d22f670c-3a38-41cd-95aa-80afdb94eab5",
+      teacherName: "Анна Сергеевна Иванова",
+      teacherAvatar: "https://images.unsplash.com/photo-1544717305-2782549b5136?w=240&h=240&fit=crop&crop=faces",
+      studentId: "2a62e436-f539-4ec5-b3af-a1afabfa0eec",
+      studentName: "Артём Смирнов",
+      studentAvatar: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&h=200&fit=crop&crop=faces",
+      startTime: new Date().toISOString(),
+      endTime: new Date(Date.now() + 45 * 60 * 1000).toISOString(),
+      status: "IN_PROGRESS",
+      roomName: "umnichka-test-room",
+    });
   }
 
   const lesson = db.getLessonById(params.id);
@@ -120,7 +153,11 @@ export async function PATCH(
       const client = getSupabase();
       if (client) {
         try {
-          await client.from("lessons").update({ status: parsed.data.status }).eq("id", params.id);
+          if (isUuid(params.id)) {
+            await client.from("lessons").update({ status: parsed.data.status }).eq("id", params.id);
+          } else {
+            await client.from("lessons").update({ status: parsed.data.status }).eq("room_name", params.id);
+          }
         } catch (e) {}
       }
 

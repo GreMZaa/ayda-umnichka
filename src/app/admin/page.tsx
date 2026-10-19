@@ -1283,7 +1283,7 @@ export default function AdminPage() {
                           </span>
 
                           <Link
-                            href={`/room/${les.room_name}`}
+                            href={`/room/${les.id || les.room_name}`}
                             target="_blank"
                             className="p-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition"
                             title="Войти в видеокомнату урока"
@@ -1691,7 +1691,7 @@ export default function AdminPage() {
                       <td className="py-3 px-3 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           <Link
-                            href={`/room/${les.room_name}`}
+                            href={`/room/${les.id || les.room_name}`}
                             target="_blank"
                             className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 font-semibold text-[11px] transition"
                             title="Открыть видеокомнату"

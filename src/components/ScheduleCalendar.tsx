@@ -408,7 +408,7 @@ export default function ScheduleCalendar({
 
                         <div className="flex flex-wrap items-center gap-2 pt-1">
                           <Link
-                            href={`/room/${l.roomName}`}
+                            href={`/room/${l.id || l.roomName}`}
                             className="flex-1 min-w-[120px] py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm shadow-blue-500/20 active:scale-95"
                           >
                             <Video className="w-3.5 h-3.5" />
@@ -597,7 +597,7 @@ export default function ScheduleCalendar({
                                     {/* Кнопки действий по роли */}
                                     {isLive ? (
                                       <Link
-                                        href={`/room/${l.roomName}`}
+                                        href={`/room/${l.id || l.roomName}`}
                                         className="px-2 py-0.5 rounded-lg bg-white text-emerald-800 font-extrabold hover:bg-emerald-50 shadow-xs"
                                       >
                                         Войти
@@ -627,7 +627,7 @@ export default function ScheduleCalendar({
                                           </button>
                                         )}
                                         <Link
-                                          href={`/room/${l.roomName}`}
+                                          href={`/room/${l.id || l.roomName}`}
                                           className="px-2 py-0.5 rounded-lg bg-white text-blue-700 font-bold hover:bg-blue-50"
                                         >
                                           Класс
@@ -761,7 +761,7 @@ export default function ScheduleCalendar({
                           </button>
                         )}
                         <Link
-                          href={`/room/${lesson.roomName}`}
+                          href={`/room/${lesson.id || lesson.roomName}`}
                           className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition shadow-xs ${
                             isLive
                               ? "bg-emerald-600 hover:bg-emerald-700 text-white"

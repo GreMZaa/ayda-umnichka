@@ -815,7 +815,7 @@ export default function TeacherCabinet() {
 
           <div className="flex items-center gap-2.5 w-full sm:w-auto">
             <Link
-              href={`/room/${liveLessons[0].roomName}`}
+              href={`/room/${liveLessons[0].id || liveLessons[0].roomName}`}
               className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-2xl bg-blue-600 text-white font-extrabold text-xs sm:text-sm shadow-lg shadow-blue-500/25 hover:bg-blue-700 transition transform hover:scale-105 active:scale-95 cursor-pointer"
             >
               <Video className="w-4 h-4 text-white" />
@@ -1044,7 +1044,7 @@ export default function TeacherCabinet() {
                     </div>
 
                     <Link
-                      href={`/room/${lesson.roomName}`}
+                      href={`/room/${lesson.id || lesson.roomName}`}
                       className="font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
                     >
                       <span>В класс</span>
