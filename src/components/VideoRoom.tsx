@@ -74,8 +74,9 @@ export default function VideoRoom({
   onEndLesson,
   onRoleChange,
 }: VideoRoomProps) {
-  // 1. Навигация: только 2 лаконичных режима — Доска и Заметки
+  // 1. Навигация: режимы для десктопа и мобильных
   const [activeTab, setActiveTab] = useState<"board" | "notes">("board");
+  const [mobileTab, setMobileTab] = useState<"board" | "chat" | "notes">("board");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -443,8 +444,12 @@ export default function VideoRoom({
     initCanvas();
     const handleResize = () => initCanvas();
     window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, [initCanvas, activeTab, screenSharing]);
+    const t = setTimeout(initCanvas, 80);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      clearTimeout(t);
+    };
+  }, [initCanvas, activeTab, mobileTab, screenSharing]);
 
   // Подключение Supabase Realtime Broadcast для мгновенной синхронизации доски и чата
   useEffect(() => {
@@ -1022,7 +1027,7 @@ export default function VideoRoom({
   };
 
   return (
-    <div className="fixed inset-0 z-[60] bg-slate-100 text-slate-900 flex flex-col font-sans select-none overflow-hidden h-screen w-screen">
+    <div className="fixed inset-0 z-[60] bg-slate-100 text-slate-900 flex flex-col font-sans select-none overflow-hidden h-[100dvh] max-h-[100dvh] w-screen">
       {/* ЛАКОНИЧНЫЙ ТОСТ (ТОЛЬКО ДЛЯ ВАЖНЫХ ДЕЙСТВИЙ) */}
       {toastMessage && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[100] px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs sm:text-sm font-bold shadow-lg flex items-center gap-2 animate-in fade-in duration-150">
@@ -1031,29 +1036,29 @@ export default function VideoRoom({
         </div>
       )}
 
-      {/* 1. МИНИМАЛИСТИЧНЫЙ ВЕРХНИЙ ХЕДЕР */}
-      <header className="h-14 bg-white border-b border-slate-200 px-3 sm:px-5 flex items-center justify-between gap-3 shrink-0">
+      {/* 1. АДАПТИВНЫЙ ВЕРХНИЙ ХЕДЕР */}
+      <header className="h-14 bg-white border-b border-slate-200 px-2.5 sm:px-5 flex items-center justify-between gap-2 shrink-0 z-30">
         {/* Слева: Кнопка назад + название + статус */}
-        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+        <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
           <Link
             href={userRole === "TEACHER" ? "/teacher" : userRole === "PARENT" ? "/parent" : "/student"}
-            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 transition cursor-pointer shrink-0"
+            className="p-1.5 sm:p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 transition cursor-pointer shrink-0"
             title="Выйти в кабинет"
           >
             <ChevronLeft className="w-5 h-5" />
           </Link>
 
-          <div className="min-w-0 flex items-center gap-2.5">
+          <div className="min-w-0 flex items-center gap-1.5 sm:gap-2.5">
             <span
               style={{ backgroundColor: `${subjectColor}15`, borderColor: `${subjectColor}40`, color: subjectColor }}
-              className="px-2.5 py-0.5 rounded-lg text-xs font-bold border truncate"
+              className="px-2 py-0.5 rounded-lg text-[11px] sm:text-xs font-bold border truncate max-w-[85px] sm:max-w-none"
             >
               {subjectName}
             </span>
-            <h1 className="font-extrabold text-xs sm:text-sm text-slate-900 truncate max-w-xs sm:max-w-md">
+            <h1 className="font-extrabold text-xs sm:text-sm text-slate-900 truncate max-w-[110px] sm:max-w-xs md:max-w-md hidden xs:block">
               {lessonTitle}
             </h1>
-            <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <span className="hidden lg:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
               В эфире
             </span>
@@ -1061,7 +1066,7 @@ export default function VideoRoom({
             {onRoleChange ? (
               <button
                 onClick={() => onRoleChange(userRole === "TEACHER" ? "STUDENT" : "TEACHER")}
-                className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer"
+                className="hidden xl:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer"
                 title="Нажмите для проверки роли (Преподаватель / Ученик)"
               >
                 <span>Роль:</span>
@@ -1070,15 +1075,50 @@ export default function VideoRoom({
                 </span>
               </button>
             ) : (
-              <span className="hidden md:inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+              <span className="hidden xl:inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
                 {userRole === "TEACHER" ? "Преподаватель" : "Ученик"}
               </span>
             )}
           </div>
         </div>
 
-        {/* Центр: Только 2 понятные вкладки: «Доска» и «Заметки» */}
-        <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+        {/* Центр: Переключатели режимов */}
+        {/* Мобильная версия (< md): 3 вкладки Доска / Чат / Инфо */}
+        <div className="flex md:hidden items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 text-xs shrink-0">
+          <button
+            onClick={() => setMobileTab("board")}
+            className={`px-2 py-1 rounded-lg font-bold transition flex items-center gap-1 cursor-pointer ${
+              mobileTab === "board" ? "bg-white text-blue-600 shadow-xs" : "text-slate-600"
+            }`}
+          >
+            <PenTool className="w-3.5 h-3.5" />
+            <span className="text-[11px]">Доска</span>
+          </button>
+          <button
+            onClick={() => setMobileTab("chat")}
+            className={`px-2 py-1 rounded-lg font-bold transition flex items-center gap-1 cursor-pointer relative ${
+              mobileTab === "chat" ? "bg-white text-blue-600 shadow-xs" : "text-slate-600"
+            }`}
+          >
+            <MessageSquare className="w-3.5 h-3.5" />
+            <span className="text-[11px]">Чат</span>
+            {messages.length > 0 && (
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-600 absolute top-1 right-1" />
+            )}
+          </button>
+          <button
+            onClick={() => setMobileTab("notes")}
+            className={`px-2 py-1 rounded-lg font-bold transition flex items-center gap-1 cursor-pointer ${
+              mobileTab === "notes" ? "bg-white text-blue-600 shadow-xs" : "text-slate-600"
+            }`}
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            <span className="text-[11px]">Инфо</span>
+          </button>
+        </div>
+
+        {/* Десктопная версия (>= md): Доска / Заметки */}
+        <div className="hidden md:flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
           <button
             onClick={() => setActiveTab("board")}
             className={`px-3.5 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 cursor-pointer ${
@@ -1104,15 +1144,15 @@ export default function VideoRoom({
         </div>
 
         {/* Справа: Таймер + Ссылка + Завершить */}
-        <div className="flex items-center gap-2 text-xs">
-          <div className="flex items-center gap-1.5 font-mono font-bold text-slate-700 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
+        <div className="flex items-center gap-1.5 text-xs shrink-0">
+          <div className="flex items-center gap-1 font-mono font-bold text-slate-700 bg-slate-100 px-2 sm:px-3 py-1.5 rounded-xl border border-slate-200 text-xs">
             <Clock className="w-3.5 h-3.5 text-blue-600" />
             <span>{formatTimer(secondsElapsed)}</span>
           </div>
 
           <button
             onClick={copyRoomLink}
-            className="p-2 sm:px-3 sm:py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 font-bold transition flex items-center gap-1.5 cursor-pointer"
+            className="p-1.5 sm:px-3 sm:py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 font-bold transition flex items-center gap-1 cursor-pointer"
             title="Скопировать ссылку на урок"
           >
             <Share2 className="w-4 h-4" />
@@ -1121,7 +1161,7 @@ export default function VideoRoom({
 
           <button
             onClick={toggleFullscreen}
-            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer"
+            className="hidden sm:flex p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer"
             title={isFullscreen ? "Свернуть" : "На весь экран"}
           >
             {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
@@ -1129,69 +1169,74 @@ export default function VideoRoom({
 
           <button
             onClick={onEndLesson}
-            className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+            className="hidden md:flex px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold transition items-center gap-1.5 cursor-pointer shadow-xs"
             title="Завершить урок"
           >
             <PhoneOff className="w-4 h-4" />
-            <span className="hidden sm:inline">Завершить</span>
+            <span>Завершить</span>
           </button>
         </div>
       </header>
 
       {/* 2. ОСНОВНАЯ ЗОНА */}
-      <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative min-h-0">
         {/* РЕЖИМ 1: ДОСКА ДЛЯ РИСОВАНИЯ ИЛИ ПОКАЗ ЭКРАНА */}
-        {activeTab === "board" && (
-          <div className="flex-1 flex flex-col bg-white relative overflow-hidden">
-            {/* ЕСЛИ ВКЛЮЧЕНА НАСТОЯЩАЯ ДЕМОНСТРАЦИЯ ЭКРАНА */}
-            {screenSharing ? (
-              <div className="flex-1 bg-slate-900 flex flex-col relative overflow-hidden">
-                <div className="flex-1 flex items-center justify-center p-3">
-                  <video
-                    ref={(el) => {
-                      if (el && screenStreamRef.current) {
-                        el.srcObject = screenStreamRef.current;
-                        el.play().catch(() => {});
-                      }
-                    }}
-                    autoPlay
-                    playsInline
-                    className="max-h-full max-w-full rounded-2xl shadow-xl object-contain bg-black"
-                  />
-                </div>
-                <div className="p-3 bg-white border-t border-slate-200 flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-800 flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                    Трансляция вашего экрана активна
-                  </span>
-                  <button
-                    onClick={toggleScreenShare}
-                    className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs cursor-pointer shadow-xs"
-                  >
-                    Остановить показ
-                  </button>
-                </div>
+        <div
+          className={`flex-1 flex flex-col bg-white relative overflow-hidden min-h-0 ${
+            activeTab === "board" ? "md:flex" : "md:hidden"
+          } ${
+            mobileTab === "board" ? "flex" : "hidden md:flex"
+          }`}
+        >
+          {/* ЕСЛИ ВКЛЮЧЕНА НАСТОЯЩАЯ ДЕМОНСТРАЦИЯ ЭКРАНА */}
+          {screenSharing ? (
+            <div className="flex-1 bg-slate-900 flex flex-col relative overflow-hidden">
+              <div className="flex-1 flex items-center justify-center p-3">
+                <video
+                  ref={(el) => {
+                    if (el && screenStreamRef.current) {
+                      el.srcObject = screenStreamRef.current;
+                      el.play().catch(() => {});
+                    }
+                  }}
+                  autoPlay
+                  playsInline
+                  className="max-h-full max-w-full rounded-2xl shadow-xl object-contain bg-black"
+                />
               </div>
-            ) : (
-              <>
-                {/* ЕСЛИ РИСОВАНИЕ ДЛЯ УЧЕНИКА ВЫКЛЮЧЕНО */}
-                {userRole === "STUDENT" && !studentCanDraw ? (
-                  <div className="absolute top-2.5 left-2.5 z-20 bg-white/95 backdrop-blur border border-amber-200 text-amber-900 rounded-xl shadow-md px-3.5 py-2 flex items-center gap-2.5 text-xs font-semibold">
-                    <Lock className="w-4 h-4 text-amber-600 shrink-0" />
-                    <span>Режим просмотра • Преподаватель пока не открыл доступ к рисованию</span>
-                  </div>
-                ) : (
-                  /* ЛАКОНИЧНЫЙ ТУЛБАР ДОСКИ */
-                  <div className="absolute top-2.5 left-2.5 z-20 bg-white border border-slate-200 rounded-xl shadow-md p-1 flex items-center gap-1 text-xs">
-                    <button
-                      onClick={() => setCurrentTool("pen")}
-                      className={`p-2 rounded-lg transition cursor-pointer ${
-                        currentTool === "pen" ? "bg-blue-600 text-white font-bold" : "text-slate-700 hover:bg-slate-100"
-                      }`}
-                      title="Маркер"
-                    >
-                      <PenTool className="w-4 h-4" />
-                    </button>
+              <div className="p-3 bg-white border-t border-slate-200 flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Трансляция вашего экрана активна
+                </span>
+                <button
+                  onClick={toggleScreenShare}
+                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs cursor-pointer shadow-xs"
+                >
+                  Остановить показ
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* ЕСЛИ РИСОВАНИЕ ДЛЯ УЧЕНИКА ВЫКЛЮЧЕНО */}
+              {userRole === "STUDENT" && !studentCanDraw ? (
+                <div className="absolute top-2.5 left-2.5 z-20 bg-white/95 backdrop-blur border border-amber-200 text-amber-900 rounded-xl shadow-md px-3.5 py-2 flex items-center gap-2.5 text-xs font-semibold max-w-[calc(100vw-1.25rem)]">
+                  <Lock className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span className="truncate">Режим просмотра • Учитель пока не открыл доступ</span>
+                </div>
+              ) : (
+                /* ЛАКОНИЧНЫЙ ТУЛБАР ДОСКИ С ГОРИЗОНТАЛЬНОЙ ПРОКРУТКОЙ НА ТЕЛЕФОНЕ */
+                <div className="absolute top-2.5 left-2.5 z-20 bg-white border border-slate-200 rounded-xl shadow-md p-1 flex items-center gap-1 text-xs max-w-[calc(100vw-1.25rem)] overflow-x-auto">
+                  <button
+                    onClick={() => setCurrentTool("pen")}
+                    className={`p-2 rounded-lg transition cursor-pointer shrink-0 ${
+                      currentTool === "pen" ? "bg-blue-600 text-white font-bold" : "text-slate-700 hover:bg-slate-100"
+                    }`}
+                    title="Маркер"
+                  >
+                    <PenTool className="w-4 h-4" />
+                  </button>
 
                     <button
                       onClick={() => setCurrentTool("highlighter")}
@@ -1416,60 +1461,67 @@ export default function VideoRoom({
               </>
             )}
           </div>
-        )}
 
         {/* РЕЖИМ 2: ЗАМЕТКИ И МАТЕРИАЛЫ */}
-        {activeTab === "notes" && (
-          <div className="flex-1 bg-slate-50 p-4 sm:p-6 overflow-y-auto">
-            <div className="max-w-3xl mx-auto space-y-5">
-              <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <div>
-                    <h2 className="text-lg font-bold text-slate-900">{lessonTitle}</h2>
-                    <p className="text-xs text-slate-500">
-                      Преподаватель: {teacherName} • Ученик: {studentName}
-                    </p>
-                  </div>
-                  <button
-                    onClick={handleSaveNotes}
-                    disabled={savingNotes}
-                    className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs flex items-center gap-2 transition cursor-pointer"
-                  >
-                    <Save className="w-4 h-4" />
-                    <span>{savingNotes ? "Сохранение..." : notesSaved ? "Сохранено ✓" : "Сохранить"}</span>
-                  </button>
-                </div>
-
+        <div
+          className={`flex-1 bg-slate-50 p-4 sm:p-6 overflow-y-auto ${
+            activeTab === "notes" ? "md:block" : "md:hidden"
+          } ${
+            mobileTab === "notes" ? "block" : "hidden"
+          }`}
+        >
+          <div className="max-w-3xl mx-auto space-y-5">
+            <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Заметки преподавателя по уроку:
-                  </label>
-                  <textarea
-                    rows={4}
-                    value={teacherNotes}
-                    onChange={(e) => setTeacherNotes(e.target.value)}
-                    placeholder="Напишите заметки..."
-                    className="w-full p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-blue-600 transition"
-                  />
+                  <h2 className="text-lg font-bold text-slate-900">{lessonTitle}</h2>
+                  <p className="text-xs text-slate-500">
+                    Преподаватель: {teacherName} • Ученик: {studentName}
+                  </p>
                 </div>
+                <button
+                  onClick={handleSaveNotes}
+                  disabled={savingNotes}
+                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs flex items-center gap-2 transition cursor-pointer"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>{savingNotes ? "Сохранение..." : notesSaved ? "Сохранено ✓" : "Сохранить"}</span>
+                </button>
               </div>
 
-              <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-2">
-                <div className="flex items-center gap-2">
-                  <Award className="w-4 h-4 text-amber-500" />
-                  <h3 className="text-sm font-bold text-slate-900">Домашнее задание</h3>
-                </div>
-                <p className="text-sm text-slate-700 font-medium">Учебник, страница 48: задания № 12, 14, 15.</p>
-                <p className="text-xs text-slate-500">
-                  Решить уравнения в тетради и прикрепить фото решения в личном кабинете.
-                </p>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Заметки преподавателя по уроку:
+                </label>
+                <textarea
+                  rows={4}
+                  value={teacherNotes}
+                  onChange={(e) => setTeacherNotes(e.target.value)}
+                  placeholder="Напишите заметки..."
+                  className="w-full p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-blue-600 transition"
+                />
               </div>
             </div>
+
+            <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-2">
+              <div className="flex items-center gap-2">
+                <Award className="w-4 h-4 text-amber-500" />
+                <h3 className="text-sm font-bold text-slate-900">Домашнее задание</h3>
+              </div>
+              <p className="text-sm text-slate-700 font-medium">Учебник, страница 48: задания № 12, 14, 15.</p>
+              <p className="text-xs text-slate-500">
+                Решить уравнения в тетради и прикрепить фото решения в личном кабинете.
+              </p>
+            </div>
           </div>
-        )}
+        </div>
 
         {/* ПРАВАЯ ПАНЕЛЬ: ВИДЕО + БОЛЬШОЙ ПРОСТОРНЫЙ ЧАТ */}
-        <div className="w-full md:w-80 lg:w-96 bg-white border-t md:border-t-0 md:border-l border-slate-200 flex flex-col shrink-0 h-full">
+        <div
+          className={`w-full md:w-80 lg:w-96 bg-white border-t md:border-t-0 md:border-l border-slate-200 flex flex-col shrink-0 h-full min-h-0 ${
+            mobileTab === "chat" ? "flex" : "hidden md:flex"
+          }`}
+        >
           {/* Компактный блок видео (чтобы не отбирать место у чата) */}
           <div className="p-3 border-b border-slate-200 bg-slate-50 grid grid-cols-2 gap-2">
             {/* Преподаватель */}
@@ -1580,9 +1632,9 @@ export default function VideoRoom({
         </div>
       </div>
 
-      {/* 3. НИЖНЯЯ ПАНЕЛЬ УПРАВЛЕНИЯ (МИНИМАЛИСТИЧНАЯ, БЕЗ «СЕТЬ 100%») */}
-      <footer className="h-16 bg-white border-t border-slate-200 px-4 flex items-center justify-center shrink-0">
-        <div className="flex items-center gap-3">
+      {/* 3. НИЖНЯЯ ПАНЕЛЬ УПРАВЛЕНИЯ (ВСЕГДА ВИДНА, АДАПТИРОВАНА ПОД МОБИЛЬНЫЕ) */}
+      <footer className="h-16 bg-white border-t border-slate-200 px-3 sm:px-4 flex items-center justify-center shrink-0 z-40 pb-[max(0.25rem,env(safe-area-inset-bottom))]">
+        <div className="flex items-center justify-around w-full max-w-md md:justify-center md:gap-3">
           {/* Микрофон */}
           <button
             onClick={() => setMicOn(!micOn)}
@@ -1605,10 +1657,10 @@ export default function VideoRoom({
             {camOn ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
           </button>
 
-          {/* Показ экрана (настоящий getDisplayMedia) */}
+          {/* Показ экрана (настоящий getDisplayMedia - на десктопе) */}
           <button
             onClick={toggleScreenShare}
-            className={`w-11 h-11 rounded-full flex items-center justify-center transition cursor-pointer shadow-xs ${
+            className={`hidden md:flex w-11 h-11 rounded-full items-center justify-center transition cursor-pointer shadow-xs ${
               screenSharing
                 ? "bg-blue-600 text-white shadow-md shadow-blue-500/25"
                 : "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200"
@@ -1631,10 +1683,32 @@ export default function VideoRoom({
             <Hand className="w-5 h-5" />
           </button>
 
+          {/* Быстрое переключение Чат / Доска на мобильных устройствах */}
+          <button
+            onClick={() => setMobileTab(mobileTab === "board" ? "chat" : "board")}
+            className={`md:hidden w-11 h-11 rounded-full flex items-center justify-center border transition cursor-pointer relative shadow-xs ${
+              mobileTab === "board"
+                ? "bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200"
+                : "bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/25"
+            }`}
+            title={mobileTab === "board" ? "Открыть видео и чат" : "Перейти на доску"}
+          >
+            {mobileTab === "board" ? (
+              <>
+                <MessageSquare className="w-5 h-5 text-blue-600" />
+                {messages.length > 0 && (
+                  <span className="w-2.5 h-2.5 rounded-full bg-blue-600 border-2 border-white absolute top-2 right-2" />
+                )}
+              </>
+            ) : (
+              <PenTool className="w-5 h-5" />
+            )}
+          </button>
+
           {/* Завершить урок */}
           <button
             onClick={onEndLesson}
-            className="w-11 h-11 rounded-full bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center transition cursor-pointer shadow-sm ml-2"
+            className="w-11 h-11 rounded-full bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center transition cursor-pointer shadow-xs"
             title="Завершить занятие"
           >
             <PhoneOff className="w-5 h-5" />
