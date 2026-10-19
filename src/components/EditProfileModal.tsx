@@ -236,41 +236,47 @@ export default function EditProfileModal({
       } catch (e) {}
     }
 
-    // Если данных всё ещё нет, подтягиваем из Supabase profiles как фоллбек
+    // Загрузка профиля из Supabase по ID текущего пользователя
     const client = getSupabase();
     if (client && !hasLoadedData) {
-      const roleUpper = (init?.role || defaultRole).toUpperCase();
-      client
-        .from("profiles")
-        .select("*")
-        .eq("role", roleUpper)
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .then(({ data }) => {
-          if (data && data.length > 0) {
-            const p = data[0];
-            setProfileId(p.id);
-            if (!name) setName(p.name || "");
-            if (!email) setEmail(p.email || "");
-            if (!phone) setPhone(p.phone || "");
-            if (!avatarUrl && p.avatar_url) setAvatarUrl(p.avatar_url);
+      client.auth.getUser().then(({ data }) => {
+        const authUser = data?.user;
+        const targetId = init?.id || authUser?.id;
+        if (targetId) {
+          setProfileId(targetId);
+          client
+            .from("profiles")
+            .select("*")
+            .eq("id", targetId)
+            .maybeSingle()
+            .then(({ data: p }) => {
+              if (p) {
+                if (!name) setName(p.name || authUser?.user_metadata?.full_name || "");
+                if (!email) setEmail(p.email || authUser?.email || "");
+                if (!phone) setPhone(p.phone || "");
+                if (!avatarUrl && p.avatar_url) setAvatarUrl(p.avatar_url);
 
-            let parsed: any = {};
-            try {
-              if (p.bio && p.bio.startsWith("{")) parsed = JSON.parse(p.bio);
-              else if (p.bio) parsed.bio = p.bio;
-            } catch (e) {}
+                let parsed: any = {};
+                try {
+                  if (p.bio && p.bio.startsWith("{")) parsed = JSON.parse(p.bio);
+                  else if (p.bio) parsed.bio = p.bio;
+                } catch (e) {}
 
-            if (parsed.grade && !grade) setGrade(parsed.grade);
-            if (parsed.school && !school) setSchool(parsed.school);
-            if (parsed.subjects && !subjects) setSubjects(parsed.subjects);
-            if (parsed.experience && !experience) setExperience(parsed.experience);
-            if (parsed.education && !education) setEducation(parsed.education);
-            if (parsed.bio && !bio) setBio(parsed.bio);
-            if (parsed.preferredContact && !preferredContact)
-              setPreferredContact(parsed.preferredContact);
-          }
-        });
+                if (parsed.grade && !grade) setGrade(parsed.grade);
+                if (parsed.school && !school) setSchool(parsed.school);
+                if (parsed.subjects && !subjects) setSubjects(parsed.subjects);
+                if (parsed.experience && !experience) setExperience(parsed.experience);
+                if (parsed.education && !education) setEducation(parsed.education);
+                if (parsed.bio && !bio) setBio(parsed.bio);
+                if (parsed.preferredContact && !preferredContact)
+                  setPreferredContact(parsed.preferredContact);
+              } else if (authUser) {
+                if (!name) setName(authUser.user_metadata?.full_name || authUser.email?.split("@")[0] || "");
+                if (!email) setEmail(authUser.email || "");
+              }
+            });
+        }
+      });
     }
   }, [isOpen, initialProfile, defaultRole]);
 
@@ -342,33 +348,24 @@ export default function EditProfileModal({
           updated_at: new Date().toISOString(),
         };
 
-        if (profileId) {
-          const { error: updErr } = await client
-            .from("profiles")
-            .update(payload)
-            .eq("id", profileId);
-
-          if (!updErr) savedInSupabase = true;
+        let targetId = profileId;
+        if (!targetId) {
+          const { data: aData } = await client.auth.getUser();
+          if (aData?.user?.id) targetId = aData.user.id;
         }
 
-        // Если не обновлено по ID, пробуем обновить по роли и имени или вставить
-        if (!savedInSupabase) {
-          const { data: matched } = await client
+        if (targetId) {
+          finalProfileData.id = targetId;
+          const { error: upsertErr } = await client
             .from("profiles")
-            .select("id")
-            .eq("role", roleNormalized)
-            .limit(1);
+            .upsert({
+              id: targetId,
+              role: roleNormalized,
+              email: email.trim() || undefined,
+              ...payload,
+            });
 
-          if (matched && matched.length > 0) {
-            const { error: updErr2 } = await client
-              .from("profiles")
-              .update(payload)
-              .eq("id", matched[0].id);
-            if (!updErr2) {
-              finalProfileData.id = matched[0].id;
-              savedInSupabase = true;
-            }
-          }
+          if (!upsertErr) savedInSupabase = true;
         }
 
         // 2. Обновление метаданных авторизованного пользователя Supabase Auth

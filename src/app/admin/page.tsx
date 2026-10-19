@@ -35,6 +35,7 @@ import {
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { getSupabase } from "@/lib/supabase";
+import { setAuthCookies, clearAuthCookies } from "@/lib/auth-session";
 import EditProfileModal from "@/components/EditProfileModal";
 
 export default function AdminPage() {
@@ -180,6 +181,7 @@ export default function AdminPage() {
           if (profileData?.phone) setAdminPhone(profileData.phone);
           if (profileData?.bio) setAdminBio(profileData.bio);
           document.cookie = "admin_session=true; path=/; max-age=604800";
+          setAuthCookies("admin", user.id, data?.session?.access_token);
         } else {
           // Пользователь залогинен, но НЕ является администратором
           setIsAuthenticated(false);
@@ -296,6 +298,7 @@ export default function AdminPage() {
       if (profileData?.bio) setAdminBio(profileData.bio);
 
       document.cookie = "admin_session=true; path=/; max-age=604800";
+      setAuthCookies("admin", user.id, data?.session?.access_token);
       showToast("Вход в панель управления через Supabase выполнен успешно!");
     } catch (err: any) {
       setAuthError(err?.message || "Ошибка подключения к серверу авторизации Supabase.");
@@ -303,6 +306,7 @@ export default function AdminPage() {
   };
 
   const handleAdminLogout = async () => {
+    clearAuthCookies();
     const client = getSupabase();
     if (client) {
       try {

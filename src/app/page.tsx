@@ -446,6 +446,16 @@ export default function HomePage() {
               </div>
             ))}
           </div>
+
+          <div className="pt-2 flex justify-start">
+            <Link
+              href={roleDetails[activeTab].link}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm shadow-md shadow-blue-500/25 transition active:scale-95 cursor-pointer"
+            >
+              <span>{roleDetails[activeTab].btnText}</span>
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
         </div>
       </section>
 

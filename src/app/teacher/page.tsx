@@ -31,6 +31,7 @@ import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { getSupabase } from "@/lib/supabase";
 import { fetchWithAuth } from "@/lib/api-client";
+import { useAuthGuard, AuthLoadingScreen } from "@/lib/auth-session";
 import ScheduleCalendar from "@/components/ScheduleCalendar";
 import EditProfileModal from "@/components/EditProfileModal";
 
@@ -59,14 +60,11 @@ const DEFAULT_SUBJECTS: SubjectItem[] = [
 ];
 
 const DEFAULT_STUDENTS: StudentProfile[] = [
-  { id: "a1000000-0000-0000-0000-000000000001", name: "Артём Смирнов", grade: "1 класс", school: "АйДаУмничка" },
-  { id: "a1000000-0000-0000-0000-000000000002", name: "София Васильева", grade: "5 класс", school: "АйДаУмничка" },
   { id: "2a62e436-f539-4ec5-b3af-a1afabfa0eec", name: "Ученик", grade: "3 класс", school: "АйДаУмничка" },
-  { id: "a1000000-0000-0000-0000-000000000003", name: "Иван Морозов", grade: "4 класс", school: "АйДаУмничка" },
-  { id: "a1000000-0000-0000-0000-000000000004", name: "Алиса Романова", grade: "2 класс", school: "АйДаУмничка" },
 ];
 
 export default function TeacherCabinet() {
+  const { loading: authLoading, isAuthorized, user: authUser } = useAuthGuard("teacher");
   const [teacherId, setTeacherId] = useState("");
   const [teacherName, setTeacherName] = useState("Анна Сергеевна Иванова");
   const [teacherAvatar, setTeacherAvatar] = useState(
@@ -140,8 +138,10 @@ export default function TeacherCabinet() {
   // Загрузка уроков (через API с объединением Supabase и заметок, с фоллбеком)
   const fetchLessons = async () => {
     try {
+      const currentTeacherId = authUser?.id || teacherId;
       // 1. Запрашиваем через серверный API, который объединяет базу Supabase и заметки уроков
-      const res = await fetchWithAuth("/api/lessons");
+      const url = currentTeacherId ? `/api/lessons?teacherId=${currentTeacherId}` : "/api/lessons";
+      const res = await fetchWithAuth(url);
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
@@ -168,7 +168,7 @@ export default function TeacherCabinet() {
       // 2. Прямой запрос к Supabase, если API вернул пустоту
       const client = getSupabase();
       if (client) {
-        const { data: sbLessons, error: sbError } = await client
+        let query = client
           .from("lessons")
           .select(`
             id,
@@ -185,6 +185,12 @@ export default function TeacherCabinet() {
             student:student_id (name, avatar_url)
           `)
           .order("start_time", { ascending: false });
+
+        if (currentTeacherId) {
+          query = query.eq("teacher_id", currentTeacherId);
+        }
+
+        const { data: sbLessons, error: sbError } = await query;
 
         if (!sbError && sbLessons && sbLessons.length > 0) {
           const mapped = sbLessons.map((l: any) => {
@@ -226,64 +232,48 @@ export default function TeacherCabinet() {
     }
   };
 
-  // Первичная загрузка данных из Supabase: профиль, предметы, ученики
+  // Первичная загрузка данных из Supabase: профиль текущего преподавателя, предметы, ученики
   useEffect(() => {
-    // Подтягиваем из локального хранилища в первую очередь
-    const applyLocalProfile = () => {
-      try {
-        const saved =
-          localStorage.getItem("ayda_profile_teacher") ||
-          localStorage.getItem("ayda_current_user_profile");
-        if (saved) {
-          const p = JSON.parse(saved);
-          if (p.name) setTeacherName(p.name);
-          if (p.avatarUrl) setTeacherAvatar(p.avatarUrl);
-          if (p.subjects) setTeacherSubjects(p.subjects);
-          if (p.experience) setTeacherExperience(p.experience);
-          if (p.education) setTeacherEducation(p.education);
-          if (p.bio) setTeacherBio(p.bio);
-          if (p.phone) setTeacherPhone(p.phone);
-          if (p.email) setTeacherEmail(p.email);
-          return true;
-        }
-      } catch (e) {}
-      return false;
-    };
-
-    const hasLocal = applyLocalProfile();
+    if (!authUser?.id) return;
+    const currentUserId = authUser.id;
+    setTeacherId(currentUserId);
 
     const client = getSupabase();
     if (client) {
-      // 1. Профиль учителя из Supabase
+      // 1. Профиль конкретно текущего вошедшего учителя из Supabase
       client
         .from("profiles")
         .select("*")
-        .eq("role", "TEACHER")
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .then(({ data }) => {
-          if (data && data.length > 0) {
-            const p = data[0];
+        .eq("id", currentUserId)
+        .maybeSingle()
+        .then(({ data: p }) => {
+          if (p) {
             setTeacherId(p.id);
+            if (p.name) setTeacherName(p.name);
+            if (p.avatar_url) setTeacherAvatar(p.avatar_url);
+            if (p.email) setTeacherEmail(p.email);
+            if (p.phone) setTeacherPhone(p.phone);
 
-            // Если пользователь уже редактировал профиль локально, не затираем его имя и аватар
-            if (!hasLocal) {
-              if (p.name) setTeacherName(p.name);
-              if (p.avatar_url) setTeacherAvatar(p.avatar_url);
-              if (p.email) setTeacherEmail(p.email);
-              if (p.phone) setTeacherPhone(p.phone);
+            let parsed: any = {};
+            try {
+              if (p.bio && p.bio.startsWith("{")) parsed = JSON.parse(p.bio);
+              else if (p.bio) parsed.bio = p.bio;
+            } catch (e) {}
 
-              let parsed: any = {};
-              try {
-                if (p.bio && p.bio.startsWith("{")) parsed = JSON.parse(p.bio);
-                else if (p.bio) parsed.bio = p.bio;
-              } catch (e) {}
-
-              if (parsed.subjects) setTeacherSubjects(parsed.subjects);
-              if (parsed.experience) setTeacherExperience(parsed.experience);
-              if (parsed.education) setTeacherEducation(parsed.education);
-              if (parsed.bio) setTeacherBio(parsed.bio);
-            }
+            if (parsed.subjects) setTeacherSubjects(parsed.subjects);
+            if (parsed.experience) setTeacherExperience(parsed.experience);
+            if (parsed.education) setTeacherEducation(parsed.education);
+            if (parsed.bio) setTeacherBio(parsed.bio);
+          } else {
+            const defName = authUser.user_metadata?.full_name || authUser.email?.split("@")[0] || "Преподаватель";
+            setTeacherName(defName);
+            client.from("profiles").upsert({
+              id: currentUserId,
+              email: authUser.email,
+              name: defName,
+              role: "TEACHER",
+              bio: JSON.stringify({ subjects: "Математика и логика", experience: "Стаж 10 лет" }),
+            }).then(() => {});
           }
         });
 
@@ -370,7 +360,7 @@ export default function TeacherCabinet() {
       window.removeEventListener("ayda:profile-updated", handleProfileUpdate);
       window.removeEventListener("ayda:lessons-updated", handleLessonsUpdate);
     };
-  }, []);
+  }, [authUser?.id]);
 
   // Открытие модалки создания урока (с возможностью предвыбора ученика)
   const handleOpenCreateModal = (studentId?: string) => {
@@ -781,6 +771,10 @@ export default function TeacherCabinet() {
   const liveLessons = lessons.filter((l) => l.status === "LIVE");
   const upcomingLessons = lessons.filter((l) => l.status === "SCHEDULED");
   const completedLessons = lessons.filter((l) => l.status === "COMPLETED");
+
+  if (authLoading || !isAuthorized) {
+    return <AuthLoadingScreen roleTitle="Личный кабинет преподавателя" />;
+  }
 
   return (
     <div className="space-y-6 pb-20">

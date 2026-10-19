@@ -99,59 +99,8 @@ export default function StudentCabinet() {
     };
   }, [homeworkModalOpen]);
 
-  // Список домашних заданий школьного формата
-  const [homeworkList, setHomeworkList] = useState<HomeworkItem[]>([
-    {
-      id: "hw-1",
-      subject: "Математика и логика",
-      title: "Олимпиадные задачи: логические последовательности и геометрические ребусы",
-      teacher: "Анна Сергеевна Иванова",
-      deadline: "Завтра, до 18:00",
-      status: "NEW",
-      statusText: "Нужно сдать",
-      badgeColor: "bg-amber-100 text-amber-800 border-amber-200",
-      description: "Закрепление темы прошедшего урока. Решите предложенные задачи в тетради или введите ответы в поле ниже.",
-      tasks: [
-        "1. Найдите закономерность в ряду чисел: 2, 5, 11, 23, ... Какое число следующее?",
-        "2. На столе лежало 4 яблока. Одно из них разрезали пополам. Сколько яблок на столе?",
-        "3. Решите задачу на доске №3: периметр прямоугольника равен 24 см, одна сторона в 2 раза длиннее другой. Найдите площадь.",
-      ],
-    },
-    {
-      id: "hw-2",
-      subject: "Русский язык и каллиграфия",
-      title: "Орфография: безударные гласные и правописание приставок",
-      teacher: "Анна Сергеевна Иванова",
-      deadline: "22 октября, до 20:00",
-      status: "CHECKED",
-      statusText: "Проверено на 5 ⭐",
-      badgeColor: "bg-emerald-100 text-emerald-800 border-emerald-200",
-      description: "Словарная работа и проверочные слова.",
-      tasks: [
-        "1. Вставьте пропущенные буквы и подберите проверочные слова: г..ра, тр..ва, р..чной.",
-        "2. Спишите текст с экрана без помарок, соблюдая наклон и каллиграфические нормы.",
-      ],
-      studentAnswer: "1. гора (горы), трава (травы), речной (реки). 2. Текст переписан в рабочую тетрадь без помарок.",
-      teacherFeedback: "Отличная работа! Все проверочные слова подобраны точно, аккуратный почерк.",
-      grade: 5,
-    },
-    {
-      id: "hw-3",
-      subject: "Английский язык",
-      title: "Present Continuous & Speaking: мини-диалог «Мой день»",
-      teacher: "Михаил Александрович Петров",
-      deadline: "24 октября, до 19:00",
-      status: "SUBMITTED",
-      statusText: "На проверке у учителя",
-      badgeColor: "bg-blue-100 text-blue-800 border-blue-200",
-      description: "Составьте 4–5 предложений в настоящем длительном времени.",
-      tasks: [
-        "1. Make sentences using Present Continuous (I am reading, He is playing...).",
-        "2. Prepare to read the dialogue out loud during our next online lesson.",
-      ],
-      studentAnswer: "1. I am reading an interesting book now. 2. My friend is playing football. 3. We are studying English with teacher Mikhail.",
-    },
-  ]);
+  // Список домашних заданий школьного формата (загружается с уроков или пустой)
+  const [homeworkList, setHomeworkList] = useState<HomeworkItem[]>([]);
 
   // Загрузка данных ученика, предметов школы и уроков из Supabase
   useEffect(() => {
@@ -638,71 +587,85 @@ export default function StudentCabinet() {
             </span>
           </div>
 
-          <div className="bg-white rounded-3xl divide-y divide-slate-100 border border-slate-200 overflow-hidden shadow-xs">
-            {homeworkList.map((hw) => (
-              <div
-                key={hw.id}
-                className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/50 transition"
-              >
-                <div className="space-y-1.5 max-w-2xl">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">
-                      {hw.subject}
-                    </span>
-                    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${hw.badgeColor}`}>
-                      {hw.statusText}
-                    </span>
-                  </div>
-
-                  <h3 className="font-extrabold text-slate-900 text-sm sm:text-base">
-                    {hw.title}
-                  </h3>
-
-                  <p className="text-xs text-slate-600 line-clamp-1">
-                    {hw.description}
-                  </p>
-
-                  <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 pt-1">
-                    <span className="flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-slate-400" />
-                      <span>Срок: {hw.deadline}</span>
-                    </span>
-                    <span>•</span>
-                    <span>Преподаватель: <strong className="text-slate-700">{hw.teacher}</strong></span>
-                  </div>
-                </div>
-
-                {hw.status === "CHECKED" ? (
-                  <button
-                    type="button"
-                    onClick={() => handleOpenHomework(hw)}
-                    className="px-4 py-2.5 rounded-xl bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200 font-bold text-xs transition cursor-pointer self-start sm:self-auto shrink-0 shadow-2xs active:scale-95 flex items-center gap-1.5"
-                  >
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    <span>Проверено • {hw.grade}/5 ⭐</span>
-                  </button>
-                ) : hw.status === "SUBMITTED" ? (
-                  <button
-                    type="button"
-                    onClick={() => handleOpenHomework(hw)}
-                    className="px-4 py-2.5 rounded-xl bg-blue-50 text-blue-800 hover:bg-blue-100 border border-blue-200 font-bold text-xs transition cursor-pointer self-start sm:self-auto shrink-0 shadow-2xs active:scale-95 flex items-center gap-1.5"
-                  >
-                    <Clock className="w-4 h-4 text-blue-600" />
-                    <span>Отправлено • Посмотреть</span>
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => handleOpenHomework(hw)}
-                    className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition cursor-pointer self-start sm:self-auto shrink-0 shadow-md shadow-blue-500/20 active:scale-95 flex items-center gap-1.5"
-                  >
-                    <span>Сдать задание</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                )}
+          {homeworkList.length === 0 ? (
+            <div className="bg-white rounded-3xl border border-slate-200 p-10 sm:p-14 text-center shadow-xs">
+              <div className="w-14 h-14 mx-auto mb-3.5 rounded-2xl bg-blue-50/60 flex items-center justify-center border border-blue-100/80 text-blue-500">
+                <FileText className="w-7 h-7" />
               </div>
-            ))}
-          </div>
+              <h3 className="text-base font-extrabold text-slate-900 mb-1">
+                Нет активных домашних заданий
+              </h3>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                Когда преподаватель добавит практическое задание или тест к уроку, оно появится в этом разделе.
+              </p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-3xl divide-y divide-slate-100 border border-slate-200 overflow-hidden shadow-xs">
+              {homeworkList.map((hw) => (
+                <div
+                  key={hw.id}
+                  className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/50 transition"
+                >
+                  <div className="space-y-1.5 max-w-2xl">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+                        {hw.subject}
+                      </span>
+                      <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${hw.badgeColor}`}>
+                        {hw.statusText}
+                      </span>
+                    </div>
+
+                    <h3 className="font-extrabold text-slate-900 text-sm sm:text-base">
+                      {hw.title}
+                    </h3>
+
+                    <p className="text-xs text-slate-600 line-clamp-1">
+                      {hw.description}
+                    </p>
+
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 pt-1">
+                      <span className="flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Срок: {hw.deadline}</span>
+                      </span>
+                      <span>•</span>
+                      <span>Преподаватель: <strong className="text-slate-700">{hw.teacher}</strong></span>
+                    </div>
+                  </div>
+
+                  {hw.status === "CHECKED" ? (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenHomework(hw)}
+                      className="px-4 py-2.5 rounded-xl bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200 font-bold text-xs transition cursor-pointer self-start sm:self-auto shrink-0 shadow-2xs active:scale-95 flex items-center gap-1.5"
+                    >
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <span>Проверено • {hw.grade}/5 ⭐</span>
+                    </button>
+                  ) : hw.status === "SUBMITTED" ? (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenHomework(hw)}
+                      className="px-4 py-2.5 rounded-xl bg-blue-50 text-blue-800 hover:bg-blue-100 border border-blue-200 font-bold text-xs transition cursor-pointer self-start sm:self-auto shrink-0 shadow-2xs active:scale-95 flex items-center gap-1.5"
+                    >
+                      <Clock className="w-4 h-4 text-blue-600" />
+                      <span>Отправлено • Посмотреть</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenHomework(hw)}
+                      className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition cursor-pointer self-start sm:self-auto shrink-0 shadow-md shadow-blue-500/20 active:scale-95 flex items-center gap-1.5"
+                    >
+                      <span>Сдать задание</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

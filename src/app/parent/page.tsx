@@ -37,6 +37,7 @@ import { format, startOfWeek, addDays, isSameDay, addWeeks, subWeeks } from "dat
 import { ru } from "date-fns/locale";
 import { getSupabase } from "@/lib/supabase";
 import { fetchWithAuth } from "@/lib/api-client";
+import { useAuthGuard, AuthLoadingScreen } from "@/lib/auth-session";
 import ScheduleCalendar from "@/components/ScheduleCalendar";
 import EditProfileModal from "@/components/EditProfileModal";
 
@@ -76,6 +77,7 @@ const GRADES = [
 ];
 
 export default function ParentCabinet() {
+  const { loading: authLoading, isAuthorized, user: authUser } = useAuthGuard("parent");
   const [parentId, setParentId] = useState("");
   const [parentName, setParentName] = useState("Родитель");
   const [parentEmail, setParentEmail] = useState("");
@@ -86,49 +88,46 @@ export default function ParentCabinet() {
   const [editProfileModalOpen, setEditProfileModalOpen] = useState(false);
 
   useEffect(() => {
+    if (!authUser?.id) return;
+    const currentUserId = authUser.id;
+    setParentId(currentUserId);
+
     const client = getSupabase();
     if (client) {
-      client.auth.getSession().then(async ({ data }) => {
-        if (data?.session?.user) {
-          const user = data.session.user;
-          setParentId(user.id);
-          const meta = user.user_metadata || {};
-          if (meta.full_name) setParentName(meta.full_name);
-          else if (user.email) setParentName(user.email.split("@")[0]);
-          if (user.email) setParentEmail(user.email);
-          if (meta.avatar_url) setParentAvatar(meta.avatar_url);
+      const meta = authUser.user_metadata || {};
+      if (meta.full_name) setParentName(meta.full_name);
+      else if (authUser.email) setParentName(authUser.email.split("@")[0]);
+      if (authUser.email) setParentEmail(authUser.email);
+      if (meta.avatar_url) setParentAvatar(meta.avatar_url);
 
-          try {
-            const { data: prof } = await client.from("profiles").select("*").eq("id", user.id).maybeSingle();
-            if (prof) {
-              if (prof.name) setParentName(prof.name);
-              if (prof.avatar_url) setParentAvatar(prof.avatar_url);
-              if (prof.phone) setParentPhone(prof.phone);
-              if (prof.email) setParentEmail(prof.email);
-              if (prof.bio) {
-                setParentBio(prof.bio);
-                try {
-                  const parsed = JSON.parse(prof.bio);
-                  if (parsed.preferredContact) setParentPreferredContact(parsed.preferredContact);
-                } catch {
-                  // ignored
-                }
-              }
-            } else {
-              // Try finding any PARENT profile
-              const { data: parentProf } = await client.from("profiles").select("*").eq("role", "PARENT").limit(1).maybeSingle();
-              if (parentProf) {
-                if (parentProf.name) setParentName(parentProf.name);
-                if (parentProf.avatar_url) setParentAvatar(parentProf.avatar_url);
-                if (parentProf.phone) setParentPhone(parentProf.phone);
-                if (parentProf.email) setParentEmail(parentProf.email);
-              }
+      client
+        .from("profiles")
+        .select("*")
+        .eq("id", currentUserId)
+        .maybeSingle()
+        .then(({ data: prof }) => {
+          if (prof) {
+            if (prof.name) setParentName(prof.name);
+            if (prof.avatar_url) setParentAvatar(prof.avatar_url);
+            if (prof.phone) setParentPhone(prof.phone);
+            if (prof.email) setParentEmail(prof.email);
+            if (prof.bio) {
+              setParentBio(prof.bio);
+              try {
+                const parsed = JSON.parse(prof.bio);
+                if (parsed.preferredContact) setParentPreferredContact(parsed.preferredContact);
+              } catch {}
             }
-          } catch (err) {
-            console.error("Supabase load parent profile error:", err);
+          } else {
+            const defName = meta.full_name || authUser.email?.split("@")[0] || "Родитель";
+            client.from("profiles").upsert({
+              id: currentUserId,
+              email: authUser.email,
+              name: defName,
+              role: "PARENT",
+            }).then(() => {});
           }
-        }
-      });
+        });
     }
 
     try {
@@ -158,30 +157,19 @@ export default function ParentCabinet() {
 
     window.addEventListener("ayda:profile-updated", handleProfileUpdated);
     return () => window.removeEventListener("ayda:profile-updated", handleProfileUpdated);
-  }, []);
+  }, [authUser?.id]);
 
   const defaultChildren: Child[] = [
     {
-      id: "00000000-0000-0000-0000-000000000003",
-      name: "Артём Смирнов",
+      id: "2a62e436-f539-4ec5-b3af-a1afabfa0eec",
+      name: "Ученик",
       grade: "3 класс",
       avatar: AVATAR_OPTIONS[0],
       balance: 8,
       stars: 28,
-      nextLesson: "Сегодня, 15:00",
+      nextLesson: "Расписание формируется",
       teacher: "Анна Сергеевна Иванова",
       subject: "Математика и логика",
-    },
-    {
-      id: "00000000-0000-0000-0000-000000000004",
-      name: "Алиса Смирнова",
-      grade: "1 класс",
-      avatar: AVATAR_OPTIONS[1],
-      balance: 6,
-      stars: 19,
-      nextLesson: "Завтра, 16:30",
-      teacher: "Елена Викторовна Смирнова",
-      subject: "Русский язык и чтение",
     },
   ];
 
@@ -190,7 +178,10 @@ export default function ParentCabinet() {
       const saved = localStorage.getItem("ayda_parent_children");
       if (saved) {
         try {
-          return JSON.parse(saved);
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0 && !parsed.some((c: any) => c.id?.startsWith("00000000-"))) {
+            return parsed;
+          }
         } catch (e) {
           console.error(e);
         }
@@ -205,7 +196,9 @@ export default function ParentCabinet() {
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          if (parsed && parsed.length > 0) return parsed[0].id;
+          if (parsed && parsed.length > 0 && !parsed.some((c: any) => c.id?.startsWith("00000000-"))) {
+            return parsed[0].id;
+          }
         } catch (e) {}
       }
     }
@@ -263,7 +256,7 @@ export default function ParentCabinet() {
                 avatar: d.avatar_url || AVATAR_OPTIONS[index % AVATAR_OPTIONS.length],
                 balance: balance,
                 stars: stars,
-                nextLesson: "Сегодня, 15:00",
+                nextLesson: "Расписание формируется",
                 teacher: "Анна Сергеевна Иванова",
                 subject: "Математика и логика",
               };
@@ -460,6 +453,10 @@ export default function ParentCabinet() {
 
     setChildModalOpen(false);
   };
+
+  if (authLoading || !isAuthorized) {
+    return <AuthLoadingScreen roleTitle="Личный кабинет родителя" />;
+  }
 
   return (
     <div className="space-y-6 pb-20">

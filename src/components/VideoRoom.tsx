@@ -90,7 +90,7 @@ export default function VideoRoom({
   subjectColor = "#2563eb",
   teacherName = "Анна Сергеевна Иванова",
   teacherAvatar,
-  studentName = "Артём Смирнов",
+  studentName = "Ученик",
   studentAvatar,
   lessonId,
   onEndLesson,

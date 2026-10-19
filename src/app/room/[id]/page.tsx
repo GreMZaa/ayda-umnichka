@@ -63,7 +63,7 @@ export default function RoomPage({ params }: { params: { id: string } }) {
           subjectName: "Математика и логика",
           subjectColor: "#2563eb",
           teacherName: "Анна Сергеевна Иванова",
-          studentName: "Артём Смирнов",
+          studentName: "Ученик",
           roomName: params.id,
           status: "IN_PROGRESS",
         });
@@ -114,7 +114,7 @@ export default function RoomPage({ params }: { params: { id: string } }) {
       ? lesson?.teacherName || "Анна Сергеевна Иванова"
       : currentRole === "PARENT"
       ? "Родитель"
-      : lesson?.studentName || "Артём Смирнов");
+      : lesson?.studentName || "Ученик");
 
   return (
     <VideoRoom
@@ -126,7 +126,7 @@ export default function RoomPage({ params }: { params: { id: string } }) {
       subjectColor={lesson?.subjectColor || "#2563eb"}
       teacherName={lesson?.teacherName || "Анна Сергеевна Иванова"}
       teacherAvatar={lesson?.teacherAvatar}
-      studentName={lesson?.studentName || "Артём Смирнов"}
+      studentName={lesson?.studentName || "Ученик"}
       studentAvatar={lesson?.studentAvatar}
       lessonId={lesson?.id || params.id}
       onEndLesson={handleEndLesson}

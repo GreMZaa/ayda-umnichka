@@ -25,8 +25,8 @@ export async function GET(
   // 2. Аутентификация
   const auth = await authenticateRequest(request);
   const user = auth.user || {
-    id: "00000000-0000-0000-0000-000000000001",
-    email: "demo-teacher@ayda-umnichka.ru",
+    id: "d22f670c-3a38-41cd-95aa-80afdb94eab5",
+    email: "teacher.test@umnichka.ru",
     role: "teacher",
     name: "Анна Сергеевна Иванова",
   };
@@ -99,7 +99,7 @@ export async function GET(
       teacherName: "Анна Сергеевна Иванова",
       teacherAvatar: "https://images.unsplash.com/photo-1544717305-2782549b5136?w=240&h=240&fit=crop&crop=faces",
       studentId: "2a62e436-f539-4ec5-b3af-a1afabfa0eec",
-      studentName: "Артём Смирнов",
+      studentName: "Ученик",
       studentAvatar: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&h=200&fit=crop&crop=faces",
       startTime: new Date().toISOString(),
       endTime: new Date(Date.now() + 45 * 60 * 1000).toISOString(),
@@ -133,8 +133,8 @@ export async function PATCH(
   // 2. Аутентификация
   const auth = await authenticateRequest(request);
   const user = auth.user || {
-    id: "00000000-0000-0000-0000-000000000001",
-    email: "demo-teacher@ayda-umnichka.ru",
+    id: "d22f670c-3a38-41cd-95aa-80afdb94eab5",
+    email: "teacher.test@umnichka.ru",
     role: "teacher",
     name: "Анна Сергеевна Иванова",
   };

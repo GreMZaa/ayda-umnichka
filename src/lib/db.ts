@@ -94,15 +94,6 @@ function getInitialData(): DatabaseSchema {
       avatar: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&h=200&fit=crop&crop=faces",
     },
     {
-      id: "u-student-2",
-      email: "student2@umnichka.ru",
-      name: "Ученик 2",
-      phone: "+7 (999) 333-44-56",
-      role: "STUDENT",
-      bio: "5 класс. Занимается английским языком.",
-      avatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&h=200&fit=crop&crop=faces",
-    },
-    {
       id: "u-parent-1",
       email: "parent@umnichka.ru",
       name: "Родитель",
@@ -114,7 +105,7 @@ function getInitialData(): DatabaseSchema {
     {
       id: "u-admin-1",
       email: "admin@umnichka.ru",
-      name: "Ольга Николаевна (Директор центра)",
+      name: "Администратор центра",
       phone: "+7 (999) 777-88-99",
       role: "ADMIN",
       bio: "Руководитель репетиторского центра «АйДаУмничка».",
@@ -124,88 +115,9 @@ function getInitialData(): DatabaseSchema {
 
   const parentStudents: ParentStudent[] = [
     { parentId: "u-parent-1", studentId: "u-student-1" },
-    { parentId: "u-parent-1", studentId: "u-student-2" },
   ];
 
-  // Активный урок (начат 10 мин назад, идет еще 35 мин)
-  const startTimeLive = new Date(now.getTime() - 10 * 60 * 1000).toISOString();
-  const endTimeLive = new Date(now.getTime() + 35 * 60 * 1000).toISOString();
-
-  // Запланированный урок через 2 дня
-  const startTimeUpcoming = new Date(now.getTime() + 48 * 60 * 60 * 1000).toISOString();
-  const endTimeUpcoming = new Date(now.getTime() + 49 * 60 * 60 * 1000).toISOString();
-
-  // Завершенный урок позавчера
-  const startTimePast = new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString();
-  const endTimePast = new Date(now.getTime() - 47 * 60 * 60 * 1000).toISOString();
-
-  const lessons: Lesson[] = [
-    {
-      id: "les-live-1",
-      title: "Математика: Олимпиадные задачи и пространственная логика",
-      subjectId: "sub-1",
-      subjectName: "Математика и логика",
-      subjectColor: "#2563eb",
-      teacherId: "u-teacher-1",
-      teacherName: "Анна Сергеевна Иванова",
-      teacherAvatar: users[0].avatar,
-      studentId: "u-student-1",
-      studentName: "Ученик",
-      studentAvatar: users[1].avatar,
-      startTime: startTimeLive,
-      endTime: endTimeLive,
-      status: "LIVE",
-      roomName: "umnichka-live-room-demo",
-      notes: [],
-    },
-    {
-      id: "les-upcoming-1",
-      title: "Английский: Разговорный клуб и расширение словарного запаса",
-      subjectId: "sub-3",
-      subjectName: "Английский язык",
-      subjectColor: "#059669",
-      teacherId: "u-teacher-1",
-      teacherName: "Анна Сергеевна Иванова",
-      teacherAvatar: users[0].avatar,
-      studentId: "u-student-2",
-      studentName: "Ученик 2",
-      studentAvatar: users[2].avatar,
-      startTime: startTimeUpcoming,
-      endTime: endTimeUpcoming,
-      status: "SCHEDULED",
-      roomName: "umnichka-eng-demo",
-      notes: [],
-    },
-    {
-      id: "les-past-1",
-      title: "Математика: Сложение и вычитание дробей",
-      subjectId: "sub-1",
-      subjectName: "Математика и логика",
-      subjectColor: "#2563eb",
-      teacherId: "u-teacher-1",
-      teacherName: "Анна Сергеевна Иванова",
-      teacherAvatar: users[0].avatar,
-      studentId: "u-student-1",
-      studentName: "Ученик",
-      studentAvatar: users[1].avatar,
-      startTime: startTimePast,
-      endTime: endTimePast,
-      status: "COMPLETED",
-      roomName: "umnichka-past-demo",
-      notes: [
-        {
-          id: "note-1",
-          lessonId: "les-past-1",
-          authorId: "u-teacher-1",
-          authorName: "Анна Сергеевна Иванова",
-          content: "Успешно разобрали сложные примеры из практической части. Ученик отлично понял алгоритм решения.",
-          grade: 5,
-          feedback: "Рекомендуется решить 3 дополнительных примера для закрепления материала.",
-          createdAt: startTimePast,
-        },
-      ],
-    },
-  ];
+  const lessons: Lesson[] = [];
 
   return { users, subjects, parentStudents, lessons };
 }
