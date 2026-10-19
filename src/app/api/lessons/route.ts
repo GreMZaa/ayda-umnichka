@@ -212,8 +212,8 @@ export async function POST(request: Request) {
               studentIdToSave = newStId;
             }
           } else {
-            const { data: sProf } = await client.from("profiles").select("id").eq("role", "STUDENT").limit(1).maybeSingle();
-            studentIdToSave = sProf?.id || "2a62e436-f539-4ec5-b3af-a1afabfa0eec";
+            const { data: defaultStudent } = await client.from("profiles").select("id").eq("role", "STUDENT").limit(1).maybeSingle();
+            studentIdToSave = defaultStudent?.id || null;
           }
         }
 

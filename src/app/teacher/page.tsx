@@ -59,9 +59,7 @@ const DEFAULT_SUBJECTS: SubjectItem[] = [
   { id: "e3234567-89ab-cdef-0123-456789abcdef", name: "Программирование и IT", color: "#0d9488" },
 ];
 
-const DEFAULT_STUDENTS: StudentProfile[] = [
-  { id: "2a62e436-f539-4ec5-b3af-a1afabfa0eec", name: "Ученик", grade: "3 класс", school: "АйДаУмничка" },
-];
+const DEFAULT_STUDENTS: StudentProfile[] = [];
 
 export default function TeacherCabinet() {
   const { loading: authLoading, isAuthorized, user: authUser } = useAuthGuard("teacher");
@@ -94,11 +92,11 @@ export default function TeacherCabinet() {
 
   // Поля формы создания урока (выбор или ручной ввод)
   const [newTitle, setNewTitle] = useState("");
-  const [selectedSubjectId, setSelectedSubjectId] = useState(DEFAULT_SUBJECTS[0].id);
+  const [selectedSubjectId, setSelectedSubjectId] = useState(DEFAULT_SUBJECTS[0]?.id || "");
   const [isCustomSubject, setIsCustomSubject] = useState(false);
   const [customSubjectName, setCustomSubjectName] = useState("");
 
-  const [selectedStudentId, setSelectedStudentId] = useState(DEFAULT_STUDENTS[0].id);
+  const [selectedStudentId, setSelectedStudentId] = useState(DEFAULT_STUDENTS[0]?.id || "");
   const [isCustomStudent, setIsCustomStudent] = useState(false);
   const [customStudentName, setCustomStudentName] = useState("");
 
@@ -508,7 +506,7 @@ export default function TeacherCabinet() {
       }
     } else {
       const student = students.find((s) => s.id === selectedStudentId);
-      finalStudentId = selectedStudentId || students[0]?.id || "2a62e436-f539-4ec5-b3af-a1afabfa0eec";
+      finalStudentId = selectedStudentId || students[0]?.id || "";
       finalStudentName = student?.name || "Ученик";
     }
 

@@ -98,7 +98,7 @@ export async function GET(
       teacherId: "d22f670c-3a38-41cd-95aa-80afdb94eab5",
       teacherName: "Анна Сергеевна Иванова",
       teacherAvatar: "https://images.unsplash.com/photo-1544717305-2782549b5136?w=240&h=240&fit=crop&crop=faces",
-      studentId: "2a62e436-f539-4ec5-b3af-a1afabfa0eec",
+      studentId: "student-demo-room",
       studentName: "Ученик",
       studentAvatar: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&h=200&fit=crop&crop=faces",
       startTime: new Date().toISOString(),
