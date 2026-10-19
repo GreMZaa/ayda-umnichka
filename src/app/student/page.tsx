@@ -78,7 +78,7 @@ export default function StudentCabinet() {
                 Ученик центра
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-xs text-slate-600 mt-1">
               Центр развития «АйДаУмничка» • Личный кабинет ученика
             </p>
           </div>
@@ -133,11 +133,11 @@ export default function StudentCabinet() {
             <Calendar className="w-4 h-4 text-blue-600" />
             <span>Расписание ближайших уроков</span>
           </h2>
-          <span className="text-xs text-slate-400">Всё готово к урокам</span>
+          <span className="text-xs text-slate-500 font-medium">Всё готово к урокам</span>
         </div>
 
         {upcomingLessons.length === 0 && !liveLesson ? (
-          <div className="bg-white rounded-2xl p-8 border border-slate-200 text-center text-slate-500 text-xs">
+          <div className="bg-white rounded-2xl p-8 border border-slate-200 text-center text-slate-600 text-xs">
             На ближайшие дни уроков не запланировано. Преподаватель добавит следующий урок в расписание.
           </div>
         ) : (
@@ -152,20 +152,20 @@ export default function StudentCabinet() {
                     {lesson.subjectName}
                   </span>
                   <span className="font-semibold text-slate-700 flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5 text-slate-400" />
+                    <Clock className="w-3.5 h-3.5 text-slate-500" />
                     {format(new Date(lesson.startTime), "d MMMM, HH:mm", { locale: ru })}
                   </span>
                 </div>
 
                 <div>
                   <h3 className="font-bold text-slate-900 text-base">{lesson.title}</h3>
-                  <p className="text-xs text-slate-500 mt-1">
+                  <p className="text-xs text-slate-600 mt-1">
                     Преподаватель: <strong className="text-slate-800">{lesson.teacherName}</strong>
                   </p>
                 </div>
 
                 <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-                  <span className="text-[11px] text-slate-400">
+                  <span className="text-[11px] text-slate-500">
                     Интерактивная доска готова
                   </span>
                   <Link

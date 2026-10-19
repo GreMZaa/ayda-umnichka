@@ -209,13 +209,13 @@ export default function Navbar() {
                   </button>
                 </div>
               ) : (
-                /* На главной странице: заметная кнопка Войти в кабинет */
+                /* На главной странице: аккуратная кнопка Войти в кабинет (Вторичное действие согласно Правилу 11) */
                 <button
                   onClick={() => setShowLoginModal(true)}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-600/25 transition transform active:scale-95 cursor-pointer"
+                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200/90 border border-slate-200/80 transition active:scale-95 cursor-pointer"
                   id="btn-login-header"
                 >
-                  <LogIn className="w-4 h-4" />
+                  <LogIn className="w-4 h-4 text-slate-500" />
                   <span>Войти в кабинет</span>
                 </button>
               )}
@@ -233,7 +233,7 @@ export default function Navbar() {
                 <h3 className="text-lg font-bold text-slate-900">
                   Вход в личный кабинет
                 </h3>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-600">
                   Введите ваш email и пароль для входа
                 </p>
               </div>
@@ -252,12 +252,12 @@ export default function Navbar() {
               </div>
             )}
 
-            {/* Выбор роли (Ученик или Родитель) */}
+            {/* Выбор роли (Ученик или Родитель) как сегментированный контрол (Правило 12) */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1.5">
                 Личный кабинет:
               </label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="flex p-1 bg-slate-100 rounded-xl gap-1">
                 {[
                   { id: "student" as const, label: "Ученик", icon: User },
                   { id: "parent" as const, label: "Родитель", icon: Users },
@@ -269,10 +269,10 @@ export default function Navbar() {
                       key={r.id}
                       type="button"
                       onClick={() => handleRoleQuickSelect(r.id)}
-                      className={`flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition border ${
+                      className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition ${
                         isSelected
-                          ? "border-blue-600 bg-blue-50/70 text-blue-700 shadow-2xs"
-                          : "border-slate-200 hover:bg-slate-50 text-slate-600"
+                          ? "bg-white text-blue-700 shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
                       }`}
                     >
                       <Icon className={`w-3.5 h-3.5 ${isSelected ? "text-blue-600" : "text-slate-400"}`} />

@@ -139,7 +139,7 @@ export default function ParentCabinet() {
                 Родитель
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+            <p className="text-xs text-slate-600 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
               <span>Личный кабинет родителя</span>
               <span>•</span>
               <span>Детей в центре: {children.length}</span>
@@ -172,10 +172,10 @@ export default function ParentCabinet() {
       {/* 2. ПЕРЕКЛЮЧАТЕЛЬ ДЕТЕЙ */}
       <div className="space-y-2">
         <div className="flex items-center justify-between px-1">
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
             Выберите ребёнка:
           </span>
-          <span className="text-xs text-slate-400">
+          <span className="text-xs text-slate-500">
             Нажмите на карточку для просмотра отчетов и расписания
           </span>
         </div>
@@ -206,8 +206,8 @@ export default function ParentCabinet() {
                         {child.grade}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Ближайший урок: <strong className="text-slate-700">{child.nextLesson}</strong>
+                    <p className="text-xs text-slate-600 mt-0.5">
+                      Ближайший урок: <strong className="text-slate-800">{child.nextLesson}</strong>
                     </p>
                   </div>
                 </div>

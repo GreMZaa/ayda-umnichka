@@ -238,16 +238,16 @@ export default function HomePage() {
                 </p>
               </div>
 
-              {/* Блок регистрации / входа (Feedback 9) */}
+              {/* Блок регистрации / входа (Вторичное действие согласно Правилу 11) */}
               <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
                 <span className="text-xs text-slate-700 font-medium text-center sm:text-left">
                   Хотите начать онлайн-обучение в центре «АйДаУмничка»?
                 </span>
                 <Link
                   href="/login"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm transition shrink-0"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200/90 text-slate-800 border border-slate-200/80 font-bold text-xs transition shrink-0 active:scale-98"
                 >
-                  <LogIn className="w-3.5 h-3.5" />
+                  <LogIn className="w-3.5 h-3.5 text-slate-500" />
                   <span>Зарегистрироваться / Войти</span>
                 </Link>
               </div>
@@ -265,7 +265,7 @@ export default function HomePage() {
           <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
             Всё необходимое для учебы и контроля
           </h2>
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-slate-600">
             Выберите роль, чтобы посмотреть возможности кабинета
           </p>
         </div>
@@ -321,7 +321,7 @@ export default function HomePage() {
           <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
             Предметы и программы занятий
           </h2>
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-slate-600">
             Индивидуальные занятия с преподавателями нашего центра
           </p>
         </div>
@@ -480,7 +480,7 @@ export default function HomePage() {
                 <ArrowRight className="w-4 h-4 ml-0.5" />
               </button>
 
-              <p className="text-[11px] text-slate-400 text-center pt-1">
+              <p className="text-xs text-slate-500 text-center pt-1">
                 🔒 Ваши данные в безопасности и никогда не передаются третьим лицам
               </p>
             </form>
@@ -494,7 +494,7 @@ export default function HomePage() {
           <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
             Часто задаваемые вопросы
           </h2>
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-slate-600">
             Все детали об уроках, подключении и форматах работы
           </p>
         </div>
