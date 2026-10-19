@@ -252,7 +252,7 @@ export default function Navbar() {
     }
     setAuthProfile(null);
     setUserMenuOpen(false);
-    router.push("/");
+    router.push("/?logout=1");
   };
 
   return (
@@ -383,17 +383,16 @@ export default function Navbar() {
                   </button>
                 </div>
               ) : authProfile ? (
-                /* Пользователь авторизован, находится на лендинге */
-                <div className="relative" ref={userMenuRef}>
-                  <button
-                    type="button"
-                    onClick={() => setUserMenuOpen(!userMenuOpen)}
-                    className="flex items-center gap-2 sm:gap-2.5 py-1.5 px-2 sm:px-3 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200/90 shadow-2xs hover:shadow-xs transition active:scale-98 cursor-pointer group text-left"
+                /* Пользователь авторизован: прямой переход в личный кабинет + меню управления */
+                <div className="flex items-center gap-1.5 relative" ref={userMenuRef}>
+                  <Link
+                    href={`/${authProfile.roleKey}`}
                     id="btn-cabinet-header"
-                    title={authProfile.name}
+                    className="flex items-center gap-2 sm:gap-2.5 pl-2 pr-3 sm:pr-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-50/90 to-indigo-50/70 hover:from-blue-100 hover:to-indigo-100/90 border border-blue-200/80 hover:border-blue-300 shadow-2xs transition active:scale-98 group cursor-pointer"
+                    title={`Войти в личный кабинет (${authProfile.name})`}
                   >
-                    {/* Аватар с градиентом или фото */}
-                    <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-extrabold text-xs flex items-center justify-center shrink-0 overflow-hidden ring-2 ring-blue-50 shadow-2xs">
+                    {/* Аватар */}
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-extrabold text-xs flex items-center justify-center shrink-0 overflow-hidden ring-2 ring-white shadow-xs">
                       {currentUserAvatar ? (
                         <img src={currentUserAvatar} alt="" className="w-full h-full object-cover" />
                       ) : (
@@ -401,25 +400,35 @@ export default function Navbar() {
                       )}
                     </div>
 
-                    {/* Текстовый блок: Имя и роль в две аккуратные строки */}
-                    <div className="min-w-0 max-w-[110px] sm:max-w-[150px] leading-tight text-left">
-                      <div className="text-xs sm:text-sm font-extrabold text-slate-900 group-hover:text-blue-600 transition truncate">
+                    {/* Текстовый блок: Имя и статус входа */}
+                    <div className="min-w-0 max-w-[120px] sm:max-w-[170px] leading-tight text-left">
+                      <div className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-blue-700 transition truncate">
                         {authProfile.name}
                       </div>
-                      <div className="text-[10px] font-semibold text-slate-500 truncate flex items-center gap-1 mt-0.5">
+                      <div className="text-[10px] font-semibold text-blue-600 flex items-center gap-1 mt-0.5">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                        <span>{authProfile.role}</span>
+                        <span>В кабинет</span>
+                        <ArrowRight className="w-2.5 h-2.5 opacity-70 group-hover:translate-x-0.5 transition-transform" />
                       </div>
                     </div>
+                  </Link>
 
-                    <ChevronDown className={`w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 transition-transform duration-200 shrink-0 ${userMenuOpen ? "rotate-180" : ""}`} />
+                  {/* Дополнительная кнопка меню (редактирование, выход) */}
+                  <button
+                    type="button"
+                    onClick={() => setUserMenuOpen(!userMenuOpen)}
+                    className="p-2 sm:py-2.5 sm:px-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 border border-slate-200/80 transition cursor-pointer"
+                    title="Настройки профиля"
+                    aria-label="Настройки профиля"
+                  >
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${userMenuOpen ? "rotate-180" : ""}`} />
                   </button>
 
-                  {/* Меню профиля */}
+                  {/* Выпадающее меню профиля */}
                   {userMenuOpen && (
-                    <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-slate-200/90 p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                    <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-200/90 p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
                       {/* Карточка профиля в шапке меню */}
-                      <div className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-50/80 border border-slate-100 mb-1.5">
+                      <div className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-50 border border-slate-100 mb-1.5">
                         <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-extrabold text-sm flex items-center justify-center shrink-0 overflow-hidden ring-2 ring-white shadow-xs">
                           {currentUserAvatar ? (
                             <img src={currentUserAvatar} alt="" className="w-full h-full object-cover" />

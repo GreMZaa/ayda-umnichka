@@ -93,6 +93,19 @@ export function middleware(request: NextRequest) {
         return NextResponse.redirect(url);
       }
     }
+
+    // Е) Главная страница: если пользователь уже авторизован, автоматически направляем в его личный кабинет
+    if (pathname === "/" && aydaSession && aydaRole) {
+      const mode = searchParams.get("mode");
+      const logout = searchParams.get("logout");
+      const guest = searchParams.get("guest");
+      if (mode !== "signup" && !logout && !guest) {
+        const targetRole = ["student", "teacher", "parent", "admin"].includes(aydaRole) ? aydaRole : "student";
+        const url = request.nextUrl.clone();
+        url.pathname = `/${targetRole}`;
+        return NextResponse.redirect(url);
+      }
+    }
   }
 
   const response = NextResponse.next();

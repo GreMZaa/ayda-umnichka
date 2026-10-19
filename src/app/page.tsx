@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Users,
   User,
@@ -15,8 +16,10 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { getSupabase } from "@/lib/supabase";
+import { normalizeRole, setAuthCookies } from "@/lib/auth-session";
 
 export default function HomePage() {
+  const router = useRouter();
   // Страница входа предназначена только для Ученика и Родителя
   const [activeTab, setActiveTab] = useState<"student" | "parent">("student");
   const [openFaq, setOpenFaq] = useState<number | null>(null);
@@ -24,11 +27,34 @@ export default function HomePage() {
   const [currentUserRole, setCurrentUserRole] = useState<{ roleKey: string; roleTitle: string } | null>(null);
 
   useEffect(() => {
+    // 1. Проверяем наличие сессии в cookies для мгновенного перехода в личный кабинет
+    if (typeof window !== "undefined") {
+      const isBypass = window.location.search.includes("logout") || window.location.search.includes("guest");
+      if (!isBypass) {
+        const cookies = document.cookie;
+        const matchRole = cookies.match(/ayda_role=([^;]+)/);
+        const matchSession = cookies.match(/ayda_session=([^;]+)/);
+        if (matchRole && matchSession) {
+          const r = normalizeRole(matchRole[1].trim());
+          router.replace(`/${r}`);
+          return;
+        }
+      }
+    }
+
+    // 2. Проверяем сессию через Supabase клиент
     const client = getSupabase();
     if (client) {
-      const updateRole = (user: any) => {
+      const updateRole = (user: any, token?: string) => {
         if (user) {
-          const rKey = (user.user_metadata?.role || "student").toLowerCase();
+          const rKey = normalizeRole(user.user_metadata?.role);
+          setAuthCookies(rKey, user.id, token);
+
+          if (!window.location.search.includes("logout") && !window.location.search.includes("guest")) {
+            router.replace(`/${rKey}`);
+            return;
+          }
+
           setCurrentUserRole({
             roleKey: rKey,
             roleTitle:
@@ -46,18 +72,18 @@ export default function HomePage() {
       };
 
       client.auth.getSession().then(({ data }) => {
-        updateRole(data?.session?.user);
+        updateRole(data?.session?.user, data?.session?.access_token);
       });
 
       const { data: authListener } = client.auth.onAuthStateChange((_event, session) => {
-        updateRole(session?.user);
+        updateRole(session?.user, session?.access_token);
       });
 
       return () => {
         authListener?.subscription?.unsubscribe();
       };
     }
-  }, []);
+  }, [router]);
 
   // Состояние формы записи на пробный урок
   const [leadParentName, setLeadParentName] = useState("");
