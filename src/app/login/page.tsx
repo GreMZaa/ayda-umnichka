@@ -110,6 +110,26 @@ export default function LoginPage() {
           return;
         }
 
+        if (data.user) {
+          try {
+            await client.from("profiles").upsert([
+              {
+                id: data.user.id,
+                email: email.trim(),
+                name: fullName.trim() || (selectedRole === "student" ? "Ученик" : "Родитель"),
+                role: selectedRole === "student" ? "STUDENT" : "PARENT",
+                bio: selectedRole === "student" ? "3 класс" : "Родитель",
+                avatar_url:
+                  selectedRole === "student"
+                    ? "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&h=200&fit=crop&crop=faces"
+                    : "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&h=200&fit=crop&crop=faces",
+              },
+            ]);
+          } catch (profileErr) {
+            console.error("Profile upsert error:", profileErr);
+          }
+        }
+
         if (data.session) {
           setMessage({
             type: "success",
