@@ -12,6 +12,7 @@ import {
   Sparkles,
   Phone,
   CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
 import { getSupabase } from "@/lib/supabase";
 
@@ -62,14 +63,80 @@ export default function HomePage() {
   const [leadParentName, setLeadParentName] = useState("");
   const [leadChildName, setLeadChildName] = useState("");
   const [leadPhone, setLeadPhone] = useState("");
-  const [leadSubject, setLeadSubject] = useState("Математика и логика");
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [leadSubject, setLeadSubject] = useState("");
   const [leadSubmitting, setLeadSubmitting] = useState(false);
   const [leadSuccess, setLeadSuccess] = useState(false);
 
+  // Форматирование и маска российского номера телефона (+7 (XXX) XXX-XX-XX)
+  const formatRussianPhone = (value: string): string => {
+    const rawDigits = value.replace(/\D/g, "");
+    if (!rawDigits) return "";
+
+    let digits = rawDigits;
+    // Если начинается с 8 или 7, отсекаем первую цифру для добавления +7
+    if (digits.startsWith("8") || digits.startsWith("7")) {
+      digits = digits.substring(1);
+    }
+    // Максимум 10 цифр после кода страны (+7)
+    digits = digits.substring(0, 10);
+
+    let formatted = "+7";
+    if (digits.length > 0) {
+      formatted += ` (${digits.substring(0, 3)}`;
+    }
+    if (digits.length >= 3) {
+      formatted += `) ${digits.substring(3, 6)}`;
+    }
+    if (digits.length >= 6) {
+      formatted += `-${digits.substring(6, 8)}`;
+    }
+    if (digits.length >= 8) {
+      formatted += `-${digits.substring(8, 10)}`;
+    }
+    return formatted;
+  };
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    const digitsOnly = val.replace(/\D/g, "");
+    if (!digitsOnly || (digitsOnly === "7" && val.length <= 2)) {
+      setLeadPhone("");
+      setPhoneError(null);
+      return;
+    }
+
+    const formatted = formatRussianPhone(val);
+    setLeadPhone(formatted);
+
+    // Если уже введено полных 11 цифр, снимаем ошибку
+    const totalDigits = formatted.replace(/\D/g, "");
+    if (totalDigits.length === 11) {
+      setPhoneError(null);
+    }
+  };
+
+  const handlePhoneBlur = () => {
+    if (!leadPhone.trim()) return;
+    const totalDigits = leadPhone.replace(/\D/g, "");
+    if (totalDigits.length !== 11) {
+      setPhoneError("Номер введён не полностью. Требуется 11 цифр: +7 (XXX) XXX-XX-XX");
+    } else {
+      setPhoneError(null);
+    }
+  };
+
   const handleLeadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!leadParentName.trim() || !leadPhone.trim()) return;
+    if (!leadParentName.trim()) return;
 
+    const totalDigits = leadPhone.replace(/\D/g, "");
+    if (totalDigits.length !== 11) {
+      setPhoneError("Пожалуйста, укажите полный номер телефона: +7 (XXX) XXX-XX-XX");
+      return;
+    }
+
+    setPhoneError(null);
     setLeadSubmitting(true);
     const client = getSupabase();
     if (client) {
@@ -80,7 +147,7 @@ export default function HomePage() {
             child_name: leadChildName.trim() || null,
             phone: leadPhone.trim(),
             grade: selectedGrade,
-            subject: leadSubject,
+            subject: leadSubject.trim() || "Математика и логика",
             status: "NEW",
           },
         ]);
@@ -88,6 +155,8 @@ export default function HomePage() {
         setLeadParentName("");
         setLeadChildName("");
         setLeadPhone("");
+        setLeadSubject("");
+        setPhoneError(null);
       } catch (err) {
         console.error(err);
       } finally {
@@ -507,28 +576,36 @@ export default function HomePage() {
                       type="tel"
                       required
                       value={leadPhone}
-                      onChange={(e) => setLeadPhone(e.target.value)}
+                      onChange={handlePhoneChange}
+                      onBlur={handlePhoneBlur}
                       placeholder="+7 (999) 000-00-00"
-                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 focus:bg-white text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition placeholder:text-slate-400"
+                      className={`w-full pl-10 pr-3.5 py-2.5 rounded-xl border text-xs sm:text-sm font-medium focus:outline-none transition placeholder:text-slate-400 ${
+                        phoneError
+                          ? "border-rose-400 bg-rose-50/30 text-rose-900 focus:border-rose-600 focus:ring-1 focus:ring-rose-600"
+                          : "border-slate-200 bg-slate-50/70 hover:bg-slate-50 focus:bg-white text-slate-900 focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                      }`}
                     />
                   </div>
+                  {phoneError && (
+                    <p className="text-[11px] font-semibold text-rose-600 mt-1 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      <span>{phoneError}</span>
+                    </p>
+                  )}
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">
                     Интересующий предмет:
                   </label>
-                  <select
+                  <input
+                    type="text"
+                    required
                     value={leadSubject}
                     onChange={(e) => setLeadSubject(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 focus:bg-white text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition cursor-pointer"
-                  >
-                    {subjects.map((s, idx) => (
-                      <option key={idx} value={s.name}>
-                        {s.name} ({s.grade})
-                      </option>
-                    ))}
-                  </select>
+                    placeholder="Например: Математика, 3 класс"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 focus:bg-white text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition placeholder:text-slate-400"
+                  />
                 </div>
               </div>
 
