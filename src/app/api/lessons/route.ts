@@ -51,13 +51,22 @@ export async function GET(request: Request) {
         `)
         .order("start_time", { ascending: false });
 
+      const studentIdParam = searchParams.get("studentId");
+      const teacherIdParam = searchParams.get("teacherId");
+
       if (statusFilter) {
         query = query.eq("status", statusFilter);
       }
-      if (user.role === "teacher") {
-        query = query.eq("teacher_id", user.id);
+      if (studentIdParam) {
+        query = query.eq("student_id", studentIdParam);
       } else if (user.role === "student") {
         query = query.eq("student_id", user.id);
+      }
+
+      if (teacherIdParam) {
+        query = query.eq("teacher_id", teacherIdParam);
+      } else if (user.role === "teacher") {
+        query = query.eq("teacher_id", user.id);
       }
 
       const { data: sbLessons } = await query;
@@ -162,10 +171,68 @@ export async function POST(request: Request) {
       if (auth.user.name) lessonData.teacherName = auth.user.name;
     }
 
+    // Сохранение в Supabase
+    const client = getSupabase();
+    if (client) {
+      try {
+        const { data: created, error } = await client
+          .from("lessons")
+          .insert({
+            title: lessonData.title,
+            subject_id: lessonData.subjectId,
+            teacher_id: lessonData.teacherId,
+            student_id: lessonData.studentId,
+            start_time: lessonData.startTime,
+            end_time: lessonData.endTime,
+            status: lessonData.status || "SCHEDULED",
+            room_name: lessonData.roomName || `room-${Date.now()}`,
+          })
+          .select(`
+            id,
+            title,
+            start_time,
+            end_time,
+            status,
+            room_name,
+            subject_id,
+            teacher_id,
+            student_id,
+            subjects:subject_id (name, color),
+            teacher:teacher_id (name, avatar_url),
+            student:student_id (name, avatar_url)
+          `)
+          .single();
+
+        if (created && !error) {
+          return NextResponse.json(
+            {
+              id: created.id,
+              title: created.title,
+              subjectId: created.subject_id,
+              subjectName: (created.subjects as any)?.name || "Предмет",
+              subjectColor: (created.subjects as any)?.color || "#2563eb",
+              teacherId: created.teacher_id,
+              teacherName: (created.teacher as any)?.name || "Преподаватель",
+              teacherAvatar: (created.teacher as any)?.avatar_url,
+              studentId: created.student_id,
+              studentName: (created.student as any)?.name || "Ученик",
+              studentAvatar: (created.student as any)?.avatar_url,
+              startTime: created.start_time,
+              endTime: created.end_time,
+              status: created.status,
+              roomName: created.room_name,
+            },
+            { status: 201 }
+          );
+        }
+      } catch (sbErr) {
+        console.error("Supabase create lesson error:", sbErr);
+      }
+    }
+
     const newLesson = db.createLesson(lessonData as any);
     return NextResponse.json(newLesson, { status: 201 });
   } catch (err: any) {
-    // Безопасная обработка без раскрытия стека клиенту
     return NextResponse.json(
       { error: "Некорректный запрос или сбой при обработке данных." },
       { status: 400 }

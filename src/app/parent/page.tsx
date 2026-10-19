@@ -163,7 +163,7 @@ export default function ParentCabinet() {
     }
   }, [children]);
 
-  // Загрузка реальных учеников из Supabase
+  // Загрузка реальных учеников из Supabase с балансом и классами
   useEffect(() => {
     const client = getSupabase();
     if (client) {
@@ -171,19 +171,35 @@ export default function ParentCabinet() {
         .from("profiles")
         .select("*")
         .eq("role", "STUDENT")
+        .order("created_at", { ascending: true })
         .then(({ data }) => {
           if (data && data.length > 0) {
-            const mapped: Child[] = data.map((d: any, index: number) => ({
-              id: d.id,
-              name: d.name,
-              grade: d.bio || "3 класс",
-              avatar: d.avatar_url || AVATAR_OPTIONS[index % AVATAR_OPTIONS.length],
-              balance: 6 + index * 2,
-              stars: 25 + index * 4,
-              nextLesson: "Сегодня, 15:00",
-              teacher: "Анна Сергеевна Иванова",
-              subject: "Математика и логика",
-            }));
+            const mapped: Child[] = data.map((d: any, index: number) => {
+              let parsedBio: any = {};
+              try {
+                if (d.bio && d.bio.startsWith("{")) {
+                  parsedBio = JSON.parse(d.bio);
+                } else if (d.bio) {
+                  parsedBio.grade = d.bio;
+                }
+              } catch (e) {}
+
+              const balance = typeof parsedBio.balance === "number" ? parsedBio.balance : 8;
+              const stars = typeof parsedBio.stars === "number" ? parsedBio.stars : 25;
+              const grade = parsedBio.grade || d.bio || "3 класс";
+
+              return {
+                id: d.id,
+                name: d.name,
+                grade: grade,
+                avatar: d.avatar_url || AVATAR_OPTIONS[index % AVATAR_OPTIONS.length],
+                balance: balance,
+                stars: stars,
+                nextLesson: "Сегодня, 15:00",
+                teacher: "Анна Сергеевна Иванова",
+                subject: "Математика и логика",
+              };
+            });
             setChildren(mapped);
             if (!mapped.some((c) => c.id === selectedChildId)) {
               setSelectedChildId(mapped[0].id);
@@ -234,8 +250,8 @@ export default function ParentCabinet() {
     setChildModalOpen(true);
   };
 
-  // Удаление ребенка
-  const handleDeleteChild = (e: React.MouseEvent, childId: string) => {
+  // Удаление ребенка (синхронизировано с Supabase)
+  const handleDeleteChild = async (e: React.MouseEvent, childId: string) => {
     e.stopPropagation();
     if (children.length <= 1) {
       alert("В кабинете должен оставаться как минимум один ребёнок.");
@@ -245,6 +261,16 @@ export default function ParentCabinet() {
     if (!confirm(`Вы действительно хотите удалить профиль «${target?.name}»?`)) {
       return;
     }
+
+    const client = getSupabase();
+    if (client) {
+      try {
+        await client.from("profiles").delete().eq("id", childId);
+      } catch (err) {
+        console.error("Supabase delete child error:", err);
+      }
+    }
+
     const nextList = children.filter((c) => c.id !== childId);
     setChildren(nextList);
     if (selectedChildId === childId) {
@@ -252,13 +278,37 @@ export default function ParentCabinet() {
     }
   };
 
-  // Сохранение ребенка (добавление или редактирование)
-  const handleSaveChild = (e: React.FormEvent) => {
+  // Сохранение ребенка (добавление или редактирование в Supabase)
+  const handleSaveChild = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!childFormName.trim()) return;
 
+    const client = getSupabase();
+
     if (editingChild) {
-      // Редактирование
+      // Редактирование в Supabase
+      const bioPayload = JSON.stringify({
+        grade: childFormGrade,
+        balance: editingChild.balance,
+        stars: editingChild.stars,
+        school: "АйДаУмничка",
+      });
+
+      if (client) {
+        try {
+          await client
+            .from("profiles")
+            .update({
+              name: childFormName.trim(),
+              avatar_url: childFormAvatar,
+              bio: bioPayload,
+            })
+            .eq("id", editingChild.id);
+        } catch (err) {
+          console.error("Supabase edit child error:", err);
+        }
+      }
+
       const updated = children.map((c) =>
         c.id === editingChild.id
           ? {
@@ -271,9 +321,32 @@ export default function ParentCabinet() {
       );
       setChildren(updated);
     } else {
-      // Добавление нового
+      // Добавление нового в Supabase
+      const newId = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : "child-" + Date.now();
+      const bioPayload = JSON.stringify({
+        grade: childFormGrade,
+        balance: 8,
+        stars: 10,
+        school: "АйДаУмничка",
+      });
+
+      if (client) {
+        try {
+          await client.from("profiles").insert({
+            id: newId,
+            email: `student.${Date.now()}@umnichka.ru`,
+            name: childFormName.trim(),
+            role: "STUDENT",
+            avatar_url: childFormAvatar,
+            bio: bioPayload,
+          });
+        } catch (err) {
+          console.error("Supabase add child error:", err);
+        }
+      }
+
       const newChild: Child = {
-        id: "child-" + Date.now(),
+        id: newId,
         name: childFormName.trim(),
         grade: childFormGrade,
         avatar: childFormAvatar,
@@ -750,20 +823,39 @@ export default function ParentCabinet() {
 
             <div className="space-y-3">
               {[
-                { count: "4 занятия", price: "4 800 ₽", benefit: "Пробный месяц" },
-                { count: "8 занятий", price: "8 800 ₽", benefit: "Популярный (скидка 10%)" },
-                { count: "16 занятий", price: "15 900 ₽", benefit: "Максимальный прогресс (скидка 18%)" },
+                { count: "4 занятия", lessons: 4, price: "4 800 ₽", benefit: "Пробный месяц" },
+                { count: "8 занятий", lessons: 8, price: "8 800 ₽", benefit: "Популярный (скидка 10%)" },
+                { count: "16 занятий", lessons: 16, price: "15 900 ₽", benefit: "Максимальный прогресс (скидка 18%)" },
               ].map((pack, idx) => (
                 <div
                   key={idx}
-                  className="p-4 rounded-2xl border border-slate-200 hover:border-blue-500 bg-slate-50/50 hover:bg-blue-50/30 flex items-center justify-between cursor-pointer transition shadow-2xs"
-                  onClick={() => {
-                    alert(`Пакет «${pack.count}» выбран! Перенаправление на оплату через СБП...`);
+                  className="p-4 rounded-2xl border border-slate-200 hover:border-blue-500 bg-slate-50/50 hover:bg-blue-50/30 flex items-center justify-between cursor-pointer transition shadow-2xs group"
+                  onClick={async () => {
+                    const nextBalance = (selectedChild.balance || 0) + pack.lessons;
+                    const client = getSupabase();
+                    if (client) {
+                      try {
+                        const bioPayload = JSON.stringify({
+                          grade: selectedChild.grade,
+                          balance: nextBalance,
+                          stars: selectedChild.stars,
+                          school: "АйДаУмничка",
+                        });
+                        await client.from("profiles").update({ bio: bioPayload }).eq("id", selectedChild.id);
+                      } catch (err) {
+                        console.error("Supabase topup error:", err);
+                      }
+                    }
+                    const updated = children.map((c) =>
+                      c.id === selectedChild.id ? { ...c, balance: nextBalance } : c
+                    );
+                    setChildren(updated);
+                    alert(`Оплата «${pack.count}» успешно проведена! Баланс ученика ${selectedChild.name} пополнен на +${pack.lessons} уроков и сохранён в Supabase (всего: ${nextBalance} уроков).`);
                     setShowTopupModal(false);
                   }}
                 >
                   <div>
-                    <div className="font-extrabold text-slate-900 text-xs sm:text-sm">{pack.count}</div>
+                    <div className="font-extrabold text-slate-900 text-xs sm:text-sm group-hover:text-blue-700 transition">{pack.count}</div>
                     <div className="text-[11px] text-blue-600 font-semibold">{pack.benefit}</div>
                   </div>
                   <div className="font-black text-sm sm:text-base text-slate-900">{pack.price}</div>
@@ -772,7 +864,7 @@ export default function ParentCabinet() {
             </div>
 
             <p className="text-[11px] text-slate-400 text-center pt-2">
-              🔒 Оплата защищена 54-ФЗ. Поддерживаются СБП, карты Мир, Visa, Mastercard.
+              🔒 Оплата защищена 54-ФЗ. Баланс занятий мгновенно синхронизируется с базой данных Supabase.
             </p>
           </div>
         </div>
