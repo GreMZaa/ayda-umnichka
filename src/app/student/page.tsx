@@ -24,6 +24,7 @@ import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { getSupabase } from "@/lib/supabase";
 import { fetchWithAuth } from "@/lib/api-client";
+import ScheduleCalendar from "@/components/ScheduleCalendar";
 
 export default function StudentCabinet() {
   const [studentName, setStudentName] = useState("Ученик");
@@ -287,101 +288,12 @@ export default function StudentCabinet() {
         })}
       </div>
 
-      {/* 4. ТАБ: РАСПИСАНИЕ УРОКОВ */}
+      {/* 4. ТАБ: РАСПИСАНИЕ УРОКОВ (ФОКСФОРД-КАЛЕНДАРЬ) */}
       {activeTab === "schedule" && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between px-1">
-            <h2 className="text-sm font-extrabold uppercase tracking-wider text-slate-700 flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-blue-600" />
-              <span>Предстоящие и прошедшие уроки</span>
-            </h2>
-            <span className="text-xs text-slate-500 font-medium">Время московское (МСК)</span>
-          </div>
-
-          {upcomingLessons.length === 0 && !liveLesson ? (
-            <div className="bg-white rounded-3xl p-10 border border-slate-200 text-center space-y-2">
-              <div className="text-3xl">🗓️</div>
-              <h3 className="font-bold text-slate-800 text-sm">На ближайшие дни уроков не запланировано</h3>
-              <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                Преподаватель добавит новый урок в ваше расписание.
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {upcomingLessons.map((lesson) => (
-                <div
-                  key={lesson.id}
-                  className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-xs space-y-4 hover:border-blue-300 transition group"
-                >
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-blue-700 bg-blue-50 px-3 py-1 rounded-xl">
-                      {lesson.subjectName}
-                    </span>
-                    <span className="font-semibold text-slate-700 flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-xl">
-                      <Clock className="w-3.5 h-3.5 text-blue-600" />
-                      {format(new Date(lesson.startTime), "d MMMM, HH:mm", { locale: ru })}
-                    </span>
-                  </div>
-
-                  <div>
-                    <h3 className="font-extrabold text-slate-900 text-base group-hover:text-blue-600 transition">
-                      {lesson.title}
-                    </h3>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Преподаватель: <strong className="text-slate-800">{lesson.teacherName}</strong>
-                    </p>
-                  </div>
-
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                    <span className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      Комната и доска готовы
-                    </span>
-                    <Link
-                      href={`/room/${lesson.roomName}`}
-                      className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm shadow-blue-500/20 transition active:scale-95"
-                    >
-                      <Video className="w-3.5 h-3.5" />
-                      <span>Войти</span>
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Завершённые уроки */}
-          {completedLessons.length > 0 && (
-            <div className="space-y-3 pt-4">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 px-1">
-                Пройденные уроки
-              </h3>
-              <div className="bg-white rounded-3xl divide-y divide-slate-100 border border-slate-200 overflow-hidden shadow-xs">
-                {completedLessons.map((lesson) => (
-                  <div key={lesson.id} className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-slate-900 text-sm">{lesson.title}</span>
-                        <span className="text-[11px] text-slate-400">
-                          ({format(new Date(lesson.startTime), "d MMMM yyyy", { locale: ru })})
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Преподаватель: {lesson.teacherName}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 self-start sm:self-auto">
-                      <span className="px-3 py-1 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold flex items-center gap-1">
-                        <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
-                        5 звёзд
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+        <ScheduleCalendar
+          role="student"
+          lessons={lessons}
+        />
       )}
 
       {/* 5. ТАБ: МОИ ПРЕДМЕТЫ (ФОКСФОРД СТИЛЬ) */}
