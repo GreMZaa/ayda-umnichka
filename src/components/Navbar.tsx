@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -18,6 +18,14 @@ import {
   ArrowRight,
   ShieldCheck,
   AlertCircle,
+  LayoutGrid,
+  ChevronDown,
+  Phone,
+  Sparkles,
+  BookOpen,
+  Calendar,
+  Video,
+  Award,
 } from "lucide-react";
 import { getSupabase } from "@/lib/supabase";
 
@@ -25,9 +33,13 @@ export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
 
-  // Состояние модального окна мгновенного входа по паролю на главной странице
+  // Состояние модальных окон и выпадающих меню
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const catalogRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   // Поля авторизации в модальном окне
   const [selectedRole, setSelectedRole] = useState<"student" | "parent">("student");
@@ -46,6 +58,20 @@ export default function Navbar() {
   const isTeacher = pathname.startsWith("/teacher");
   const isAdmin = pathname.startsWith("/admin");
   const isInsideCabinet = isParent || isStudent || isTeacher || isAdmin;
+
+  // Закрытие выпадающих меню по клику снаружи
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (catalogRef.current && !catalogRef.current.contains(event.target as Node)) {
+        setCatalogOpen(false);
+      }
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Определение профиля текущего вошедшего пользователя из сессии Supabase или роли
   const defaultCabinetName = isParent
@@ -172,35 +198,170 @@ export default function Navbar() {
       }
     }
     setAuthProfile(null);
+    setUserMenuOpen(false);
     router.push("/");
   };
 
+  // Каталог курсов в стиле Фоксфорда
+  const catalogCategories = [
+    {
+      title: "1–4 классы",
+      subtitle: "Начальная школа и подготовка",
+      icon: "🎒",
+      href: "/#subjects",
+      items: ["Математика и логика", "Русский язык и каллиграфия", "Английский для детей", "Подготовка к школе"],
+    },
+    {
+      title: "5–8 классы",
+      subtitle: "Средняя школа и уверенные оценки",
+      icon: "📐",
+      href: "/#subjects",
+      items: ["Алгебра и геометрия", "Русский язык", "Английский язык", "Олимпиадная математика"],
+    },
+    {
+      title: "9–11 классы",
+      subtitle: "Подготовка к экзаменам",
+      icon: "🎯",
+      href: "/#subjects",
+      items: ["Подготовка к ОГЭ", "Подготовка к ЕГЭ", "Индивидуальный план поступления"],
+    },
+    {
+      title: "1:1 с репетитором",
+      subtitle: "Индивидуальные уроки онлайн",
+      icon: "✨",
+      href: "/#trial",
+      items: ["Персональный подбор педагога", "Удобное время занятий", "Встроенная интерактивная комната"],
+    },
+  ];
+
   return (
     <>
+      {/* 1. ВЕРХНИЙ ИНФО-БАР (Фоксфорд стиль: телефон + преимущества) */}
+      <div className="bg-slate-900 text-slate-300 text-[11px] sm:text-xs py-1.5 px-4 sm:px-6">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <span className="flex items-center gap-1.5 text-emerald-400 font-medium">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              Онлайн-уроки с репетитором по всей России
+            </span>
+            <span className="hidden md:inline text-slate-500">|</span>
+            <span className="hidden md:inline text-slate-400">
+              Первый пробный урок — бесплатно
+            </span>
+          </div>
+          <div className="flex items-center gap-4">
+            <a
+              href="tel:88003020412"
+              className="flex items-center gap-1.5 text-slate-300 hover:text-white font-semibold transition"
+            >
+              <Phone className="w-3.5 h-3.5 text-blue-400" />
+              <span>8 800 302-04-12</span>
+              <span className="hidden sm:inline text-slate-400 text-[10px] font-normal">(бесплатно по РФ)</span>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      {/* 2. ОСНОВНАЯ ШАПКА В СТИЛЕ FOXFORD */}
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/90 shadow-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            {/* Логотип */}
-            <Link href="/" className="flex items-center gap-2.5 group shrink-0">
-              <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-sm shadow-blue-500/20 group-hover:bg-blue-700 transition">
-                <GraduationCap className="w-5 h-5" />
+          <div className="flex items-center justify-between h-16 sm:h-[70px]">
+            {/* Левая группа: Логотип и Каталог */}
+            <div className="flex items-center gap-4 sm:gap-6">
+              {/* Логотип Фоксфорд-стиль */}
+              <Link href="/" className="flex items-center gap-2.5 group shrink-0">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/25 group-hover:scale-105 transition transform">
+                  <GraduationCap className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-lg sm:text-xl font-extrabold tracking-tight text-slate-900 group-hover:text-blue-600 transition">
+                      АйДаУмничка
+                    </span>
+                    <span className="hidden sm:inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">
+                      ШКОЛА
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-medium text-slate-500 block leading-none">
+                    Онлайн-уроки и репетиторы
+                  </span>
+                </div>
+              </Link>
+
+              {/* Кнопка «Каталог» с выпадающим меню как в Foxford */}
+              <div className="relative hidden md:block" ref={catalogRef}>
+                <button
+                  type="button"
+                  onClick={() => setCatalogOpen(!catalogOpen)}
+                  className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer ${
+                    catalogOpen
+                      ? "bg-blue-600 text-white shadow-sm shadow-blue-500/20"
+                      : "bg-slate-100 hover:bg-slate-200/80 text-slate-800"
+                  }`}
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                  <span>Каталог</span>
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${catalogOpen ? "rotate-180" : ""}`} />
+                </button>
+
+                {/* Выпадающее меню каталога */}
+                {catalogOpen && (
+                  <div className="absolute top-full left-0 mt-2 w-[520px] bg-white rounded-2xl shadow-2xl border border-slate-200 p-4 grid grid-cols-2 gap-3 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                    {catalogCategories.map((cat, idx) => (
+                      <Link
+                        key={idx}
+                        href={cat.href}
+                        onClick={() => setCatalogOpen(false)}
+                        className="group p-3 rounded-xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50/50 transition flex flex-col justify-between"
+                      >
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-lg">{cat.icon}</span>
+                            <span className="font-bold text-sm text-slate-900 group-hover:text-blue-600 transition">
+                              {cat.title}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500 line-clamp-1 mb-2">
+                            {cat.subtitle}
+                          </p>
+                          <ul className="space-y-1">
+                            {cat.items.slice(0, 2).map((item, i) => (
+                              <li key={i} className="text-[11px] text-slate-600 flex items-center gap-1.5">
+                                <span className="w-1 h-1 rounded-full bg-blue-500" />
+                                <span>{item}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                        <span className="mt-3 text-[11px] font-bold text-blue-600 group-hover:underline flex items-center gap-1">
+                          Смотреть программы →
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                )}
               </div>
-              <div>
-                <span className="text-base sm:text-lg font-bold tracking-tight text-slate-900 group-hover:text-blue-600 transition">
-                  АйДаУмничка
-                </span>
-                <span className="text-[10px] font-semibold text-slate-500 block leading-none">
-                  Центр онлайн-занятий
-                </span>
-              </div>
-            </Link>
+
+              {/* Навигационные ссылки */}
+              <nav className="hidden lg:flex items-center gap-5 text-xs sm:text-sm font-semibold text-slate-600">
+                <Link href="/#trial" className="hover:text-blue-600 transition">
+                  Пробный урок
+                </Link>
+                <Link href="/#reviews" className="hover:text-blue-600 transition">
+                  Отзывы
+                </Link>
+                <Link href="/#faq" className="hover:text-blue-600 transition">
+                  Вопросы и ответы
+                </Link>
+              </nav>
+            </div>
 
             {/* Правые кнопки действий */}
-            <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-2.5 sm:gap-3">
               {isRoom ? (
                 <Link
                   href="/"
-                  className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition"
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition"
                 >
                   Выйти из урока
                 </Link>
@@ -212,13 +373,16 @@ export default function Navbar() {
                   <span>← На главную</span>
                 </Link>
               ) : isInsideCabinet && currentUser ? (
-                /* Пользователь УЖЕ в личном кабинете: показываем его бейдж и кнопку Выйти */
+                /* Пользователь ВНУТРИ личного кабинета: аватар, имя и кнопка выхода */
                 <div className="flex items-center gap-2 sm:gap-3">
-                  <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
-                    <span className={`w-2 h-2 rounded-full ${isParent ? "bg-amber-500" : isStudent ? "bg-emerald-500" : "bg-blue-500"}`} />
-                    <span className="font-bold text-slate-800">{currentUser.name}</span>
-                    <span className="text-slate-400">•</span>
-                    <span className="text-slate-500">{currentUser.role}</span>
+                  <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                    <div className="w-7 h-7 rounded-lg bg-blue-600 text-white font-bold flex items-center justify-center text-xs">
+                      {currentUser.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="hidden sm:block text-left">
+                      <div className="font-bold text-slate-800 leading-tight">{currentUser.name}</div>
+                      <div className="text-[10px] text-slate-500">{currentUser.role}</div>
+                    </div>
                   </div>
 
                   <button
@@ -227,48 +391,143 @@ export default function Navbar() {
                     title="Выйти из личного кабинета"
                   >
                     <LogOut className="w-3.5 h-3.5" />
-                    <span>Выйти</span>
-                  </button>
-                </div>
-              ) : authProfile ? (
-                /* Пользователь авторизован, но перешёл на главную страницу: показываем кнопку перехода в его кабинет */
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <Link
-                    href={`/${authProfile.roleKey}`}
-                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-500/20 transition active:scale-95 cursor-pointer"
-                    id="btn-cabinet-header"
-                  >
-                    <User className="w-4 h-4" />
-                    <span>Личный кабинет ({authProfile.role})</span>
-                    <ArrowRight className="w-3.5 h-3.5 ml-0.5" />
-                  </Link>
-
-                  <button
-                    onClick={handleLogout}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 transition cursor-pointer"
-                    title="Выйти из аккаунта"
-                  >
-                    <LogOut className="w-3.5 h-3.5" />
                     <span className="hidden sm:inline">Выйти</span>
                   </button>
                 </div>
+              ) : authProfile ? (
+                /* Пользователь авторизован, находится на лендинге */
+                <div className="relative" ref={userMenuRef}>
+                  <button
+                    type="button"
+                    onClick={() => setUserMenuOpen(!userMenuOpen)}
+                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition active:scale-95 cursor-pointer shadow-xs"
+                    id="btn-cabinet-header"
+                  >
+                    <div className="w-6 h-6 rounded-lg bg-blue-600 text-white font-bold text-xs flex items-center justify-center">
+                      {authProfile.name.charAt(0).toUpperCase()}
+                    </div>
+                    <span>{authProfile.name}</span>
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-200/80 text-blue-800">
+                      {authProfile.role}
+                    </span>
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${userMenuOpen ? "rotate-180" : ""}`} />
+                  </button>
+
+                  {/* Меню профиля */}
+                  {userMenuOpen && (
+                    <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-200 p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                      <Link
+                        href={`/${authProfile.roleKey}`}
+                        onClick={() => setUserMenuOpen(false)}
+                        className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-slate-800 hover:bg-blue-50 hover:text-blue-700 transition"
+                      >
+                        <User className="w-4 h-4 text-blue-600" />
+                        <span>Перейти в кабинет</span>
+                      </Link>
+                      <Link
+                        href={`/${authProfile.roleKey}`}
+                        onClick={() => setUserMenuOpen(false)}
+                        className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+                      >
+                        <Calendar className="w-4 h-4 text-slate-500" />
+                        <span>Моё расписание</span>
+                      </Link>
+                      <div className="my-1 border-t border-slate-100" />
+                      <button
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 transition cursor-pointer text-left"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        <span>Выйти из аккаунта</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
               ) : (
-                /* На главной странице: аккуратная кнопка Войти в кабинет (Вторичное действие согласно Правилу 11) */
-                <button
-                  onClick={() => setShowLoginModal(true)}
-                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200/90 border border-slate-200/80 transition active:scale-95 cursor-pointer"
-                  id="btn-login-header"
-                >
-                  <LogIn className="w-4 h-4 text-slate-500" />
-                  <span>Войти в кабинет</span>
-                </button>
+                /* Для гостя: аккуратная кнопка Войти + яркая кнопка регистрации в стиле Foxford */
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowLoginModal(true)}
+                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200/90 border border-slate-200/80 transition active:scale-95 cursor-pointer"
+                    id="btn-login-header"
+                  >
+                    <LogIn className="w-4 h-4 text-slate-500" />
+                    <span>Войти</span>
+                  </button>
+
+                  <Link
+                    href="/login?mode=signup"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/25 transition active:scale-95 cursor-pointer"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Регистрация</span>
+                  </Link>
+                </div>
               )}
+
+              {/* Мобильная кнопка меню */}
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="lg:hidden p-2 rounded-xl text-slate-600 hover:bg-slate-100 transition"
+              >
+                {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              </button>
             </div>
           </div>
         </div>
+
+        {/* Мобильное меню в стиле Фоксфорда */}
+        {mobileMenuOpen && (
+          <div className="lg:hidden border-t border-slate-200 bg-white px-4 py-4 space-y-3 shadow-lg">
+            <div className="font-bold text-xs text-slate-400 uppercase tracking-wider px-2">
+              Программы обучения
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Link
+                href="/#subjects"
+                onClick={() => setMobileMenuOpen(false)}
+                className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs font-bold text-slate-800"
+              >
+                🎒 1–4 классы
+              </Link>
+              <Link
+                href="/#subjects"
+                onClick={() => setMobileMenuOpen(false)}
+                className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs font-bold text-slate-800"
+              >
+                📐 5–8 классы
+              </Link>
+              <Link
+                href="/#subjects"
+                onClick={() => setMobileMenuOpen(false)}
+                className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs font-bold text-slate-800"
+              >
+                🎯 9–11 классы
+              </Link>
+              <Link
+                href="/#trial"
+                onClick={() => setMobileMenuOpen(false)}
+                className="p-3 rounded-xl bg-blue-50 border border-blue-100 text-xs font-bold text-blue-700"
+              >
+                ✨ С репетитором 1:1
+              </Link>
+            </div>
+
+            <div className="border-t border-slate-100 pt-3 space-y-2">
+              <a
+                href="tel:88003020412"
+                className="flex items-center gap-2 p-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-50"
+              >
+                <Phone className="w-4 h-4 text-blue-600" />
+                <span>8 800 302-04-12 (Бесплатно)</span>
+              </a>
+            </div>
+          </div>
+        )}
       </header>
 
-      {/* МОДАЛЬНОЕ ОКНО ПРЯМОГО ВХОДА ПО EMAIL И ПАРОЛЮ */}
+      {/* 3. МОДАЛЬНОЕ ОКНО ПРЯМОГО ВХОДА ПО EMAIL И ПАРОЛЮ */}
       {showLoginModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-200 relative">
@@ -283,7 +542,7 @@ export default function Navbar() {
               </div>
               <button
                 onClick={() => setShowLoginModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -296,7 +555,7 @@ export default function Navbar() {
               </div>
             )}
 
-            {/* Выбор роли (Ученик или Родитель) как сегментированный контрол (Правило 12) */}
+            {/* Выбор роли (Ученик или Родитель) как сегментированный контрол */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1.5">
                 Личный кабинет:
@@ -313,7 +572,7 @@ export default function Navbar() {
                       key={r.id}
                       type="button"
                       onClick={() => handleRoleQuickSelect(r.id)}
-                      className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition ${
+                      className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
                         isSelected
                           ? "bg-white text-slate-900 shadow-xs"
                           : "text-slate-600 hover:text-slate-900"
@@ -416,7 +675,7 @@ export default function Navbar() {
             <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
               <span>Нет аккаунта?</span>
               <Link
-                href="/login"
+                href="/login?mode=signup"
                 onClick={() => setShowLoginModal(false)}
                 className="font-bold text-blue-600 hover:text-blue-700 underline underline-offset-2"
               >
