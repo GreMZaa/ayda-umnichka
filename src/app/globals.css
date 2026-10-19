@@ -53,3 +53,12 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* Предотвращение автоматического приближения (зума) экрана на iPhone / iPad и Android при фокусе на полях ввода */
+@media screen and (max-width: 768px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}

@@ -263,15 +263,15 @@ export default function Navbar() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 sm:h-[70px]">
             {/* Левая группа: Логотип и Навигация */}
-            <div className="flex items-center gap-4 sm:gap-8">
+            <div className="flex items-center gap-3 sm:gap-8 min-w-0 shrink">
               {/* Логотип Фоксфорд-стиль */}
-              <Link href="/" className="flex items-center gap-2 sm:gap-2.5 group shrink-0">
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/25 group-hover:scale-105 transition transform shrink-0">
-                  <GraduationCap className="w-5 h-5" />
+              <Link href="/" className="flex items-center gap-2 group shrink-0 min-w-0">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/25 group-hover:scale-105 transition transform shrink-0">
+                  <GraduationCap className="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-base sm:text-xl font-extrabold tracking-tight text-slate-900 group-hover:text-blue-600 transition">
+                    <span className="text-sm sm:text-xl font-extrabold tracking-tight text-slate-900 group-hover:text-blue-600 transition truncate">
                       АйДаУмничка
                     </span>
                     <span className="hidden sm:inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">
@@ -421,10 +421,10 @@ export default function Navbar() {
                 </div>
               ) : (
                 /* Для гостя: аккуратная кнопка Войти + яркая кнопка регистрации */
-                <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+                <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                   <button
                     onClick={() => setShowLoginModal(true)}
-                    className="inline-flex items-center gap-1 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200/90 border border-slate-200/80 transition active:scale-95 cursor-pointer"
+                    className="inline-flex items-center gap-1 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200/90 border border-slate-200/80 transition active:scale-95 cursor-pointer whitespace-nowrap"
                     id="btn-login-header"
                   >
                     <LogIn className="w-3.5 h-3.5 text-slate-500" />
@@ -433,7 +433,7 @@ export default function Navbar() {
 
                   <Link
                     href="/login?mode=signup"
-                    className="inline-flex items-center gap-1 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/25 transition active:scale-95 cursor-pointer"
+                    className="hidden sm:inline-flex items-center gap-1 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/25 transition active:scale-95 cursor-pointer whitespace-nowrap"
                   >
                     <Sparkles className="w-3.5 h-3.5 shrink-0" />
                     <span>Регистрация</span>
@@ -459,6 +459,31 @@ export default function Navbar() {
         {/* Мобильное меню в стиле Фоксфорда (только для публичных страниц) */}
         {!isInsideCabinet && mobileMenuOpen && (
           <div className="lg:hidden border-t border-slate-200 bg-white px-4 py-4 space-y-4 shadow-xl animate-in slide-in-from-top-2 duration-150">
+            {/* Блок авторизации для мобильных гостей */}
+            {!authProfile && (
+              <div className="grid grid-cols-2 gap-2 pb-2 border-b border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    setShowLoginModal(true);
+                  }}
+                  className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition cursor-pointer"
+                >
+                  <LogIn className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Войти</span>
+                </button>
+                <Link
+                  href="/login?mode=signup"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition shadow-sm text-center"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Регистрация</span>
+                </Link>
+              </div>
+            )}
+
             {/* Быстрые переходы */}
             <div className="space-y-1">
               <Link
