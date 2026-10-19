@@ -173,7 +173,29 @@ export default function VideoRoom({
     []
   );
 
-  // Инициализация размеров canvas
+  // CSS стиль для фона тетради (клетка / линейка / лист)
+  const getBoardBackgroundStyle = () => {
+    if (boardBg === "grid") {
+      return {
+        backgroundColor: "#ffffff",
+        backgroundImage:
+          "linear-gradient(to right, #e2e8f0 1px, transparent 1px), linear-gradient(to bottom, #e2e8f0 1px, transparent 1px)",
+        backgroundSize: "24px 24px",
+      };
+    }
+    if (boardBg === "lines") {
+      return {
+        backgroundColor: "#ffffff",
+        backgroundImage: "linear-gradient(to bottom, #cbd5e1 1px, transparent 1px)",
+        backgroundSize: "100% 30px",
+      };
+    }
+    return {
+      backgroundColor: "#ffffff",
+    };
+  };
+
+  // Инициализация размеров canvas (прозрачный слой поверх сетки)
   const initCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -189,11 +211,11 @@ export default function VideoRoom({
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    redrawBackground(ctx, width, height, boardBg);
+    ctx.clearRect(0, 0, width, height);
 
     const initialSnapshot = ctx.getImageData(0, 0, width, height);
     setHistory([initialSnapshot]);
-  }, [boardBg, redrawBackground]);
+  }, []);
 
   useEffect(() => {
     initCanvas();
@@ -234,18 +256,26 @@ export default function VideoRoom({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     pushHistory();
-    redrawBackground(ctx, canvas.width, canvas.height, boardBg);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     showToast("Доска очищена");
   };
 
   const handleDownload = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const link = document.createElement("a");
-    link.download = `Конспект-урока-${roomName}-${new Date().toISOString().slice(0, 10)}.png`;
-    link.href = canvas.toDataURL("image/png");
-    link.click();
-    showToast("Конспект урока скачан в PNG!");
+    const exportCanvas = document.createElement("canvas");
+    exportCanvas.width = canvas.width;
+    exportCanvas.height = canvas.height;
+    const exportCtx = exportCanvas.getContext("2d");
+    if (exportCtx) {
+      redrawBackground(exportCtx, canvas.width, canvas.height, boardBg);
+      exportCtx.drawImage(canvas, 0, 0);
+      const link = document.createElement("a");
+      link.download = `Конспект-урока-${roomName}-${new Date().toISOString().slice(0, 10)}.png`;
+      link.href = exportCanvas.toDataURL("image/png");
+      link.click();
+      showToast("Конспект урока скачан в PNG!");
+    }
   };
 
   // Координаты рисования
@@ -285,7 +315,12 @@ export default function VideoRoom({
     setStartPos(coords);
     setTempImageData(ctx.getImageData(0, 0, canvas.width, canvas.height));
 
-    if (currentTool === "pen" || currentTool === "highlighter" || currentTool === "eraser") {
+    if (currentTool === "pen" || currentTool === "highlighter") {
+      ctx.globalCompositeOperation = "source-over";
+      ctx.beginPath();
+      ctx.moveTo(coords.x, coords.y);
+    } else if (currentTool === "eraser") {
+      ctx.globalCompositeOperation = "destination-out";
       ctx.beginPath();
       ctx.moveTo(coords.x, coords.y);
     }
@@ -301,6 +336,7 @@ export default function VideoRoom({
     const coords = getCanvasCoords(e);
 
     if (currentTool === "pen") {
+      ctx.globalCompositeOperation = "source-over";
       ctx.strokeStyle = brushColor;
       ctx.lineWidth = brushWidth;
       ctx.lineCap = "round";
@@ -309,6 +345,7 @@ export default function VideoRoom({
       ctx.lineTo(coords.x, coords.y);
       ctx.stroke();
     } else if (currentTool === "highlighter") {
+      ctx.globalCompositeOperation = "source-over";
       ctx.strokeStyle = brushColor;
       ctx.lineWidth = brushWidth * 3.5;
       ctx.lineCap = "square";
@@ -317,14 +354,15 @@ export default function VideoRoom({
       ctx.stroke();
       ctx.globalAlpha = 1;
     } else if (currentTool === "eraser") {
-      ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = brushWidth * 7;
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.lineWidth = brushWidth * 8;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
       ctx.lineTo(coords.x, coords.y);
       ctx.stroke();
     } else if (tempImageData && startPos) {
       ctx.putImageData(tempImageData, 0, 0);
+      ctx.globalCompositeOperation = "source-over";
       ctx.strokeStyle = brushColor;
       ctx.lineWidth = brushWidth;
       ctx.fillStyle = brushColor;
@@ -373,6 +411,11 @@ export default function VideoRoom({
     setDrawing(false);
     setStartPos(null);
     setTempImageData(null);
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const ctx = canvas.getContext("2d");
+      if (ctx) ctx.globalCompositeOperation = "source-over";
+    }
   };
 
   const handleAddText = () => {
@@ -387,6 +430,7 @@ export default function VideoRoom({
     if (!ctx) return;
 
     pushHistory();
+    ctx.globalCompositeOperation = "source-over";
     ctx.font = `bold ${Math.max(16, brushWidth * 5)}px 'Inter', sans-serif`;
     ctx.fillStyle = brushColor;
     ctx.fillText(textInputValue, textInputPos.x, textInputPos.y + 16);
@@ -403,6 +447,7 @@ export default function VideoRoom({
     if (!ctx) return;
 
     pushHistory();
+    ctx.globalCompositeOperation = "source-over";
 
     const startX = 40;
     const startY = 70;
@@ -1026,7 +1071,10 @@ export default function VideoRoom({
             )}
 
             {/* Холст */}
-            <div className="flex-1 w-full h-full relative cursor-crosshair overflow-hidden touch-none">
+            <div
+              style={getBoardBackgroundStyle()}
+              className="flex-1 w-full h-full relative cursor-crosshair overflow-hidden touch-none"
+            >
               <canvas
                 ref={canvasRef}
                 onMouseDown={handleStartDraw}
@@ -1036,7 +1084,7 @@ export default function VideoRoom({
                 onTouchStart={handleStartDraw}
                 onTouchMove={handleDrawingMove}
                 onTouchEnd={handleEndDraw}
-                className="absolute inset-0 w-full h-full block"
+                className="absolute inset-0 w-full h-full block bg-transparent"
               />
             </div>
           </div>
