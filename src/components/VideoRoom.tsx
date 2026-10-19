@@ -159,6 +159,34 @@ export default function VideoRoom({
 
   const stopDrawing = () => setDrawing(false);
 
+  // Поддержка рисования пальцем и стилусом на телефонах и планшетах (iOS / Android / iPad)
+  const startDrawingTouch = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas || e.touches.length === 0) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const rect = canvas.getBoundingClientRect();
+    const touch = e.touches[0];
+    ctx.beginPath();
+    ctx.moveTo(touch.clientX - rect.left, touch.clientY - rect.top);
+    setDrawing(true);
+  };
+
+  const drawTouch = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (!drawing) return;
+    const canvas = canvasRef.current;
+    if (!canvas || e.touches.length === 0) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const rect = canvas.getBoundingClientRect();
+    const touch = e.touches[0];
+    ctx.lineTo(touch.clientX - rect.left, touch.clientY - rect.top);
+    ctx.strokeStyle = tool === "eraser" ? "#ffffff" : brushColor;
+    ctx.lineWidth = tool === "eraser" ? 24 : brushSize;
+    ctx.lineCap = "round";
+    ctx.stroke();
+  };
+
   const clearCanvas = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -283,12 +311,12 @@ export default function VideoRoom({
       </div>
 
       {/* 2. Основная область урока */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
         {/* РЕЖИМ 1: Классическая учебная комната (Доска 75% + Сайдбар 25%) */}
         {viewMode === "classroom" ? (
           <>
             {/* Доска для совместной работы */}
-            <div className="flex-1 flex flex-col bg-white relative border-r border-slate-200">
+            <div className="flex-1 min-h-[280px] md:min-h-0 flex flex-col bg-white relative border-b md:border-b-0 md:border-r border-slate-200">
               {/* Компактный плавающий тулбар инструментов доски */}
               <div className="absolute top-3 left-4 z-10 bg-white border border-slate-200 rounded-xl shadow-xs px-3 py-1.5 flex items-center gap-2">
                 <button
@@ -409,13 +437,16 @@ export default function VideoRoom({
                   onMouseMove={draw}
                   onMouseUp={stopDrawing}
                   onMouseLeave={stopDrawing}
-                  className="absolute inset-0 w-full h-full"
+                  onTouchStart={startDrawingTouch}
+                  onTouchMove={drawTouch}
+                  onTouchEnd={stopDrawing}
+                  className="absolute inset-0 w-full h-full touch-none"
                 />
               </div>
             </div>
 
             {/* Правый сайдбар: видео участников и чат */}
-            <div className="w-80 lg:w-96 flex flex-col bg-slate-50 border-l border-slate-200">
+            <div className="w-full md:w-80 lg:w-96 flex flex-col bg-slate-50 border-t md:border-t-0 md:border-l border-slate-200">
               {/* Видео-плитки */}
               <div className="p-3 space-y-3 border-b border-slate-200">
                 {/* Плитка преподавателя */}

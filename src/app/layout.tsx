@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import AgentationClient from "@/components/AgentationClient";
@@ -6,6 +6,13 @@ import AgentationClient from "@/components/AgentationClient";
 export const metadata: Metadata = {
   title: "АйДаУмничка — Платформа для репетиторов и онлайн-уроков",
   description: "Образовательная платформа центра «АйДаУмничка»: личные кабинеты преподавателя, ученика и родителя со встроенной видеосвязью.",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  themeColor: "#2563eb",
 };
 
 export default function RootLayout({

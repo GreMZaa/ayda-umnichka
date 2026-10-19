@@ -226,20 +226,20 @@ export default function HomePage() {
   return (
     <div className="space-y-16 sm:space-y-20 pb-20">
       {/* 1. HERO СЕКЦИЯ */}
-      <section className="pt-6 sm:pt-12 text-center max-w-4xl mx-auto space-y-6">
-        <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-slate-900 leading-[1.12]">
+      <section className="pt-4 sm:pt-12 text-center max-w-4xl mx-auto space-y-5 sm:space-y-6">
+        <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-slate-900 leading-[1.15]">
           Онлайн-уроки с репетитором, <br className="hidden sm:inline" />
           <span className="text-blue-600">где всё понятно и удобно</span>
         </h1>
 
-        <p className="text-base sm:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
+        <p className="text-sm sm:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
           Встроенная видеосвязь прямо в браузере. Личные кабинеты для ученика и родителя. Без установки сторонних программ.
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
           <a
             href="#trial"
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm sm:text-base shadow-lg shadow-blue-600/25 transition transform hover:-translate-y-0.5 active:scale-98"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3.5 sm:px-8 sm:py-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm sm:text-base shadow-lg shadow-blue-600/25 transition transform hover:-translate-y-0.5 active:scale-98 min-h-[48px]"
           >
             <Sparkles className="w-5 h-5" />
             <span>Записаться на пробный урок</span>
@@ -249,7 +249,7 @@ export default function HomePage() {
           {currentUserRole ? (
             <Link
               href={`/${currentUserRole.roleKey}`}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-4 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold text-sm sm:text-base border border-blue-200 shadow-xs transition active:scale-98"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 sm:px-7 sm:py-4 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold text-sm sm:text-base border border-blue-200 shadow-xs transition active:scale-98 min-h-[48px]"
               id="hero-btn-login"
             >
               <User className="w-5 h-5 text-blue-600" />
@@ -259,7 +259,7 @@ export default function HomePage() {
           ) : (
             <Link
               href="/login"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-4 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-bold text-sm sm:text-base border border-slate-200 shadow-xs transition active:scale-98"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 sm:px-7 sm:py-4 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-bold text-sm sm:text-base border border-slate-200 shadow-xs transition active:scale-98 min-h-[48px]"
               id="hero-btn-login"
             >
               <LogIn className="w-5 h-5" />
@@ -273,51 +273,54 @@ export default function HomePage() {
       <section className="max-w-5xl mx-auto">
         <div className="rounded-2xl border border-slate-200 bg-white shadow-xl overflow-hidden">
           {/* Тело симулятора урока в светлых цветах видеокомнаты */}
-          <div className="grid grid-cols-1 md:grid-cols-12 min-h-[360px]">
+          <div className="grid grid-cols-1 md:grid-cols-12 min-h-[340px]">
             {/* Левая часть: видео преподавателя и ученика (светлый фон bg-slate-50 как в VideoRoom) */}
-            <div className="md:col-span-5 bg-slate-50 p-4 sm:p-5 flex flex-col justify-between gap-4 border-b md:border-b-0 md:border-r border-slate-200">
+            <div className="md:col-span-5 bg-slate-50 p-3.5 sm:p-5 flex flex-col justify-between gap-3 sm:gap-4 border-b md:border-b-0 md:border-r border-slate-200">
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                  <span className="text-[11px] sm:text-xs font-bold text-slate-700 uppercase tracking-wider">
                     Видеосвязь урока
                   </span>
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold text-[11px]">
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold text-[10px] sm:text-[11px]">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                     Урок в эфире
                   </span>
                 </div>
 
-                {/* Карточка преподавателя */}
-                <div className="relative rounded-xl overflow-hidden bg-slate-900 border border-slate-200 aspect-video shadow-xs flex items-center justify-center">
-                  <img
-                    src="https://images.unsplash.com/photo-1580894732444-8ecded7900cd?w=600&h=400&fit=crop&crop=faces"
-                    alt="Преподаватель"
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute bottom-2 left-2 bg-slate-900/80 backdrop-blur px-2.5 py-1 rounded text-[11px] text-white font-medium">
-                    Преподаватель центра
+                {/* На мобильных: видео преподавателя и ученика бок о бок (2 колонки) */}
+                <div className="grid grid-cols-2 md:grid-cols-1 gap-2.5 sm:gap-3">
+                  {/* Карточка преподавателя */}
+                  <div className="relative rounded-xl overflow-hidden bg-slate-900 border border-slate-200 aspect-video shadow-xs flex items-center justify-center">
+                    <img
+                      src="https://images.unsplash.com/photo-1580894732444-8ecded7900cd?w=600&h=400&fit=crop&crop=faces"
+                      alt="Преподаватель"
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute bottom-1.5 left-1.5 sm:bottom-2 sm:left-2 bg-slate-900/80 backdrop-blur px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-[11px] text-white font-medium">
+                      Преподаватель
+                    </div>
                   </div>
-                </div>
 
-                {/* Карточка ученика */}
-                <div className="relative rounded-xl overflow-hidden bg-slate-900 border border-slate-200 aspect-video shadow-xs flex items-center justify-center">
-                  <img
-                    src="https://images.unsplash.com/photo-1588072432836-e10032774350?w=600&h=400&fit=crop&crop=faces"
-                    alt="Ученик"
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute bottom-2 left-2 bg-slate-900/80 backdrop-blur px-2.5 py-1 rounded text-[11px] text-white font-medium">
-                    Ученик на занятии
+                  {/* Карточка ученика */}
+                  <div className="relative rounded-xl overflow-hidden bg-slate-900 border border-slate-200 aspect-video shadow-xs flex items-center justify-center">
+                    <img
+                      src="https://images.unsplash.com/photo-1588072432836-e10032774350?w=600&h=400&fit=crop&crop=faces"
+                      alt="Ученик"
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute bottom-1.5 left-1.5 sm:bottom-2 sm:left-2 bg-slate-900/80 backdrop-blur px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-[11px] text-white font-medium">
+                      Ученик
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-center gap-2 text-slate-500 text-xs font-medium">
-                <span>Камера HD</span>
+              <div className="flex items-center justify-center gap-2 text-slate-500 text-[11px] sm:text-xs font-medium">
+                <span>HD Камера</span>
                 <span>•</span>
                 <span>Чистый звук</span>
                 <span>•</span>
-                <span>Безопасное соединение</span>
+                <span>Защита</span>
               </div>
             </div>
 
@@ -484,7 +487,7 @@ export default function HomePage() {
 
       {/* 5. ФОРМА ЗАПИСИ НА БЕСПЛАТНЫЙ ПРОБНЫЙ УРОК */}
       <section id="trial" className="max-w-5xl mx-auto scroll-mt-28 sm:scroll-mt-32">
-        <div className="bg-white rounded-3xl border border-slate-200/90 shadow-xl overflow-hidden relative p-6 sm:p-10">
+        <div className="bg-white rounded-3xl border border-slate-200/90 shadow-xl overflow-hidden relative p-4 sm:p-8 lg:p-10">
           {/* Декоративная подсветка сверху */}
           <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600" />
 
@@ -541,7 +544,7 @@ export default function HomePage() {
                 </button>
               </div>
             ) : (
-              <form onSubmit={handleLeadSubmit} className="bg-slate-50/60 p-6 sm:p-7 rounded-2xl border border-slate-200/80 space-y-4">
+              <form onSubmit={handleLeadSubmit} className="bg-slate-50/60 p-4 sm:p-7 rounded-2xl border border-slate-200/80 space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">

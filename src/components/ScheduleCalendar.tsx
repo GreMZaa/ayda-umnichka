@@ -224,31 +224,34 @@ export default function ScheduleCalendar({
         </div>
 
         {/* Навигатор по неделям */}
-        <div className="flex items-center gap-2 w-full md:w-auto justify-center md:justify-end">
-          <button
-            type="button"
-            onClick={() => setCalendarDate(subWeeks(calendarDate, 1))}
-            className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition cursor-pointer active:scale-95"
-            title="Предыдущая неделя"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
+        <div className="flex items-center gap-1.5 sm:gap-2 w-full md:w-auto justify-between sm:justify-end">
+          <div className="flex items-center gap-1 sm:gap-1.5">
+            <button
+              type="button"
+              onClick={() => setCalendarDate(subWeeks(calendarDate, 1))}
+              className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition cursor-pointer active:scale-95"
+              title="Предыдущая неделя"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
 
-          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800">
-            <CalendarIcon className="w-3.5 h-3.5 text-blue-600" />
-            <span>
-              {format(weekStart, "d")} – {format(weekEnd, "d MMMM yyyy", { locale: ru })}
-            </span>
+            <div className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800">
+              <CalendarIcon className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+              <span>
+                {format(weekStart, "d")} – {format(weekEnd, "d MMM", { locale: ru })}
+                <span className="hidden sm:inline"> {format(weekEnd, "yyyy")}</span>
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setCalendarDate(addWeeks(calendarDate, 1))}
+              className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition cursor-pointer active:scale-95"
+              title="Следующая неделя"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
           </div>
-
-          <button
-            type="button"
-            onClick={() => setCalendarDate(addWeeks(calendarDate, 1))}
-            className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition cursor-pointer active:scale-95"
-            title="Следующая неделя"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
 
           <button
             type="button"
@@ -263,6 +266,12 @@ export default function ScheduleCalendar({
       {/* 2. РЕЖИМ 1: СЕТКА-КАЛЕНДАРЬ */}
       {calendarViewMode === "calendar" && (
         <div className="bg-white rounded-3xl border border-slate-200/90 shadow-xs overflow-hidden">
+          {/* Подсказка для мобильных телефонов */}
+          <div className="lg:hidden px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-medium">
+            <span>👉 Смахните сетку вправо/влево для просмотра всех дней</span>
+            <span className="font-bold text-blue-600">7 дней</span>
+          </div>
+
           {/* Контейнер с горизонтальным скроллом на мобильных экранах */}
           <div className="overflow-x-auto">
             <div className="min-w-[760px] lg:min-w-0">
@@ -590,7 +599,7 @@ export default function ScheduleCalendar({
       {/* 4. МОДАЛЬНОЕ ОКНО НАСТРОЕК РАСПИСАНИЯ («НАСТРОИТЬ») */}
       {showSettingsModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-200 space-y-6 animate-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-3xl max-w-md w-full p-5 sm:p-7 shadow-2xl border border-slate-200 space-y-5 sm:space-y-6 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">

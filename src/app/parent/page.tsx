@@ -362,38 +362,38 @@ export default function ParentCabinet() {
               <div
                 key={child.id}
                 onClick={() => setSelectedChildId(child.id)}
-                className={`p-4 sm:p-5 rounded-3xl border text-left transition flex items-center justify-between gap-4 relative cursor-pointer group ${
+                className={`p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl border text-left transition flex items-center justify-between gap-3 sm:gap-4 relative cursor-pointer group ${
                   isSelected
                     ? "bg-white border-blue-600 shadow-md ring-2 ring-blue-500/10"
                     : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50"
                 }`}
               >
-                <div className="flex items-center gap-3.5">
+                <div className="flex items-center gap-3 sm:gap-3.5">
                   <img
                     src={child.avatar}
                     alt={child.name}
-                    className="w-13 h-13 rounded-2xl object-cover border border-slate-200 shrink-0"
+                    className="w-11 h-11 sm:w-13 sm:h-13 rounded-2xl object-cover border border-slate-200 shrink-0"
                   />
                   <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-extrabold text-slate-900 text-sm sm:text-base">{child.name}</h3>
-                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700">
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                      <h3 className="font-extrabold text-slate-900 text-xs sm:text-base">{child.name}</h3>
+                      <span className="text-[10px] sm:text-[11px] font-bold px-1.5 sm:px-2 py-0.5 rounded-md bg-blue-50 text-blue-700">
                         {child.grade}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Ближайший урок: <strong className="text-slate-800">{child.nextLesson}</strong>
+                    <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 sm:mt-1">
+                      Урок: <strong className="text-slate-800">{child.nextLesson}</strong>
                     </p>
                   </div>
                 </div>
 
-                <div className="flex flex-col items-end gap-2 shrink-0">
+                <div className="flex flex-col items-end gap-1.5 sm:gap-2 shrink-0">
                   <div className="flex items-center gap-1">
                     {/* Кнопка Редактировать */}
                     <button
                       type="button"
                       onClick={(e) => handleOpenEditChild(e, child)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition cursor-pointer"
+                      className="p-2 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition cursor-pointer active:scale-95"
                       title="Редактировать профиль ребёнка"
                     >
                       <Pencil className="w-3.5 h-3.5" />
@@ -402,7 +402,7 @@ export default function ParentCabinet() {
                     <button
                       type="button"
                       onClick={(e) => handleDeleteChild(e, child.id)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                      className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer active:scale-95"
                       title="Удалить ребёнка"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -410,8 +410,8 @@ export default function ParentCabinet() {
                   </div>
 
                   <div className="text-right">
-                    <div className="text-xs font-black text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200">
-                      Остаток: {child.balance} ур.
+                    <div className="text-[11px] sm:text-xs font-black text-emerald-800 bg-emerald-50 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-xl border border-emerald-200">
+                      {child.balance} ур.
                     </div>
                   </div>
                 </div>
@@ -636,7 +636,7 @@ export default function ParentCabinet() {
       {/* 5. МОДАЛЬНОЕ ОКНО ДОБАВЛЕНИЯ / РЕДАКТИРОВАНИЯ РЕБЁНКА */}
       {childModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 space-y-5 shadow-2xl border border-slate-200">
+          <div className="bg-white rounded-3xl max-w-md w-full p-5 sm:p-7 space-y-4 sm:space-y-5 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <User className="w-5 h-5 text-blue-600" />
@@ -730,7 +730,7 @@ export default function ParentCabinet() {
       {/* 6. МОДАЛЬНОЕ ОКНО ПОПОЛНЕНИЯ БАЛАНСА */}
       {showTopupModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 space-y-4 shadow-2xl border border-slate-200">
+          <div className="bg-white rounded-3xl max-w-md w-full p-5 sm:p-7 space-y-4 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <CreditCard className="w-5 h-5 text-blue-600" />
