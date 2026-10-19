@@ -25,6 +25,7 @@ import {
   Copy,
   AlertCircle,
   Edit3,
+  Trash2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -588,6 +589,51 @@ export default function TeacherCabinet() {
     }
   };
 
+  // Удаление ученика из базы данных Supabase
+  const handleDeleteStudent = async (e: React.MouseEvent, studentId: string, studentName: string) => {
+    e.stopPropagation();
+    if (!confirm(`Вы действительно хотите удалить ученика «${studentName}» из школы?`)) {
+      return;
+    }
+
+    const client = getSupabase();
+    if (client) {
+      try {
+        // 1. Удаляем привязанные уроки этого ученика из Supabase
+        await client.from("lessons").delete().eq("student_id", studentId);
+
+        // 2. Удаляем профиль ученика из profiles
+        const { error } = await client.from("profiles").delete().eq("id", studentId);
+        if (error) {
+          console.error("Supabase delete student error:", error);
+          alert("Не удалось удалить ученика из Supabase: " + error.message);
+          return;
+        }
+      } catch (err: any) {
+        console.error("Delete student exception:", err);
+        alert("Ошибка удаления: " + (err.message || "Не удалось связаться с базой данных"));
+        return;
+      }
+    }
+
+    // 3. Обновляем локальные списки в кабинете
+    setStudents((prev) => prev.filter((s) => s.id !== studentId));
+    setLessons((prev) => prev.filter((l) => l.studentId !== studentId));
+
+    if (selectedStudentId === studentId) {
+      const remaining = students.filter((s) => s.id !== studentId);
+      if (remaining.length > 0) {
+        setSelectedStudentId(remaining[0].id);
+      }
+    }
+
+    // 4. Оповещаем другие вкладки и кабинеты
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("ayda:students-updated"));
+      window.dispatchEvent(new CustomEvent("ayda:lessons-updated"));
+    }
+  };
+
   // Модалка отчёта
   const handleOpenReportModal = (lesson: any) => {
     setSelectedLessonForNote(lesson);
@@ -1040,18 +1086,29 @@ export default function TeacherCabinet() {
                   className="bg-white rounded-3xl p-5 border border-slate-200 shadow-xs hover:border-blue-300 transition space-y-4 flex flex-col justify-between"
                 >
                   <div className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-extrabold text-lg flex items-center justify-center shadow-md shadow-blue-500/20">
-                        {st.name.charAt(0).toUpperCase()}
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-extrabold text-lg flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0">
+                          {st.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="font-extrabold text-slate-900 text-sm sm:text-base leading-tight truncate">
+                            {st.name}
+                          </h3>
+                          <span className="inline-block mt-0.5 px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-100 text-blue-800">
+                            {st.grade}
+                          </span>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="font-extrabold text-slate-900 text-sm sm:text-base leading-tight">
-                          {st.name}
-                        </h3>
-                        <span className="inline-block mt-0.5 px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-100 text-blue-800">
-                          {st.grade}
-                        </span>
-                      </div>
+
+                      <button
+                        type="button"
+                        onClick={(e) => handleDeleteStudent(e, st.id, st.name)}
+                        className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer shrink-0"
+                        title={`Удалить ученика «${st.name}»`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
 
                     <div className="bg-slate-50 rounded-2xl p-3 space-y-1.5 text-xs">
@@ -1068,14 +1125,24 @@ export default function TeacherCabinet() {
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => handleOpenCreateModal(st.id)}
-                    className="w-full py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs transition border border-blue-200/80 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Назначить урок</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenCreateModal(st.id)}
+                      className="flex-1 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs transition border border-blue-200/80 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Назначить урок</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => handleDeleteStudent(e, st.id, st.name)}
+                      className="p-2.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 transition cursor-pointer active:scale-95"
+                      title={`Удалить ученика «${st.name}»`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               );
             })}
