@@ -388,7 +388,7 @@ export default function HomePage() {
       </section>
 
       {/* 3. ИНТЕРАКТИВНЫЕ ЛИЧНЫЕ КАБИНЕТЫ (ТОЛЬКО УЧЕНИК И РОДИТЕЛЬ) */}
-      <section id="cabinets" className="max-w-4xl mx-auto space-y-6">
+      <section id="cabinets" className="max-w-5xl mx-auto space-y-6">
         <div className="text-center space-y-2">
           <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
             Личные кабинеты
@@ -407,7 +407,7 @@ export default function HomePage() {
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition ${
+              className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition cursor-pointer ${
                 activeTab === tab
                   ? "bg-white text-slate-900 shadow-xs"
                   : "text-slate-600 hover:text-slate-900"
@@ -447,7 +447,7 @@ export default function HomePage() {
       </section>
 
       {/* 4. НАПРАВЛЕНИЯ ЗАНЯТИЙ */}
-      <section className="max-w-4xl mx-auto space-y-6">
+      <section id="subjects" className="max-w-5xl mx-auto space-y-6">
         <div className="text-center space-y-2">
           <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-[1.2]">
             Предметы и программы занятий
@@ -461,174 +461,189 @@ export default function HomePage() {
           {subjects.map((sub, i) => (
             <div
               key={i}
-              className="clean-card p-5 space-y-2 hover:border-slate-300 transition"
+              className="clean-card p-5 space-y-2 hover:border-slate-300 transition flex flex-col justify-between"
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <span className="text-2xl">{sub.icon}</span>
-                  <h3 className="font-bold text-sm text-slate-900">{sub.name}</h3>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-2xl">{sub.icon}</span>
+                    <h3 className="font-bold text-sm sm:text-base text-slate-900">{sub.name}</h3>
+                  </div>
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200/80">
+                    {sub.grade}
+                  </span>
                 </div>
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200/80">
-                  {sub.grade}
-                </span>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  {sub.desc}
+                </p>
               </div>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                {sub.desc}
-              </p>
             </div>
           ))}
         </div>
       </section>
 
       {/* 5. ФОРМА ЗАПИСИ НА БЕСПЛАТНЫЙ ПРОБНЫЙ УРОК */}
-      <section id="trial" className="max-w-3xl mx-auto">
-        <div className="bg-white rounded-3xl border border-slate-200/90 shadow-xl p-6 sm:p-10 relative overflow-hidden space-y-8">
+      <section id="trial" className="max-w-5xl mx-auto">
+        <div className="bg-white rounded-3xl border border-slate-200/90 shadow-xl overflow-hidden relative">
           {/* Декоративная подсветка сверху */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-2 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600 rounded-b-full" />
+          <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600" />
 
-          {/* Заголовок секции */}
-          <div className="text-center space-y-3 pt-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-800 border border-slate-200 text-xs font-bold">
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              <span>Бесплатное первое занятие</span>
-            </span>
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-[1.2]">
-              Запишитесь на вводный онлайн-урок
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-600 max-w-lg mx-auto leading-relaxed">
-              Познакомим ребенка с репетитором, определим уровень знаний и составим персональный план обучения.
-            </p>
-          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-12">
+            {/* Левая колонка: Описание и преимущества первого урока */}
+            <div className="lg:col-span-5 p-6 sm:p-8 bg-slate-50/70 border-b lg:border-b-0 lg:border-r border-slate-100 flex flex-col justify-between space-y-6">
+              <div className="space-y-4">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-xs font-bold">
+                  <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Бесплатное первое занятие</span>
+                </span>
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-[1.2]">
+                  Запишитесь на вводный онлайн-урок
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                  Познакомим ребенка с репетитором, определим уровень знаний и составим персональный план обучения.
+                </p>
 
-          {/* 3 преимущества первого урока */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {[
-              { title: "45 минут", desc: "Полноценный урок 1 на 1" },
-              { title: "Диагностика", desc: "Выявим сильные стороны и пробелы" },
-              { title: "В браузере", desc: "Без установки сторонних программ" },
-            ].map((item, idx) => (
-              <div
-                key={idx}
-                className="p-3 rounded-2xl bg-slate-50 border border-slate-100 text-center space-y-0.5"
-              >
-                <div className="font-bold text-xs text-slate-900">{item.title}</div>
-                <div className="text-[11px] text-slate-500">{item.desc}</div>
+                <div className="space-y-3 pt-2">
+                  {[
+                    { icon: "⏱️", title: "45 минут", desc: "Полноценный индивидуальный урок" },
+                    { icon: "🎯", title: "Диагностика знаний", desc: "Выявим пробелы и составим трек" },
+                    { icon: "💻", title: "Прямо в браузере", desc: "Без Zoom и установки программ" },
+                  ].map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="p-3 rounded-2xl bg-white border border-slate-200/80 flex items-center gap-3"
+                    >
+                      <span className="text-xl">{item.icon}</span>
+                      <div>
+                        <div className="font-bold text-xs text-slate-900">{item.title}</div>
+                        <div className="text-[11px] text-slate-500">{item.desc}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            ))}
-          </div>
 
-          {/* Тело формы */}
-          {leadSuccess ? (
-            <div className="text-center py-8 space-y-3 bg-emerald-50/60 rounded-2xl border border-emerald-200 p-6">
-              <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-xs">
-                <CheckCircle2 className="w-6 h-6" />
-              </div>
-              <h3 className="font-bold text-lg text-emerald-950">Заявка успешно отправлена!</h3>
-              <p className="text-xs sm:text-sm text-emerald-800 max-w-md mx-auto">
-                Наш методист свяжется с вами в течение 15 минут, чтобы согласовать удобный день и время для бесплатного урока.
+              <p className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                <span>🔒</span>
+                <span>Ваши данные в безопасности (152-ФЗ РФ)</span>
               </p>
-              <button
-                onClick={() => setLeadSuccess(false)}
-                className="mt-3 inline-block text-xs font-bold text-emerald-700 hover:text-emerald-900 underline underline-offset-4 cursor-pointer"
-              >
-                Отправить ещё одну заявку
-              </button>
             </div>
-          ) : (
-            <form onSubmit={handleLeadSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Ваше имя (родитель):
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={leadParentName}
-                    onChange={(e) => setLeadParentName(e.target.value)}
-                    placeholder="Например: Елена"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 focus:bg-white text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition placeholder:text-slate-400"
-                  />
-                </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Имя ребёнка (необязательно):
-                  </label>
-                  <input
-                    type="text"
-                    value={leadChildName}
-                    onChange={(e) => setLeadChildName(e.target.value)}
-                    placeholder="Например: Артём"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 focus:bg-white text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition placeholder:text-slate-400"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Телефон для связи:
-                  </label>
-                  <div className="relative">
-                    <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-                    <input
-                      type="tel"
-                      required
-                      value={leadPhone}
-                      onChange={handlePhoneChange}
-                      onBlur={handlePhoneBlur}
-                      placeholder="+7 (999) 000-00-00"
-                      className={`w-full pl-10 pr-3.5 py-2.5 rounded-xl border text-xs sm:text-sm font-medium focus:outline-none transition placeholder:text-slate-400 ${
-                        phoneError
-                          ? "border-rose-400 bg-rose-50/30 text-rose-900 focus:border-rose-600 focus:ring-1 focus:ring-rose-600"
-                          : "border-slate-200 bg-slate-50/70 hover:bg-slate-50 focus:bg-white text-slate-900 focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
-                      }`}
-                    />
+            {/* Правая колонка: Форма */}
+            <div className="lg:col-span-7 p-6 sm:p-8 flex flex-col justify-center">
+              {leadSuccess ? (
+                <div className="text-center py-8 space-y-3 bg-emerald-50/60 rounded-2xl border border-emerald-200 p-6">
+                  <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-xs">
+                    <CheckCircle2 className="w-6 h-6" />
                   </div>
-                  {phoneError && (
-                    <p className="text-[11px] font-semibold text-rose-600 mt-1 flex items-center gap-1">
-                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                      <span>{phoneError}</span>
-                    </p>
-                  )}
+                  <h3 className="font-bold text-lg text-emerald-950">Заявка успешно отправлена!</h3>
+                  <p className="text-xs sm:text-sm text-emerald-800 max-w-md mx-auto">
+                    Наш методист свяжется с вами в течение 15 минут, чтобы согласовать удобный день и время для бесплатного урока.
+                  </p>
+                  <button
+                    onClick={() => setLeadSuccess(false)}
+                    className="mt-3 inline-block text-xs font-bold text-emerald-700 hover:text-emerald-900 underline underline-offset-4 cursor-pointer"
+                  >
+                    Отправить ещё одну заявку
+                  </button>
                 </div>
+              ) : (
+                <form onSubmit={handleLeadSubmit} className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                        Ваше имя (родитель):
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={leadParentName}
+                        onChange={(e) => setLeadParentName(e.target.value)}
+                        placeholder="Например: Елена"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 focus:bg-white text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition placeholder:text-slate-400"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Интересующий предмет:
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={leadSubject}
-                    onChange={(e) => setLeadSubject(e.target.value)}
-                    placeholder="Например: Математика, 3 класс"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 focus:bg-white text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition placeholder:text-slate-400"
-                  />
-                </div>
-              </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                        Имя ребёнка (необязательно):
+                      </label>
+                      <input
+                        type="text"
+                        value={leadChildName}
+                        onChange={(e) => setLeadChildName(e.target.value)}
+                        placeholder="Например: Артём"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 focus:bg-white text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition placeholder:text-slate-400"
+                      />
+                    </div>
+                  </div>
 
-              <button
-                type="submit"
-                disabled={leadSubmitting}
-                className="w-full mt-2 py-3.5 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm transition shadow-md shadow-blue-600/25 flex items-center justify-center gap-2 cursor-pointer active:scale-98 disabled:opacity-50"
-              >
-                <Sparkles className="w-4 h-4" />
-                <span>{leadSubmitting ? "Отправляем заявку..." : "Записаться на бесплатный пробный урок"}</span>
-                <ArrowRight className="w-4 h-4 ml-0.5" />
-              </button>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                        Телефон для связи:
+                      </label>
+                      <div className="relative">
+                        <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                        <input
+                          type="tel"
+                          required
+                          value={leadPhone}
+                          onChange={handlePhoneChange}
+                          onBlur={handlePhoneBlur}
+                          placeholder="+7 (999) 000-00-00"
+                          className={`w-full pl-10 pr-3.5 py-2.5 rounded-xl border text-xs sm:text-sm font-medium focus:outline-none transition placeholder:text-slate-400 ${
+                            phoneError
+                              ? "border-rose-400 bg-rose-50/30 text-rose-900 focus:border-rose-600 focus:ring-1 focus:ring-rose-600"
+                              : "border-slate-200 bg-slate-50/70 hover:bg-slate-50 focus:bg-white text-slate-900 focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                          }`}
+                        />
+                      </div>
+                      {phoneError && (
+                        <p className="text-[11px] font-semibold text-rose-600 mt-1 flex items-center gap-1">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                          <span>{phoneError}</span>
+                        </p>
+                      )}
+                    </div>
 
-              <p className="text-xs text-slate-500 text-center pt-1">
-                🔒 Ваши данные в безопасности и никогда не передаются третьим лицам
-              </p>
-            </form>
-          )}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                        Интересующий предмет:
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={leadSubject}
+                        onChange={(e) => setLeadSubject(e.target.value)}
+                        placeholder="Например: Математика, 3 класс"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 focus:bg-white text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition placeholder:text-slate-400"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={leadSubmitting}
+                    className="w-full mt-2 py-3.5 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm transition shadow-md shadow-blue-600/25 flex items-center justify-center gap-2 cursor-pointer active:scale-98 disabled:opacity-50"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    <span>{leadSubmitting ? "Отправляем заявку..." : "Записаться на бесплатный пробный урок"}</span>
+                    <ArrowRight className="w-4 h-4 ml-0.5" />
+                  </button>
+
+                  <p className="text-xs text-slate-400 text-center pt-1">
+                    🔒 Без спама. Мы свяжемся только для согласования времени урока.
+                  </p>
+                </form>
+              )}
+            </div>
+          </div>
         </div>
       </section>
 
       {/* 6. ОТВЕТЫ НА ЧАСТЫЕ ВОПРОСЫ (FAQ) */}
-      <section className="max-w-3xl mx-auto space-y-6">
+      <section id="faq" className="max-w-5xl mx-auto space-y-6">
         <div className="text-center space-y-2">
           <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
             Часто задаваемые вопросы
@@ -646,7 +661,7 @@ export default function HomePage() {
             >
               <button
                 onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                className="w-full p-5 text-left flex items-center justify-between gap-4 font-bold text-sm text-slate-900"
+                className="w-full p-5 text-left flex items-center justify-between gap-4 font-bold text-sm text-slate-900 cursor-pointer"
               >
                 <span>{faq.q}</span>
                 <ChevronDown

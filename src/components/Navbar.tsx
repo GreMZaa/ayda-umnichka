@@ -199,8 +199,8 @@ export default function Navbar() {
   return (
     <>
       {/* 1. ВЕРХНИЙ ИНФО-БАР (Белый фон, телефон + преимущества) */}
-      <div className="bg-white border-b border-slate-100 text-slate-600 text-[11px] sm:text-xs py-1.5 px-4 sm:px-6">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
+      <div className="bg-white border-b border-slate-100 text-slate-600 text-[11px] sm:text-xs py-1.5">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <span className="flex items-center gap-1.5 text-emerald-600 font-semibold">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
