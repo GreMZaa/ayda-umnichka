@@ -23,6 +23,7 @@ import {
   BookOpen,
 } from "lucide-react";
 import { getSupabase } from "@/lib/supabase";
+import { setAuthCookies, normalizeRole } from "@/lib/auth-session";
 
 function LoginForm() {
   const router = useRouter();
@@ -30,7 +31,12 @@ function LoginForm() {
 
   const initialMode = searchParams.get("mode") === "signup" ? "signup" : "signin";
   const [mode, setMode] = useState<"signin" | "signup">(initialMode);
-  const [selectedRole, setSelectedRole] = useState<"student" | "parent" | "teacher">("student");
+  const paramRole = searchParams.get("role");
+  const [selectedRole, setSelectedRole] = useState<"student" | "parent" | "teacher">(() => {
+    if (paramRole === "teacher") return "teacher";
+    if (paramRole === "parent") return "parent";
+    return "student";
+  });
   const [selectedGrade, setSelectedGrade] = useState("3 класс");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
@@ -44,9 +50,42 @@ function LoginForm() {
   const [message, setMessage] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
 
   useEffect(() => {
+    // Проверка наличия сообщения о защите доступа
+    try {
+      const toast = sessionStorage.getItem("ayda_auth_toast");
+      if (toast) {
+        setMessage({ type: "info", text: toast });
+        sessionStorage.removeItem("ayda_auth_toast");
+      }
+    } catch (e) {}
+
+    // Если пользователь уже авторизован, сразу направляем в его личный кабинет
+    const client = getSupabase();
+    if (client) {
+      client.auth.getSession().then(({ data }) => {
+        const u = data?.session?.user;
+        if (u) {
+          const r = normalizeRole(u.user_metadata?.role);
+          setAuthCookies(r, u.id, data.session?.access_token);
+          const redirectParam = searchParams.get("redirect");
+          if (redirectParam && redirectParam.startsWith(`/${r}`)) {
+            router.replace(redirectParam);
+          } else {
+            router.replace(`/${r}`);
+          }
+        }
+      });
+    }
+  }, [searchParams, router]);
+
+  useEffect(() => {
     const qMode = searchParams.get("mode");
     if (qMode === "signup") {
       setMode("signup");
+    }
+    const qRole = searchParams.get("role");
+    if (qRole === "teacher" || qRole === "parent" || qRole === "student") {
+      setSelectedRole(qRole);
     }
   }, [searchParams]);
 
@@ -56,7 +95,6 @@ function LoginForm() {
     setFullName("");
     setPhone("");
     setPhoneError(null);
-    setMessage(null);
   }, [mode]);
 
   // Маска российского телефона
@@ -171,15 +209,18 @@ function LoginForm() {
             if (prof?.role) userRole = prof.role.toLowerCase();
           } catch (e) {}
         }
-        if (!userRole) userRole = "student";
+        const normalized = normalizeRole(userRole);
+        setAuthCookies(normalized, data.user.id, data.session?.access_token);
 
         setMessage({
           type: "success",
           text: "Вход выполнен успешно! Перенаправляем в личный кабинет...",
         });
+        const redirectParam = searchParams.get("redirect");
+        const target = redirectParam && redirectParam.startsWith(`/${normalized}`) ? redirectParam : `/${normalized}`;
         setTimeout(() => {
-          router.push(`/${userRole}`);
-        }, 500);
+          router.push(target);
+        }, 300);
       } catch (err: any) {
         setMessage({
           type: "error",
@@ -238,14 +279,18 @@ function LoginForm() {
           }
         }
 
-        if (data.session) {
+        if (data.session && data.user) {
+          const normalized = normalizeRole(roleStr);
+          setAuthCookies(normalized, data.user.id, data.session.access_token);
           setMessage({
             type: "success",
             text: "Регистрация успешна! Входим в ваш личный кабинет...",
           });
+          const redirectParam = searchParams.get("redirect");
+          const target = redirectParam && redirectParam.startsWith(`/${normalized}`) ? redirectParam : `/${normalized}`;
           setTimeout(() => {
-            router.push(`/${roleStr}`);
-          }, 600);
+            router.push(target);
+          }, 400);
         } else {
           setMessage({
             type: "success",

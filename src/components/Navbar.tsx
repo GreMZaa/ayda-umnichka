@@ -29,6 +29,7 @@ import {
   Edit3,
 } from "lucide-react";
 import { getSupabase } from "@/lib/supabase";
+import { setAuthCookies, clearAuthCookies, normalizeRole } from "@/lib/auth-session";
 import EditProfileModal from "@/components/EditProfileModal";
 
 export default function Navbar() {
@@ -101,10 +102,11 @@ export default function Navbar() {
   useEffect(() => {
     const client = getSupabase();
     if (client) {
-      const updateProfile = (user: any) => {
+      const updateProfile = (user: any, token?: string) => {
         if (user) {
           const meta = user.user_metadata || {};
-          const rKey = (meta.role || "student").toLowerCase();
+          const rKey = normalizeRole(meta.role);
+          setAuthCookies(rKey, user.id, token);
           setAuthProfile({
             name: meta.full_name || user.email?.split("@")[0] || defaultCabinetName,
             role:
@@ -123,11 +125,11 @@ export default function Navbar() {
       };
 
       client.auth.getSession().then(({ data }) => {
-        updateProfile(data?.session?.user);
+        updateProfile(data?.session?.user, data?.session?.access_token);
       });
 
       const { data: authListener } = client.auth.onAuthStateChange((_event, session) => {
-        updateProfile(session?.user);
+        updateProfile(session?.user, session?.access_token);
       });
 
       // Подгрузка аватара из сохраненного профиля
@@ -211,10 +213,13 @@ export default function Navbar() {
             if (prof?.role) role = prof.role.toLowerCase();
           } catch (e) {}
         }
-        if (!role) role = selectedRole;
+        const confirmedRole = normalizeRole(role || selectedRole);
+        if (data.user) {
+          setAuthCookies(confirmedRole, data.user.id, data.session?.access_token);
+        }
 
         setShowLoginModal(false);
-        router.push(`/${role}`);
+        router.push(`/${confirmedRole}`);
         return;
       } catch (err: any) {
         setErrorMsg(err?.message || "Ошибка подключения к серверу авторизации.");
@@ -230,6 +235,15 @@ export default function Navbar() {
   };
 
   const handleLogout = async () => {
+    clearAuthCookies();
+    try {
+      localStorage.removeItem("ayda_current_user_profile");
+      localStorage.removeItem("ayda_profile_student");
+      localStorage.removeItem("ayda_profile_teacher");
+      localStorage.removeItem("ayda_profile_parent");
+      localStorage.removeItem("ayda_profile_admin");
+    } catch (e) {}
+
     const client = getSupabase();
     if (client) {
       try {

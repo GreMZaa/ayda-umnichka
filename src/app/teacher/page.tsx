@@ -84,7 +84,7 @@ export default function TeacherCabinet() {
   const [subjects, setSubjects] = useState<SubjectItem[]>(DEFAULT_SUBJECTS);
   const [students, setStudents] = useState<StudentProfile[]>(DEFAULT_STUDENTS);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"schedule" | "lessons" | "students" | "journal">("schedule");
+  const [activeTab, setActiveTab] = useState<"schedule" | "students" | "journal">("schedule");
   const [mounted, setMounted] = useState(false);
   const modalMouseDownRef = useRef<EventTarget | null>(null);
 
@@ -120,10 +120,6 @@ export default function TeacherCabinet() {
   const [feedback, setFeedback] = useState("");
   const [savingNote, setSavingNote] = useState(false);
   const [reportSuccessToast, setReportSuccessToast] = useState(false);
-
-  // Фильтр в списке уроков
-  const [lessonFilter, setLessonFilter] = useState<"ALL" | "SCHEDULED" | "COMPLETED">("ALL");
-  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     setMounted(true);
@@ -786,19 +782,6 @@ export default function TeacherCabinet() {
   const upcomingLessons = lessons.filter((l) => l.status === "SCHEDULED");
   const completedLessons = lessons.filter((l) => l.status === "COMPLETED");
 
-  const filteredLessons = lessons.filter((lesson) => {
-    if (lessonFilter === "SCHEDULED" && lesson.status !== "SCHEDULED") return false;
-    if (lessonFilter === "COMPLETED" && lesson.status !== "COMPLETED") return false;
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const matchTitle = lesson.title?.toLowerCase().includes(q);
-      const matchStudent = lesson.studentName?.toLowerCase().includes(q);
-      const matchSubject = lesson.subjectName?.toLowerCase().includes(q);
-      return matchTitle || matchStudent || matchSubject;
-    }
-    return true;
-  });
-
   return (
     <div className="space-y-6 pb-20">
       {/* 1. ГЛАВНАЯ КАРТОЧКА ПРЕПОДАВАТЕЛЯ В СТИЛЕ FOXFORD */}
@@ -931,8 +914,7 @@ export default function TeacherCabinet() {
       {/* 3. НАВИГАЦИОННЫЕ ТАБЫ КАБИНЕТА В СТИЛЕ FOXFORD */}
       <div className="flex p-1.5 bg-slate-100 rounded-2xl gap-1 overflow-x-auto">
         {[
-          { id: "schedule" as const, label: "Расписание уроков", icon: Calendar, badge: upcomingLessons.length + liveLessons.length },
-          { id: "lessons" as const, label: "Все уроки", icon: BookOpen, badge: lessons.length },
+          { id: "schedule" as const, label: "Расписание и уроки", icon: Calendar, badge: lessons.length },
           { id: "students" as const, label: "Мои ученики", icon: Users, badge: students.length },
           { id: "journal" as const, label: "Журнал и отчёты", icon: FileText, badge: completedLessons.length },
         ].map((tab) => {
@@ -963,16 +945,16 @@ export default function TeacherCabinet() {
         })}
       </div>
 
-      {/* 4. ВКЛАДКА 1: ФОКСФОРД-КАЛЕНДАРЬ РАСПИСАНИЯ */}
+      {/* 4. ВКЛАДКА 1: РАСПИСАНИЕ И УРОКИ (СЕТКА + СПИСОК) */}
       {activeTab === "schedule" && (
         <div className="space-y-4">
           <div className="flex items-center justify-between px-1">
             <div>
               <h2 className="text-base font-extrabold text-slate-900">
-                Интерактивный календарь занятий
+                Расписание и учебные занятия
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Просматривайте занятия по дням недели, запускайте видеоуроки и ставьте оценки
+                Просматривайте занятия по дням недели в сетке или переключайтесь на общий список уроков
               </p>
             </div>
             <button
@@ -990,180 +972,8 @@ export default function TeacherCabinet() {
             lessons={lessons}
             onUpdateStatus={handleUpdateStatus}
             onOpenReportModal={handleOpenReportModal}
+            onCreateLesson={() => handleOpenCreateModal()}
           />
-        </div>
-      )}
-
-      {/* 5. ВКЛАДКА 2: ВСЕ УРОКИ (СПИСОК С ФИЛЬТРАМИ И УПРАВЛЕНИЕМ) */}
-      {activeTab === "lessons" && (
-        <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1">
-            <div>
-              <h2 className="text-base font-extrabold text-slate-900">
-                Список учебных занятий
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Управление статусами, ссылка на видеокласс и проведение уроков
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => handleOpenCreateModal()}
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Создать урок</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Панель поиска и фильтрации */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200">
-            <div className="flex items-center gap-2">
-              {[
-                { id: "ALL", label: "Все уроки" },
-                { id: "SCHEDULED", label: "Запланированные" },
-                { id: "COMPLETED", label: "Завершённые" },
-              ].map((f) => (
-                <button
-                  key={f.id}
-                  onClick={() => setLessonFilter(f.id as any)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                    lessonFilter === f.id
-                      ? "bg-blue-600 text-white shadow-xs"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                  }`}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
-
-            <div className="relative">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Поиск по уроку, ученику..."
-                className="w-full sm:w-64 pl-9 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs font-medium focus:outline-none focus:border-blue-600"
-              />
-            </div>
-          </div>
-
-          {filteredLessons.length === 0 ? (
-            <div className="bg-white rounded-3xl p-12 border border-slate-200 text-center space-y-3">
-              <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 mx-auto flex items-center justify-center">
-                <BookOpen className="w-6 h-6" />
-              </div>
-              <h3 className="font-extrabold text-sm text-slate-800">Уроки не найдены</h3>
-              <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                Создайте первый урок для ученика, нажав кнопку «Создать урок»
-              </p>
-              <button
-                onClick={() => handleOpenCreateModal()}
-                className="px-4 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs"
-              >
-                + Создать новый урок
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filteredLessons.map((lesson) => (
-                <div
-                  key={lesson.id}
-                  className="bg-white rounded-3xl p-5 border border-slate-200 shadow-xs hover:border-blue-300 transition flex flex-col justify-between space-y-4"
-                >
-                  <div>
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <span
-                        className="px-2.5 py-0.5 rounded-full text-[11px] font-bold text-white"
-                        style={{ backgroundColor: lesson.subjectColor || "#2563eb" }}
-                      >
-                        {lesson.subjectName}
-                      </span>
-
-                      <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
-                        lesson.status === "LIVE"
-                          ? "bg-red-100 text-red-700 animate-pulse"
-                          : lesson.status === "COMPLETED"
-                          ? "bg-emerald-100 text-emerald-800"
-                          : "bg-blue-100 text-blue-800"
-                      }`}>
-                        {lesson.status === "LIVE" ? "Идёт сейчас" : lesson.status === "COMPLETED" ? "Завершён" : "Запланирован"}
-                      </span>
-                    </div>
-
-                    <h4 className="font-extrabold text-slate-900 text-sm sm:text-base leading-snug">
-                      {lesson.title}
-                    </h4>
-
-                    <div className="mt-2.5 space-y-1 text-xs text-slate-600">
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-3.5 h-3.5 text-slate-400" />
-                        <span>
-                          {format(new Date(lesson.startTime), "d MMMM, HH:mm", { locale: ru })} – {format(new Date(lesson.endTime), "HH:mm")}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <User className="w-3.5 h-3.5 text-slate-400" />
-                        <span>Ученик: <strong className="text-slate-800">{lesson.studentName}</strong></span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2 text-xs">
-                    <div className="flex items-center gap-1.5">
-                      {lesson.status === "SCHEDULED" && (
-                        <button
-                          onClick={() => handleUpdateStatus(lesson.id, "LIVE")}
-                          className="px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700 font-bold hover:bg-blue-100 transition cursor-pointer"
-                        >
-                          Начать урок
-                        </button>
-                      )}
-                      {lesson.status === "LIVE" && (
-                        <button
-                          onClick={() => handleUpdateStatus(lesson.id, "COMPLETED")}
-                          className="px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 font-bold hover:bg-emerald-100 transition cursor-pointer"
-                        >
-                          Завершить
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleOpenReportModal(lesson)}
-                        className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                          lesson.notes && lesson.notes.length > 0
-                            ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
-                            : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                        }`}
-                        title={lesson.notes && lesson.notes.length > 0 ? "Отчёт отправлен родителю. Нажмите для редактирования" : "Заполнить отчёт по уроку"}
-                      >
-                        {lesson.notes && lesson.notes.length > 0 ? (
-                          <>
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>Отчёт ✓</span>
-                          </>
-                        ) : (
-                          <span>Написать отчёт</span>
-                        )}
-                      </button>
-                    </div>
-
-                    <Link
-                      href={`/room/${lesson.id || lesson.roomName}?role=teacher`}
-                      className="font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
-                    >
-                      <span>В класс</span>
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       )}
 

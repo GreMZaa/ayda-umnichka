@@ -30,6 +30,7 @@ import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { getSupabase } from "@/lib/supabase";
 import { fetchWithAuth } from "@/lib/api-client";
+import { useAuthGuard, AuthLoadingScreen } from "@/lib/auth-session";
 import ScheduleCalendar from "@/components/ScheduleCalendar";
 import EditProfileModal from "@/components/EditProfileModal";
 
@@ -50,6 +51,7 @@ interface HomeworkItem {
 }
 
 export default function StudentCabinet() {
+  const { loading: authLoading, isAuthorized, user: authUser } = useAuthGuard("student");
   const [studentId, setStudentId] = useState("");
   const [studentName, setStudentName] = useState("Ученик");
   const [avatarUrl, setAvatarUrl] = useState("");
@@ -62,7 +64,7 @@ export default function StudentCabinet() {
   const [lessons, setLessons] = useState<any[]>([]);
   const [schoolSubjects, setSchoolSubjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"schedule" | "lessons" | "homework" | "awards">("schedule");
+  const [activeTab, setActiveTab] = useState<"schedule" | "homework" | "awards">("schedule");
 
   // Состояние модального окна домашнего задания
   const [selectedHomework, setSelectedHomework] = useState<HomeworkItem | null>(null);
@@ -172,41 +174,50 @@ export default function StudentCabinet() {
       return false;
     };
 
-    const hasLocal = applyLocalProfile();
+    const currentUserId = authUser?.id;
+    if (currentUserId) {
+      setStudentId(currentUserId);
+    }
 
     const client = getSupabase();
-    if (client) {
-      // 1. Профиль ученика из Supabase profiles
+    if (client && currentUserId) {
+      // 1. Профиль конкретно текущего вошедшего ученика из Supabase profiles
       client
         .from("profiles")
         .select("*")
-        .eq("role", "STUDENT")
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .then(({ data }) => {
-          if (data && data.length > 0) {
-            const profile = data[0];
-            setStudentId(profile.id);
+        .eq("id", currentUserId)
+        .maybeSingle()
+        .then(({ data: profile }) => {
+          if (profile) {
+            setStudentName(profile.name || authUser?.user_metadata?.full_name || "Ученик");
+            if (profile.avatar_url) setAvatarUrl(profile.avatar_url);
 
-            if (!hasLocal) {
-              setStudentName(profile.name || "Ученик");
-              if (profile.avatar_url) setAvatarUrl(profile.avatar_url);
+            let parsedBio: any = {};
+            try {
+              if (profile.bio && profile.bio.startsWith("{")) {
+                parsedBio = JSON.parse(profile.bio);
+              } else if (profile.bio) {
+                parsedBio.grade = profile.bio;
+              }
+            } catch (e) {}
 
-              let parsedBio: any = {};
-              try {
-                if (profile.bio && profile.bio.startsWith("{")) {
-                  parsedBio = JSON.parse(profile.bio);
-                } else if (profile.bio) {
-                  parsedBio.grade = profile.bio;
-                }
-              } catch (e) {}
-
-              if (parsedBio.grade) setGrade(parsedBio.grade);
-              if (parsedBio.school) setSchool(parsedBio.school);
-              if (parsedBio.bio) setBio(parsedBio.bio);
-              if (typeof parsedBio.balance === "number") setBalance(parsedBio.balance);
-              if (typeof parsedBio.stars === "number") setStars(parsedBio.stars);
-            }
+            if (parsedBio.grade) setGrade(parsedBio.grade);
+            if (parsedBio.school) setSchool(parsedBio.school);
+            if (parsedBio.bio) setBio(parsedBio.bio);
+            if (typeof parsedBio.balance === "number") setBalance(parsedBio.balance);
+            if (typeof parsedBio.stars === "number") setStars(parsedBio.stars);
+          } else {
+            const defName = authUser?.user_metadata?.full_name || authUser?.email?.split("@")[0] || "Ученик";
+            const defGrade = authUser?.user_metadata?.grade || "3 класс";
+            setStudentName(defName);
+            setGrade(defGrade);
+            client.from("profiles").upsert({
+              id: currentUserId,
+              email: authUser?.email,
+              name: defName,
+              role: "STUDENT",
+              bio: JSON.stringify({ grade: defGrade, school: "Онлайн-школа «АйДаУмничка»", balance: 8, stars: 28 }),
+            }).then(() => {});
           }
         });
 
@@ -238,8 +249,9 @@ export default function StudentCabinet() {
     };
     window.addEventListener("ayda:profile-updated", handleProfileUpdate);
 
-    // 3. Загрузка уроков ученика напрямую из Supabase с фоллбеком на API
+    // 3. Загрузка уроков ТОЛЬКО текущего ученика
     const loadStudentLessons = async () => {
+      if (!currentUserId) return;
       const client = getSupabase();
       if (client) {
         try {
@@ -259,9 +271,10 @@ export default function StudentCabinet() {
               teacher:teacher_id (name, avatar_url),
               student:student_id (name, avatar_url)
             `)
+            .eq("student_id", currentUserId)
             .order("start_time", { ascending: false });
 
-          if (!sbErr && sbLessons && sbLessons.length > 0) {
+          if (!sbErr && sbLessons) {
             const mapped = sbLessons.map((l: any) => ({
               id: l.id,
               title: l.title,
@@ -288,7 +301,7 @@ export default function StudentCabinet() {
         }
       }
 
-      fetchWithAuth("/api/lessons")
+      fetchWithAuth(`/api/lessons?studentId=${currentUserId}`)
         .then((res) => res.json())
         .then((data) => {
           setLessons(Array.isArray(data) ? data : []);
@@ -300,7 +313,9 @@ export default function StudentCabinet() {
         });
     };
 
-    loadStudentLessons();
+    if (currentUserId) {
+      loadStudentLessons();
+    }
 
     const handleLessonsUpdate = () => {
       loadStudentLessons();
@@ -311,7 +326,7 @@ export default function StudentCabinet() {
       window.removeEventListener("ayda:profile-updated", handleProfileUpdate);
       window.removeEventListener("ayda:lessons-updated", handleLessonsUpdate);
     };
-  }, []);
+  }, [authUser?.id]);
 
   const liveLesson = lessons.find((l) => l.status === "LIVE");
   const upcomingLessons = lessons.filter((l) => l.status === "SCHEDULED");
@@ -431,6 +446,10 @@ export default function StudentCabinet() {
     }, 1200);
   };
 
+  if (authLoading || !isAuthorized) {
+    return <AuthLoadingScreen roleTitle="Личный кабинет ученика" />;
+  }
+
   return (
     <div className="space-y-6 pb-20">
       {/* 1. ГЛАВНАЯ КАРТОЧКА ПРОФИЛЯ С ДАННЫМИ ИЗ SUPABASE */}
@@ -537,8 +556,7 @@ export default function StudentCabinet() {
       {/* 3. НАВИГАЦИОННЫЕ ТАБЫ КАБИНЕТА (ФОКСФОРД-СТИЛЬ) */}
       <div className="flex p-1.5 bg-slate-100 rounded-2xl gap-1 overflow-x-auto">
         {[
-          { id: "schedule" as const, label: "Расписание уроков", icon: Calendar, badge: upcomingLessons.length },
-          { id: "lessons" as const, label: "Уроки", icon: BookOpen, badge: lessons.length },
+          { id: "schedule" as const, label: "Расписание и уроки", icon: Calendar, badge: lessons.length },
           { id: "homework" as const, label: "Домашние задания", icon: FileText, badge: homeworkList.filter(h => h.status === "NEW").length },
           { id: "awards" as const, label: "Награды и звёзды", icon: Award, badge: 6 },
         ].map((tab) => {
@@ -569,103 +587,17 @@ export default function StudentCabinet() {
         })}
       </div>
 
-      {/* 4. ТАБ: РАСПИСАНИЕ УРОКОВ (ФОКСФОРД-КАЛЕНДАРЬ) */}
+      {/* 4. ТАБ: РАСПИСАНИЕ И УРОКИ (КАЛЕНДАРЬ + СПИСОК) */}
       {activeTab === "schedule" && (
-        <ScheduleCalendar
-          role="student"
-          lessons={lessons}
-        />
-      )}
-
-      {/* 5. ТАБ: УРОКИ (СИНХРОНИЗИРОВАНО С SUPABASE БЕЗ ТЕСТОВЫХ КУРСОВ) */}
-      {activeTab === "lessons" && (
         <div className="space-y-6">
-          <div className="flex items-center justify-between px-1">
-            <div>
-              <h2 className="text-base font-extrabold text-slate-900">
-                Все учебные занятия и предметы школы
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Занятия формируются администратором и преподавателями школы в Supabase
-              </p>
-            </div>
-            <span className="text-xs font-bold text-blue-700 bg-blue-50 px-3 py-1 rounded-xl border border-blue-200">
-              Всего уроков: {lessons.length}
-            </span>
-          </div>
-
-          {/* Список реальных уроков ученика из базы данных */}
-          <div className="space-y-3">
-            <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-600 px-1">
-              Ближайшие и прошедшие занятия:
-            </h3>
-
-            {lessons.length === 0 ? (
-              <div className="bg-white rounded-3xl p-10 border border-slate-200 text-center text-slate-500 text-sm">
-                Занятия формируются. Обратитесь к куратору или администратору школы.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {lessons.map((lesson) => (
-                  <div
-                    key={lesson.id}
-                    className="bg-white rounded-3xl p-5 border border-slate-200 shadow-xs hover:border-blue-300 transition flex flex-col justify-between space-y-4"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between gap-2 mb-2">
-                        <span
-                          className="px-2.5 py-0.5 rounded-full text-[11px] font-bold text-white"
-                          style={{ backgroundColor: lesson.subjectColor || "#2563eb" }}
-                        >
-                          {lesson.subjectName}
-                        </span>
-
-                        <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
-                          lesson.status === "LIVE"
-                            ? "bg-red-100 text-red-700 animate-pulse"
-                            : lesson.status === "COMPLETED"
-                            ? "bg-emerald-100 text-emerald-800"
-                            : "bg-blue-100 text-blue-800"
-                        }`}>
-                          {lesson.status === "LIVE" ? "Идёт сейчас" : lesson.status === "COMPLETED" ? "Завершён" : "Запланирован"}
-                        </span>
-                      </div>
-
-                      <h4 className="font-extrabold text-slate-900 text-sm sm:text-base leading-snug">
-                        {lesson.title}
-                      </h4>
-
-                      <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
-                        <Clock className="w-3.5 h-3.5 text-slate-400" />
-                        <span>
-                          {format(new Date(lesson.startTime), "d MMMM, HH:mm", { locale: ru })} – {format(new Date(lesson.endTime), "HH:mm")}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="text-slate-400">Учитель:</span>
-                        <strong className="text-slate-800">{lesson.teacherName}</strong>
-                      </div>
-
-                      <Link
-                        href={`/room/${lesson.id || lesson.roomName}?role=student`}
-                        className="font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
-                      >
-                        <span>В класс</span>
-                        <ChevronRight className="w-3.5 h-3.5" />
-                      </Link>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <ScheduleCalendar
+            role="student"
+            lessons={lessons}
+          />
 
           {/* Предметы школы из Supabase */}
           {schoolSubjects.length > 0 && (
-            <div className="space-y-3 pt-4 border-t border-slate-200">
+            <div className="space-y-3 pt-2">
               <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-600 px-1">
                 Доступные дисциплины школы «АйДаУмничка»:
               </h3>

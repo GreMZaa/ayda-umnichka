@@ -20,7 +20,10 @@ export function extractAuthToken(request: Request): string | null {
 
   // Проверка cookie
   const cookieHeader = request.headers.get("cookie") || "";
-  const match = cookieHeader.match(/sb-[a-z0-9]+-auth-token=([^;]+)/i) || cookieHeader.match(/supabase-auth-token=([^;]+)/i);
+  const match =
+    cookieHeader.match(/sb-access-token=([^;]+)/i) ||
+    cookieHeader.match(/sb-[a-z0-9]+-auth-token=([^;]+)/i) ||
+    cookieHeader.match(/supabase-auth-token=([^;]+)/i);
   if (match) {
     try {
       const decoded = decodeURIComponent(match[1]);

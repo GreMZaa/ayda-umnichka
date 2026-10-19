@@ -19,6 +19,8 @@ import {
   GraduationCap,
   RotateCcw,
   BookOpen,
+  Search,
+  Plus,
 } from "lucide-react";
 import {
   format,
@@ -57,6 +59,7 @@ interface ScheduleCalendarProps {
   title?: string;
   onUpdateStatus?: (lessonId: string, status: string) => Promise<void> | void;
   onOpenReportModal?: (lesson: LessonItem) => void;
+  onCreateLesson?: () => void;
 }
 
 const TIME_SLOTS = [
@@ -82,6 +85,7 @@ export default function ScheduleCalendar({
   title = "Расписание занятий",
   onUpdateStatus,
   onOpenReportModal,
+  onCreateLesson,
 }: ScheduleCalendarProps) {
   const [calendarDate, setCalendarDate] = useState<Date>(new Date());
   const [selectedMobileDay, setSelectedMobileDay] = useState<Date>(new Date());
@@ -92,6 +96,11 @@ export default function ScheduleCalendar({
   const [filterSubject, setFilterSubject] = useState<string>("all");
   const [showPastLessons, setShowPastLessons] = useState<boolean>(true);
   const [timezone, setTimezone] = useState<"MSK" | "LOCAL">("MSK");
+
+  // Состояния для режима «Списком»
+  const [listFilter, setListFilter] = useState<"ALL" | "SCHEDULED" | "COMPLETED">("ALL");
+  const [listSearchQuery, setListSearchQuery] = useState("");
+  const [listScope, setListScope] = useState<"all" | "week">("all");
 
   // Текущее время для красной линии
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
@@ -149,12 +158,55 @@ export default function ScheduleCalendar({
   const weekLessons = useMemo(() => {
     return filteredLessons.filter((l) => {
       const lDate = new Date(l.startTime);
-      return isWithinInterval(lDate, {
-        start: new Date(weekStart.setHours(0, 0, 0, 0)),
-        end: new Date(weekEnd.setHours(23, 59, 59, 999)),
-      });
+      const start = new Date(weekStart);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(weekEnd);
+      end.setHours(23, 59, 59, 999);
+      return isWithinInterval(lDate, { start, end });
     });
   }, [filteredLessons, weekStart, weekEnd]);
+
+  // Уроки для режима «Списком» с поиском и фильтрами
+  const listLessons = useMemo(() => {
+    return filteredLessons
+      .filter((lesson) => {
+        // Фильтр по статусу
+        if (listFilter === "SCHEDULED" && lesson.status !== "SCHEDULED") return false;
+        if (listFilter === "COMPLETED" && lesson.status !== "COMPLETED") return false;
+
+        // Фильтр по диапазону дат
+        if (listScope === "week") {
+          const lDate = new Date(lesson.startTime);
+          const start = new Date(weekStart);
+          start.setHours(0, 0, 0, 0);
+          const end = new Date(weekEnd);
+          end.setHours(23, 59, 59, 999);
+          if (!isWithinInterval(lDate, { start, end })) return false;
+        }
+
+        // Поиск
+        if (listSearchQuery.trim()) {
+          const q = listSearchQuery.toLowerCase();
+          const matchTitle = (lesson.title || "").toLowerCase().includes(q);
+          const matchSubject = (lesson.subjectName || "").toLowerCase().includes(q);
+          const matchStudent = (lesson.studentName || "").toLowerCase().includes(q);
+          const matchTeacher = (lesson.teacherName || "").toLowerCase().includes(q);
+          if (!matchTitle && !matchSubject && !matchStudent && !matchTeacher) return false;
+        }
+
+        return true;
+      })
+      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+  }, [filteredLessons, listFilter, listScope, weekStart, weekEnd, listSearchQuery]);
+
+  const countScheduled = useMemo(
+    () => filteredLessons.filter((l) => l.status === "SCHEDULED").length,
+    [filteredLessons]
+  );
+  const countCompleted = useMemo(
+    () => filteredLessons.filter((l) => l.status === "COMPLETED").length,
+    [filteredLessons]
+  );
 
   // Расчёт позиции красной полосы текущего времени
   const isCurrentWeek = isWithinInterval(new Date(), {
@@ -224,44 +276,62 @@ export default function ScheduleCalendar({
           </div>
         </div>
 
-        {/* Навигатор по неделям */}
-        <div className="flex items-center gap-1.5 sm:gap-2 w-full md:w-auto justify-between sm:justify-end">
-          <div className="flex items-center gap-1 sm:gap-1.5">
-            <button
-              type="button"
-              onClick={() => setCalendarDate(subWeeks(calendarDate, 1))}
-              className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition cursor-pointer active:scale-95"
-              title="Предыдущая неделя"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
+        {/* Навигатор по неделям (для сетки или если включён фильтр по неделе) */}
+        {(calendarViewMode === "calendar" || listScope === "week") ? (
+          <div className="flex items-center gap-1.5 sm:gap-2 w-full md:w-auto justify-between sm:justify-end">
+            <div className="flex items-center gap-1 sm:gap-1.5">
+              <button
+                type="button"
+                onClick={() => setCalendarDate(subWeeks(calendarDate, 1))}
+                className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition cursor-pointer active:scale-95"
+                title="Предыдущая неделя"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
 
-            <div className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800">
-              <CalendarIcon className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-              <span>
-                {format(weekStart, "d")} – {format(weekEnd, "d MMM", { locale: ru })}
-                <span className="hidden sm:inline"> {format(weekEnd, "yyyy")}</span>
-              </span>
+              <div className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800">
+                <CalendarIcon className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                <span>
+                  {format(weekStart, "d")} – {format(weekEnd, "d MMM", { locale: ru })}
+                  <span className="hidden sm:inline"> {format(weekEnd, "yyyy")}</span>
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setCalendarDate(addWeeks(calendarDate, 1))}
+                className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition cursor-pointer active:scale-95"
+                title="Следующая неделя"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
 
             <button
               type="button"
-              onClick={() => setCalendarDate(addWeeks(calendarDate, 1))}
-              className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition cursor-pointer active:scale-95"
-              title="Следующая неделя"
+              onClick={() => setCalendarDate(new Date())}
+              className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-blue-600 hover:bg-blue-50 transition cursor-pointer"
             >
-              <ChevronRight className="w-4 h-4" />
+              Сегодня
             </button>
           </div>
-
-          <button
-            type="button"
-            onClick={() => setCalendarDate(new Date())}
-            className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-blue-600 hover:bg-blue-50 transition cursor-pointer"
-          >
-            Сегодня
-          </button>
-        </div>
+        ) : (
+          <div className="flex items-center gap-2 w-full md:w-auto justify-between sm:justify-end">
+            <span className="text-xs font-semibold text-slate-500">
+              Показано уроков: <strong className="text-slate-800">{listLessons.length}</strong>
+            </span>
+            {role === "teacher" && onCreateLesson && (
+              <button
+                type="button"
+                onClick={onCreateLesson}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Создать урок</span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 2. РЕЖИМ 1: КАЛЕНДАРЬ */}
@@ -701,114 +771,236 @@ export default function ScheduleCalendar({
       </>
     )}
 
-      {/* 3. РЕЖИМ 2: СПИСКОМ (ФОКСФОРД-СТИЛЬ) */}
+      {/* 3. РЕЖИМ 2: СПИСКОМ (ФОКСФОРД-СТИЛЬ) С ПОИСКОМ И ФИЛЬТРАМИ */}
       {calendarViewMode === "list" && (
-        <div className="space-y-3">
-          {weekLessons.length === 0 ? (
+        <div className="space-y-4">
+          {/* Панель фильтрации и поиска */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200">
+            {/* Статусные табы */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              {[
+                { id: "ALL" as const, label: "Все уроки", count: filteredLessons.length },
+                { id: "SCHEDULED" as const, label: "Запланированные", count: countScheduled },
+                { id: "COMPLETED" as const, label: "Завершённые", count: countCompleted },
+              ].map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setListFilter(f.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                    listFilter === f.id
+                      ? "bg-blue-600 text-white shadow-2xs"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  <span>{f.label}</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                    listFilter === f.id ? "bg-white/20 text-white" : "bg-slate-200 text-slate-700"
+                  }`}>
+                    {f.count}
+                  </span>
+                </button>
+              ))}
+
+              {/* Переключатель диапазона дат: Все даты vs Выбранная неделя */}
+              <div className="flex p-0.5 bg-slate-100 rounded-xl ml-0 sm:ml-2">
+                <button
+                  type="button"
+                  onClick={() => setListScope("all")}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                    listScope === "all" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  Все даты
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setListScope("week")}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                    listScope === "week" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  Неделя
+                </button>
+              </div>
+            </div>
+
+            {/* Строка поиска */}
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={listSearchQuery}
+                onChange={(e) => setListSearchQuery(e.target.value)}
+                placeholder="Поиск по уроку, имени..."
+                className="w-full sm:w-64 pl-9 pr-7 py-1.5 rounded-xl border border-slate-200 text-xs font-medium focus:outline-none focus:border-blue-600"
+              />
+              {listSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setListSearchQuery("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Список карточек уроков */}
+          {listLessons.length === 0 ? (
             <div className="bg-white rounded-3xl p-10 border border-slate-200 text-center space-y-3">
-              <div className="text-3xl">📋</div>
-              <h3 className="text-base font-bold text-slate-800">Нет занятий на выбранную неделю</h3>
+              <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 mx-auto flex items-center justify-center">
+                <BookOpen className="w-6 h-6" />
+              </div>
+              <h3 className="font-extrabold text-sm text-slate-800">
+                {listSearchQuery ? "По вашему запросу ничего не найдено" : "Нет занятий по выбранным условиям"}
+              </h3>
               <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                Переключитесь на другую неделю или измените настройки фильтрации.
+                {listSearchQuery
+                  ? "Попробуйте изменить поисковый запрос или сбросить фильтры."
+                  : listScope === "week"
+                  ? "На выбранной неделе уроков нет. Переключитесь на «Все даты» или выберите другую неделю."
+                  : "Запланируйте первое занятие, нажав кнопку «Создать урок»."}
               </p>
+              {listSearchQuery ? (
+                <button
+                  type="button"
+                  onClick={() => setListSearchQuery("")}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer"
+                >
+                  Сбросить поиск
+                </button>
+              ) : role === "teacher" && onCreateLesson ? (
+                <button
+                  type="button"
+                  onClick={onCreateLesson}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition shadow-xs cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Создать новый урок</span>
+                </button>
+              ) : null}
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {weekLessons.map((lesson) => {
+              {listLessons.map((lesson) => {
                 const isLive = lesson.status === "LIVE";
                 const isCompleted = lesson.status === "COMPLETED";
 
                 return (
                   <div
                     key={lesson.id}
-                    className={`bg-white rounded-3xl p-5 sm:p-6 border shadow-xs space-y-4 transition ${
+                    className={`bg-white rounded-3xl p-5 border shadow-xs transition flex flex-col justify-between space-y-4 ${
                       isLive
-                        ? "border-emerald-400 bg-emerald-50/20"
+                        ? "border-blue-600 ring-2 ring-blue-500/20"
                         : "border-slate-200 hover:border-blue-300"
                     }`}
                   >
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-extrabold text-blue-700 bg-blue-50 px-3 py-1 rounded-xl">
-                        {lesson.subjectName}
-                      </span>
-                      <span className="font-semibold text-slate-700 flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-xl">
-                        <Clock className="w-3.5 h-3.5 text-slate-400" />
-                        <span>
-                          {format(new Date(lesson.startTime), "d MMMM (EE), HH:mm", { locale: ru })}
-                        </span>
-                      </span>
-                    </div>
-
                     <div>
-                      <h3 className="font-extrabold text-slate-900 text-base">{lesson.title}</h3>
-                      <p className="text-xs text-slate-500 mt-1">
-                        {role === "teacher"
-                          ? `Ученик: ${lesson.studentName || "Ученик"}`
-                          : `Преподаватель: ${lesson.teacherName || "Репетитор"}`}
-                      </p>
-                    </div>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span
+                          className="px-2.5 py-0.5 rounded-full text-[11px] font-bold text-white"
+                          style={{ backgroundColor: lesson.subjectColor || "#2563eb" }}
+                        >
+                          {lesson.subjectName}
+                        </span>
 
-                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-3">
-                      <div>
-                        {isLive ? (
-                          <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-                            Урок в эфире
-                          </span>
-                        ) : isCompleted ? (
-                          <span className="text-xs font-bold text-slate-500">
-                            ✓ Завершён
-                          </span>
-                        ) : (
-                          <span className="text-xs font-medium text-slate-500">
-                            Запланирован
-                          </span>
-                        )}
+                        <span
+                          className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
+                            isLive
+                              ? "bg-red-100 text-red-700 animate-pulse"
+                              : isCompleted
+                              ? "bg-emerald-100 text-emerald-800"
+                              : "bg-blue-100 text-blue-800"
+                          }`}
+                        >
+                          {isLive ? "Идёт сейчас" : isCompleted ? "Завершён" : "Запланирован"}
+                        </span>
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        {role === "teacher" && !isCompleted && !isLive && onUpdateStatus && (
-                          <button
-                            type="button"
-                            onClick={() => onUpdateStatus(lesson.id, "LIVE")}
-                            className="px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
-                          >
-                            Открыть класс
-                          </button>
+                      <h4 className="font-extrabold text-slate-900 text-sm sm:text-base leading-snug">
+                        {lesson.title}
+                      </h4>
+
+                      <div className="mt-2.5 space-y-1 text-xs text-slate-600">
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-3.5 h-3.5 text-slate-400" />
+                          <span>
+                            {format(new Date(lesson.startTime), "d MMMM (EE), HH:mm", { locale: ru })} – {format(new Date(lesson.endTime), "HH:mm")}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <User className="w-3.5 h-3.5 text-slate-400" />
+                          <span>
+                            {role === "teacher" ? "Ученик: " : "Преподаватель: "}
+                            <strong className="text-slate-800">
+                              {role === "teacher" ? (lesson.studentName || "Ученик") : (lesson.teacherName || "Репетитор")}
+                            </strong>
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {role === "teacher" && onUpdateStatus && (
+                          <>
+                            {lesson.status === "SCHEDULED" && (
+                              <button
+                                type="button"
+                                onClick={() => onUpdateStatus(lesson.id, "LIVE")}
+                                className="px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700 font-bold hover:bg-blue-100 transition cursor-pointer"
+                              >
+                                Начать урок
+                              </button>
+                            )}
+                            {lesson.status === "LIVE" && (
+                              <button
+                                type="button"
+                                onClick={() => onUpdateStatus(lesson.id, "COMPLETED")}
+                                className="px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 font-bold hover:bg-emerald-100 transition cursor-pointer"
+                              >
+                                Завершить
+                              </button>
+                            )}
+                          </>
                         )}
-                        {role === "teacher" && isCompleted && onOpenReportModal && (
+
+                        {role === "teacher" && onOpenReportModal && (
                           <button
                             type="button"
                             onClick={() => onOpenReportModal(lesson)}
-                            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                            className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer flex items-center gap-1.5 ${
                               lesson.notes && lesson.notes.length > 0
                                 ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
-                                : "bg-slate-100 hover:bg-slate-200 text-slate-800"
+                                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                             }`}
-                            title={lesson.notes && lesson.notes.length > 0 ? "Отчёт сдан родителям. Нажмите для редактирования" : "Написать отчёт"}
+                            title={lesson.notes && lesson.notes.length > 0 ? "Отчёт сдан родителям. Нажмите для редактирования" : "Заполнить отчёт по уроку"}
                           >
                             {lesson.notes && lesson.notes.length > 0 ? (
                               <>
                                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                <span>Отчёт сдан ✓</span>
+                                <span>Отчёт ✓</span>
                               </>
                             ) : (
                               <span>Отчёт</span>
                             )}
                           </button>
                         )}
-                        <Link
-                          href={`/room/${lesson.id || lesson.roomName}?role=${role}`}
-                          className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition shadow-xs ${
-                            isLive
-                              ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                              : "bg-blue-600 hover:bg-blue-700 text-white"
-                          }`}
-                        >
-                          <Video className="w-3.5 h-3.5" />
-                          <span>{role === "parent" ? "Присутствовать" : "Войти в класс"}</span>
-                        </Link>
                       </div>
+
+                      <Link
+                        href={`/room/${lesson.id || lesson.roomName}?role=${role}`}
+                        className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition shadow-2xs ${
+                          isLive
+                            ? "bg-red-600 hover:bg-red-700 text-white"
+                            : "bg-blue-600 hover:bg-blue-700 text-white"
+                        }`}
+                      >
+                        <Video className="w-3.5 h-3.5" />
+                        <span>{role === "parent" ? "Присутствовать" : "Войти в класс"}</span>
+                      </Link>
                     </div>
                   </div>
                 );
