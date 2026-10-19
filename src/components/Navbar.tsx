@@ -253,18 +253,26 @@ export default function Navbar() {
                 </div>
               </Link>
 
-              {/* Навигационные ссылки (десктоп) */}
-              <nav className="hidden lg:flex items-center gap-6 text-xs sm:text-sm font-semibold text-slate-600">
-                <Link href="/#trial" className="hover:text-blue-600 transition">
-                  Пробный урок
-                </Link>
-                <Link href="/#faq" className="hover:text-blue-600 transition">
-                  Вопросы и ответы
-                </Link>
-                <Link href="/#cabinets" className="hover:text-blue-600 transition">
-                  Личные кабинеты
-                </Link>
-              </nav>
+              {/* Навигационные ссылки (десктоп, только на публичных страницах) */}
+              {!isInsideCabinet ? (
+                <nav className="hidden lg:flex items-center gap-6 text-xs sm:text-sm font-semibold text-slate-600">
+                  <Link href="/#trial" className="hover:text-blue-600 transition">
+                    Пробный урок
+                  </Link>
+                  <Link href="/#faq" className="hover:text-blue-600 transition">
+                    Вопросы и ответы
+                  </Link>
+                  <Link href="/#cabinets" className="hover:text-blue-600 transition">
+                    Личные кабинеты
+                  </Link>
+                </nav>
+              ) : (
+                <div className="hidden sm:flex items-center gap-2 pl-4 border-l border-slate-200">
+                  <span className="px-2.5 py-1 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold">
+                    {defaultCabinetName}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Правые кнопки действий */}
@@ -376,21 +384,23 @@ export default function Navbar() {
                 </div>
               )}
 
-              {/* Мобильная кнопка меню */}
-              <button
-                type="button"
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="lg:hidden p-2 rounded-xl text-slate-600 hover:bg-slate-100 transition active:scale-95 cursor-pointer"
-                aria-label="Открыть меню навигации"
-              >
-                {mobileMenuOpen ? <X className="w-5 h-5 text-slate-900" /> : <Menu className="w-5 h-5 text-slate-700" />}
-              </button>
+              {/* Мобильная кнопка меню (только для публичных страниц) */}
+              {!isInsideCabinet && (
+                <button
+                  type="button"
+                  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                  className="lg:hidden p-2 rounded-xl text-slate-600 hover:bg-slate-100 transition active:scale-95 cursor-pointer"
+                  aria-label="Открыть меню навигации"
+                >
+                  {mobileMenuOpen ? <X className="w-5 h-5 text-slate-900" /> : <Menu className="w-5 h-5 text-slate-700" />}
+                </button>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Мобильное меню в стиле Фоксфорда */}
-        {mobileMenuOpen && (
+        {/* Мобильное меню в стиле Фоксфорда (только для публичных страниц) */}
+        {!isInsideCabinet && mobileMenuOpen && (
           <div className="lg:hidden border-t border-slate-200 bg-white px-4 py-4 space-y-4 shadow-xl animate-in slide-in-from-top-2 duration-150">
             {/* Быстрые переходы */}
             <div className="space-y-1">
