@@ -587,7 +587,7 @@ export default function ParentCabinet() {
           </div>
 
           <Link
-            href={`/room/${liveLesson.id || liveLesson.roomName}`}
+            href={`/room/${liveLesson.id || liveLesson.roomName}?role=parent`}
             className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow-md transition self-stretch sm:self-auto justify-center cursor-pointer"
           >
             <Video className="w-4 h-4" />

@@ -751,7 +751,7 @@ export default function TeacherCabinet() {
             </div>
           </div>
 
-          {/* Информационные виджеты + Кнопка создания урока */}
+          {/* Информационные виджеты */}
           <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full lg:w-auto">
             {/* Проведено уроков */}
             <div className="flex-1 sm:flex-none flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-blue-50 border border-blue-200 text-blue-900 shadow-2xs">
@@ -779,16 +779,6 @@ export default function TeacherCabinet() {
                 <div className="text-[10px] text-emerald-700 font-medium">Высшая категория</div>
               </div>
             </div>
-
-            {/* Главная кнопка: Создать урок */}
-            <button
-              type="button"
-              onClick={() => handleOpenCreateModal()}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs sm:text-sm shadow-md shadow-blue-500/25 transition active:scale-95 cursor-pointer"
-            >
-              <Plus className="w-4 h-4 stroke-[3]" />
-              <span>Создать урок</span>
-            </button>
           </div>
         </div>
       </div>
@@ -815,7 +805,7 @@ export default function TeacherCabinet() {
 
           <div className="flex items-center gap-2.5 w-full sm:w-auto">
             <Link
-              href={`/room/${liveLessons[0].id || liveLessons[0].roomName}`}
+              href={`/room/${liveLessons[0].id || liveLessons[0].roomName}?role=teacher`}
               className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-2xl bg-blue-600 text-white font-extrabold text-xs sm:text-sm shadow-lg shadow-blue-500/25 hover:bg-blue-700 transition transform hover:scale-105 active:scale-95 cursor-pointer"
             >
               <Video className="w-4 h-4 text-white" />
@@ -1044,7 +1034,7 @@ export default function TeacherCabinet() {
                     </div>
 
                     <Link
-                      href={`/room/${lesson.id || lesson.roomName}`}
+                      href={`/room/${lesson.id || lesson.roomName}?role=teacher`}
                       className="font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
                     >
                       <span>В класс</span>

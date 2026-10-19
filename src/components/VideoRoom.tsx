@@ -38,6 +38,7 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  X,
 } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api-client";
 import { getSupabase } from "@/lib/supabase";
@@ -100,6 +101,8 @@ export default function VideoRoom({
   const [mobileTab, setMobileTab] = useState<"board" | "video" | "chat" | "notes">("board");
   const [chatCollapsed, setChatCollapsed] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [mobileSplitView, setMobileSplitView] = useState(false);
+  const [mobilePipOpen, setMobilePipOpen] = useState(true);
 
   // Собеседник и текущий пользователь
   const isTeacher = userRole === "TEACHER";
@@ -126,6 +129,7 @@ export default function VideoRoom({
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const localVideoSideRef = useRef<HTMLVideoElement>(null);
   const localVideoMainRef = useRef<HTMLVideoElement>(null);
+  const mobileVideoRef = useRef<HTMLVideoElement>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
   const screenVideoRef = useRef<HTMLVideoElement>(null);
 
@@ -142,6 +146,10 @@ export default function VideoRoom({
     if (localVideoMainRef.current && localVideoMainRef.current.srcObject !== stream) {
       localVideoMainRef.current.srcObject = stream;
       if (stream) localVideoMainRef.current.play().catch(() => {});
+    }
+    if (mobileVideoRef.current && mobileVideoRef.current.srcObject !== stream) {
+      mobileVideoRef.current.srcObject = stream;
+      if (stream) mobileVideoRef.current.play().catch(() => {});
     }
   }, []);
 
@@ -242,7 +250,7 @@ export default function VideoRoom({
 
   // Разрешение на рисование для ученика (по умолчанию выключено)
   const [studentCanDraw, setStudentCanDraw] = useState(false);
-  const canDraw = userRole === "TEACHER" || studentCanDraw;
+  const canDraw = userRole === "TEACHER" || (userRole === "STUDENT" && Boolean(studentCanDraw));
 
   // Рефы для синхронизации в реальном времени через Supabase Realtime
   const channelRef = useRef<any>(null);
@@ -316,6 +324,7 @@ export default function VideoRoom({
   // Отрисовка удалённых штрихов (от преподавателя или ученика)
   const drawRemoteSegment = (payload: any) => {
     if (!payload || !payload.from || !payload.to) return;
+    if (userRole === "TEACHER" && payload.senderRole === "STUDENT" && !currentStudentCanDrawRef.current) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -365,6 +374,7 @@ export default function VideoRoom({
 
   const drawRemoteShape = (payload: any) => {
     if (!payload || !payload.start || !payload.end) return;
+    if (userRole === "TEACHER" && payload.senderRole === "STUDENT" && !currentStudentCanDrawRef.current) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -425,6 +435,7 @@ export default function VideoRoom({
 
   const drawRemoteText = (payload: any) => {
     if (!payload || !payload.text) return;
+    if (userRole === "TEACHER" && payload.senderRole === "STUDENT" && !currentStudentCanDrawRef.current) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -440,7 +451,8 @@ export default function VideoRoom({
     ctx.restore();
   };
 
-  const handleRemoteClear = () => {
+  const handleRemoteClear = (payload?: any) => {
+    if (userRole === "TEACHER" && payload?.senderRole === "STUDENT" && !currentStudentCanDrawRef.current) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -495,7 +507,7 @@ export default function VideoRoom({
       window.removeEventListener("resize", handleResize);
       clearTimeout(t);
     };
-  }, [initCanvas, activeTab, mobileTab, screenSharing]);
+  }, [initCanvas, activeTab, mobileTab, screenSharing, mobileSplitView]);
 
   // Подключение Supabase Realtime Broadcast для мгновенной синхронизации доски и чата
   useEffect(() => {
@@ -1126,8 +1138,18 @@ export default function VideoRoom({
 
   const copyRoomLink = () => {
     if (typeof window !== "undefined") {
-      navigator.clipboard.writeText(window.location.href);
-      showToast("Ссылка на урок скопирована!");
+      try {
+        const url = new URL(window.location.href);
+        // Если ссылку копирует учитель, создаем ссылку специально для входа ученика!
+        if (userRole === "TEACHER") {
+          url.searchParams.set("role", "student");
+        } else {
+          url.searchParams.set("role", "teacher");
+        }
+        navigator.clipboard.writeText(url.toString());
+      } catch (e) {
+        navigator.clipboard.writeText(window.location.href);
+      }
     }
   };
 
@@ -1148,7 +1170,7 @@ export default function VideoRoom({
           <div className="min-w-0 flex items-center gap-1.5 sm:gap-2.5">
             <span
               style={{ backgroundColor: `${subjectColor}15`, borderColor: `${subjectColor}40`, color: subjectColor }}
-              className="px-2 py-0.5 rounded-lg text-[11px] sm:text-xs font-bold border truncate max-w-[85px] sm:max-w-none"
+              className="px-2.5 py-1 rounded-xl text-xs font-bold border truncate max-w-[130px] sm:max-w-none"
             >
               {subjectName}
             </span>
@@ -1160,67 +1182,21 @@ export default function VideoRoom({
               В эфире
             </span>
 
-            {onRoleChange ? (
+            {onRoleChange && (
               <button
                 onClick={() => onRoleChange(userRole === "TEACHER" ? "STUDENT" : "TEACHER")}
-                className="hidden xl:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer"
-                title="Нажмите для проверки роли (Преподаватель / Ученик)"
+                className={`px-2 sm:px-2.5 py-1 rounded-xl text-xs font-bold border transition flex items-center gap-1 cursor-pointer shrink-0 ${
+                  userRole === "TEACHER"
+                    ? "bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"
+                    : "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200"
+                }`}
+                title="Нажмите для переключения роли (Преподаватель / Ученик)"
               >
-                <span>Роль:</span>
-                <span className={userRole === "TEACHER" ? "text-blue-600 font-extrabold" : "text-emerald-600 font-extrabold"}>
-                  {userRole === "TEACHER" ? "Преподаватель 👨‍🏫" : "Ученик 🎒"}
-                </span>
+                <span>{userRole === "TEACHER" ? "👨‍🏫 Учитель" : "🎒 Ученик"}</span>
+                <span className="text-[10px] opacity-60 underline ml-0.5 hidden xs:inline">сменить</span>
               </button>
-            ) : (
-              <span className="hidden xl:inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                {userRole === "TEACHER" ? "Преподаватель" : "Ученик"}
-              </span>
             )}
           </div>
-        </div>
-
-        {/* Центр: Переключатели режимов */}
-        {/* Мобильная версия (< md): 4 вкладки Доска / Видео / Чат / Инфо */}
-        <div className="flex md:hidden items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 text-xs shrink-0">
-          <button
-            onClick={() => setMobileTab("board")}
-            className={`px-2 py-1 rounded-lg font-bold transition flex items-center gap-1 cursor-pointer ${
-              mobileTab === "board" ? "bg-white text-blue-600 shadow-xs" : "text-slate-600"
-            }`}
-          >
-            <PenTool className="w-3.5 h-3.5" />
-            <span className="text-[11px]">Доска</span>
-          </button>
-          <button
-            onClick={() => setMobileTab("video")}
-            className={`px-2 py-1 rounded-lg font-bold transition flex items-center gap-1 cursor-pointer ${
-              mobileTab === "video" ? "bg-white text-blue-600 shadow-xs" : "text-slate-600"
-            }`}
-          >
-            <Video className="w-3.5 h-3.5" />
-            <span className="text-[11px]">Видео</span>
-          </button>
-          <button
-            onClick={() => setMobileTab("chat")}
-            className={`px-2 py-1 rounded-lg font-bold transition flex items-center gap-1 cursor-pointer relative ${
-              mobileTab === "chat" ? "bg-white text-blue-600 shadow-xs" : "text-slate-600"
-            }`}
-          >
-            <MessageSquare className="w-3.5 h-3.5" />
-            <span className="text-[11px]">Чат</span>
-            {messages.length > 0 && (
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-600 absolute top-1 right-1" />
-            )}
-          </button>
-          <button
-            onClick={() => setMobileTab("notes")}
-            className={`px-2 py-1 rounded-lg font-bold transition flex items-center gap-1 cursor-pointer ${
-              mobileTab === "notes" ? "bg-white text-blue-600 shadow-xs" : "text-slate-600"
-            }`}
-          >
-            <BookOpen className="w-3.5 h-3.5" />
-            <span className="text-[11px]">Инфо</span>
-          </button>
         </div>
 
         {/* Десктопная версия (>= md): Доска / Собеседник / Заметки */}
@@ -1260,9 +1236,23 @@ export default function VideoRoom({
           </button>
         </div>
 
-        {/* Справа: Таймер + Ссылка + Завершить */}
+        {/* Справа: Таймер + Д/З (на моб.) + Ссылка + Завершить */}
         <div className="flex items-center gap-1.5 text-xs shrink-0">
           <LessonTimer />
+
+          {/* Быстрое открытие Д/З и заметок на телефоне */}
+          <button
+            onClick={() => setMobileTab(mobileTab === "notes" ? "board" : "notes")}
+            className={`md:hidden px-2.5 py-1.5 rounded-xl border font-bold transition flex items-center gap-1 cursor-pointer ${
+              mobileTab === "notes"
+                ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                : "bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200"
+            }`}
+            title={mobileTab === "notes" ? "Вернуться к доске" : "Открыть домашнее задание и заметки"}
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            <span className="text-[11px]">Д/З</span>
+          </button>
 
           <button
             onClick={copyRoomLink}
@@ -1329,6 +1319,56 @@ export default function VideoRoom({
             </div>
           ) : (
             <>
+              {/* НА ТЕЛЕФОНЕ: СПЛИТ-ЭКРАН — КАМЕРА УЧИТЕЛЯ СВЕРХУ */}
+              {mobileSplitView && (
+                <div className="md:hidden w-full h-44 xs:h-48 shrink-0 bg-slate-950 border-b border-slate-300 relative overflow-hidden group">
+                  {userRole === "TEACHER" && camOn ? (
+                    <video
+                      ref={mobileVideoRef}
+                      autoPlay
+                      muted
+                      playsInline
+                      className="w-full h-full object-cover transform -scale-x-100"
+                    />
+                  ) : (
+                    <img
+                      src={isTeacher ? myAvatar : partnerAvatar}
+                      alt={isTeacher ? myName : partnerName}
+                      className="w-full h-full object-cover"
+                    />
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 pointer-events-none" />
+
+                  {/* Верхняя плашка с именем и кнопкой свернуть в PiP */}
+                  <div className="absolute top-2 left-2 right-2 flex items-center justify-between pointer-events-auto">
+                    <div className="bg-slate-900/85 backdrop-blur px-2.5 py-1 rounded-lg text-white font-bold text-xs flex items-center gap-1.5 border border-slate-700/60 shadow-xs">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="truncate">{isTeacher ? "Камера учителя (Вы)" : `Камера: ${partnerName}`}</span>
+                    </div>
+                    <button
+                      onClick={() => setMobileSplitView(false)}
+                      className="px-2.5 py-1 rounded-lg bg-slate-900/85 hover:bg-slate-800 text-white font-bold text-xs flex items-center gap-1 border border-slate-700/60 shadow-xs cursor-pointer"
+                      title="Свернуть камеру в мини-окно"
+                    >
+                      <Minimize2 className="w-3.5 h-3.5" />
+                      <span className="text-[11px]">В окно</span>
+                    </button>
+                  </div>
+
+                  {/* Нижняя плашка со статусом */}
+                  <div className="absolute bottom-2 left-2 flex items-center gap-1.5 pointer-events-none">
+                    <span className="bg-slate-900/85 backdrop-blur px-2 py-0.5 rounded text-[10px] text-slate-300 font-semibold border border-slate-700/40">
+                      {isTeacher ? "Преподаватель (Вы)" : "Преподаватель"}
+                    </span>
+                    {partnerRole === "Ученик" && raisedHand && (
+                      <span className="bg-amber-400 text-slate-950 px-2 py-0.5 rounded font-bold text-[10px] animate-pulse">
+                        ✋ Рука поднята
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* ЕСЛИ РИСОВАНИЕ ДЛЯ УЧЕНИКА ВЫКЛЮЧЕНО */}
               {userRole === "STUDENT" && !studentCanDraw ? (
                 <div className="absolute top-2.5 left-2.5 z-20 bg-white/95 backdrop-blur border border-amber-200 text-amber-900 rounded-xl shadow-md px-3.5 py-2 flex items-center gap-2.5 text-xs font-semibold max-w-[calc(100vw-1.25rem)]">
@@ -1338,6 +1378,21 @@ export default function VideoRoom({
               ) : (
                 /* ЛАКОНИЧНЫЙ ТУЛБАР ДОСКИ С ГОРИЗОНТАЛЬНОЙ ПРОКРУТКОЙ НА ТЕЛЕФОНЕ */
                 <div className="absolute top-2.5 left-2.5 z-20 bg-white border border-slate-200 rounded-xl shadow-md p-1 flex items-center gap-1 text-xs max-w-[calc(100vw-1.25rem)] overflow-x-auto">
+                  {/* Кнопка сплит-экрана для телефона */}
+                  <button
+                    onClick={() => setMobileSplitView((prev) => !prev)}
+                    className={`md:hidden px-2 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 ${
+                      mobileSplitView
+                        ? "bg-blue-600 text-white"
+                        : "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200"
+                    }`}
+                    title={mobileSplitView ? "Развернуть доску на весь экран" : "Показать камеру учителя сверху"}
+                  >
+                    <Video className="w-3.5 h-3.5" />
+                    <span className="text-[11px]">{mobileSplitView ? "Доска" : "Сплит"}</span>
+                  </button>
+                  <div className="md:hidden h-4 w-px bg-slate-200 mx-0.5" />
+
                   <button
                     onClick={() => setCurrentTool("pen")}
                     className={`p-2 rounded-lg transition cursor-pointer shrink-0 ${
@@ -1554,7 +1609,9 @@ export default function VideoRoom({
                 {/* Холст доски (прозрачный слой над сеткой) */}
                 <div
                   style={getBoardBackgroundStyle()}
-                  className="flex-1 w-full h-full relative cursor-crosshair overflow-hidden touch-none"
+                  className={`flex-1 w-full h-full relative overflow-hidden touch-none ${
+                    canDraw ? "cursor-crosshair" : "cursor-default"
+                  }`}
                 >
                   <canvas
                     ref={canvasRef}
@@ -1565,8 +1622,72 @@ export default function VideoRoom({
                     onTouchStart={handleStartDraw}
                     onTouchMove={handleDrawingMove}
                     onTouchEnd={handleEndDraw}
-                    className="absolute inset-0 w-full h-full block bg-transparent"
+                    className={`absolute inset-0 w-full h-full block bg-transparent ${
+                      canDraw
+                        ? "pointer-events-auto"
+                        : "pointer-events-none select-none"
+                    }`}
                   />
+
+                  {/* НА ТЕЛЕФОНЕ: ПЛАВАЮЩЕЕ ОКНО КАМЕРЫ УЧИТЕЛЯ (PiP поверх доски) */}
+                  {!mobileSplitView && mobilePipOpen && (
+                    <div className="md:hidden absolute bottom-3 right-3 z-30 w-32 xs:w-36 aspect-video rounded-2xl overflow-hidden bg-slate-950 border-2 border-white shadow-2xl group transition-all">
+                      {userRole === "TEACHER" && camOn ? (
+                        <video
+                          ref={mobileVideoRef}
+                          autoPlay
+                          muted
+                          playsInline
+                          className="w-full h-full object-cover transform -scale-x-100"
+                        />
+                      ) : (
+                        <img
+                          src={isTeacher ? myAvatar : partnerAvatar}
+                          alt={isTeacher ? myName : partnerName}
+                          className="w-full h-full object-cover"
+                        />
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent pointer-events-none" />
+
+                      {/* Имя учителя */}
+                      <div className="absolute bottom-1 left-1.5 right-1.5 flex items-center justify-between pointer-events-none">
+                        <span className="text-[10px] font-bold text-white truncate max-w-[80px]">
+                          {isTeacher ? "Вы" : partnerName.split(" ")[0]}
+                        </span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                      </div>
+
+                      {/* Кнопки управления окном */}
+                      <div className="absolute top-1 right-1 flex items-center gap-1">
+                        <button
+                          onClick={() => setMobileSplitView(true)}
+                          className="p-1 rounded-md bg-slate-900/80 hover:bg-blue-600 text-white transition cursor-pointer shadow-xs"
+                          title="Разделить экран (камера сверху, доска снизу)"
+                        >
+                          <Maximize2 className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={() => setMobilePipOpen(false)}
+                          className="p-1 rounded-md bg-slate-900/80 hover:bg-rose-600 text-white transition cursor-pointer shadow-xs"
+                          title="Скрыть мини-камеру"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* НА ТЕЛЕФОНЕ: КНОПКА ВОЗВРАТА ПЛАВАЮЩЕЙ КАМЕРЫ */}
+                  {!mobileSplitView && !mobilePipOpen && (
+                    <button
+                      onClick={() => setMobilePipOpen(true)}
+                      className="md:hidden absolute bottom-3 right-3 z-30 px-3 py-1.5 rounded-xl bg-slate-900/90 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg border border-slate-700 cursor-pointer animate-fade-in"
+                      title="Показать камеру учителя"
+                    >
+                      <Video className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Камера учителя</span>
+                    </button>
+                  )}
                 </div>
               </>
             )}

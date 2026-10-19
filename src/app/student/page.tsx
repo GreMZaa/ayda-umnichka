@@ -510,7 +510,7 @@ export default function StudentCabinet() {
           </div>
 
           <Link
-            href={`/room/${liveLesson.id || liveLesson.roomName}`}
+            href={`/room/${liveLesson.id || liveLesson.roomName}?role=student`}
             className="inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-2xl bg-blue-600 text-white font-black text-sm sm:text-base shadow-lg shadow-blue-500/25 hover:bg-blue-700 transition transform hover:scale-105 active:scale-95 shrink-0 w-full sm:w-auto cursor-pointer"
           >
             <Video className="w-5 h-5 text-white" />
@@ -636,7 +636,7 @@ export default function StudentCabinet() {
                       </div>
 
                       <Link
-                        href={`/room/${lesson.id || lesson.roomName}`}
+                        href={`/room/${lesson.id || lesson.roomName}?role=student`}
                         className="font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
                       >
                         <span>В класс</span>

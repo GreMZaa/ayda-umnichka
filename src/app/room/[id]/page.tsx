@@ -15,23 +15,33 @@ export default function RoomPage({ params }: { params: { id: string } }) {
   useEffect(() => {
     // 1. Определение текущей роли и профиля
     try {
-      const activeRole = localStorage.getItem("ayda_active_role");
       const urlParams = new URLSearchParams(window.location.search);
-      const roleFromQuery = urlParams.get("role");
+      const roleFromQuery = urlParams.get("role")?.toLowerCase();
+      const activeRole = localStorage.getItem("ayda_active_role")?.toLowerCase();
 
-      if (roleFromQuery === "student" || activeRole === "student") {
-        setCurrentRole("STUDENT");
-      } else if (roleFromQuery === "parent" || activeRole === "parent") {
-        setCurrentRole("PARENT");
-      } else {
-        setCurrentRole("TEACHER");
-      }
-
+      let profileRole: string | null = null;
       const savedUser =
         localStorage.getItem("ayda_current_user_profile") || localStorage.getItem("ayda_user");
       if (savedUser) {
-        const u = JSON.parse(savedUser);
-        if (u.name) setUserName(u.name);
+        try {
+          const u = JSON.parse(savedUser);
+          if (u.name) setUserName(u.name);
+          if (u.role) profileRole = String(u.role).toLowerCase();
+        } catch (e) {}
+      }
+
+      const referrer = typeof document !== "undefined" ? document.referrer.toLowerCase() : "";
+
+      if (roleFromQuery === "student" || activeRole === "student" || profileRole === "student" || referrer.includes("/student")) {
+        setCurrentRole("STUDENT");
+      } else if (roleFromQuery === "parent" || activeRole === "parent" || profileRole === "parent" || referrer.includes("/parent")) {
+        setCurrentRole("PARENT");
+      } else if (roleFromQuery === "teacher" || activeRole === "teacher" || profileRole === "teacher" || referrer.includes("/teacher")) {
+        setCurrentRole("TEACHER");
+      } else {
+        // На мобильных устройствах по умолчанию вход ученика (ссылку открыл ребенок по приглашению)
+        const isMobile = typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+        setCurrentRole(isMobile ? "STUDENT" : "TEACHER");
       }
     } catch (e) {}
 
@@ -120,7 +130,12 @@ export default function RoomPage({ params }: { params: { id: string } }) {
       studentAvatar={lesson?.studentAvatar}
       lessonId={lesson?.id || params.id}
       onEndLesson={handleEndLesson}
-      onRoleChange={setCurrentRole}
+      onRoleChange={(newRole) => {
+        setCurrentRole(newRole);
+        try {
+          localStorage.setItem("ayda_active_role", newRole.toLowerCase());
+        } catch (e) {}
+      }}
     />
   );
 }
