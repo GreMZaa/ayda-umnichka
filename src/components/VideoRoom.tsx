@@ -36,6 +36,8 @@ import {
   Lock,
   Unlock,
   Check,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api-client";
 import { getSupabase } from "@/lib/supabase";
@@ -94,10 +96,24 @@ export default function VideoRoom({
   onRoleChange,
 }: VideoRoomProps) {
   // 1. Навигация: режимы для десктопа и мобильных
-  const [activeTab, setActiveTab] = useState<"board" | "notes">("board");
-  const [mobileTab, setMobileTab] = useState<"board" | "chat" | "notes">("board");
+  const [activeTab, setActiveTab] = useState<"board" | "video" | "notes">("board");
+  const [mobileTab, setMobileTab] = useState<"board" | "video" | "chat" | "notes">("board");
+  const [chatCollapsed, setChatCollapsed] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Собеседник и текущий пользователь
+  const isTeacher = userRole === "TEACHER";
+  const partnerName = isTeacher ? studentName : teacherName;
+  const partnerRole = isTeacher ? "Ученик" : "Преподаватель";
+  const partnerAvatar = isTeacher
+    ? studentAvatar || "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=800&h=600&fit=crop&crop=faces"
+    : teacherAvatar || "https://images.unsplash.com/photo-1544717305-2782549b5136?w=800&h=600&fit=crop&crop=faces";
+
+  const myName = isTeacher ? teacherName : studentName;
+  const myAvatar = isTeacher
+    ? teacherAvatar || "https://images.unsplash.com/photo-1544717305-2782549b5136?w=400&h=300&fit=crop&crop=faces"
+    : studentAvatar || "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400&h=300&fit=crop&crop=faces";
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -111,8 +127,26 @@ export default function VideoRoom({
   const [raisedHand, setRaisedHand] = useState(false);
   const localStreamRef = useRef<MediaStream | null>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
+  const localVideoSideRef = useRef<HTMLVideoElement>(null);
+  const localVideoMainRef = useRef<HTMLVideoElement>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
   const screenVideoRef = useRef<HTMLVideoElement>(null);
+
+  // Синхронизация всех активных video-элементов локальной камеры
+  const syncLocalVideos = useCallback((stream: MediaStream | null) => {
+    if (localVideoRef.current && localVideoRef.current.srcObject !== stream) {
+      localVideoRef.current.srcObject = stream;
+      if (stream) localVideoRef.current.play().catch(() => {});
+    }
+    if (localVideoSideRef.current && localVideoSideRef.current.srcObject !== stream) {
+      localVideoSideRef.current.srcObject = stream;
+      if (stream) localVideoSideRef.current.play().catch(() => {});
+    }
+    if (localVideoMainRef.current && localVideoMainRef.current.srcObject !== stream) {
+      localVideoMainRef.current.srcObject = stream;
+      if (stream) localVideoMainRef.current.play().catch(() => {});
+    }
+  }, []);
 
   // Включение / выключение реальной веб-камеры
   const toggleCamera = async () => {
@@ -121,9 +155,7 @@ export default function VideoRoom({
         localStreamRef.current.getTracks().forEach((track) => track.stop());
         localStreamRef.current = null;
       }
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = null;
-      }
+      syncLocalVideos(null);
       setCamOn(false);
     } else {
       try {
@@ -139,11 +171,7 @@ export default function VideoRoom({
 
         localStreamRef.current = stream;
         setCamOn(true);
-
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = stream;
-          localVideoRef.current.play().catch(() => {});
-        }
+        syncLocalVideos(stream);
       } catch (err: any) {
         console.error("Ошибка доступа к камере:", err);
         alert("Не удалось запустить камеру. Пожалуйста, разрешите браузеру доступ к веб-камере.");
@@ -152,11 +180,10 @@ export default function VideoRoom({
   };
 
   useEffect(() => {
-    if (camOn && localVideoRef.current && localStreamRef.current) {
-      localVideoRef.current.srcObject = localStreamRef.current;
-      localVideoRef.current.play().catch(() => {});
+    if (camOn && localStreamRef.current) {
+      syncLocalVideos(localStreamRef.current);
     }
-  }, [camOn]);
+  }, [camOn, chatCollapsed, activeTab, mobileTab, syncLocalVideos]);
 
   // Включение / выключение настоящей демонстрации экрана
   const toggleScreenShare = async () => {
@@ -1105,7 +1132,7 @@ export default function VideoRoom({
         </div>
 
         {/* Центр: Переключатели режимов */}
-        {/* Мобильная версия (< md): 3 вкладки Доска / Чат / Инфо */}
+        {/* Мобильная версия (< md): 4 вкладки Доска / Видео / Чат / Инфо */}
         <div className="flex md:hidden items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 text-xs shrink-0">
           <button
             onClick={() => setMobileTab("board")}
@@ -1115,6 +1142,15 @@ export default function VideoRoom({
           >
             <PenTool className="w-3.5 h-3.5" />
             <span className="text-[11px]">Доска</span>
+          </button>
+          <button
+            onClick={() => setMobileTab("video")}
+            className={`px-2 py-1 rounded-lg font-bold transition flex items-center gap-1 cursor-pointer ${
+              mobileTab === "video" ? "bg-white text-blue-600 shadow-xs" : "text-slate-600"
+            }`}
+          >
+            <Video className="w-3.5 h-3.5" />
+            <span className="text-[11px]">Видео</span>
           </button>
           <button
             onClick={() => setMobileTab("chat")}
@@ -1139,7 +1175,7 @@ export default function VideoRoom({
           </button>
         </div>
 
-        {/* Десктопная версия (>= md): Доска / Заметки */}
+        {/* Десктопная версия (>= md): Доска / Собеседник / Заметки */}
         <div className="hidden md:flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
           <button
             onClick={() => setActiveTab("board")}
@@ -1151,6 +1187,17 @@ export default function VideoRoom({
           >
             <PenTool className="w-3.5 h-3.5" />
             <span>Доска</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("video")}
+            className={`px-3.5 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              activeTab === "video"
+                ? "bg-white text-blue-600 shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <Video className="w-3.5 h-3.5" />
+            <span>Собеседник</span>
           </button>
           <button
             onClick={() => setActiveTab("notes")}
@@ -1531,119 +1578,340 @@ export default function VideoRoom({
           </div>
         </div>
 
-        {/* ПРАВАЯ ПАНЕЛЬ: ВИДЕО + БОЛЬШОЙ ПРОСТОРНЫЙ ЧАТ */}
+        {/* РЕЖИМ 3: СОБЕСЕДНИК В ОСНОВНОМ ОКНЕ (FULLSTAGE ВИДЕО) */}
+        <div
+          className={`flex-1 flex flex-col bg-slate-950 relative overflow-hidden min-h-0 ${
+            activeTab === "video" ? "md:flex" : "md:hidden"
+          } ${
+            mobileTab === "video" ? "flex" : "hidden md:flex"
+          }`}
+        >
+          {/* Верхняя плашка управления видео-режимом */}
+          <div className="absolute top-3 left-3 right-3 z-20 flex items-center justify-between pointer-events-none">
+            <div className="bg-slate-900/85 backdrop-blur border border-slate-700/80 text-white rounded-xl shadow-lg px-3.5 py-2 flex items-center gap-2.5 text-xs font-semibold pointer-events-auto">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span>
+                {partnerRole}: <strong className="text-white">{partnerName}</strong>
+              </span>
+              {partnerRole === "Ученик" && raisedHand && (
+                <span className="bg-amber-400 text-slate-950 px-2 py-0.5 rounded-md font-bold text-[11px] animate-pulse">
+                  ✋ Поднята рука
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 pointer-events-auto">
+              <button
+                onClick={() => {
+                  setActiveTab("board");
+                  setMobileTab("board");
+                }}
+                className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-md transition cursor-pointer"
+                title="Вернуться к интерактивной доске"
+              >
+                <PenTool className="w-3.5 h-3.5" />
+                <span>К доске</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Большое центрированное видео/изображение собеседника */}
+          <div className="flex-1 flex items-center justify-center p-3 sm:p-6 relative">
+            <div className="w-full h-full max-w-5xl rounded-3xl overflow-hidden relative shadow-2xl bg-slate-900 border border-slate-800 flex items-center justify-center">
+              <img
+                src={partnerAvatar}
+                alt={partnerName}
+                className="w-full h-full object-cover sm:object-contain"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 pointer-events-none" />
+
+              {/* Бейдж собеседника внизу экрана */}
+              <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between pointer-events-none">
+                <div className="bg-slate-900/80 backdrop-blur px-3 py-1.5 rounded-xl border border-slate-700/60 text-white flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-sm font-bold truncate">{partnerName}</span>
+                  <span className="text-xs text-slate-400">({partnerRole})</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Картинка-в-картинке (камера пользователя) */}
+            <div className="absolute bottom-5 right-5 sm:bottom-8 sm:right-8 w-36 sm:w-48 aspect-video rounded-2xl overflow-hidden bg-slate-900 border-2 border-slate-700/80 shadow-2xl z-20">
+              {camOn ? (
+                <video
+                  ref={localVideoMainRef}
+                  autoPlay
+                  muted
+                  playsInline
+                  className="w-full h-full object-cover transform -scale-x-100"
+                />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center bg-slate-800 text-slate-300 p-2">
+                  <img
+                    src={myAvatar}
+                    alt={myName}
+                    className="w-10 h-10 rounded-full object-cover border border-slate-600 mb-1"
+                  />
+                  <span className="text-[10px] font-bold truncate max-w-full">Вы (камера выкл)</span>
+                </div>
+              )}
+              <div className="absolute bottom-1.5 left-1.5 bg-slate-950/80 backdrop-blur px-1.5 py-0.5 rounded text-[10px] text-white font-bold">
+                Вы
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ПРАВАЯ ПАНЕЛЬ: КАМЕРЫ + ЧАТ С ВОЗМОЖНОСТЬЮ СВЕРНУТЬ ЧАТ ВНИЗ */}
         <div
           className={`w-full md:w-80 lg:w-96 bg-white border-t md:border-t-0 md:border-l border-slate-200 flex flex-col shrink-0 h-full min-h-0 ${
             mobileTab === "chat" ? "flex" : "hidden md:flex"
           }`}
         >
-          {/* Компактный блок видео (чтобы не отбирать место у чата) */}
-          <div className="p-3 border-b border-slate-200 bg-slate-50 grid grid-cols-2 gap-2">
-            {/* Преподаватель */}
-            <div className="rounded-xl overflow-hidden bg-slate-200 aspect-video relative border border-slate-300">
-              {userRole === "TEACHER" && camOn ? (
-                <video
-                  ref={localVideoRef}
-                  autoPlay
-                  muted
-                  playsInline
-                  className="w-full h-full object-cover transform -scale-x-100"
-                />
-              ) : (
-                <img
-                  src={
-                    teacherAvatar ||
-                    "https://images.unsplash.com/photo-1544717305-2782549b5136?w=400&h=300&fit=crop&crop=faces"
-                  }
-                  alt={teacherName}
-                  className="w-full h-full object-cover"
-                />
-              )}
-              <div className="absolute bottom-1 left-1 right-1 bg-slate-900/80 backdrop-blur px-1.5 py-0.5 rounded text-[10px] text-white font-bold truncate">
-                {teacherName}
-              </div>
-            </div>
+          {chatCollapsed ? (
+            /* РЕЖИМ: ЧАТ СВЕРНУТ ВНИЗ — КАМЕРА СОБЕСЕДНИКА БОЛЬШАЯ */
+            <>
+              <div className="flex-1 flex flex-col p-3 bg-slate-100 min-h-0 overflow-hidden">
+                {/* Камера собеседника на весь размер панели */}
+                <div className="flex-1 w-full min-h-0 relative rounded-2xl overflow-hidden bg-slate-900 border border-slate-300 shadow-sm flex items-center justify-center group">
+                  <img
+                    src={partnerAvatar}
+                    alt={partnerName}
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 pointer-events-none" />
 
-            {/* Ученик */}
-            <div className="rounded-xl overflow-hidden bg-slate-200 aspect-video relative border border-slate-300">
-              {userRole === "STUDENT" && camOn ? (
-                <video
-                  ref={localVideoRef}
-                  autoPlay
-                  muted
-                  playsInline
-                  className="w-full h-full object-cover transform -scale-x-100"
-                />
-              ) : (
-                <img
-                  src={
-                    studentAvatar ||
-                    "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400&h=300&fit=crop&crop=faces"
-                  }
-                  alt={studentName}
-                  className="w-full h-full object-cover"
-                />
-              )}
-              <div className="absolute bottom-1 left-1 right-1 bg-slate-900/80 backdrop-blur px-1.5 py-0.5 rounded text-[10px] text-white font-bold truncate flex items-center justify-between">
-                <span className="truncate">{studentName}</span>
-                {raisedHand && <span className="text-amber-300 ml-1">✋</span>}
-              </div>
-            </div>
-          </div>
-
-          {/* БОЛЬШОЙ ПРОСТОРНЫЙ ЧАТ НА ВСЮ ВЫСОТУ */}
-          <div className="flex-1 flex flex-col justify-between p-3.5 bg-white overflow-hidden min-h-0">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <span className="font-extrabold text-sm text-slate-800 flex items-center gap-2">
-                <MessageSquare className="w-4 h-4 text-blue-600" />
-                Чат урока
-              </span>
-              <span className="text-xs text-slate-400 font-medium">{messages.length} сообщ.</span>
-            </div>
-
-            {/* Список сообщений (крупный, удобный) */}
-            <div className="flex-1 overflow-y-auto space-y-3 py-3 pr-1">
-              {messages.map((m) => {
-                const isMe =
-                  (userRole === "TEACHER" && m.isTeacher) ||
-                  (userRole === "STUDENT" && !m.isTeacher);
-                return (
-                  <div
-                    key={m.id}
-                    className={`p-3 rounded-2xl max-w-[85%] text-sm ${
-                      isMe
-                        ? "bg-blue-600 text-white ml-auto shadow-xs"
-                        : "bg-slate-100 text-slate-900 mr-auto border border-slate-200"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-3 text-xs opacity-80 mb-1">
-                      <span className="font-bold">{m.sender}</span>
-                      <span className="text-[11px]">{m.time}</span>
+                  {/* Верхняя плашка */}
+                  <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between">
+                    <div className="bg-slate-900/85 backdrop-blur px-2.5 py-1 rounded-lg text-white font-bold text-xs flex items-center gap-1.5 border border-slate-700/60 shadow-xs">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="truncate">{partnerName}</span>
                     </div>
-                    <p className="font-medium text-sm leading-relaxed break-words">{m.text}</p>
+                    <button
+                      onClick={() => {
+                        setActiveTab("video");
+                        setMobileTab("video");
+                      }}
+                      className="p-1.5 rounded-lg bg-slate-900/85 hover:bg-blue-600 text-white transition border border-slate-700/60 shadow-xs cursor-pointer"
+                      title="Вывести в главное окно"
+                    >
+                      <Maximize2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
-                );
-              })}
-            </div>
 
-            {/* Форма ввода (крупная и удобная) */}
-            <form onSubmit={handleSendMessage} className="mt-2 flex gap-2 pt-2 border-t border-slate-100">
-              <input
-                type="text"
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                placeholder="Напишите сообщение..."
-                className="flex-1 text-sm p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-blue-600 transition"
-              />
-              <button
-                type="submit"
-                className="p-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white transition shrink-0 cursor-pointer shadow-xs"
-                title="Отправить"
+                  {/* Нижняя информация */}
+                  <div className="absolute bottom-2.5 left-2.5 flex items-center gap-1.5">
+                    <span className="bg-slate-900/85 backdrop-blur px-2 py-0.5 rounded text-[11px] text-slate-300 font-medium border border-slate-700/40">
+                      {partnerRole}
+                    </span>
+                    {partnerRole === "Ученик" && raisedHand && (
+                      <span className="bg-amber-400 text-slate-950 px-2 py-0.5 rounded font-bold text-[11px] animate-pulse">
+                        ✋ Рука
+                      </span>
+                    )}
+                  </div>
+
+                  {/* PiP текущего пользователя */}
+                  <div className="absolute bottom-2.5 right-2.5 w-24 sm:w-28 aspect-video rounded-xl overflow-hidden bg-slate-800 border-2 border-white shadow-lg z-10">
+                    {camOn ? (
+                      <video
+                        ref={localVideoSideRef}
+                        autoPlay
+                        muted
+                        playsInline
+                        className="w-full h-full object-cover transform -scale-x-100"
+                      />
+                    ) : (
+                      <img
+                        src={myAvatar}
+                        alt={myName}
+                        className="w-full h-full object-cover"
+                      />
+                    )}
+                    <div className="absolute bottom-0.5 left-0.5 bg-slate-900/85 px-1 py-0.2 rounded text-[9px] text-white font-bold">
+                      Вы
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Свернутая плашка чата внизу */}
+              <div
+                onClick={() => setChatCollapsed(false)}
+                className="p-3 bg-white border-t border-slate-200 flex items-center justify-between shadow-xs hover:bg-slate-50 transition cursor-pointer select-none"
+                title="Нажмите, чтобы развернуть чат"
               >
-                <Send className="w-4 h-4" />
-              </button>
-            </form>
-          </div>
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100">
+                    <MessageSquare className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-slate-800">Чат урока</span>
+                      <span className="px-1.5 py-0.2 rounded-full bg-slate-100 text-[10px] font-bold text-slate-600">
+                        {messages.length}
+                      </span>
+                    </div>
+                    {messages.length > 0 && (
+                      <p className="text-[11px] text-slate-500 truncate max-w-[150px] sm:max-w-[180px]">
+                        {messages[messages.length - 1].sender}: {messages[messages.length - 1].text}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setChatCollapsed(false);
+                  }}
+                  className="px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold flex items-center gap-1 transition shrink-0 cursor-pointer"
+                >
+                  <ChevronUp className="w-3.5 h-3.5" />
+                  <span>Развернуть</span>
+                </button>
+              </div>
+            </>
+          ) : (
+            /* РЕЖИМ: ОБЫЧНЫЙ (ВИДЕО СВЕРХУ + РАЗВЕРНУТЫЙ ЧАТ) */
+            <>
+              {/* Компактный блок видео */}
+              <div className="p-3 border-b border-slate-200 bg-slate-50 grid grid-cols-2 gap-2">
+                {/* Преподаватель */}
+                <div className="rounded-xl overflow-hidden bg-slate-200 aspect-video relative border border-slate-300 group">
+                  {userRole === "TEACHER" && camOn ? (
+                    <video
+                      ref={localVideoRef}
+                      autoPlay
+                      muted
+                      playsInline
+                      className="w-full h-full object-cover transform -scale-x-100"
+                    />
+                  ) : (
+                    <img
+                      src={
+                        teacherAvatar ||
+                        "https://images.unsplash.com/photo-1544717305-2782549b5136?w=400&h=300&fit=crop&crop=faces"
+                      }
+                      alt={teacherName}
+                      className="w-full h-full object-cover"
+                    />
+                  )}
+                  <div className="absolute bottom-1 left-1 right-1 bg-slate-900/80 backdrop-blur px-1.5 py-0.5 rounded text-[10px] text-white font-bold truncate">
+                    {teacherName}
+                  </div>
+                  <button
+                    onClick={() => {
+                      setActiveTab("video");
+                      setMobileTab("video");
+                    }}
+                    className="absolute top-1 right-1 p-1 rounded-md bg-slate-900/70 hover:bg-blue-600 text-white opacity-80 hover:opacity-100 transition shadow-xs cursor-pointer"
+                    title="Вывести в главное окно"
+                  >
+                    <Maximize2 className="w-3 h-3" />
+                  </button>
+                </div>
+
+                {/* Ученик */}
+                <div className="rounded-xl overflow-hidden bg-slate-200 aspect-video relative border border-slate-300 group">
+                  {userRole === "STUDENT" && camOn ? (
+                    <video
+                      ref={localVideoRef}
+                      autoPlay
+                      muted
+                      playsInline
+                      className="w-full h-full object-cover transform -scale-x-100"
+                    />
+                  ) : (
+                    <img
+                      src={
+                        studentAvatar ||
+                        "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400&h=300&fit=crop&crop=faces"
+                      }
+                      alt={studentName}
+                      className="w-full h-full object-cover"
+                    />
+                  )}
+                  <div className="absolute bottom-1 left-1 right-1 bg-slate-900/80 backdrop-blur px-1.5 py-0.5 rounded text-[10px] text-white font-bold truncate flex items-center justify-between">
+                    <span className="truncate">{studentName}</span>
+                    {raisedHand && <span className="text-amber-300 ml-1">✋</span>}
+                  </div>
+                  <button
+                    onClick={() => {
+                      setActiveTab("video");
+                      setMobileTab("video");
+                    }}
+                    className="absolute top-1 right-1 p-1 rounded-md bg-slate-900/70 hover:bg-blue-600 text-white opacity-80 hover:opacity-100 transition shadow-xs cursor-pointer"
+                    title="Вывести в главное окно"
+                  >
+                    <Maximize2 className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+
+              {/* БОЛЬШОЙ ЧАТ С КНОПКОЙ СВОРАЧИВАНИЯ */}
+              <div className="flex-1 flex flex-col justify-between p-3.5 bg-white overflow-hidden min-h-0">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                  <span className="font-extrabold text-sm text-slate-800 flex items-center gap-2">
+                    <MessageSquare className="w-4 h-4 text-blue-600" />
+                    Чат урока
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-400 font-medium">{messages.length} сообщ.</span>
+                    <button
+                      onClick={() => setChatCollapsed(true)}
+                      className="p-1 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition cursor-pointer"
+                      title="Скрыть чат вниз (увеличить камеру собеседника)"
+                    >
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Список сообщений (крупный, удобный) */}
+                <div className="flex-1 overflow-y-auto space-y-3 py-3 pr-1">
+                  {messages.map((m) => {
+                    const isMe =
+                      (userRole === "TEACHER" && m.isTeacher) ||
+                      (userRole === "STUDENT" && !m.isTeacher);
+                    return (
+                      <div
+                        key={m.id}
+                        className={`p-3 rounded-2xl max-w-[85%] text-sm ${
+                          isMe
+                            ? "bg-blue-600 text-white ml-auto shadow-xs"
+                            : "bg-slate-100 text-slate-900 mr-auto border border-slate-200"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-3 text-xs opacity-80 mb-1">
+                          <span className="font-bold">{m.sender}</span>
+                          <span className="text-[11px]">{m.time}</span>
+                        </div>
+                        <p className="font-medium text-sm leading-relaxed break-words">{m.text}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Форма ввода */}
+                <form onSubmit={handleSendMessage} className="mt-2 flex gap-2 pt-2 border-t border-slate-100">
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder="Напишите сообщение..."
+                    className="flex-1 text-sm p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-blue-600 transition"
+                  />
+                  <button
+                    type="submit"
+                    className="p-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white transition shrink-0 cursor-pointer shadow-xs"
+                    title="Отправить"
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
+                </form>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
