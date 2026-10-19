@@ -84,6 +84,7 @@ export default function ScheduleCalendar({
   onOpenReportModal,
 }: ScheduleCalendarProps) {
   const [calendarDate, setCalendarDate] = useState<Date>(new Date());
+  const [selectedMobileDay, setSelectedMobileDay] = useState<Date>(new Date());
   const [calendarViewMode, setCalendarViewMode] = useState<"calendar" | "list">("calendar");
 
   // Состояния фильтра («Настройки»)
@@ -263,17 +264,200 @@ export default function ScheduleCalendar({
         </div>
       </div>
 
-      {/* 2. РЕЖИМ 1: СЕТКА-КАЛЕНДАРЬ */}
+      {/* 2. РЕЖИМ 1: КАЛЕНДАРЬ */}
       {calendarViewMode === "calendar" && (
-        <div className="bg-white rounded-3xl border border-slate-200/90 shadow-xs overflow-hidden">
-          {/* Подсказка для мобильных телефонов */}
-          <div className="lg:hidden px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-medium">
-            <span>👉 Смахните сетку вправо/влево для просмотра всех дней</span>
-            <span className="font-bold text-blue-600">7 дней</span>
+        <>
+          {/* А. МОБИЛЬНЫЙ ВИД: ДЕНЬ ЗА ДНЕМ (md:hidden) */}
+          <div className="md:hidden space-y-3">
+            {/* Горизонтальный селектор дней недели */}
+            <div className="bg-white p-2 rounded-2xl border border-slate-200/90 shadow-2xs">
+              <div className="grid grid-cols-7 gap-1">
+                {weekDays.map((day, idx) => {
+                  const isSelected = isSameDay(day, selectedMobileDay);
+                  const isToday = isSameDay(day, new Date());
+                  const dayLessons = filteredLessons.filter((l) => isSameDay(new Date(l.startTime), day));
+
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setSelectedMobileDay(day)}
+                      className={`py-2 px-1 rounded-xl flex flex-col items-center gap-1 transition cursor-pointer ${
+                        isSelected
+                          ? "bg-blue-600 text-white shadow-sm shadow-blue-500/25 font-black"
+                          : isToday
+                          ? "bg-blue-50 text-blue-700 font-bold"
+                          : "hover:bg-slate-50 text-slate-700 font-medium"
+                      }`}
+                    >
+                      <span className="text-[10px] uppercase font-bold tracking-tight">
+                        {format(day, "EE", { locale: ru })}
+                      </span>
+                      <span className="text-sm font-extrabold leading-none">
+                        {format(day, "d")}
+                      </span>
+                      <div className="h-1.5 flex items-center justify-center">
+                        {dayLessons.length > 0 && (
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              isSelected ? "bg-amber-300" : "bg-blue-600"
+                            }`}
+                          />
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Заголовок выбранного дня */}
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-2">
+                <span className="font-extrabold text-sm text-slate-900 capitalize">
+                  {format(selectedMobileDay, "EEEE, d MMMM", { locale: ru })}
+                </span>
+                {isSameDay(selectedMobileDay, new Date()) && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800">
+                    Сегодня
+                  </span>
+                )}
+              </div>
+              <span className="text-xs font-bold text-slate-500">
+                {filteredLessons.filter((l) => isSameDay(new Date(l.startTime), selectedMobileDay)).length} занятий
+              </span>
+            </div>
+
+            {/* Список уроков на выбранный день */}
+            {(() => {
+              const dayLessons = filteredLessons
+                .filter((l) => isSameDay(new Date(l.startTime), selectedMobileDay))
+                .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+
+              if (dayLessons.length === 0) {
+                return (
+                  <div className="bg-white rounded-3xl p-8 border border-slate-200 text-center space-y-2">
+                    <div className="text-3xl">☕</div>
+                    <h4 className="font-bold text-sm text-slate-800">Занятий нет</h4>
+                    <p className="text-xs text-slate-500 max-w-xs mx-auto">
+                      На этот день уроков не запланировано. Отличное время для отдыха или повторения материала!
+                    </p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="space-y-3">
+                  {dayLessons.map((l) => {
+                    const isLive = l.status === "LIVE";
+                    const isCompleted = l.status === "COMPLETED";
+
+                    return (
+                      <div
+                        key={l.id}
+                        className={`bg-white rounded-3xl p-5 border shadow-xs space-y-3.5 transition ${
+                          isLive
+                            ? "border-blue-600 ring-2 ring-blue-500/20"
+                            : "border-slate-200"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span
+                                className="px-2.5 py-0.5 rounded-full text-[11px] font-bold text-white"
+                                style={{ backgroundColor: l.subjectColor || "#2563eb" }}
+                              >
+                                {l.subjectName}
+                              </span>
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                  isLive
+                                    ? "bg-red-100 text-red-700 animate-pulse"
+                                    : isCompleted
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : "bg-blue-100 text-blue-800"
+                                }`}
+                              >
+                                {isLive ? "Идёт сейчас" : isCompleted ? "Завершён" : "Запланирован"}
+                              </span>
+                            </div>
+                            <h4 className="font-extrabold text-slate-900 text-sm leading-snug">
+                              {l.title}
+                            </h4>
+                          </div>
+                        </div>
+
+                        <div className="bg-slate-50 rounded-2xl p-3 space-y-1 text-xs text-slate-600">
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-3.5 h-3.5 text-slate-400" />
+                            <span className="font-bold text-slate-800">
+                              {format(new Date(l.startTime), "HH:mm")} – {format(new Date(l.endTime), "HH:mm")}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <User className="w-3.5 h-3.5 text-slate-400" />
+                            <span>
+                              {role === "teacher" ? "Ученик: " : "Преподаватель: "}
+                              <strong className="text-slate-800">
+                                {role === "teacher" ? l.studentName : l.teacherName}
+                              </strong>
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                          <Link
+                            href={`/room/${l.roomName}`}
+                            className="flex-1 min-w-[120px] py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm shadow-blue-500/20 active:scale-95"
+                          >
+                            <Video className="w-3.5 h-3.5" />
+                            <span>Войти в видеокласс</span>
+                          </Link>
+
+                          {role === "teacher" && onUpdateStatus && (
+                            <>
+                              {l.status === "SCHEDULED" && (
+                                <button
+                                  type="button"
+                                  onClick={() => onUpdateStatus(l.id, "LIVE")}
+                                  className="px-3 py-2.5 rounded-xl bg-blue-50 text-blue-700 font-bold text-xs border border-blue-200"
+                                >
+                                  Начать
+                                </button>
+                              )}
+                              {l.status === "LIVE" && (
+                                <button
+                                  type="button"
+                                  onClick={() => onUpdateStatus(l.id, "COMPLETED")}
+                                  className="px-3 py-2.5 rounded-xl bg-emerald-50 text-emerald-700 font-bold text-xs border border-emerald-200"
+                                >
+                                  Завершить
+                                </button>
+                              )}
+                              {onOpenReportModal && (
+                                <button
+                                  type="button"
+                                  onClick={() => onOpenReportModal(l)}
+                                  className="px-3 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs hover:bg-slate-200"
+                                >
+                                  Отчёт
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
 
-          {/* Контейнер с горизонтальным скроллом на мобильных экранах */}
-          <div className="overflow-x-auto">
+          {/* Б. ДЕСКТОПНЫЙ ВИД: СЕТКА 7 ДНЕЙ (hidden md:block) */}
+          <div className="hidden md:block bg-white rounded-3xl border border-slate-200/90 shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
             <div className="min-w-[760px] lg:min-w-0">
               {/* Заголовки дней недели (7 колонок + 1 время) */}
               <div className="grid grid-cols-8 border-b border-slate-200 bg-slate-50/70 text-center">
@@ -489,7 +673,8 @@ export default function ScheduleCalendar({
             </div>
           )}
         </div>
-      )}
+      </>
+    )}
 
       {/* 3. РЕЖИМ 2: СПИСКОМ (ФОКСФОРД-СТИЛЬ) */}
       {calendarViewMode === "list" && (

@@ -227,9 +227,9 @@ export default function HomePage() {
     <div className="space-y-16 sm:space-y-20 pb-20">
       {/* 1. HERO СЕКЦИЯ */}
       <section className="pt-4 sm:pt-12 text-center max-w-4xl mx-auto space-y-5 sm:space-y-6">
-        <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-slate-900 leading-[1.15]">
-          Онлайн-уроки с репетитором, <br className="hidden sm:inline" />
-          <span className="text-blue-600">где всё понятно и удобно</span>
+        <h1 className="text-2xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-slate-900 leading-[1.2]">
+          Онлайн-уроки с&nbsp;репетитором, <br className="hidden sm:inline" />
+          <span className="text-blue-600">где всё понятно и&nbsp;удобно</span>
         </h1>
 
         <p className="text-sm sm:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">

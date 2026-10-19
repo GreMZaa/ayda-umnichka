@@ -67,14 +67,15 @@ export default function RootLayout({
         <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           {children}
         </main>
-        <footer className="border-t border-slate-200 bg-white py-6 text-center text-sm text-slate-500">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
+        <footer className="border-t border-slate-200 bg-white py-6 text-center text-xs sm:text-sm text-slate-500">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+            <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2">
               <span className="font-bold text-blue-600">АйДаУмничка</span>
+              <span className="hidden sm:inline text-slate-300">•</span>
               <span>© {new Date().getFullYear()} Образовательный центр. Все права защищены.</span>
             </div>
             <div className="text-xs text-slate-400">
-              Образовательный онлайн-центр
+              Онлайн-уроки с репетитором по всей России
             </div>
           </div>
         </footer>

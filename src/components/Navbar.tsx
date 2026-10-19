@@ -248,7 +248,7 @@ export default function Navbar() {
                       ШКОЛА
                     </span>
                   </div>
-                  <span className="text-[10px] sm:text-[11px] font-medium text-slate-500 block leading-none">
+                  <span className="hidden sm:block text-[11px] font-medium text-slate-500 leading-none">
                     Онлайн-уроки и репетиторы
                   </span>
                 </div>
@@ -365,19 +365,19 @@ export default function Navbar() {
                 </div>
               ) : (
                 /* Для гостя: аккуратная кнопка Войти + яркая кнопка регистрации */
-                <div className="flex items-center gap-1.5 sm:gap-2">
+                <div className="flex items-center gap-1 sm:gap-2 shrink-0">
                   <button
                     onClick={() => setShowLoginModal(true)}
-                    className="inline-flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200/90 border border-slate-200/80 transition active:scale-95 cursor-pointer"
+                    className="inline-flex items-center gap-1 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200/90 border border-slate-200/80 transition active:scale-95 cursor-pointer"
                     id="btn-login-header"
                   >
-                    <LogIn className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-500" />
+                    <LogIn className="w-3.5 h-3.5 text-slate-500" />
                     <span>Войти</span>
                   </button>
 
                   <Link
                     href="/login?mode=signup"
-                    className="inline-flex items-center gap-1 px-2.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/25 transition active:scale-95 cursor-pointer"
+                    className="inline-flex items-center gap-1 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/25 transition active:scale-95 cursor-pointer"
                   >
                     <Sparkles className="w-3.5 h-3.5 shrink-0" />
                     <span>Регистрация</span>
