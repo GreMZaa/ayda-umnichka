@@ -192,7 +192,8 @@ export default function EditProfileModal({
     setErrorMsg(null);
     setSuccess(false);
 
-    // Сначала наполняем из переданных пропсов
+    // Сначала наполняем из переданных пропсов или localStorage
+    let hasLoadedData = false;
     if (init) {
       if (init.id) setProfileId(init.id);
       if (init.name) setName(init.name);
@@ -207,11 +208,37 @@ export default function EditProfileModal({
       if (init.education) setEducation(init.education);
       if (init.bio) setBio(init.bio);
       if (init.preferredContact) setPreferredContact(init.preferredContact);
+      if (init.name) hasLoadedData = true;
     }
 
-    // Подтягиваем из Supabase profiles
+    // Если пропсы не переданы, пробуем прочитать из localStorage
+    if (!hasLoadedData) {
+      try {
+        const curRole = (init?.role || defaultRole).toLowerCase();
+        const saved =
+          localStorage.getItem(`ayda_profile_${curRole}`) ||
+          localStorage.getItem("ayda_current_user_profile");
+        if (saved) {
+          const p = JSON.parse(saved);
+          if (p.id) setProfileId(p.id);
+          if (p.name) setName(p.name);
+          if (p.avatarUrl) setAvatarUrl(p.avatarUrl);
+          if (p.phone) setPhone(p.phone);
+          if (p.email) setEmail(p.email);
+          if (p.grade) setGrade(p.grade);
+          if (p.school) setSchool(p.school);
+          if (p.subjects) setSubjects(p.subjects);
+          if (p.experience) setExperience(p.experience);
+          if (p.education) setEducation(p.education);
+          if (p.bio) setBio(p.bio);
+          if (p.name) hasLoadedData = true;
+        }
+      } catch (e) {}
+    }
+
+    // Если данных всё ещё нет, подтягиваем из Supabase profiles как фоллбек
     const client = getSupabase();
-    if (client) {
+    if (client && !hasLoadedData) {
       const roleUpper = (init?.role || defaultRole).toUpperCase();
       client
         .from("profiles")
@@ -223,10 +250,10 @@ export default function EditProfileModal({
           if (data && data.length > 0) {
             const p = data[0];
             setProfileId(p.id);
-            if (!initialProfile?.name) setName(p.name || "");
-            if (!initialProfile?.email) setEmail(p.email || "");
-            if (!initialProfile?.phone) setPhone(p.phone || "");
-            if (!initialProfile?.avatarUrl && p.avatar_url) setAvatarUrl(p.avatar_url);
+            if (!name) setName(p.name || "");
+            if (!email) setEmail(p.email || "");
+            if (!phone) setPhone(p.phone || "");
+            if (!avatarUrl && p.avatar_url) setAvatarUrl(p.avatar_url);
 
             let parsed: any = {};
             try {
@@ -234,13 +261,13 @@ export default function EditProfileModal({
               else if (p.bio) parsed.bio = p.bio;
             } catch (e) {}
 
-            if (parsed.grade && !initialProfile?.grade) setGrade(parsed.grade);
-            if (parsed.school && !initialProfile?.school) setSchool(parsed.school);
-            if (parsed.subjects && !initialProfile?.subjects) setSubjects(parsed.subjects);
-            if (parsed.experience && !initialProfile?.experience) setExperience(parsed.experience);
-            if (parsed.education && !initialProfile?.education) setEducation(parsed.education);
-            if (parsed.bio && !initialProfile?.bio) setBio(parsed.bio);
-            if (parsed.preferredContact && !initialProfile?.preferredContact)
+            if (parsed.grade && !grade) setGrade(parsed.grade);
+            if (parsed.school && !school) setSchool(parsed.school);
+            if (parsed.subjects && !subjects) setSubjects(parsed.subjects);
+            if (parsed.experience && !experience) setExperience(parsed.experience);
+            if (parsed.education && !education) setEducation(parsed.education);
+            if (parsed.bio && !bio) setBio(parsed.bio);
+            if (parsed.preferredContact && !preferredContact)
               setPreferredContact(parsed.preferredContact);
           }
         });

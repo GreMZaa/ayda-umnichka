@@ -153,6 +153,27 @@ export default function StudentCabinet() {
 
   // Загрузка данных ученика, предметов школы и уроков из Supabase
   useEffect(() => {
+    // Читаем локально сохраненный профиль в приоритете
+    const applyLocalProfile = () => {
+      try {
+        const saved =
+          localStorage.getItem("ayda_profile_student") ||
+          localStorage.getItem("ayda_current_user_profile");
+        if (saved) {
+          const p = JSON.parse(saved);
+          if (p.name) setStudentName(p.name);
+          if (p.avatarUrl) setAvatarUrl(p.avatarUrl);
+          if (p.grade) setGrade(p.grade);
+          if (p.school) setSchool(p.school);
+          if (p.bio) setBio(p.bio);
+          return true;
+        }
+      } catch (e) {}
+      return false;
+    };
+
+    const hasLocal = applyLocalProfile();
+
     const client = getSupabase();
     if (client) {
       // 1. Профиль ученика из Supabase profiles
@@ -166,23 +187,26 @@ export default function StudentCabinet() {
           if (data && data.length > 0) {
             const profile = data[0];
             setStudentId(profile.id);
-            setStudentName(profile.name || "Ученик");
-            if (profile.avatar_url) setAvatarUrl(profile.avatar_url);
 
-            let parsedBio: any = {};
-            try {
-              if (profile.bio && profile.bio.startsWith("{")) {
-                parsedBio = JSON.parse(profile.bio);
-              } else if (profile.bio) {
-                parsedBio.grade = profile.bio;
-              }
-            } catch (e) {}
+            if (!hasLocal) {
+              setStudentName(profile.name || "Ученик");
+              if (profile.avatar_url) setAvatarUrl(profile.avatar_url);
 
-            if (parsedBio.grade) setGrade(parsedBio.grade);
-            if (parsedBio.school) setSchool(parsedBio.school);
-            if (parsedBio.bio) setBio(parsedBio.bio);
-            if (typeof parsedBio.balance === "number") setBalance(parsedBio.balance);
-            if (typeof parsedBio.stars === "number") setStars(parsedBio.stars);
+              let parsedBio: any = {};
+              try {
+                if (profile.bio && profile.bio.startsWith("{")) {
+                  parsedBio = JSON.parse(profile.bio);
+                } else if (profile.bio) {
+                  parsedBio.grade = profile.bio;
+                }
+              } catch (e) {}
+
+              if (parsedBio.grade) setGrade(parsedBio.grade);
+              if (parsedBio.school) setSchool(parsedBio.school);
+              if (parsedBio.bio) setBio(parsedBio.bio);
+              if (typeof parsedBio.balance === "number") setBalance(parsedBio.balance);
+              if (typeof parsedBio.stars === "number") setStars(parsedBio.stars);
+            }
           }
         });
 
@@ -198,28 +222,18 @@ export default function StudentCabinet() {
         });
     }
 
-    // Читаем локально сохраненный профиль
-    try {
-      const saved = localStorage.getItem("ayda_profile_student") || localStorage.getItem("ayda_current_user_profile");
-      if (saved) {
-        const p = JSON.parse(saved);
-        if (p.name) setStudentName(p.name);
-        if (p.avatarUrl) setAvatarUrl(p.avatarUrl);
-        if (p.grade) setGrade(p.grade);
-        if (p.school) setSchool(p.school);
-        if (p.bio) setBio(p.bio);
-      }
-    } catch (e) {}
-
     // Слушатель глобального обновления профиля
     const handleProfileUpdate = (e: any) => {
       const p = e.detail;
-      if (p && (p.role === "STUDENT" || !p.role)) {
-        if (p.name) setStudentName(p.name);
-        if (p.avatarUrl !== undefined) setAvatarUrl(p.avatarUrl);
-        if (p.grade) setGrade(p.grade);
-        if (p.school) setSchool(p.school);
-        if (p.bio) setBio(p.bio);
+      if (p) {
+        const r = (p.role || "").toUpperCase();
+        if (!r || r === "STUDENT") {
+          if (p.name) setStudentName(p.name);
+          if (p.avatarUrl !== undefined) setAvatarUrl(p.avatarUrl);
+          if (p.grade) setGrade(p.grade);
+          if (p.school) setSchool(p.school);
+          if (p.bio) setBio(p.bio);
+        }
       }
     };
     window.addEventListener("ayda:profile-updated", handleProfileUpdate);

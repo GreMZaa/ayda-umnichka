@@ -275,13 +275,38 @@ export const db = {
     return loadDB().lessons.find((l) => l.id === id || l.roomName === id);
   },
 
+  getLessonNotes: (lessonId: string): LessonNote[] => {
+    const data = loadDB();
+    const lesson = data.lessons.find((l) => l.id === lessonId || l.roomName === lessonId);
+    return lesson?.notes || [];
+  },
+
   updateLessonStatus: (id: string, status: LessonStatus): Lesson | null => {
     const data = loadDB();
-    const index = data.lessons.findIndex((l) => l.id === id || l.roomName === id);
-    if (index === -1) return null;
-    data.lessons[index].status = status;
+    let lesson = data.lessons.find((l) => l.id === id || l.roomName === id);
+    if (!lesson) {
+      lesson = {
+        id,
+        title: "Урок",
+        subjectId: "sub-1",
+        subjectName: "Предмет",
+        subjectColor: "#2563eb",
+        teacherId: "u-teacher-1",
+        teacherName: "Анна Сергеевна Иванова",
+        studentId: "u-student-1",
+        studentName: "Ученик",
+        startTime: new Date().toISOString(),
+        endTime: new Date().toISOString(),
+        status,
+        roomName: id,
+        notes: [],
+      };
+      data.lessons.push(lesson);
+    } else {
+      lesson.status = status;
+    }
     saveDB(data);
-    return data.lessons[index];
+    return lesson;
   },
 
   addLessonNote: (
@@ -289,20 +314,41 @@ export const db = {
     authorId: string,
     content: string,
     grade?: number,
-    feedback?: string
-  ): LessonNote | null => {
+    feedback?: string,
+    authorName?: string
+  ): LessonNote => {
     const data = loadDB();
-    const lesson = data.lessons.find((l) => l.id === lessonId || l.roomName === lessonId);
-    const author = data.users.find((u) => u.id === authorId);
-    if (!lesson || !author) return null;
+    let lesson = data.lessons.find((l) => l.id === lessonId || l.roomName === lessonId);
+    if (!lesson) {
+      lesson = {
+        id: lessonId,
+        title: "Урок",
+        subjectId: "sub-1",
+        subjectName: "Предмет",
+        subjectColor: "#2563eb",
+        teacherId: authorId,
+        teacherName: authorName || "Анна Сергеевна Иванова",
+        studentId: "u-student-1",
+        studentName: "Ученик",
+        startTime: new Date().toISOString(),
+        endTime: new Date().toISOString(),
+        status: "COMPLETED",
+        roomName: lessonId,
+        notes: [],
+      };
+      data.lessons.push(lesson);
+    }
 
     if (!lesson.notes) lesson.notes = [];
+
+    const author = data.users.find((u) => u.id === authorId);
+    const resolvedAuthorName = authorName || author?.name || "Анна Сергеевна Иванова";
 
     const note: LessonNote = {
       id: "note-" + Date.now(),
       lessonId: lesson.id,
-      authorId: author.id,
-      authorName: author.name,
+      authorId: authorId || "u-teacher-1",
+      authorName: resolvedAuthorName,
       content,
       grade,
       feedback,
@@ -310,6 +356,7 @@ export const db = {
     };
 
     lesson.notes.push(note);
+    lesson.status = "COMPLETED";
     saveDB(data);
     return note;
   },

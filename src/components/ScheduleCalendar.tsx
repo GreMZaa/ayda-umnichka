@@ -439,9 +439,21 @@ export default function ScheduleCalendar({
                                 <button
                                   type="button"
                                   onClick={() => onOpenReportModal(l)}
-                                  className="px-3 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs hover:bg-slate-200"
+                                  className={`px-3 py-2 rounded-xl font-bold text-xs transition flex items-center justify-center gap-1.5 ${
+                                    l.notes && l.notes.length > 0
+                                      ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
+                                      : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                                  }`}
+                                  title={l.notes && l.notes.length > 0 ? "Отчёт отправлен. Нажмите для редактирования" : "Заполнить отчёт"}
                                 >
-                                  Отчёт
+                                  {l.notes && l.notes.length > 0 ? (
+                                    <>
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                      <span>Отчёт ✓</span>
+                                    </>
+                                  ) : (
+                                    <span>Отчёт</span>
+                                  )}
                                 </button>
                               )}
                             </>
@@ -604,13 +616,26 @@ export default function ScheduleCalendar({
                                       </Link>
                                     ) : isCompleted ? (
                                       role === "teacher" && onOpenReportModal ? (
-                                        <button
-                                          type="button"
-                                          onClick={() => onOpenReportModal(l)}
-                                          className="text-blue-600 hover:text-blue-800 font-bold"
-                                        >
-                                          Отчёт
-                                        </button>
+                                        l.notes && l.notes.length > 0 ? (
+                                          <button
+                                            type="button"
+                                            onClick={() => onOpenReportModal(l)}
+                                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/80 font-bold text-[10px] transition shadow-2xs"
+                                            title="Отчёт сдан родителям. Нажмите для редактирования"
+                                          >
+                                            <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                                            <span>Отчёт ✓</span>
+                                          </button>
+                                        ) : (
+                                          <button
+                                            type="button"
+                                            onClick={() => onOpenReportModal(l)}
+                                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 font-bold text-[10px] transition shadow-2xs"
+                                            title="Заполнить отчёт по уроку для родителей"
+                                          >
+                                            <span>Отчёт</span>
+                                          </button>
+                                        )
                                       ) : (
                                         <span className="text-emerald-700 font-bold">✓ Проведён</span>
                                       )
@@ -755,9 +780,21 @@ export default function ScheduleCalendar({
                           <button
                             type="button"
                             onClick={() => onOpenReportModal(lesson)}
-                            className="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 transition"
+                            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                              lesson.notes && lesson.notes.length > 0
+                                ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
+                                : "bg-slate-100 hover:bg-slate-200 text-slate-800"
+                            }`}
+                            title={lesson.notes && lesson.notes.length > 0 ? "Отчёт сдан родителям. Нажмите для редактирования" : "Написать отчёт"}
                           >
-                            Отчёт
+                            {lesson.notes && lesson.notes.length > 0 ? (
+                              <>
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>Отчёт сдан ✓</span>
+                              </>
+                            ) : (
+                              <span>Отчёт</span>
+                            )}
                           </button>
                         )}
                         <Link

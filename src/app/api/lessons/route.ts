@@ -72,23 +72,29 @@ export async function GET(request: Request) {
 
       const { data: sbLessons, error: sbError } = await query;
       if (!sbError && sbLessons) {
-        const mappedLessons = sbLessons.map((l: any) => ({
-          id: l.id,
-          title: l.title,
-          subjectId: l.subject_id,
-          subjectName: l.subjects?.name || "Предмет",
-          subjectColor: l.subjects?.color || "#2563eb",
-          teacherId: l.teacher_id,
-          teacherName: l.teacher?.name || "Преподаватель",
-          teacherAvatar: l.teacher?.avatar_url,
-          studentId: l.student_id,
-          studentName: l.student?.name || "Ученик",
-          studentAvatar: l.student?.avatar_url,
-          startTime: l.start_time,
-          endTime: l.end_time,
-          status: l.status,
-          roomName: l.room_name,
-        }));
+        const mappedLessons = sbLessons.map((l: any) => {
+          const notes = db.getLessonNotes(l.id);
+          const dbLesson = db.getLessonById(l.id);
+          const status = dbLesson?.status || l.status;
+          return {
+            id: l.id,
+            title: l.title,
+            subjectId: l.subject_id,
+            subjectName: l.subjects?.name || "Предмет",
+            subjectColor: l.subjects?.color || "#2563eb",
+            teacherId: l.teacher_id,
+            teacherName: l.teacher?.name || "Преподаватель",
+            teacherAvatar: l.teacher?.avatar_url,
+            studentId: l.student_id,
+            studentName: l.student?.name || "Ученик",
+            studentAvatar: l.student?.avatar_url,
+            startTime: l.start_time,
+            endTime: l.end_time,
+            status,
+            roomName: l.room_name,
+            notes,
+          };
+        });
         return NextResponse.json(mappedLessons);
       }
     } catch (err) {

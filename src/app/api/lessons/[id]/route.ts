@@ -62,6 +62,7 @@ export async function GET(
       const { data: sbLesson } = await query.maybeSingle();
 
       if (sbLesson) {
+        const notes = db.getLessonNotes(sbLesson.id);
         return NextResponse.json({
           id: sbLesson.id,
           title: sbLesson.title,
@@ -78,6 +79,7 @@ export async function GET(
           endTime: sbLesson.end_time,
           status: sbLesson.status,
           roomName: sbLesson.room_name || sbLesson.id,
+          notes,
         });
       }
     } catch (e) {
@@ -175,14 +177,29 @@ export async function PATCH(
         );
       }
 
-      // Защита от подмены автора: authorId и authorName всегда берутся из сессии
+      // 1. Обновляем статус урока на COMPLETED в Supabase
+      const client = getSupabase();
+      if (client) {
+        try {
+          if (isUuid(params.id)) {
+            await client.from("lessons").update({ status: "COMPLETED" }).eq("id", params.id);
+          } else {
+            await client.from("lessons").update({ status: "COMPLETED" }).eq("room_name", params.id);
+          }
+        } catch (e) {}
+      }
+
+      // 2. Сохраняем заметку и переводим статус урока в COMPLETED в локальной базе данных
       const note = db.addLessonNote(
         params.id,
         user.id,
         parsed.data.content,
         parsed.data.grade,
-        parsed.data.feedback
+        parsed.data.feedback,
+        user.name
       );
+
+      db.updateLessonStatus(params.id, "COMPLETED");
 
       return NextResponse.json(note, { status: 201 });
     }

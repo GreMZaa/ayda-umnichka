@@ -131,14 +131,29 @@ export default function ParentCabinet() {
       });
     }
 
+    try {
+      const saved = localStorage.getItem("ayda_profile_parent") || localStorage.getItem("ayda_current_user_profile");
+      if (saved) {
+        const p = JSON.parse(saved);
+        if (p.name) setParentName(p.name);
+        if (p.avatarUrl) setParentAvatar(p.avatarUrl);
+        if (p.phone) setParentPhone(p.phone);
+        if (p.email) setParentEmail(p.email);
+        if (p.bio) setParentBio(p.bio);
+      }
+    } catch (e) {}
+
     const handleProfileUpdated = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (!detail) return;
-      if (detail.name) setParentName(detail.name);
-      if (detail.avatarUrl !== undefined) setParentAvatar(detail.avatarUrl);
-      if (detail.phone !== undefined) setParentPhone(detail.phone);
-      if (detail.bio !== undefined) setParentBio(detail.bio);
-      if (detail.preferredContact !== undefined) setParentPreferredContact(detail.preferredContact);
+      const r = (detail.role || "").toUpperCase();
+      if (!r || r === "PARENT") {
+        if (detail.name) setParentName(detail.name);
+        if (detail.avatarUrl !== undefined) setParentAvatar(detail.avatarUrl);
+        if (detail.phone !== undefined) setParentPhone(detail.phone);
+        if (detail.bio !== undefined) setParentBio(detail.bio);
+        if (detail.preferredContact !== undefined) setParentPreferredContact(detail.preferredContact);
+      }
     };
 
     window.addEventListener("ayda:profile-updated", handleProfileUpdated);

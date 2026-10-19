@@ -119,6 +119,7 @@ export default function TeacherCabinet() {
   const [grade, setGrade] = useState<number>(5);
   const [feedback, setFeedback] = useState("");
   const [savingNote, setSavingNote] = useState(false);
+  const [reportSuccessToast, setReportSuccessToast] = useState(false);
 
   // Фильтр в списке уроков
   const [lessonFilter, setLessonFilter] = useState<"ALL" | "SCHEDULED" | "COMPLETED">("ALL");
@@ -140,9 +141,35 @@ export default function TeacherCabinet() {
     };
   }, [createModalOpen, selectedLessonForNote]);
 
-  // Загрузка уроков (напрямую из Supabase с фоллбеком на API)
+  // Загрузка уроков (через API с объединением Supabase и заметок, с фоллбеком)
   const fetchLessons = async () => {
     try {
+      // 1. Запрашиваем через серверный API, который объединяет базу Supabase и заметки уроков
+      const res = await fetchWithAuth("/api/lessons");
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          const enriched = data.map((l: any) => {
+            let notes = l.notes || [];
+            if (!notes || notes.length === 0) {
+              try {
+                const raw = localStorage.getItem(`ayda_lesson_notes_${l.id}`);
+                if (raw) notes = JSON.parse(raw);
+              } catch (e) {}
+            }
+            return {
+              ...l,
+              status: notes && notes.length > 0 ? "COMPLETED" : l.status,
+              notes,
+            };
+          });
+          setLessons(enriched);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // 2. Прямой запрос к Supabase, если API вернул пустоту
       const client = getSupabase();
       if (client) {
         const { data: sbLessons, error: sbError } = await client
@@ -164,33 +191,38 @@ export default function TeacherCabinet() {
           .order("start_time", { ascending: false });
 
         if (!sbError && sbLessons && sbLessons.length > 0) {
-          const mapped = sbLessons.map((l: any) => ({
-            id: l.id,
-            title: l.title,
-            subjectId: l.subject_id,
-            subjectName: l.subjects?.name || "Предмет",
-            subjectColor: l.subjects?.color || "#2563eb",
-            teacherId: l.teacher_id,
-            teacherName: l.teacher?.name || "Преподаватель",
-            teacherAvatar: l.teacher?.avatar_url,
-            studentId: l.student_id,
-            studentName: l.student?.name || "Ученик",
-            studentAvatar: l.student?.avatar_url,
-            startTime: l.start_time,
-            endTime: l.end_time,
-            status: l.status,
-            roomName: l.room_name,
-          }));
+          const mapped = sbLessons.map((l: any) => {
+            let notes: any[] = [];
+            try {
+              const raw = localStorage.getItem(`ayda_lesson_notes_${l.id}`);
+              if (raw) notes = JSON.parse(raw);
+            } catch (e) {}
+            return {
+              id: l.id,
+              title: l.title,
+              subjectId: l.subject_id,
+              subjectName: l.subjects?.name || "Предмет",
+              subjectColor: l.subjects?.color || "#2563eb",
+              teacherId: l.teacher_id,
+              teacherName: l.teacher?.name || "Преподаватель",
+              teacherAvatar: l.teacher?.avatar_url,
+              studentId: l.student_id,
+              studentName: l.student?.name || "Ученик",
+              studentAvatar: l.student?.avatar_url,
+              startTime: l.start_time,
+              endTime: l.end_time,
+              status: notes && notes.length > 0 ? "COMPLETED" : l.status,
+              roomName: l.room_name,
+              notes,
+            };
+          });
           setLessons(mapped);
           setLoading(false);
           return;
         }
       }
 
-      const res = await fetchWithAuth("/api/lessons");
-      const data = await res.json();
-      const list = Array.isArray(data) ? data : [];
-      setLessons(list);
+      setLessons([]);
     } catch (err) {
       console.error("Ошибка загрузки уроков:", err);
     } finally {
@@ -200,6 +232,30 @@ export default function TeacherCabinet() {
 
   // Первичная загрузка данных из Supabase: профиль, предметы, ученики
   useEffect(() => {
+    // Подтягиваем из локального хранилища в первую очередь
+    const applyLocalProfile = () => {
+      try {
+        const saved =
+          localStorage.getItem("ayda_profile_teacher") ||
+          localStorage.getItem("ayda_current_user_profile");
+        if (saved) {
+          const p = JSON.parse(saved);
+          if (p.name) setTeacherName(p.name);
+          if (p.avatarUrl) setTeacherAvatar(p.avatarUrl);
+          if (p.subjects) setTeacherSubjects(p.subjects);
+          if (p.experience) setTeacherExperience(p.experience);
+          if (p.education) setTeacherEducation(p.education);
+          if (p.bio) setTeacherBio(p.bio);
+          if (p.phone) setTeacherPhone(p.phone);
+          if (p.email) setTeacherEmail(p.email);
+          return true;
+        }
+      } catch (e) {}
+      return false;
+    };
+
+    const hasLocal = applyLocalProfile();
+
     const client = getSupabase();
     if (client) {
       // 1. Профиль учителя из Supabase
@@ -213,21 +269,25 @@ export default function TeacherCabinet() {
           if (data && data.length > 0) {
             const p = data[0];
             setTeacherId(p.id);
-            if (p.name) setTeacherName(p.name);
-            if (p.avatar_url) setTeacherAvatar(p.avatar_url);
-            if (p.email) setTeacherEmail(p.email);
-            if (p.phone) setTeacherPhone(p.phone);
 
-            let parsed: any = {};
-            try {
-              if (p.bio && p.bio.startsWith("{")) parsed = JSON.parse(p.bio);
-              else if (p.bio) parsed.bio = p.bio;
-            } catch (e) {}
+            // Если пользователь уже редактировал профиль локально, не затираем его имя и аватар
+            if (!hasLocal) {
+              if (p.name) setTeacherName(p.name);
+              if (p.avatar_url) setTeacherAvatar(p.avatar_url);
+              if (p.email) setTeacherEmail(p.email);
+              if (p.phone) setTeacherPhone(p.phone);
 
-            if (parsed.subjects) setTeacherSubjects(parsed.subjects);
-            if (parsed.experience) setTeacherExperience(parsed.experience);
-            if (parsed.education) setTeacherEducation(parsed.education);
-            if (parsed.bio) setTeacherBio(parsed.bio);
+              let parsed: any = {};
+              try {
+                if (p.bio && p.bio.startsWith("{")) parsed = JSON.parse(p.bio);
+                else if (p.bio) parsed.bio = p.bio;
+              } catch (e) {}
+
+              if (parsed.subjects) setTeacherSubjects(parsed.subjects);
+              if (parsed.experience) setTeacherExperience(parsed.experience);
+              if (parsed.education) setTeacherEducation(parsed.education);
+              if (parsed.bio) setTeacherBio(parsed.bio);
+            }
           }
         });
 
@@ -283,34 +343,21 @@ export default function TeacherCabinet() {
         });
     }
 
-    // Подтягиваем из локального хранилища
-    try {
-      const saved = localStorage.getItem("ayda_profile_teacher") || localStorage.getItem("ayda_current_user_profile");
-      if (saved) {
-        const p = JSON.parse(saved);
-        if (p.name) setTeacherName(p.name);
-        if (p.avatarUrl) setTeacherAvatar(p.avatarUrl);
-        if (p.subjects) setTeacherSubjects(p.subjects);
-        if (p.experience) setTeacherExperience(p.experience);
-        if (p.education) setTeacherEducation(p.education);
-        if (p.bio) setTeacherBio(p.bio);
-        if (p.phone) setTeacherPhone(p.phone);
-        if (p.email) setTeacherEmail(p.email);
-      }
-    } catch (e) {}
-
     // Слушатель событий обновления профиля
     const handleProfileUpdate = (e: any) => {
       const p = e.detail;
-      if (p && (p.role === "TEACHER" || !p.role)) {
-        if (p.name) setTeacherName(p.name);
-        if (p.avatarUrl !== undefined) setTeacherAvatar(p.avatarUrl);
-        if (p.subjects) setTeacherSubjects(p.subjects);
-        if (p.experience) setTeacherExperience(p.experience);
-        if (p.education) setTeacherEducation(p.education);
-        if (p.bio) setTeacherBio(p.bio);
-        if (p.phone) setTeacherPhone(p.phone);
-        if (p.email) setTeacherEmail(p.email);
+      if (p) {
+        const r = (p.role || "").toUpperCase();
+        if (!r || r === "TEACHER") {
+          if (p.name) setTeacherName(p.name);
+          if (p.avatarUrl !== undefined) setTeacherAvatar(p.avatarUrl);
+          if (p.subjects) setTeacherSubjects(p.subjects);
+          if (p.experience) setTeacherExperience(p.experience);
+          if (p.education) setTeacherEducation(p.education);
+          if (p.bio) setTeacherBio(p.bio);
+          if (p.phone) setTeacherPhone(p.phone);
+          if (p.email) setTeacherEmail(p.email);
+        }
       }
     };
     window.addEventListener("ayda:profile-updated", handleProfileUpdate);
@@ -644,32 +691,92 @@ export default function TeacherCabinet() {
       setGrade(lastNote.grade || 5);
       setFeedback(lastNote.feedback || "");
     } else {
-      setNoteContent("");
-      setGrade(5);
-      setFeedback("");
+      let savedLocal: any = null;
+      try {
+        const raw = localStorage.getItem(`ayda_lesson_notes_${lesson.id}`);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            savedLocal = parsed[parsed.length - 1];
+          }
+        }
+      } catch (e) {}
+
+      if (savedLocal) {
+        setNoteContent(savedLocal.content || "");
+        setGrade(savedLocal.grade || 5);
+        setFeedback(savedLocal.feedback || "");
+      } else {
+        setNoteContent("");
+        setGrade(5);
+        setFeedback("");
+      }
     }
   };
 
   const handleSaveNote = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedLessonForNote || !noteContent) return;
+    if (!selectedLessonForNote || !noteContent.trim()) return;
     setSavingNote(true);
+
+    const targetLessonId = selectedLessonForNote.id;
+    const newNote = {
+      id: "note-" + Date.now(),
+      lessonId: targetLessonId,
+      authorId: teacherId || "d22f670c-3a38-41cd-95aa-80afdb94eab5",
+      authorName: teacherName,
+      content: noteContent.trim(),
+      grade,
+      feedback: feedback.trim(),
+      createdAt: new Date().toISOString(),
+    };
+
+    // 1. Мгновенное оптимистичное обновление состояния карточки/кнопки
+    setLessons((prev) =>
+      prev.map((l) =>
+        l.id === targetLessonId
+          ? {
+              ...l,
+              status: "COMPLETED",
+              notes: [newNote],
+            }
+          : l
+      )
+    );
+
+    // 2. Сохраняем в localStorage для мгновенного доступа в браузере и синхронизации
     try {
-      await fetchWithAuth(`/api/lessons/${selectedLessonForNote.id}`, {
+      localStorage.setItem(`ayda_lesson_notes_${targetLessonId}`, JSON.stringify([newNote]));
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("ayda:report-saved", {
+            detail: { lessonId: targetLessonId, note: newNote },
+          })
+        );
+      }
+    } catch (e) {}
+
+    try {
+      // 3. Отправляем на бэкенд
+      await fetchWithAuth(`/api/lessons/${targetLessonId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          content: noteContent,
+          content: noteContent.trim(),
           grade,
-          feedback,
+          feedback: feedback.trim(),
         }),
       });
+
       setSelectedLessonForNote(null);
       setNoteContent("");
       setFeedback("");
+      setReportSuccessToast(true);
+      setTimeout(() => setReportSuccessToast(false), 3500);
       fetchLessons();
     } catch (err) {
-      console.error(err);
+      console.error("Ошибка сохранения отчёта:", err);
+      setSelectedLessonForNote(null);
     } finally {
       setSavingNote(false);
     }
@@ -1027,9 +1134,21 @@ export default function TeacherCabinet() {
                       )}
                       <button
                         onClick={() => handleOpenReportModal(lesson)}
-                        className="px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 transition cursor-pointer"
+                        className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                          lesson.notes && lesson.notes.length > 0
+                            ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
+                            : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                        }`}
+                        title={lesson.notes && lesson.notes.length > 0 ? "Отчёт отправлен родителю. Нажмите для редактирования" : "Заполнить отчёт по уроку"}
                       >
-                        {lesson.notes && lesson.notes.length > 0 ? "Отчёт ✓" : "Написать отчёт"}
+                        {lesson.notes && lesson.notes.length > 0 ? (
+                          <>
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Отчёт ✓</span>
+                          </>
+                        ) : (
+                          <span>Написать отчёт</span>
+                        )}
                       </button>
                     </div>
 
@@ -1185,10 +1304,23 @@ export default function TeacherCabinet() {
 
                     <button
                       onClick={() => handleOpenReportModal(lesson)}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition border border-blue-200/80 cursor-pointer self-start sm:self-auto"
+                      className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer self-start sm:self-auto ${
+                        lesson.notes && lesson.notes.length > 0
+                          ? "bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200"
+                          : "bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200/80"
+                      }`}
                     >
-                      <MessageSquare className="w-3.5 h-3.5 text-blue-600" />
-                      <span>{lesson.notes && lesson.notes.length > 0 ? "Изменить отчёт" : "Написать отчёт"}</span>
+                      {lesson.notes && lesson.notes.length > 0 ? (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Изменить отчёт</span>
+                        </>
+                      ) : (
+                        <>
+                          <MessageSquare className="w-3.5 h-3.5 text-blue-600" />
+                          <span>Написать отчёт</span>
+                        </>
+                      )}
                     </button>
                   </div>
 
