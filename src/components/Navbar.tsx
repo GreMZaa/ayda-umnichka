@@ -199,34 +199,36 @@ export default function Navbar() {
 
   return (
     <>
-      {/* 1. ВЕРХНИЙ ИНФО-БАР (Белый фон, телефон + преимущества) */}
-      <div className="bg-white border-b border-slate-100 text-slate-600 text-[11px] sm:text-xs py-1.5">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 truncate">
-            <span className="flex items-center gap-1.5 text-emerald-600 font-semibold truncate">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-              <span className="truncate">Онлайн-уроки с репетитором</span>
-              <span className="hidden sm:inline">по всей России</span>
-            </span>
-            <span className="hidden md:inline text-slate-300">|</span>
-            <span className="hidden md:inline text-slate-500 font-medium">
-              Первый пробный урок — бесплатно
-            </span>
-          </div>
-          <div className="flex items-center gap-4 shrink-0">
-            <a
-              href="tel:+79954854667"
-              className="flex items-center gap-1.5 text-slate-700 hover:text-blue-600 font-bold transition"
-            >
-              <Phone className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-              <span className="whitespace-nowrap">8 995 485 46 67</span>
-            </a>
+      {/* 1. ВЕРХНИЙ ИНФО-БАР (Только для главной страницы и публичных разделов, скрыт в личных кабинетах) */}
+      {!isInsideCabinet && (
+        <div className="bg-white border-b border-slate-100 text-slate-600 text-[11px] sm:text-xs py-1.5">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 truncate">
+              <span className="flex items-center gap-1.5 text-emerald-600 font-semibold truncate">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                <span className="truncate">Онлайн-уроки с репетитором</span>
+                <span className="hidden sm:inline">по всей России</span>
+              </span>
+              <span className="hidden md:inline text-slate-300">|</span>
+              <span className="hidden md:inline text-slate-500 font-medium">
+                Первый пробный урок — бесплатно
+              </span>
+            </div>
+            <div className="flex items-center gap-4 shrink-0">
+              <a
+                href="tel:+79954854667"
+                className="flex items-center gap-1.5 text-slate-700 hover:text-blue-600 font-bold transition"
+              >
+                <Phone className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                <span className="whitespace-nowrap">8 995 485 46 67</span>
+              </a>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* 2. ОСНОВНАЯ ШАПКА В СТИЛЕ FOXFORD */}
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/90 shadow-xs">
+      {/* 2. ОСНОВНАЯ ШАПКА В СТИЛЕ FOXFORD (100% непрозрачный плотный белый фон, без полупрозрачности) */}
+      <header className="sticky top-0 z-40 bg-white border-b border-slate-200/90 shadow-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 sm:h-[70px]">
             {/* Левая группа: Логотип и Навигация */}
