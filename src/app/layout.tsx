@@ -2,10 +2,22 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import AgentationClient from "@/components/AgentationClient";
+import InstallPwaPrompt from "@/components/InstallPwaPrompt";
 
 export const metadata: Metadata = {
   title: "АйДаУмничка — Платформа для репетиторов и онлайн-уроков",
   description: "Образовательная платформа центра «АйДаУмничка»: личные кабинеты преподавателя, ученика и родителя со встроенной видеосвязью.",
+  manifest: "/manifest.json",
+  icons: {
+    icon: "/favicon.ico",
+    apple: "/apple-touch-icon.png",
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "АйДаУмничка",
+  },
+  applicationName: "АйДаУмничка",
 };
 
 export const viewport: Viewport = {
@@ -23,8 +35,32 @@ export default function RootLayout({
   return (
     <html lang="ru">
       <head>
+        {/* PWA и Web App Meta теги */}
+        <link rel="manifest" href="/manifest.json" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="АйДаУмничка" />
+        <meta name="theme-color" content="#2563eb" />
+
         {/* Предзагрузка скрипта Jitsi Meet External API для быстрого запуска видеоуроков */}
         <script src="https://meet.jit.si/external_api.js" async />
+
+        {/* Регистрация Service Worker для PWA */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                  navigator.serviceWorker.register('/sw.js').catch(function(err) {
+                    console.log('SW registration failed:', err);
+                  });
+                });
+              }
+            `,
+          }}
+        />
       </head>
       <body className="antialiased min-h-screen flex flex-col bg-slate-50 text-slate-900">
         <Navbar />
@@ -42,6 +78,7 @@ export default function RootLayout({
             </div>
           </div>
         </footer>
+        <InstallPwaPrompt />
         <AgentationClient />
       </body>
     </html>

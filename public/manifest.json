@@ -1,0 +1,70 @@
+{
+  "name": "АйДаУмничка — Онлайн-школа",
+  "short_name": "АйДаУмничка",
+  "description": "Онлайн-уроки с репетитором для детей. Личные кабинеты ученика, родителя и преподавателя со встроенной видеосвязью.",
+  "start_url": "/",
+  "id": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "orientation": "portrait",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ],
+  "categories": [
+    "education",
+    "lifestyle"
+  ],
+  "shortcuts": [
+    {
+      "name": "Личный кабинет ученика",
+      "short_name": "Ученик",
+      "url": "/student",
+      "icons": [
+        {
+          "src": "/icons/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Кабинет родителя",
+      "short_name": "Родитель",
+      "url": "/parent",
+      "icons": [
+        {
+          "src": "/icons/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Кабинет преподавателя",
+      "short_name": "Учитель",
+      "url": "/teacher",
+      "icons": [
+        {
+          "src": "/icons/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
+}
