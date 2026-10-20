@@ -1131,13 +1131,14 @@ export default function TelegramCabinet({
               : "admin"
           }
           currentProfile={{
+            id: currentUser.id,
             name: currentUser.name,
             username: currentUser.username,
             phone: currentUser.phone,
             email: currentUser.email,
             avatarUrl: currentUser.avatar,
             grade: currentUser.grade,
-            bio: currentUser.bio,
+            bio: (currentUser as any).bio,
           }}
           onSave={() => {
             setEditProfileOpen(false);

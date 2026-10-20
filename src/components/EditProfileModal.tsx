@@ -73,9 +73,9 @@ export const AVATAR_PRESETS = [
     url: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=240&h=240&fit=crop&crop=faces",
   },
   {
-    id: "owl",
-    label: "Сова-умничка",
-    url: "https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=240&h=240&fit=crop",
+    id: "pup-1",
+    label: "Питомец-умничка",
+    url: "https://images.unsplash.com/photo-1552053831-71594a27632d?w=240&h=240&fit=crop",
   },
   {
     id: "cat",
@@ -355,86 +355,106 @@ export default function EditProfileModal({
       ...bioObject,
     };
 
-    const client = getSupabase();
-    let savedInSupabase = false;
-
-    if (client) {
-      try {
-        // 1. Поиск или создание профиля в таблице public.profiles
-        const payload: any = {
-          name: name.trim(),
-          phone: phone.trim() || null,
-          avatar_url: avatarUrl.trim() || null,
-          bio: JSON.stringify(bioObject),
-          updated_at: new Date().toISOString(),
-        };
-
-        let targetId = profileId;
-        if (!targetId) {
-          const { data: aData } = await client.auth.getUser();
-          if (aData?.user?.id) targetId = aData.user.id;
-        }
-
-        if (targetId) {
-          finalProfileData.id = targetId;
-          const { error: upsertErr } = await client
-            .from("profiles")
-            .upsert({
-              id: targetId,
-              role: roleNormalized,
-              email: email.trim() || undefined,
-              ...payload,
-            });
-
-          if (!upsertErr) savedInSupabase = true;
-        }
-
-        // 2. Обновление метаданных авторизованного пользователя Supabase Auth
-        try {
-          await client.auth.updateUser({
-            data: {
-              full_name: name.trim(),
-              avatar_url: avatarUrl.trim() || null,
-              phone: phone.trim() || null,
-              grade: grade.trim(),
-              school: school.trim(),
-            },
-          });
-        } catch (authErr) {
-          // Игнорируем ошибку auth если пользователь не авторизован через Supabase session
-        }
-      } catch (err: any) {
-        console.warn("Supabase profile save warning:", err);
-      }
-    }
-
-    // 3. Сохраняем в localStorage для мгновенной синхронизации во всех вкладках и компонентах
     try {
-      localStorage.setItem(`ayda_profile_${roleNormalized.toLowerCase()}`, JSON.stringify(finalProfileData));
-      localStorage.setItem("ayda_current_user_profile", JSON.stringify(finalProfileData));
+      const client = getSupabase();
+      if (client) {
+        // Оборачиваем обращения к Supabase в Promise.race с таймаутом 1500мс,
+        // чтобы на мобильных устройствах сохранение никогда не зависало
+        await Promise.race([
+          (async () => {
+            let targetId = profileId;
+            if (!targetId) {
+              try {
+                const { data: sData } = await client.auth.getSession();
+                if (sData?.session?.user?.id) targetId = sData.session.user.id;
+              } catch (e) {}
+            }
+            if (!targetId) {
+              try {
+                const { data: aData } = await client.auth.getUser();
+                if (aData?.user?.id) targetId = aData.user.id;
+              } catch (e) {}
+            }
 
-      // Отправляем глобальное событие
-      window.dispatchEvent(
-        new CustomEvent("ayda:profile-updated", {
-          detail: finalProfileData,
-        })
-      );
-    } catch (e) {}
+            if (targetId) {
+              finalProfileData.id = targetId;
 
-    setSaving(false);
-    setSuccess(true);
+              const payload: any = {
+                id: targetId,
+                name: name.trim(),
+                role: roleNormalized,
+                email: email.trim() || `${targetId}@umnichka.ru`,
+                phone: phone.trim() || null,
+                avatar_url: avatarUrl.trim() || null,
+                bio: JSON.stringify(bioObject),
+                updated_at: new Date().toISOString(),
+              };
 
-    if (onProfileUpdated) {
-      onProfileUpdated(finalProfileData);
+              // 1. Пробуем update
+              const { error: updErr, data: updData } = await client
+                .from("profiles")
+                .update(payload)
+                .eq("id", targetId)
+                .select();
+
+              // 2. Если запись еще не существовала, делаем upsert
+              if (updErr || !updData || updData.length === 0) {
+                await client.from("profiles").upsert(payload);
+              }
+            }
+
+            // 3. Обновление метаданных авторизованного пользователя Supabase Auth
+            // Важно: никогда не передаем длинный Base64 data: URL в JWT сессию (вызывает ошибку 431 / зависание GoTrue)
+            try {
+              const metaPayload: any = {
+                full_name: name.trim(),
+                phone: phone.trim() || null,
+                grade: grade.trim(),
+                school: school.trim(),
+              };
+              if (avatarUrl && !avatarUrl.startsWith("data:")) {
+                metaPayload.avatar_url = avatarUrl.trim();
+              }
+              await client.auth.updateUser({
+                data: metaPayload,
+              });
+            } catch (authErr) {
+              // Игнорируем
+            }
+          })(),
+          new Promise((resolve) => setTimeout(resolve, 1500)),
+        ]);
+      }
+    } catch (err: any) {
+      console.warn("Supabase profile save error/timeout:", err);
+    } finally {
+      // 4. ГАРАНТИРОВАННО сохраняем в локальное хранилище и обновляем интерфейс
+      try {
+        localStorage.setItem(`ayda_profile_${roleNormalized.toLowerCase()}`, JSON.stringify(finalProfileData));
+        localStorage.setItem("ayda_current_user_profile", JSON.stringify(finalProfileData));
+
+        window.dispatchEvent(
+          new CustomEvent("ayda:profile-updated", {
+            detail: finalProfileData,
+          })
+        );
+      } catch (e) {}
+
+      setSaving(false);
+      setSuccess(true);
+
+      if (onProfileUpdated) {
+        onProfileUpdated(finalProfileData);
+      }
+      if (onSave) {
+        onSave(finalProfileData);
+      }
+
+      setTimeout(() => {
+        onClose();
+        setSuccess(false);
+      }, 900);
     }
-    if (onSave) {
-      onSave(finalProfileData);
-    }
-
-    setTimeout(() => {
-      onClose();
-      setSuccess(false);
-    }, 1200);
   };
 
   if (!isOpen || !mounted) return null;
@@ -524,10 +544,10 @@ export default function EditProfileModal({
               )}
             </div>
 
-            <div className="flex items-center gap-4">
-              {/* Превью текущего аватара */}
+            <div className="flex items-center gap-3 sm:gap-4">
+              {/* Превью текущего аватара с фиксированным размером (не распирает экран) */}
               <div className="relative group shrink-0">
-                <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-2xl overflow-hidden border-2 border-white shadow-md ring-2 ring-blue-500/20 bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white font-extrabold text-2xl">
+                <div className="w-20 h-20 min-w-[80px] min-h-[80px] max-w-[80px] max-h-[80px] rounded-2xl overflow-hidden border-2 border-white shadow-md ring-2 ring-blue-500/20 bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white font-extrabold text-2xl select-none">
                   {avatarUrl ? (
                     <img
                       src={avatarUrl}
@@ -550,8 +570,8 @@ export default function EditProfileModal({
                 </button>
               </div>
 
-              {/* Кнопка загрузки файла с устройства */}
-              <div className="space-y-2 flex-1">
+              {/* Кнопка загрузки файла и переключатель вкладок */}
+              <div className="space-y-2 flex-1 min-w-0">
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -563,34 +583,34 @@ export default function EditProfileModal({
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-full py-2.5 px-3 rounded-xl bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold transition border border-slate-200 shadow-2xs flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                  className="w-full py-2 px-2.5 rounded-xl bg-white hover:bg-slate-100 active:bg-slate-200 text-slate-800 text-xs font-bold transition border border-slate-200 shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer truncate"
                 >
-                  <Upload className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Загрузить фото с устройства</span>
+                  <Upload className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <span className="truncate">Загрузить с устройства</span>
                 </button>
 
-                <div className="flex items-center gap-1.5 text-[11px]">
+                <div className="w-full grid grid-cols-2 gap-1 bg-slate-200/70 p-1 rounded-xl text-[11px]">
                   <button
                     type="button"
                     onClick={() => setAvatarTab("presets")}
-                    className={`px-2.5 py-1 rounded-lg font-bold transition ${
+                    className={`py-1.5 px-1.5 rounded-lg font-bold text-center truncate transition cursor-pointer ${
                       avatarTab === "presets"
-                        ? "bg-blue-600 text-white"
-                        : "text-slate-600 hover:bg-slate-200/70"
+                        ? "bg-white text-blue-700 shadow-xs"
+                        : "text-slate-600 hover:text-slate-900"
                     }`}
                   >
-                    Готовые аватарки
+                    Готовые
                   </button>
                   <button
                     type="button"
                     onClick={() => setAvatarTab("url")}
-                    className={`px-2.5 py-1 rounded-lg font-bold transition ${
+                    className={`py-1.5 px-1.5 rounded-lg font-bold text-center truncate transition cursor-pointer ${
                       avatarTab === "url"
-                        ? "bg-blue-600 text-white"
-                        : "text-slate-600 hover:bg-slate-200/70"
+                        ? "bg-white text-blue-700 shadow-xs"
+                        : "text-slate-600 hover:text-slate-900"
                     }`}
                   >
-                    Ссылка URL
+                    По ссылке
                   </button>
                 </div>
               </div>

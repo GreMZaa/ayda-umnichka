@@ -33,6 +33,12 @@ import {
   isBefore,
 } from "date-fns";
 import { ru } from "date-fns/locale";
+import {
+  toTolyattiDate,
+  nowInTolyatti,
+  formatTolyatti,
+  TOLYATTI_TZ_LABEL,
+} from "@/lib/tolyatti-time";
 
 export interface LessonItem {
   id: string;
@@ -87,25 +93,24 @@ export default function ScheduleCalendar({
   onOpenReportModal,
   onCreateLesson,
 }: ScheduleCalendarProps) {
-  const [calendarDate, setCalendarDate] = useState<Date>(new Date());
-  const [selectedMobileDay, setSelectedMobileDay] = useState<Date>(new Date());
+  const [calendarDate, setCalendarDate] = useState<Date>(() => nowInTolyatti());
+  const [selectedMobileDay, setSelectedMobileDay] = useState<Date>(() => nowInTolyatti());
   const [calendarViewMode, setCalendarViewMode] = useState<"calendar" | "list">("calendar");
 
   // Состояния фильтра («Настройки»)
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [filterSubject, setFilterSubject] = useState<string>("all");
   const [showPastLessons, setShowPastLessons] = useState<boolean>(true);
-  const [timezone, setTimezone] = useState<"MSK" | "LOCAL">("MSK");
 
   // Состояния для режима «Списком»
   const [listFilter, setListFilter] = useState<"ALL" | "SCHEDULED" | "COMPLETED">("ALL");
   const [listSearchQuery, setListSearchQuery] = useState("");
   const [listScope, setListScope] = useState<"all" | "week">("all");
 
-  // Текущее время для красной линии
-  const [currentTime, setCurrentTime] = useState<Date>(new Date());
+  // Текущее время по Тольятти для красной линии
+  const [currentTime, setCurrentTime] = useState<Date>(() => nowInTolyatti());
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 60000);
+    const timer = setInterval(() => setCurrentTime(nowInTolyatti()), 60000);
     return () => clearInterval(timer);
   }, []);
 
@@ -130,13 +135,12 @@ export default function ScheduleCalendar({
   }, [lessons]);
 
   // Проверка активности фильтров
-  const hasActiveFilters = filterSubject !== "all" || !showPastLessons || timezone !== "MSK";
+  const hasActiveFilters = filterSubject !== "all" || !showPastLessons;
 
   // Сброс фильтров
   const handleResetFilters = () => {
     setFilterSubject("all");
     setShowPastLessons(true);
-    setTimezone("MSK");
   };
 
   // Фильтрация уроков
@@ -154,10 +158,10 @@ export default function ScheduleCalendar({
     });
   }, [lessons, filterSubject, showPastLessons]);
 
-  // Уроки на выбранную неделю
+  // Уроки на выбранную неделю (по настенному времени Тольятти)
   const weekLessons = useMemo(() => {
     return filteredLessons.filter((l) => {
-      const lDate = new Date(l.startTime);
+      const lDate = toTolyattiDate(l.startTime);
       const start = new Date(weekStart);
       start.setHours(0, 0, 0, 0);
       const end = new Date(weekEnd);
@@ -176,7 +180,7 @@ export default function ScheduleCalendar({
 
         // Фильтр по диапазону дат
         if (listScope === "week") {
-          const lDate = new Date(lesson.startTime);
+          const lDate = toTolyattiDate(lesson.startTime);
           const start = new Date(weekStart);
           start.setHours(0, 0, 0, 0);
           const end = new Date(weekEnd);
@@ -208,8 +212,8 @@ export default function ScheduleCalendar({
     [filteredLessons]
   );
 
-  // Расчёт позиции красной полосы текущего времени
-  const isCurrentWeek = isWithinInterval(new Date(), {
+  // Расчёт позиции красной полосы текущего времени по Тольятти
+  const isCurrentWeek = isWithinInterval(nowInTolyatti(), {
     start: new Date(new Date(weekStart).setHours(0, 0, 0, 0)),
     end: new Date(new Date(weekEnd).setHours(23, 59, 59, 999)),
   });
@@ -309,17 +313,26 @@ export default function ScheduleCalendar({
 
             <button
               type="button"
-              onClick={() => setCalendarDate(new Date())}
+              onClick={() => setCalendarDate(nowInTolyatti())}
               className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-blue-600 hover:bg-blue-50 transition cursor-pointer"
             >
               Сегодня
             </button>
+
+            <div className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-sky-50 border border-sky-200 text-sky-800 text-[11px] font-semibold" title="Все уроки отображаются по часовому поясу Тольятти (UTC+4)">
+              <Clock className="w-3 h-3 text-[#2481cc]" />
+              <span>Тольятти (UTC+4)</span>
+            </div>
           </div>
         ) : (
           <div className="flex items-center gap-2 w-full md:w-auto justify-between sm:justify-end">
             <span className="text-xs font-semibold text-slate-500">
               Показано уроков: <strong className="text-slate-800">{listLessons.length}</strong>
             </span>
+            <div className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-sky-50 border border-sky-200 text-sky-800 text-[11px] font-semibold" title="Все уроки отображаются по часовому поясу Тольятти (UTC+4)">
+              <Clock className="w-3 h-3 text-[#2481cc]" />
+              <span>Тольятти (UTC+4)</span>
+            </div>
             {role === "teacher" && onCreateLesson && (
               <button
                 type="button"
@@ -344,8 +357,8 @@ export default function ScheduleCalendar({
               <div className="grid grid-cols-7 gap-1">
                 {weekDays.map((day, idx) => {
                   const isSelected = isSameDay(day, selectedMobileDay);
-                  const isToday = isSameDay(day, new Date());
-                  const dayLessons = filteredLessons.filter((l) => isSameDay(new Date(l.startTime), day));
+                  const isToday = isSameDay(day, nowInTolyatti());
+                  const dayLessons = filteredLessons.filter((l) => isSameDay(toTolyattiDate(l.startTime), day));
 
                   return (
                     <button
@@ -387,21 +400,21 @@ export default function ScheduleCalendar({
                 <span className="font-extrabold text-sm text-slate-900 capitalize">
                   {format(selectedMobileDay, "EEEE, d MMMM", { locale: ru })}
                 </span>
-                {isSameDay(selectedMobileDay, new Date()) && (
+                {isSameDay(selectedMobileDay, nowInTolyatti()) && (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800">
                     Сегодня
                   </span>
                 )}
               </div>
               <span className="text-xs font-bold text-slate-500">
-                {filteredLessons.filter((l) => isSameDay(new Date(l.startTime), selectedMobileDay)).length} занятий
+                {filteredLessons.filter((l) => isSameDay(toTolyattiDate(l.startTime), selectedMobileDay)).length} занятий (Тольятти)
               </span>
             </div>
 
             {/* Список уроков на выбранный день */}
             {(() => {
               const dayLessons = filteredLessons
-                .filter((l) => isSameDay(new Date(l.startTime), selectedMobileDay))
+                .filter((l) => isSameDay(toTolyattiDate(l.startTime), selectedMobileDay))
                 .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
               if (dayLessons.length === 0) {
@@ -462,7 +475,7 @@ export default function ScheduleCalendar({
                           <div className="flex items-center gap-2">
                             <Clock className="w-3.5 h-3.5 text-slate-400" />
                             <span className="font-bold text-slate-800">
-                              {format(new Date(l.startTime), "HH:mm")} – {format(new Date(l.endTime), "HH:mm")}
+                              {formatTolyatti(l.startTime, "HH:mm")} – {formatTolyatti(l.endTime, "HH:mm")}
                             </span>
                           </div>
                           <div className="flex items-center gap-2">
@@ -544,10 +557,10 @@ export default function ScheduleCalendar({
               {/* Заголовки дней недели (7 колонок + 1 время) */}
               <div className="grid grid-cols-8 border-b border-slate-200 bg-slate-50/70 text-center">
                 <div className="p-3 border-r border-slate-200 text-[11px] font-bold text-slate-400 flex items-center justify-center">
-                  {timezone === "MSK" ? "МСК" : "ВРЕМЯ"}
+                  ТЛТ (UTC+4)
                 </div>
                 {weekDays.map((day, idx) => {
-                  const isToday = isSameDay(day, new Date());
+                  const isToday = isSameDay(day, nowInTolyatti());
                   return (
                     <div
                       key={idx}
@@ -562,7 +575,7 @@ export default function ScheduleCalendar({
                             : "text-slate-700"
                         }`}
                       >
-                        <span>{format(day, "EE", { locale: ru })} · {format(day, "d MMM", { locale: ru })}</span>
+                        <span>{formatTolyatti(day, "EE")} · {formatTolyatti(day, "d MMM")}</span>
                       </div>
                     </div>
                   );
@@ -579,7 +592,7 @@ export default function ScheduleCalendar({
                   >
                     <div className="w-[12.5%] text-right pr-2">
                       <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-black bg-rose-500 text-white shadow-xs">
-                        {format(currentTime, "HH:mm")}
+                        {formatTolyatti(currentTime, "HH:mm")}
                       </span>
                     </div>
                     <div className="flex-1 h-[2px] bg-rose-500 shadow-xs" />
@@ -603,11 +616,11 @@ export default function ScheduleCalendar({
                       {/* 7 колонок для уроков */}
                       {weekDays.map((day, dayIdx) => {
                         const dayLessons = filteredLessons.filter((l) => {
-                          const lDate = new Date(l.startTime);
+                          const lDate = toTolyattiDate(l.startTime);
                           return isSameDay(lDate, day) && lDate.getHours() === slotHour;
                         });
 
-                        const isToday = isSameDay(day, new Date());
+                        const isToday = isSameDay(day, nowInTolyatti());
 
                         return (
                           <div
@@ -673,7 +686,7 @@ export default function ScheduleCalendar({
                                     }`}
                                   >
                                     <span className="font-medium">
-                                      {format(new Date(l.startTime), "HH:mm")}
+                                      {formatTolyatti(l.startTime, "HH:mm")}
                                     </span>
 
                                     {/* Кнопки действий по роли */}
@@ -927,7 +940,7 @@ export default function ScheduleCalendar({
                         <div className="flex items-center gap-2">
                           <Clock className="w-3.5 h-3.5 text-slate-400" />
                           <span>
-                            {format(new Date(lesson.startTime), "d MMMM (EE), HH:mm", { locale: ru })} – {format(new Date(lesson.endTime), "HH:mm")}
+                            {formatTolyatti(lesson.startTime, "d MMMM (EE), HH:mm")} – {formatTolyatti(lesson.endTime, "HH:mm")}
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
@@ -1082,37 +1095,19 @@ export default function ScheduleCalendar({
                 />
               </div>
 
-              {/* Часовой пояс */}
+              {/* Часовой пояс платформы */}
               <div>
                 <label className="block text-xs font-extrabold text-slate-700 mb-2">
-                  Часовой пояс:
+                  Часовой пояс платформы:
                 </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setTimezone("MSK")}
-                    className={`p-3 rounded-2xl border text-left transition cursor-pointer ${
-                      timezone === "MSK"
-                        ? "border-blue-600 bg-blue-50/50 text-blue-900 font-bold shadow-2xs"
-                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                    }`}
-                  >
-                    <div className="text-xs font-bold">МСК (UTC+3)</div>
-                    <div className="text-[10px] text-slate-500">Московское время</div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setTimezone("LOCAL")}
-                    className={`p-3 rounded-2xl border text-left transition cursor-pointer ${
-                      timezone === "LOCAL"
-                        ? "border-blue-600 bg-blue-50/50 text-blue-900 font-bold shadow-2xs"
-                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                    }`}
-                  >
-                    <div className="text-xs font-bold">Местное время</div>
-                    <div className="text-[10px] text-slate-500">Время вашего устройства</div>
-                  </button>
+                <div className="p-3.5 rounded-2xl bg-blue-50/70 border border-blue-200 text-blue-900 flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-bold flex items-center gap-1.5">
+                      <span>Тольятти (UTC+4, Самарское время)</span>
+                      <span className="px-1.5 py-0.5 rounded-full bg-blue-600 text-white text-[9px] font-extrabold uppercase">Активно</span>
+                    </div>
+                    <div className="text-[11px] text-blue-700 mt-0.5">Все занятия и расписание синхронизированы по времени г. Тольятти</div>
+                  </div>
                 </div>
               </div>
             </div>
