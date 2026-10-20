@@ -48,6 +48,7 @@ import { getSupabase } from "@/lib/supabase";
 import { clearAuthCookies } from "@/lib/auth-session";
 import EditProfileModal from "@/components/EditProfileModal";
 import ScheduleCalendar from "@/components/ScheduleCalendar";
+import { formatUsername } from "@/lib/nickname";
 
 export interface TelegramChat {
   id: string;
@@ -92,6 +93,7 @@ interface TelegramCabinetProps {
   currentUser: {
     id: string;
     name: string;
+    username?: string;
     email?: string;
     phone?: string;
     avatar?: string;
@@ -593,6 +595,11 @@ export default function TelegramCabinet({
                 </div>
 
                 <h3 className="font-bold text-base tracking-tight truncate">{currentUser.name}</h3>
+                {currentUser.username && (
+                  <div className="text-xs text-blue-100 font-mono mt-0.5 flex items-center gap-1">
+                    <span>{formatUsername(currentUser.username)}</span>
+                  </div>
+                )}
                 <div className="flex items-center gap-2 mt-1">
                   <span className="text-xs text-blue-100 font-medium">
                     {currentRole === "TEACHER"
@@ -1170,6 +1177,7 @@ export default function TelegramCabinet({
           }
           currentProfile={{
             name: currentUser.name,
+            username: currentUser.username,
             phone: currentUser.phone,
             email: currentUser.email,
             avatarUrl: currentUser.avatar,

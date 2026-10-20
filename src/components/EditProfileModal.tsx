@@ -19,12 +19,15 @@ import {
   Trash2,
   Link as LinkIcon,
   Image as ImageIcon,
+  AtSign,
 } from "lucide-react";
 import { getSupabase } from "@/lib/supabase";
+import { cleanUsername, formatUsername, resolveProfileUsername } from "@/lib/nickname";
 
 export interface ProfileData {
   id?: string;
   name: string;
+  username?: string;
   role: "STUDENT" | "TEACHER" | "PARENT" | "ADMIN" | string;
   email?: string;
   phone?: string;
@@ -139,8 +142,12 @@ export default function EditProfileModal({
   initialProfile,
   initialData,
   defaultRole = "STUDENT",
+  role: propRole,
+  currentProfile,
+  onSave,
 }: EditProfileModalProps) {
-  const init = initialProfile || initialData;
+  const init = initialProfile || initialData || currentProfile;
+  const effectiveDefaultRole = propRole || defaultRole || "STUDENT";
   const [mounted, setMounted] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const backdropMouseDownRef = useRef<EventTarget | null>(null);
@@ -152,7 +159,8 @@ export default function EditProfileModal({
   // Основные данные формы
   const [profileId, setProfileId] = useState(init?.id || "");
   const [name, setName] = useState(init?.name || "");
-  const [role, setRole] = useState(init?.role || defaultRole);
+  const [username, setUsername] = useState(init?.username ? cleanUsername(init.username) : "");
+  const [role, setRole] = useState(init?.role || effectiveDefaultRole);
   const [email, setEmail] = useState(init?.email || "");
   const [phone, setPhone] = useState(init?.phone || "");
   const [avatarUrl, setAvatarUrl] = useState(init?.avatarUrl || "");
@@ -200,6 +208,7 @@ export default function EditProfileModal({
     if (init) {
       if (init.id) setProfileId(init.id);
       if (init.name) setName(init.name);
+      if (init.username) setUsername(cleanUsername(init.username));
       if (init.role) setRole(init.role);
       if (init.email) setEmail(init.email);
       if (init.phone) setPhone(init.phone);
@@ -225,6 +234,7 @@ export default function EditProfileModal({
           const p = JSON.parse(saved);
           if (p.id) setProfileId(p.id);
           if (p.name) setName(p.name);
+          if (p.username) setUsername(cleanUsername(p.username));
           if (p.avatarUrl) setAvatarUrl(p.avatarUrl);
           if (p.phone) setPhone(p.phone);
           if (p.email) setEmail(p.email);
@@ -265,6 +275,9 @@ export default function EditProfileModal({
                   else if (p.bio) parsed.bio = p.bio;
                 } catch (e) {}
 
+                if (parsed.username) setUsername(cleanUsername(parsed.username));
+                else if (!username) setUsername(resolveProfileUsername(p));
+
                 if (parsed.grade && !grade) setGrade(parsed.grade);
                 if (parsed.school && !school) setSchool(parsed.school);
                 if (parsed.subjects && !subjects) setSubjects(parsed.subjects);
@@ -276,6 +289,7 @@ export default function EditProfileModal({
               } else if (authUser) {
                 if (!name) setName(authUser.user_metadata?.full_name || authUser.email?.split("@")[0] || "");
                 if (!email) setEmail(authUser.email || "");
+                if (!username) setUsername(cleanUsername(authUser.email?.split("@")[0] || ""));
               }
             });
         }
@@ -315,9 +329,13 @@ export default function EditProfileModal({
     setErrorMsg(null);
 
     const roleNormalized = role.toUpperCase();
+    const finalUsername =
+      cleanUsername(username) ||
+      resolveProfileUsername({ id: profileId, name: name.trim(), email: email.trim() });
 
     // Собираем расширенные параметры в JSON объект био
     const bioObject = {
+      username: finalUsername,
       grade: grade.trim(),
       school: school.trim(),
       subjects: subjects.trim(),
@@ -408,6 +426,9 @@ export default function EditProfileModal({
 
     if (onProfileUpdated) {
       onProfileUpdated(finalProfileData);
+    }
+    if (onSave) {
+      onSave(finalProfileData);
     }
 
     setTimeout(() => {
@@ -655,6 +676,28 @@ export default function EditProfileModal({
                   className="w-full pl-9 pr-3 py-2.5 rounded-2xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition"
                 />
               </div>
+            </div>
+
+            {/* Никнейм в стиле Telegram (@username) */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Никнейм как в Telegram (@username):
+              </label>
+              <div className="relative">
+                <span className="w-4 h-4 text-blue-600 font-black absolute left-3 top-1/2 -translate-y-1/2 flex items-center justify-center select-none text-sm">
+                  @
+                </span>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(cleanUsername(e.target.value))}
+                  placeholder="username (латинские буквы, цифры, _)"
+                  className="w-full pl-8 pr-3 py-2.5 rounded-2xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition"
+                />
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">
+                По этому никнейму вас смогут находить и добавлять в друзья для назначения уроков
+              </p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
