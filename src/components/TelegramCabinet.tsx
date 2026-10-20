@@ -554,7 +554,7 @@ export default function TelegramCabinet({
   const activeChat = chats.find((c) => c.id === activeChatId) || chats[0];
 
   return (
-    <div className="flex h-[calc(100dvh-4rem)] bg-[#eef3f7] overflow-hidden select-none relative font-sans text-slate-800">
+    <div className="flex h-[100dvh] w-full bg-[#eef3f7] overflow-hidden select-none relative font-sans text-slate-800">
       {/* =========================================================================
           1. БОКОВОЕ МЕНЮ TELEGRAM (SLIDE-OVER DRAWER)
          ========================================================================= */}
@@ -959,7 +959,7 @@ export default function TelegramCabinet({
 
             {/* Область сообщений (с фирменным Telegram фоном) */}
             <div
-              className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-3 relative"
+              className="flex-1 overflow-y-auto p-3 sm:p-5 relative"
               style={{
                 backgroundColor: "#8bb1cc",
                 backgroundImage:
@@ -967,12 +967,13 @@ export default function TelegramCabinet({
                 backgroundSize: "32px 32px",
               }}
             >
-              {/* Дата "Сегодня" */}
-              <div className="flex justify-center my-2">
-                <span className="bg-black/25 backdrop-blur-xs text-white text-[11px] font-bold px-3 py-0.5 rounded-full shadow-xs">
-                  Сегодня
-                </span>
-              </div>
+              <div className="max-w-3xl mx-auto w-full space-y-3 pb-2">
+                {/* Дата "Сегодня" */}
+                <div className="flex justify-center my-2">
+                  <span className="bg-black/25 backdrop-blur-xs text-white text-[11px] font-bold px-3 py-0.5 rounded-full shadow-xs">
+                    Сегодня
+                  </span>
+                </div>
 
               {/* Список сообщений */}
               {messages.map((msg) => {
@@ -1074,12 +1075,13 @@ export default function TelegramCabinet({
                 </div>
               )}
 
-              <div ref={messagesEndRef} />
+                <div ref={messagesEndRef} />
+              </div>
             </div>
 
             {/* Нижняя панель ввода сообщения в стиле Telegram */}
             <footer className="p-2.5 sm:p-3 bg-white border-t border-slate-200 shrink-0">
-              <form onSubmit={handleSendMessage} className="flex items-center gap-2 max-w-4xl mx-auto">
+              <form onSubmit={handleSendMessage} className="flex items-center gap-2 max-w-3xl mx-auto">
                 {/* Скрепка прикрепления файлов */}
                 <button
                   type="button"
