@@ -53,6 +53,60 @@ interface HomeworkItem {
   grade?: number;
 }
 
+const DEFAULT_HOMEWORK: HomeworkItem[] = [
+  {
+    id: "hw-1",
+    subject: "Математика и логика",
+    title: "Решение уравнений и олимпиадных задач на логику",
+    teacher: "Василина Владимировна",
+    deadline: "До завтра, 18:00",
+    status: "NEW",
+    statusText: "Нужно сдать",
+    badgeColor: "bg-amber-100 text-amber-800 border-amber-200",
+    description: "Выполнить упражнения №14-18 на странице 42. Решить логическую задачу с весами и переливанием воды.",
+    tasks: [
+      "№14: Решить 4 уравнения с одной неизвестной",
+      "№16: Вычислить периметр и площадь составной фигуры",
+      "№18: Логическая задача на переливание из 8-литрового кувшина в 3-литровый",
+    ],
+  },
+  {
+    id: "hw-2",
+    subject: "Русский язык",
+    title: "Безударные гласные в корне слова и разбор по составу",
+    teacher: "Елена Викторовна",
+    deadline: "Послезавтра, 15:00",
+    status: "NEW",
+    statusText: "Нужно сдать",
+    badgeColor: "bg-amber-100 text-amber-800 border-amber-200",
+    description: "Подобрать проверочные слова к словарному диктанту, выделить корень и суффиксы в 10 словах.",
+    tasks: [
+      "Записать 10 слов с безударной гласной в корне и проверочные слова",
+      "Разобрать по составу слова: «подснежник», «ветерок», «пришкольный»",
+      "Составить 2 распространенных предложения с однородными членами",
+    ],
+  },
+  {
+    id: "hw-3",
+    subject: "Английский язык",
+    title: "Present Simple vs Present Continuous: диалоги и лексика",
+    teacher: "Анна Смирнова",
+    deadline: "Вчера",
+    status: "CHECKED",
+    statusText: "Проверено • 5/5 ⭐",
+    badgeColor: "bg-emerald-100 text-emerald-800 border-emerald-200",
+    description: "Чтение и перевод текста 'A Day in the Life of a Space Explorer'. Составление 5 собственных предложений.",
+    tasks: [
+      "Прочитать диалог на стр. 28 вслух",
+      "Вставить правильные формы глаголов (to be / action verbs)",
+      "Ответить на 3 вопроса к тексту полными предложениями",
+    ],
+    studentAnswer: "1. The astronaut is looking out of the window.\n2. Every morning he exercises for two hours.\n3. They are conducting a science experiment right now.",
+    teacherFeedback: "Прекрасная работа! Все глагольные формы использованы абсолютно точно, отличный словарный запас. Молодец, 5 звёзд!",
+    grade: 5,
+  },
+];
+
 export default function StudentCabinet() {
   const { loading: authLoading, isAuthorized, user: authUser } = useAuthGuard("student");
   const [studentId, setStudentId] = useState("");
@@ -79,6 +133,9 @@ export default function StudentCabinet() {
   const [mounted, setMounted] = useState(false);
   const modalMouseDownRef = useRef<EventTarget | null>(null);
 
+  // Список домашних заданий школьного формата с начальными интерактивными заданиями
+  const [homeworkList, setHomeworkList] = useState<HomeworkItem[]>(DEFAULT_HOMEWORK);
+
   useEffect(() => {
     setMounted(true);
     try {
@@ -87,8 +144,10 @@ export default function StudentCabinet() {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
           setHomeworkList(parsed);
+          return;
         }
       }
+      localStorage.setItem("ayda_student_hw", JSON.stringify(DEFAULT_HOMEWORK));
     } catch (e) {}
   }, []);
 
@@ -102,9 +161,6 @@ export default function StudentCabinet() {
       document.body.style.overflow = "unset";
     };
   }, [homeworkModalOpen]);
-
-  // Список домашних заданий школьного формата (загружается с уроков или пустой)
-  const [homeworkList, setHomeworkList] = useState<HomeworkItem[]>([]);
 
   // Загрузка данных ученика, предметов школы и уроков из Supabase
   useEffect(() => {

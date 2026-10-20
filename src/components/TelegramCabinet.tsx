@@ -41,6 +41,7 @@ import {
   Eye,
   EyeOff,
   Copy,
+  MessageSquare,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -168,16 +169,19 @@ export default function TelegramCabinet({
   }, []);
 
   // 1. Навигация и активный экран
-  // activeScreen: "chat" (мессенджер) или ключ дополнительного раздела (например: "schedule", "homework", "children", "students")
-  const [activeScreen, setActiveScreen] = useState<string>("chat");
+  // По умолчанию открываем первый раздел кабинета (например "schedule" или "children"), а не чат
+  const [activeScreen, setActiveScreen] = useState<string>(
+    extraCabinetSections[0]?.key || "schedule"
+  );
   const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
   const [editProfileOpen, setEditProfileOpen] = useState<boolean>(false);
 
   // 2. Чаты
   const [chatFilter, setChatFilter] = useState<"all" | "lessons" | "teachers" | "students" | "support">("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeChatId, setActiveChatId] = useState<string>("");
+  const [activeChatId, setActiveChatId] = useState<string>("chat-support");
   const [mobileShowChat, setMobileShowChat] = useState<boolean>(false); // на мобильном открыта переписка
+  const [mobileShowSection, setMobileShowSection] = useState<boolean>(true); // на мобильном открыт раздел
 
   // 3. Сообщения
   const [messages, setMessages] = useState<TelegramMessage[]>([]);
@@ -189,119 +193,23 @@ export default function TelegramCabinet({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLInputElement>(null);
 
-  // Динамическое формирование списка чатов на основе реальных уроков и официальной поддержки
+  // Официальный чат со службой заботы и поддержки 24/7 (чат доступен только в поддержке)
   const buildChats = useCallback((): TelegramChat[] => {
-    const list: TelegramChat[] = [];
-
-    // 1. Официальный канал службы поддержки и заботы «АйДаУмничка» (всегда доступен)
-    list.push({
-      id: "chat-support",
-      name: "Поддержка «АйДаУмничка»",
-      role: "support",
-      roleLabel: "Служба заботы 24/7",
-      avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&h=150&fit=crop&crop=faces",
-      online: true,
-      statusText: "онлайн",
-      lastMessage: "Здравствуйте! Мы на связи, если у вас возникнут любые вопросы по урокам или платформе.",
-      lastMessageTime: "Сегодня",
-      unreadCount: 0,
-    });
-
-    // 2. Формируем диалоги на основе РЕАЛЬНЫХ назначенных уроков
-    if (Array.isArray(lessons) && lessons.length > 0) {
-      if (currentRole === "TEACHER") {
-        lessons.forEach((l) => {
-          const sId = l.studentId || l.student_id || l.student?.id;
-          const sName = l.studentName || l.student?.name;
-          if (!sName && !sId) return;
-          const chatId = `student-${sId || sName}`;
-          if (!list.some((c) => c.id === chatId)) {
-            list.push({
-              id: chatId,
-              name: sName || "Ученик",
-              role: "student",
-              roleLabel: l.subjectName ? `Ученик • ${l.subjectName}` : "Ученик",
-              avatar:
-                l.studentAvatar ||
-                l.student?.avatar_url ||
-                "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&h=150&fit=crop&crop=faces",
-              online: true,
-              statusText: "в сети",
-              lastMessage: l.title ? `Занятие: ${l.title}` : "Диалог открыт",
-              lastMessageTime: l.startTime ? formatTolyatti(l.startTime, "HH:mm") : "Недавно",
-              unreadCount: 0,
-              lessonId: l.id,
-              lessonTitle: l.title,
-              lessonTime: l.startTime
-                ? formatTolyatti(l.startTime, "d MMMM в HH:mm")
-                : undefined,
-            });
-          }
-        });
-      } else if (currentRole === "STUDENT") {
-        lessons.forEach((l) => {
-          const tId = l.teacherId || l.teacher_id || l.teacher?.id;
-          const tName = l.teacherName || l.teacher?.name;
-          if (!tName && !tId) return;
-          const chatId = `teacher-${tId || tName}`;
-          if (!list.some((c) => c.id === chatId)) {
-            list.push({
-              id: chatId,
-              name: tName || "Преподаватель",
-              role: "teacher",
-              roleLabel: l.subjectName ? `Преподаватель • ${l.subjectName}` : "Преподаватель",
-              avatar:
-                l.teacherAvatar ||
-                l.teacher?.avatar_url ||
-                "https://images.unsplash.com/photo-1544717305-2782549b5136?w=150&h=150&fit=crop&crop=faces",
-              online: true,
-              statusText: "в сети",
-              lastMessage: l.title ? `Занятие: ${l.title}` : "Диалог открыт",
-              lastMessageTime: l.startTime ? formatTolyatti(l.startTime, "HH:mm") : "Недавно",
-              unreadCount: 0,
-              lessonId: l.id,
-              lessonTitle: l.title,
-              lessonTime: l.startTime
-                ? formatTolyatti(l.startTime, "d MMMM в HH:mm")
-                : undefined,
-            });
-          }
-        });
-      } else {
-        // PARENT / ADMIN
-        lessons.forEach((l) => {
-          const tId = l.teacherId || l.teacher_id || l.teacher?.id;
-          const tName = l.teacherName || l.teacher?.name;
-          if (!tName && !tId) return;
-          const chatId = `teacher-${tId || tName}`;
-          if (!list.some((c) => c.id === chatId)) {
-            list.push({
-              id: chatId,
-              name: tName || "Преподаватель",
-              role: "teacher",
-              roleLabel: l.subjectName ? `Преподаватель • ${l.subjectName}` : "Преподаватель",
-              avatar:
-                l.teacherAvatar ||
-                l.teacher?.avatar_url ||
-                "https://images.unsplash.com/photo-1544717305-2782549b5136?w=150&h=150&fit=crop&crop=faces",
-              online: true,
-              statusText: "в сети",
-              lastMessage: l.title ? `Занятие: ${l.title}` : "Диалог открыт",
-              lastMessageTime: l.startTime ? formatTolyatti(l.startTime, "HH:mm") : "Недавно",
-              unreadCount: 0,
-              lessonId: l.id,
-              lessonTitle: l.title,
-              lessonTime: l.startTime
-                ? formatTolyatti(l.startTime, "d MMMM в HH:mm")
-                : undefined,
-            });
-          }
-        });
-      }
-    }
-
-    return list;
-  }, [lessons, currentRole]);
+    return [
+      {
+        id: "chat-support",
+        name: "Поддержка «АйДаУмничка»",
+        role: "support",
+        roleLabel: "Служба заботы 24/7",
+        avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&h=150&fit=crop&crop=faces",
+        online: true,
+        statusText: "онлайн",
+        lastMessage: "Здравствуйте! Мы на связи, если у вас возникнут любые вопросы по урокам или платформе.",
+        lastMessageTime: "Сегодня",
+        unreadCount: 0,
+      },
+    ];
+  }, []);
 
   const [chats, setChats] = useState<TelegramChat[]>(() => buildChats());
 
@@ -610,9 +518,43 @@ export default function TelegramCabinet({
 
               {/* Пункты меню */}
               <div className="p-2 space-y-1">
+                {/* Дополнительные разделы кабинета */}
+                {extraCabinetSections.map((sec) => {
+                  const Icon = sec.icon;
+                  const isSelected = activeScreen === sec.key;
+                  return (
+                    <button
+                      key={sec.key}
+                      onClick={() => {
+                        setActiveScreen(sec.key);
+                        setMobileShowChat(false);
+                        setMobileShowSection(true);
+                        setDrawerOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-sm transition cursor-pointer ${
+                        isSelected
+                          ? "bg-[#2481cc]/10 text-[#2481cc] font-bold"
+                          : "text-slate-700 hover:bg-slate-100"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3.5">
+                        <Icon className={`w-5 h-5 ${isSelected ? "text-[#2481cc]" : "text-slate-500"}`} />
+                        <span>{sec.title}</span>
+                      </div>
+                      {Boolean(sec.badge) && String(sec.badge) !== "0" && Number(sec.badge) !== 0 ? (
+                        <span className="px-2 py-0.5 rounded-full bg-[#2481cc] text-white text-[11px] font-bold">
+                          {sec.badge}
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
+
                 <button
                   onClick={() => {
                     setActiveScreen("chat");
+                    setActiveChatId("chat-support");
+                    setMobileShowChat(true);
                     setDrawerOpen(false);
                   }}
                   className={`w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl font-medium text-sm transition cursor-pointer ${
@@ -621,38 +563,9 @@ export default function TelegramCabinet({
                       : "text-slate-700 hover:bg-slate-100"
                   }`}
                 >
-                  <Users className="w-5 h-5 text-[#2481cc]" />
-                  <span>Чаты и сообщения</span>
+                  <MessageSquare className="w-5 h-5 text-[#2481cc]" />
+                  <span>Служба поддержки 24/7</span>
                 </button>
-
-                {/* Дополнительные разделы кабинета */}
-                {extraCabinetSections.map((sec) => {
-                  const Icon = sec.icon;
-                  return (
-                    <button
-                      key={sec.key}
-                      onClick={() => {
-                        setActiveScreen(sec.key);
-                        setDrawerOpen(false);
-                      }}
-                      className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-sm transition cursor-pointer ${
-                        activeScreen === sec.key
-                          ? "bg-[#2481cc]/10 text-[#2481cc] font-bold"
-                          : "text-slate-700 hover:bg-slate-100"
-                      }`}
-                    >
-                      <div className="flex items-center gap-3.5">
-                        <Icon className="w-5 h-5 text-slate-500" />
-                        <span>{sec.title}</span>
-                      </div>
-                      {sec.badge && (
-                        <span className="px-2 py-0.5 rounded-full bg-[#2481cc] text-white text-[11px] font-bold">
-                          {sec.badge}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
 
                 <button
                   onClick={() => {
@@ -688,16 +601,16 @@ export default function TelegramCabinet({
       )}
 
       {/* =========================================================================
-          2. ЛЕВАЯ КОЛОНКА (СПИСОК ЧАТОВ)
+          2. ЛЕВАЯ КОЛОНКА (РАЗДЕЛЫ КАБИНЕТА И СЛУЖБА ПОДДЕРЖКИ)
          ========================================================================= */}
       <aside
         className={`w-full md:w-80 lg:w-96 bg-white border-r border-slate-200 flex flex-col shrink-0 h-full ${
-          mobileShowChat ? "hidden md:flex" : "flex"
+          mobileShowChat || mobileShowSection ? "hidden md:flex" : "flex"
         }`}
       >
-        {/* Шапка левой колонки с гамбургером и поиском */}
-        <div className="p-3 bg-white border-b border-slate-100 space-y-2.5">
-          <div className="flex items-center gap-2">
+        {/* Шапка левой колонки с гамбургером и брендом */}
+        <div className="p-3 bg-white border-b border-slate-100 flex items-center justify-between gap-2 shrink-0">
+          <div className="flex items-center gap-2.5">
             <button
               onClick={() => setDrawerOpen(true)}
               className="p-2 rounded-xl text-slate-600 hover:text-[#2481cc] hover:bg-slate-100 transition cursor-pointer"
@@ -705,168 +618,106 @@ export default function TelegramCabinet({
             >
               <Menu className="w-5 h-5" />
             </button>
-
-            {/* Строка поиска */}
-            <div className="flex-1 relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Поиск чатов и уроков..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 bg-[#f1f5f9] rounded-xl text-xs sm:text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2481cc]/30 transition"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-[#2481cc] text-white flex items-center justify-center font-black text-xs shadow-xs">
+                У
+              </div>
+              <span className="font-extrabold text-sm text-slate-900 tracking-tight">
+                АйДаУмничка
+              </span>
             </div>
           </div>
 
-          {/* Папки / Вкладки чатов */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar text-xs">
-            <button
-              onClick={() => setChatFilter("all")}
-              className={`px-3 py-1 rounded-full font-bold whitespace-nowrap transition cursor-pointer ${
-                chatFilter === "all"
-                  ? "bg-[#2481cc] text-white shadow-xs"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
-            >
-              Все чаты
-            </button>
-            <button
-              onClick={() => setChatFilter("lessons")}
-              className={`px-3 py-1 rounded-full font-bold whitespace-nowrap transition cursor-pointer flex items-center gap-1 ${
-                chatFilter === "lessons"
-                  ? "bg-[#2481cc] text-white shadow-xs"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
-            >
-              <Video className="w-3 h-3" />
-              <span>Уроки</span>
-            </button>
-            {currentRole === "STUDENT" || currentRole === "PARENT" ? (
-              <button
-                onClick={() => setChatFilter("teachers")}
-                className={`px-3 py-1 rounded-full font-bold whitespace-nowrap transition cursor-pointer ${
-                  chatFilter === "teachers"
-                    ? "bg-[#2481cc] text-white shadow-xs"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                }`}
-              >
-                Учителя
-              </button>
-            ) : (
-              <button
-                onClick={() => setChatFilter("students")}
-                className={`px-3 py-1 rounded-full font-bold whitespace-nowrap transition cursor-pointer ${
-                  chatFilter === "students"
-                    ? "bg-[#2481cc] text-white shadow-xs"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                }`}
-              >
-                Ученики
-              </button>
-            )}
-            <button
-              onClick={() => setChatFilter("support")}
-              className={`px-3 py-1 rounded-full font-bold whitespace-nowrap transition cursor-pointer ${
-                chatFilter === "support"
-                  ? "bg-[#2481cc] text-white shadow-xs"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
-            >
-              Поддержка
-            </button>
-          </div>
+          <button
+            onClick={() => setEditProfileOpen(true)}
+            className="p-1.5 rounded-xl text-slate-500 hover:text-[#2481cc] hover:bg-slate-100 transition cursor-pointer"
+            title="Профиль и данные"
+          >
+            <User className="w-4 h-4" />
+          </button>
         </div>
 
-        {/* Список диалогов */}
-        <div className="flex-1 overflow-y-auto divide-y divide-slate-50">
-          {filteredChats.length === 0 ? (
-            <div className="p-8 text-center text-slate-400 space-y-2">
-              <Users className="w-10 h-10 mx-auto text-slate-300" />
-              <p className="text-xs font-medium">Чатов по вашему запросу не найдено</p>
-            </div>
-          ) : (
-            filteredChats.map((chat) => {
-              const isSelected = activeChatId === chat.id && activeScreen === "chat";
-              return (
-                <div
-                  key={chat.id}
-                  onClick={() => {
-                    setActiveChatId(chat.id);
-                    setActiveScreen("chat");
-                    setMobileShowChat(true);
-                  }}
-                  className={`p-3 flex items-start gap-3 cursor-pointer transition select-none ${
-                    isSelected
-                      ? "bg-[#2481cc] text-white"
-                      : "hover:bg-[#f1f5f9] text-slate-800"
-                  }`}
-                >
-                  {/* Аватарка с индикатором онлайн */}
-                  <div className="relative shrink-0">
-                    <img
-                      src={chat.avatar}
-                      alt={chat.name}
-                      className="w-12 h-12 rounded-full object-cover shadow-xs"
-                    />
-                    {chat.online && (
-                      <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-400 border-2 border-white rounded-full shadow-xs" />
-                    )}
-                  </div>
-
-                  {/* Текстовая информация чата */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-1 mb-0.5">
-                      <h4 className="font-bold text-sm truncate">{chat.name}</h4>
-                      <span
-                        className={`text-[11px] shrink-0 ${
-                          isSelected ? "text-blue-100" : "text-slate-400"
-                        }`}
-                      >
-                        {chat.lastMessageTime}
-                      </span>
-                    </div>
-
-                    <p
-                      className={`text-xs truncate ${
-                        isSelected ? "text-blue-50" : "text-slate-500"
-                      }`}
-                    >
-                      {chat.lastMessage}
-                    </p>
-
-                    {/* Дополнительный бейдж урока, если есть привязка */}
-                    {chat.lessonId && (
-                      <div className="mt-1 flex items-center justify-between">
-                        <span
-                          className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
-                            isSelected
-                              ? "bg-white/20 text-white"
-                              : "bg-blue-50 text-[#2481cc]"
-                          }`}
-                        >
-                          {chat.lessonTime}
-                        </span>
-                        {chat.unreadCount > 0 && (
-                          <span className="w-4 h-4 rounded-full bg-emerald-500 text-white text-[10px] font-bold flex items-center justify-center">
-                            {chat.unreadCount}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
+        {/* Список разделов кабинета */}
+        <div className="flex-1 overflow-y-auto p-3 space-y-1">
+          <div className="px-2 py-1 text-[11px] font-black uppercase tracking-wider text-slate-400">
+            Разделы кабинета
+          </div>
+          {extraCabinetSections.map((sec) => {
+            const Icon = sec.icon;
+            const isSelected = activeScreen === sec.key;
+            return (
+              <button
+                key={sec.key}
+                type="button"
+                onClick={() => {
+                  setActiveScreen(sec.key);
+                  setMobileShowChat(false);
+                  setMobileShowSection(true);
+                }}
+                className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl font-bold text-xs sm:text-sm transition cursor-pointer select-none text-left ${
+                  isSelected
+                    ? "bg-[#2481cc] text-white shadow-md shadow-blue-500/20"
+                    : "text-slate-700 hover:bg-slate-100"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Icon className={`w-4 h-4 ${isSelected ? "text-white" : "text-[#2481cc]"}`} />
+                  <span>{sec.title}</span>
                 </div>
-              );
-            })
-          )}
+                {Boolean(sec.badge) && String(sec.badge) !== "0" && Number(sec.badge) !== 0 ? (
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
+                      isSelected
+                        ? "bg-white text-[#2481cc]"
+                        : "bg-[#2481cc] text-white"
+                    }`}
+                  >
+                    {sec.badge}
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
+
+          <div className="pt-3 border-t border-slate-100 mt-2 space-y-1">
+            <div className="px-2 py-1 text-[11px] font-black uppercase tracking-wider text-slate-400">
+              Служба поддержки
+            </div>
+
+            {/* Официальный чат поддержки */}
+            <div
+              onClick={() => {
+                setActiveChatId("chat-support");
+                setActiveScreen("chat");
+                setMobileShowChat(true);
+              }}
+              className={`p-3 rounded-2xl flex items-center gap-3 cursor-pointer transition select-none ${
+                activeScreen === "chat"
+                  ? "bg-[#2481cc] text-white shadow-md shadow-blue-500/20"
+                  : "hover:bg-slate-100 text-slate-800"
+              }`}
+            >
+              <div className="relative shrink-0">
+                <img
+                  src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&h=150&fit=crop&crop=faces"
+                  alt="Поддержка"
+                  className="w-10 h-10 rounded-full object-cover shadow-xs"
+                />
+                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-400 border border-white rounded-full shadow-xs" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-1 mb-0.5">
+                  <h4 className="font-bold text-xs sm:text-sm truncate">Поддержка «АйДаУмничка»</h4>
+                  <span className={`text-[10px] font-bold shrink-0 ${activeScreen === "chat" ? "text-blue-100" : "text-emerald-600"}`}>
+                    онлайн
+                  </span>
+                </div>
+                <p className={`text-[11px] truncate ${activeScreen === "chat" ? "text-blue-50" : "text-slate-500"}`}>
+                  Служба заботы 24/7
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </aside>
 
@@ -875,7 +726,7 @@ export default function TelegramCabinet({
          ========================================================================= */}
       <main
         className={`flex-1 flex flex-col h-full overflow-hidden bg-[#eef3f7] ${
-          !mobileShowChat && activeScreen === "chat" ? "hidden md:flex" : "flex"
+          !mobileShowChat && !mobileShowSection ? "hidden md:flex" : "flex"
         }`}
       >
         {activeScreen === "chat" ? (
@@ -1117,18 +968,30 @@ export default function TelegramCabinet({
             <div className="h-16 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between shrink-0 shadow-xs">
               <div className="flex items-center gap-3">
                 <button
-                  onClick={() => setActiveScreen("chat")}
-                  className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
+                  onClick={() => setMobileShowSection(false)}
+                  className="md:hidden px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
                 >
                   <ChevronLeft className="w-4 h-4" />
-                  <span>К чатам</span>
+                  <span>Меню</span>
                 </button>
-                <h2 className="font-extrabold text-base sm:text-lg text-slate-900">
-                  {extraCabinetSections.find((s) => s.key === activeScreen)?.title || "Раздел кабинета"}
+                <h2 className="font-extrabold text-base sm:text-lg text-slate-900 flex items-center gap-2">
+                  <span>{extraCabinetSections.find((s) => s.key === activeScreen)?.title || "Раздел кабинета"}</span>
                 </h2>
               </div>
 
               <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveScreen("chat");
+                    setActiveChatId("chat-support");
+                    setMobileShowChat(true);
+                  }}
+                  className="px-3.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#2481cc] font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                >
+                  <MessageSquare className="w-3.5 h-3.5 text-[#2481cc]" />
+                  <span>Поддержка 24/7</span>
+                </button>
                 <button
                   onClick={() => setDrawerOpen(true)}
                   className="p-2 rounded-xl text-slate-500 hover:bg-slate-100 transition cursor-pointer"
