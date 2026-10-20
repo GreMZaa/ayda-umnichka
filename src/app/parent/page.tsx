@@ -46,6 +46,7 @@ import { useAuthGuard, AuthLoadingScreen } from "@/lib/auth-session";
 import ScheduleCalendar from "@/components/ScheduleCalendar";
 import EditProfileModal from "@/components/EditProfileModal";
 import TelegramCabinet from "@/components/TelegramCabinet";
+import { formatTolyatti } from "@/lib/tolyatti-time";
 
 interface Child {
   id: string;
@@ -90,7 +91,7 @@ export default function ParentCabinet() {
   const [parentPhone, setParentPhone] = useState("");
   const [parentAvatar, setParentAvatar] = useState("");
   const [parentBio, setParentBio] = useState("");
-  const [parentPreferredContact, setParentPreferredContact] = useState("telegram");
+  const [parentPreferredContact, setParentPreferredContact] = useState("chat");
   const [editProfileModalOpen, setEditProfileModalOpen] = useState(false);
 
   useEffect(() => {
@@ -540,7 +541,7 @@ export default function ParentCabinet() {
                         {liveLesson.title}
                       </h2>
                       <p className="text-xs text-slate-600">
-                        Преподаватель: <strong>{liveLesson.teacherName}</strong> • До {format(new Date(liveLesson.endTime), "HH:mm")}
+                        Преподаватель: <strong>{liveLesson.teacherName}</strong> • До {formatTolyatti(liveLesson.endTime, "HH:mm")}
                       </p>
                     </div>
 
@@ -701,7 +702,7 @@ export default function ParentCabinet() {
                               </span>
                               <span className="text-xs text-slate-400">•</span>
                               <span className="text-xs text-slate-500 font-medium">
-                                {format(new Date(lesson.startTime), "d MMMM yyyy, HH:mm", { locale: ru })}
+                                {formatTolyatti(lesson.startTime, "d MMMM yyyy, HH:mm")}
                               </span>
                             </div>
                             <h3 className="font-extrabold text-slate-900 text-base mt-1">

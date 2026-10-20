@@ -7,7 +7,7 @@ import Navbar from "@/components/Navbar";
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
-  // Личные кабинеты и веб-комната — работают в полноэкранном режиме Telegram Web без внешней шапки и подвала
+  // Личные кабинеты и веб-комната — работают в полноэкранном режиме без внешней шапки и подвала
   const isCabinet =
     pathname.startsWith("/teacher") ||
     pathname.startsWith("/student") ||

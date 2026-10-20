@@ -38,6 +38,11 @@ import ScheduleCalendar from "@/components/ScheduleCalendar";
 import EditProfileModal from "@/components/EditProfileModal";
 import TelegramCabinet from "@/components/TelegramCabinet";
 import { cleanUsername, formatUsername, resolveProfileUsername } from "@/lib/nickname";
+import {
+  getTolyattiTomorrowDateStr,
+  tolyattiToIso,
+  formatTolyatti,
+} from "@/lib/tolyatti-time";
 
 interface StudentProfile {
   id: string;
@@ -111,11 +116,7 @@ export default function TeacherCabinet() {
   const [isCustomStudent, setIsCustomStudent] = useState(false);
   const [customStudentName, setCustomStudentName] = useState("");
 
-  const [lessonDate, setLessonDate] = useState(() => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    return tomorrow.toISOString().split("T")[0];
-  });
+  const [lessonDate, setLessonDate] = useState(() => getTolyattiTomorrowDateStr());
   const [lessonTime, setLessonTime] = useState("16:00");
   const [lessonDurationMinutes, setLessonDurationMinutes] = useState(45);
   const [lessonRoomName, setLessonRoomName] = useState(() => `room-${Math.random().toString(36).substring(2, 8)}`);
@@ -674,8 +675,8 @@ export default function TeacherCabinet() {
       }
     }
 
-    // Рассчитываем время начала и окончания в ISO
-    const startIso = new Date(`${lessonDate}T${lessonTime}:00`).toISOString();
+    // Рассчитываем время начала и окончания в ISO с фиксированным часовым поясом Тольятти (UTC+4)
+    const startIso = tolyattiToIso(lessonDate, lessonTime);
     const endDate = new Date(new Date(startIso).getTime() + lessonDurationMinutes * 60 * 1000);
     const endIso = endDate.toISOString();
     const roomName = lessonRoomName.trim() || `room-${Date.now()}`;
@@ -958,7 +959,7 @@ export default function TeacherCabinet() {
                         <span>•</span>
                         <span>Предмет: <strong>{liveLessons[0].subjectName}</strong></span>
                         <span>•</span>
-                        <span>До {format(new Date(liveLessons[0].endTime), "HH:mm")}</span>
+                        <span>До {formatTolyatti(liveLessons[0].endTime, "HH:mm")}</span>
                       </div>
                     </div>
 
@@ -1054,7 +1055,7 @@ export default function TeacherCabinet() {
                         У вас пока нет учеников в друзьях
                       </h3>
                       <p className="text-xs text-slate-500 leading-relaxed">
-                        Чтобы назначать уроки и вести занятия, найдите и добавьте ученика по его Telegram-никнейму (например,{" "}
+                        Чтобы назначать уроки и вести занятия, найдите и добавьте ученика по его никнейму (например,{" "}
                         <span className="font-mono text-blue-600 font-semibold">@ivan_smirnov</span>) или имени.
                       </p>
                     </div>
@@ -1129,7 +1130,7 @@ export default function TeacherCabinet() {
                               <div className="flex items-center justify-between text-slate-600">
                                 <span>Ближайший урок:</span>
                                 <strong className="text-[#2481cc]">
-                                  {nextLesson ? format(new Date(nextLesson.startTime), "d MMM, HH:mm", { locale: ru }) : "Не назначен"}
+                                  {nextLesson ? formatTolyatti(nextLesson.startTime, "d MMM, HH:mm") : "Не назначен"}
                                 </strong>
                               </div>
                             </div>
@@ -1198,7 +1199,7 @@ export default function TeacherCabinet() {
                               </span>
                               <span className="text-xs text-slate-400">•</span>
                               <span className="text-xs text-slate-500">
-                                {format(new Date(lesson.startTime), "d MMMM yyyy, HH:mm", { locale: ru })}
+                                {formatTolyatti(lesson.startTime, "d MMMM yyyy, HH:mm")}
                               </span>
                             </div>
                             <h4 className="font-extrabold text-slate-900 text-base mt-1">{lesson.title}</h4>
@@ -1468,7 +1469,7 @@ export default function TeacherCabinet() {
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Время начала:
+                    Время начала (по Тольятти, UTC+4):
                   </label>
                   <input
                     type="time"
@@ -1719,7 +1720,7 @@ export default function TeacherCabinet() {
                     Добавить ученика в друзья
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Поиск по Telegram-никнейму (@username) или имени
+                    Поиск по никнейму (@username) или имени
                   </p>
                 </div>
               </div>
@@ -1826,7 +1827,7 @@ export default function TeacherCabinet() {
 
             {/* Подсказка в футере модалки */}
             <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-              <span>💡 У каждого ученика есть уникальный никнейм Telegram</span>
+              <span>💡 У каждого ученика есть уникальный никнейм (@username)</span>
               <button
                 type="button"
                 onClick={() => setAddFriendModalOpen(false)}

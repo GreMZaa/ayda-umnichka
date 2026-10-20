@@ -49,6 +49,7 @@ import { clearAuthCookies, performLogout } from "@/lib/auth-session";
 import EditProfileModal from "@/components/EditProfileModal";
 import ScheduleCalendar from "@/components/ScheduleCalendar";
 import { formatUsername } from "@/lib/nickname";
+import { formatTolyatti, nowInTolyatti } from "@/lib/tolyatti-time";
 
 export interface TelegramChat {
   id: string;
@@ -114,7 +115,7 @@ interface TelegramCabinetProps {
   }[];
 }
 
-// Двойная галочка Telegram
+// Двойная галочка прочтения
 function TgCheckmarks({ read }: { read?: boolean }) {
   return (
     <span className="inline-flex items-center text-[#4fae4e] ml-1 shrink-0 select-none" title={read ? "Прочитано" : "Отправлено"}>
@@ -130,12 +131,41 @@ function TgCheckmarks({ read }: { read?: boolean }) {
 
 export default function TelegramCabinet({
   currentRole,
-  currentUser,
+  currentUser: initialCurrentUser,
   lessons = [],
   onRefreshData,
   extraCabinetSections = [],
 }: TelegramCabinetProps) {
   const router = useRouter();
+
+  // Реактивное состояние текущего пользователя (мгновенно обновляется без перезагрузки страницы)
+  const [currentUser, setCurrentUser] = useState(initialCurrentUser);
+
+  useEffect(() => {
+    setCurrentUser(initialCurrentUser);
+  }, [initialCurrentUser]);
+
+  // Слушатель событий обновления профиля для мгновенной синхронизации во всех шапках и меню
+  useEffect(() => {
+    const handleProfileUpdated = (e: any) => {
+      const p = e.detail;
+      if (p) {
+        setCurrentUser((prev) => ({
+          ...prev,
+          id: p.id || prev.id,
+          name: p.name || prev.name,
+          username: p.username !== undefined ? p.username : prev.username,
+          avatar: p.avatarUrl !== undefined ? p.avatarUrl : prev.avatar,
+          phone: p.phone || prev.phone,
+          email: p.email || prev.email,
+          grade: p.grade || prev.grade,
+          bio: p.bio || prev.bio,
+        }));
+      }
+    };
+    window.addEventListener("ayda:profile-updated", handleProfileUpdated);
+    return () => window.removeEventListener("ayda:profile-updated", handleProfileUpdated);
+  }, []);
 
   // 1. Навигация и активный экран
   // activeScreen: "chat" (мессенджер) или ключ дополнительного раздела (например: "schedule", "homework", "children", "students")
@@ -198,12 +228,12 @@ export default function TelegramCabinet({
               online: true,
               statusText: "в сети",
               lastMessage: l.title ? `Занятие: ${l.title}` : "Диалог открыт",
-              lastMessageTime: l.startTime ? format(new Date(l.startTime), "HH:mm") : "Недавно",
+              lastMessageTime: l.startTime ? formatTolyatti(l.startTime, "HH:mm") : "Недавно",
               unreadCount: 0,
               lessonId: l.id,
               lessonTitle: l.title,
               lessonTime: l.startTime
-                ? format(new Date(l.startTime), "d MMMM в HH:mm", { locale: ru })
+                ? formatTolyatti(l.startTime, "d MMMM в HH:mm")
                 : undefined,
             });
           }
@@ -227,12 +257,12 @@ export default function TelegramCabinet({
               online: true,
               statusText: "в сети",
               lastMessage: l.title ? `Занятие: ${l.title}` : "Диалог открыт",
-              lastMessageTime: l.startTime ? format(new Date(l.startTime), "HH:mm") : "Недавно",
+              lastMessageTime: l.startTime ? formatTolyatti(l.startTime, "HH:mm") : "Недавно",
               unreadCount: 0,
               lessonId: l.id,
               lessonTitle: l.title,
               lessonTime: l.startTime
-                ? format(new Date(l.startTime), "d MMMM в HH:mm", { locale: ru })
+                ? formatTolyatti(l.startTime, "d MMMM в HH:mm")
                 : undefined,
             });
           }
@@ -257,12 +287,12 @@ export default function TelegramCabinet({
               online: true,
               statusText: "в сети",
               lastMessage: l.title ? `Занятие: ${l.title}` : "Диалог открыт",
-              lastMessageTime: l.startTime ? format(new Date(l.startTime), "HH:mm") : "Недавно",
+              lastMessageTime: l.startTime ? formatTolyatti(l.startTime, "HH:mm") : "Недавно",
               unreadCount: 0,
               lessonId: l.id,
               lessonTitle: l.title,
               lessonTime: l.startTime
-                ? format(new Date(l.startTime), "d MMMM в HH:mm", { locale: ru })
+                ? formatTolyatti(l.startTime, "d MMMM в HH:mm")
                 : undefined,
             });
           }
@@ -373,8 +403,7 @@ export default function TelegramCabinet({
     const clean = inputText.trim();
     if (!clean || !activeChatId) return;
 
-    const now = new Date();
-    const timeStr = format(now, "HH:mm");
+    const timeStr = formatTolyatti(nowInTolyatti(), "HH:mm");
 
     const newMsg: TelegramMessage = {
       id: `msg-${Date.now()}`,
@@ -417,6 +446,8 @@ export default function TelegramCabinet({
         replyText = "Большое спасибо за информацию!";
       }
 
+      const replyTimeStr = formatTolyatti(nowInTolyatti(), "HH:mm");
+
       const replyMsg: TelegramMessage = {
         id: `reply-${Date.now()}`,
         senderId: activeChatId,
@@ -424,7 +455,7 @@ export default function TelegramCabinet({
         senderAvatar: partnerAvatar,
         isMe: false,
         text: replyText,
-        time: format(new Date(), "HH:mm"),
+        time: replyTimeStr,
         date: "Сегодня",
         read: true,
       };
@@ -435,16 +466,16 @@ export default function TelegramCabinet({
       setChats((prev) =>
         prev.map((c) =>
           c.id === activeChatId
-            ? { ...c, lastMessage: replyText, lastMessageTime: format(new Date(), "HH:mm") }
+            ? { ...c, lastMessage: replyText, lastMessageTime: replyTimeStr }
             : c
         )
       );
     }, 1500);
   };
 
-  // Отправка голосового сообщения (симуляция Telegram Voice Note)
+  // Отправка голосового сообщения
   const handleSendVoiceMessage = () => {
-    const timeStr = format(new Date(), "HH:mm");
+    const timeStr = formatTolyatti(nowInTolyatti(), "HH:mm");
     const voiceMsg: TelegramMessage = {
       id: `voice-${Date.now()}`,
       senderId: currentUser.id || "me",
@@ -506,7 +537,7 @@ export default function TelegramCabinet({
   return (
     <div className="flex h-[100dvh] w-full bg-[#eef3f7] overflow-hidden select-none relative font-sans text-slate-800">
       {/* =========================================================================
-          1. БОКОВОЕ МЕНЮ TELEGRAM (SLIDE-OVER DRAWER)
+          1. БОКОВОЕ МЕНЮ (SLIDE-OVER DRAWER)
          ========================================================================= */}
       {drawerOpen && (
         <div
@@ -518,7 +549,7 @@ export default function TelegramCabinet({
             className="w-72 sm:w-80 h-full bg-white shadow-2xl flex flex-col justify-between overflow-y-auto animate-slide-right"
           >
             <div>
-              {/* Шапка профиля в Telegram-стиле (фирменный синий градиент) */}
+              {/* Шапка профиля (фирменный синий градиент) */}
               <div className="p-4 bg-gradient-to-b from-[#2481cc] to-[#1f70b0] text-white">
                 <div className="flex items-center justify-between mb-3">
                   <div className="relative">
@@ -577,7 +608,7 @@ export default function TelegramCabinet({
                 )}
               </div>
 
-              {/* Пункты меню Telegram */}
+              {/* Пункты меню */}
               <div className="p-2 space-y-1">
                 <button
                   onClick={() => {
@@ -649,7 +680,7 @@ export default function TelegramCabinet({
                 <span>{isLoggingOut ? "Выходим..." : "Выйти из аккаунта"}</span>
               </button>
               <div className="text-[11px] text-center text-slate-400 pt-2 font-mono">
-                АйДаУмничка • Telegram Web
+                АйДаУмничка • Личный кабинет
               </div>
             </div>
           </div>
@@ -657,7 +688,7 @@ export default function TelegramCabinet({
       )}
 
       {/* =========================================================================
-          2. ЛЕВАЯ КОЛОНКА (СПИСОК ЧАТОВ TELEGRAM)
+          2. ЛЕВАЯ КОЛОНКА (СПИСОК ЧАТОВ)
          ========================================================================= */}
       <aside
         className={`w-full md:w-80 lg:w-96 bg-white border-r border-slate-200 flex flex-col shrink-0 h-full ${
@@ -675,7 +706,7 @@ export default function TelegramCabinet({
               <Menu className="w-5 h-5" />
             </button>
 
-            {/* Строка поиска в стиле Telegram */}
+            {/* Строка поиска */}
             <div className="flex-1 relative">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
@@ -696,7 +727,7 @@ export default function TelegramCabinet({
             </div>
           </div>
 
-          {/* Папки / Вкладки чатов в стиле Telegram */}
+          {/* Папки / Вкладки чатов */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar text-xs">
             <button
               onClick={() => setChatFilter("all")}
@@ -849,7 +880,7 @@ export default function TelegramCabinet({
       >
         {activeScreen === "chat" ? (
           /* =====================================================================
-             РЕЖИМ А: TELEGRAM ЧАТ (ПЕРЕПИСКА)
+             РЕЖИМ А: ЧАТ (ПЕРЕПИСКА)
              ===================================================================== */
           <>
             {/* Шапка активного диалога */}
@@ -889,7 +920,7 @@ export default function TelegramCabinet({
 
               {/* Действия в шапке чата */}
               <div className="flex items-center gap-2">
-                {/* Кнопка "Войти в онлайн-урок" в стиле видеозвонка Telegram */}
+                {/* Кнопка "Войти в онлайн-урок" */}
                 {activeChat.lessonId && (
                   <Link
                     href={`/room/${activeChat.lessonId}`}
@@ -910,7 +941,7 @@ export default function TelegramCabinet({
               </div>
             </header>
 
-            {/* Область сообщений (с фирменным Telegram фоном) */}
+            {/* Область сообщений (с фирменным фоном) */}
             <div
               className="flex-1 overflow-y-auto p-3 sm:p-5 relative"
               style={{
@@ -965,7 +996,7 @@ export default function TelegramCabinet({
                           </div>
                         </div>
                       ) : msg.type === "voice" ? (
-                        /* Голосовое сообщение Telegram */
+                        /* Голосовое сообщение */
                         <div className="flex items-center gap-3 py-1 min-w-[200px]">
                           <button
                             onClick={() =>
@@ -1032,7 +1063,7 @@ export default function TelegramCabinet({
               </div>
             </div>
 
-            {/* Нижняя панель ввода сообщения в стиле Telegram */}
+            {/* Нижняя панель ввода сообщения */}
             <footer className="p-2.5 sm:p-3 bg-white border-t border-slate-200 shrink-0">
               <form onSubmit={handleSendMessage} className="flex items-center gap-2 max-w-3xl mx-auto">
                 {/* Скрепка прикрепления файлов */}
@@ -1140,9 +1171,34 @@ export default function TelegramCabinet({
             grade: currentUser.grade,
             bio: (currentUser as any).bio,
           }}
-          onSave={() => {
+          onProfileUpdated={(upd) => {
+            setCurrentUser((prev) => ({
+              ...prev,
+              id: upd.id || prev.id,
+              name: upd.name || prev.name,
+              username: upd.username !== undefined ? upd.username : prev.username,
+              avatar: upd.avatarUrl !== undefined ? upd.avatarUrl : prev.avatar,
+              phone: upd.phone || prev.phone,
+              email: upd.email || prev.email,
+              grade: upd.grade || prev.grade,
+              bio: upd.bio || prev.bio,
+            }));
+          }}
+          onSave={(upd) => {
+            if (upd) {
+              setCurrentUser((prev) => ({
+                ...prev,
+                id: upd.id || prev.id,
+                name: upd.name || prev.name,
+                username: upd.username !== undefined ? upd.username : prev.username,
+                avatar: upd.avatarUrl !== undefined ? upd.avatarUrl : prev.avatar,
+                phone: upd.phone || prev.phone,
+                email: upd.email || prev.email,
+                grade: upd.grade || prev.grade,
+                bio: upd.bio || prev.bio,
+              }));
+            }
             setEditProfileOpen(false);
-            if (onRefreshData) onRefreshData();
           }}
         />
       )}

@@ -1,5 +1,5 @@
 /**
- * Утилиты для работы с Telegram-style никнеймами (@username)
+ * Утилиты для работы с никнеймами (@username)
  */
 
 export function cleanUsername(input?: string | null): string {

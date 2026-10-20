@@ -37,6 +37,7 @@ import { ru } from "date-fns/locale";
 import { getSupabase } from "@/lib/supabase";
 import { setAuthCookies, clearAuthCookies } from "@/lib/auth-session";
 import EditProfileModal from "@/components/EditProfileModal";
+import { formatTolyatti } from "@/lib/tolyatti-time";
 
 export default function AdminPage() {
   // Авторизация администратора через Supabase
@@ -1649,7 +1650,7 @@ export default function AdminPage() {
                       <td className="py-3 px-3 text-slate-700 font-medium">{teach.name}</td>
                       <td className="py-3 px-3 text-slate-700 font-medium">{stud.name}</td>
                       <td className="py-3 px-3 text-slate-500 font-mono text-[11px]">
-                        {les.start_time ? format(new Date(les.start_time), "d MMM, HH:mm", { locale: ru }) : "—"}
+                        {les.start_time ? formatTolyatti(les.start_time, "d MMM, HH:mm") : "—"}
                       </td>
                       <td className="py-3 px-3">
                         <select

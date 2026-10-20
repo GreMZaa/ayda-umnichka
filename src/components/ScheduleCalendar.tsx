@@ -23,7 +23,6 @@ import {
   Plus,
 } from "lucide-react";
 import {
-  format,
   startOfWeek,
   addDays,
   isSameDay,
@@ -32,7 +31,6 @@ import {
   isWithinInterval,
   isBefore,
 } from "date-fns";
-import { ru } from "date-fns/locale";
 import {
   toTolyattiDate,
   nowInTolyatti,
@@ -296,8 +294,8 @@ export default function ScheduleCalendar({
               <div className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800">
                 <CalendarIcon className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                 <span>
-                  {format(weekStart, "d")} – {format(weekEnd, "d MMM", { locale: ru })}
-                  <span className="hidden sm:inline"> {format(weekEnd, "yyyy")}</span>
+                  {formatTolyatti(weekStart, "d")} – {formatTolyatti(weekEnd, "d MMM")}
+                  <span className="hidden sm:inline"> {formatTolyatti(weekEnd, "yyyy")}</span>
                 </span>
               </div>
 
@@ -374,10 +372,10 @@ export default function ScheduleCalendar({
                       }`}
                     >
                       <span className="text-[10px] uppercase font-bold tracking-tight">
-                        {format(day, "EE", { locale: ru })}
+                        {formatTolyatti(day, "EE")}
                       </span>
                       <span className="text-sm font-extrabold leading-none">
-                        {format(day, "d")}
+                        {formatTolyatti(day, "d")}
                       </span>
                       <div className="h-1.5 flex items-center justify-center">
                         {dayLessons.length > 0 && (
@@ -398,7 +396,7 @@ export default function ScheduleCalendar({
             <div className="flex items-center justify-between px-1">
               <div className="flex items-center gap-2">
                 <span className="font-extrabold text-sm text-slate-900 capitalize">
-                  {format(selectedMobileDay, "EEEE, d MMMM", { locale: ru })}
+                  {formatTolyatti(selectedMobileDay, "EEEE, d MMMM")}
                 </span>
                 {isSameDay(selectedMobileDay, nowInTolyatti()) && (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800">

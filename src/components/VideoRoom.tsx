@@ -124,7 +124,7 @@ export default function VideoRoom({
   onEndLesson,
   onRoleChange,
 }: VideoRoomProps) {
-  // 1. Навигация: режимы для десктопа и мобильных (по умолчанию режим Телеграм Звонка)
+  // 1. Навигация: режимы для десктопа и мобильных (по умолчанию режим видеозвонка)
   const [activeTab, setActiveTab] = useState<"board" | "video" | "notes">("video");
   const [mobileTab, setMobileTab] = useState<"board" | "video" | "chat" | "notes">("video");
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -1515,7 +1515,7 @@ export default function VideoRoom({
 
   return (
     <div className="fixed inset-0 z-[60] bg-[#f0f2f5] text-slate-900 flex flex-col font-sans select-none overflow-hidden h-[100dvh] max-h-[100dvh] w-screen relative">
-      {/* 1. TELEGRAM СТИЛЬ: ВЕРХНИЙ ХЕДЕР ЗВОНКА (СВЕТЛАЯ ТЕМА) */}
+      {/* 1. ВЕРХНИЙ ХЕДЕР ЗВОНКА (СВЕТЛАЯ ТЕМА) */}
       <header className="h-14 sm:h-16 bg-white/95 backdrop-blur-xl border-b border-slate-200/80 px-3 sm:px-5 flex items-center justify-between gap-2 shrink-0 z-30 shadow-xs">
         {/* Слева: Кнопка назад + Собеседник + Эмодзи шифрования */}
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -1556,7 +1556,7 @@ export default function VideoRoom({
                 <span className="hidden md:inline">•</span>
                 <span
                   className="hidden md:inline-flex items-center gap-1 text-xs tracking-wider cursor-help"
-                  title="Сквозное шифрование Telegram: сравните 4 эмодзи с собеседником для проверки безопасности"
+                  title="Сквозное шифрование: сравните 4 эмодзи с собеседником для проверки безопасности"
                 >
                   <span>🦊🍇💎🚀</span>
                 </span>
@@ -1565,7 +1565,7 @@ export default function VideoRoom({
           </div>
         </div>
 
-        {/* Центр: Telegram Pill Tabs (Звонок / Доска / Заметки) */}
+        {/* Центр: Вкладки переключения (Звонок / Доска / Заметки) */}
         <div className="flex items-center bg-slate-100 p-1 rounded-full border border-slate-200 text-xs shadow-inner">
           <button
             onClick={() => {
@@ -2266,7 +2266,7 @@ export default function VideoRoom({
           </div>
         </div>
 
-        {/* РЕЖИМ 3: СОБЕСЕДНИК В ОСНОВНОМ ОКНЕ (TELEGRAM CALL FULLSTAGE - СВЕТЛАЯ ТЕМА) */}
+        {/* РЕЖИМ 3: СОБЕСЕДНИК В ОСНОВНОМ ОКНЕ (FULLSTAGE - СВЕТЛАЯ ТЕМА) */}
         <div
           className={`flex-1 flex flex-col bg-gradient-to-b from-[#eef2f5] via-[#f4f6f8] to-[#e7ecf0] relative overflow-hidden min-h-0 ${
             activeTab === "video" ? "md:flex" : "md:hidden"
@@ -2303,7 +2303,7 @@ export default function VideoRoom({
             </div>
           </div>
 
-          {/* Большое центрированное видео или Telegram-аватар с пульсирующими кольцами */}
+          {/* Большое центрированное видео или аватар с пульсирующими кольцами */}
           <div className="flex-1 flex items-center justify-center p-3 sm:p-6 relative">
             <div className="w-full h-full max-w-5xl rounded-3xl overflow-hidden relative shadow-xl bg-slate-900 border border-slate-200 flex items-center justify-center">
               {partnerCamOn && remoteStream ? (
@@ -2315,7 +2315,7 @@ export default function VideoRoom({
                 />
               ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center relative bg-gradient-to-b from-slate-50 via-white to-slate-100 p-6 text-center">
-                  {/* Пульсирующие кольца Telegram-звонка в светлой теме */}
+                  {/* Пульсирующие кольца звонка в светлой теме */}
                   <div className="relative flex items-center justify-center my-auto">
                     {/* Внешнее кольцо с затухающей анимацией */}
                     <div className="absolute w-56 h-56 sm:w-72 sm:h-72 rounded-full border border-sky-300/40 animate-ping opacity-25 [animation-duration:3s]" />
@@ -2338,7 +2338,7 @@ export default function VideoRoom({
                       <span>{partnerRole} • Звонок АйДаУмничка</span>
                     </p>
 
-                    {/* Анимированный эквалайзер Telegram */}
+                    {/* Анимированный эквалайзер */}
                     <div className="flex items-center justify-center gap-1 mt-3 h-6">
                       <span className="w-1 bg-[#2481cc] rounded-full animate-[pulse_0.8s_ease-in-out_infinite] h-3" />
                       <span className="w-1 bg-[#2481cc] rounded-full animate-[pulse_0.6s_ease-in-out_infinite_0.1s] h-5" />
@@ -2348,7 +2348,7 @@ export default function VideoRoom({
                       <span className="w-1 bg-[#2481cc] rounded-full animate-[pulse_0.5s_ease-in-out_infinite_0.25s] h-3" />
                     </div>
 
-                    {/* Telegram End-to-End Encryption Banner */}
+                    {/* End-to-End Encryption Banner */}
                     <div className="mt-5 inline-flex flex-col items-center gap-1 bg-white/90 backdrop-blur-md px-4 py-2 rounded-2xl border border-slate-200 shadow-sm">
                       <div className="text-lg tracking-widest select-none flex items-center gap-2">
                         <span>🦊</span>
@@ -2357,7 +2357,7 @@ export default function VideoRoom({
                         <span>🚀</span>
                       </div>
                       <span className="text-[10px] text-slate-500 font-mono tracking-wider">
-                        Сквозное шифрование Telegram
+                        Сквозное шифрование
                       </span>
                     </div>
                   </div>
@@ -2402,7 +2402,7 @@ export default function VideoRoom({
           </div>
         </div>
 
-        {/* ПРАВАЯ ПАНЕЛЬ: КАМЕРЫ + ЧАТ В СТИЛЕ TELEGRAM (СВЕТЛАЯ ТЕМА) */}
+        {/* ПРАВАЯ ПАНЕЛЬ: КАМЕРЫ + ЧАТ (СВЕТЛАЯ ТЕМА) */}
         <div
           className={`w-full md:w-80 lg:w-96 bg-white border-t md:border-t-0 md:border-l border-slate-200 flex flex-col shrink-0 h-full min-h-0 z-30 ${
             mobileTab === "chat" ? "flex" : (isChatOpen || activeTab === "board") ? "hidden md:flex" : "hidden"
@@ -2643,7 +2643,7 @@ export default function VideoRoom({
                 </div>
               </div>
 
-              {/* БОЛЬШОЙ ЧАТ С КНОПКОЙ СВОРАЧИВАНИЯ / ЗАКРЫТИЯ В СТИЛЕ TELEGRAM */}
+              {/* БОЛЬШОЙ ЧАТ С КНОПКОЙ СВОРАЧИВАНИЯ / ЗАКРЫТИЯ */}
               <div className="flex-1 flex flex-col justify-between bg-[#f0f2f5] overflow-hidden min-h-0">
                 <div className="flex items-center justify-between p-3.5 bg-white border-b border-slate-200">
                   <div className="flex items-center gap-2">
@@ -2676,7 +2676,7 @@ export default function VideoRoom({
                   </div>
                 </div>
 
-                {/* Список сообщений в стиле Telegram (светлая тема) */}
+                {/* Список сообщений (светлая тема) */}
                 <div className="flex-1 overflow-y-auto space-y-3 p-3.5">
                   {messages.length === 0 ? (
                     <div className="h-full min-h-[140px] flex flex-col items-center justify-center text-center p-4 text-slate-400">
@@ -2716,7 +2716,7 @@ export default function VideoRoom({
                   )}
                 </div>
 
-                {/* Форма ввода сообщения в стиле Telegram (светлая тема) */}
+                {/* Форма ввода сообщения (светлая тема) */}
                 <form onSubmit={handleSendMessage} className="p-3 bg-white border-t border-slate-200 flex items-center gap-2">
                   <input
                     type="text"
@@ -2739,7 +2739,7 @@ export default function VideoRoom({
         </div>
       </div>
 
-      {/* 3. TELEGRAM FLOATING BOTTOM CONTROL DOCK (СВЕТЛАЯ ТЕМА) */}
+      {/* 3. FLOATING BOTTOM CONTROL DOCK (СВЕТЛАЯ ТЕМА) */}
       {mobileTab !== "chat" && (
         <div className="fixed bottom-5 sm:bottom-6 left-1/2 -translate-x-1/2 z-50 bg-white/95 backdrop-blur-2xl border border-slate-200/90 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-full shadow-[0_12px_40px_rgba(0,0,0,0.12)] flex items-center gap-2 sm:gap-3.5 max-w-[96vw]">
           {/* Микрофон */}
@@ -2830,7 +2830,7 @@ export default function VideoRoom({
             <Hand className="w-5 h-5" />
           </button>
 
-          {/* Завершить звонок (Красная кнопка Telegram) */}
+          {/* Завершить звонок (Красная кнопка) */}
           <button
             onClick={onEndLesson}
             className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[#e53935] hover:bg-[#d32f2f] text-white flex items-center justify-center transition-all cursor-pointer shadow-lg shadow-rose-600/40 hover:scale-105 active:scale-95"

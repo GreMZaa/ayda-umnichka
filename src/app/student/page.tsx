@@ -35,6 +35,7 @@ import ScheduleCalendar from "@/components/ScheduleCalendar";
 import EditProfileModal from "@/components/EditProfileModal";
 import TelegramCabinet from "@/components/TelegramCabinet";
 import { formatUsername, resolveProfileUsername } from "@/lib/nickname";
+import { formatTolyatti } from "@/lib/tolyatti-time";
 
 interface HomeworkItem {
   id: string;
@@ -127,7 +128,13 @@ export default function StudentCabinet() {
       return false;
     };
 
-    const currentUserId = authUser?.id;
+    applyLocalProfile();
+
+    let currentUserId = authUser?.id;
+    if (!currentUserId && typeof document !== "undefined") {
+      const match = document.cookie.match(/ayda_user_id=([^;]+)/);
+      if (match) currentUserId = match[1].trim();
+    }
     if (currentUserId) {
       setStudentId(currentUserId);
     }
@@ -468,7 +475,7 @@ export default function StudentCabinet() {
                       <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm text-slate-600">
                         <span>Преподаватель: <strong className="text-slate-800">{liveLesson.teacherName}</strong></span>
                         <span>•</span>
-                        <span>До {format(new Date(liveLesson.endTime), "HH:mm")}</span>
+                        <span>До {formatTolyatti(liveLesson.endTime, "HH:mm")}</span>
                       </div>
                     </div>
 

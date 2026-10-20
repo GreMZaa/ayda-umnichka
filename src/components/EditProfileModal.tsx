@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { getSupabase } from "@/lib/supabase";
 import { cleanUsername, formatUsername, resolveProfileUsername } from "@/lib/nickname";
+import { getStoredAuthSession, setAuthCookies } from "@/lib/auth-session";
 
 export interface ProfileData {
   id?: string;
@@ -173,7 +174,7 @@ export default function EditProfileModal({
   const [education, setEducation] = useState(init?.education || "Высшее педагогическое");
   const [bio, setBio] = useState(init?.bio || "");
   const [preferredContact, setPreferredContact] = useState(
-    init?.preferredContact || "Telegram"
+    init?.preferredContact || "Чат на платформе"
   );
 
   // Таб выбора аватара: "upload" | "presets" | "url"
@@ -358,11 +359,21 @@ export default function EditProfileModal({
     try {
       const client = getSupabase();
       if (client) {
-        // Оборачиваем обращения к Supabase в Promise.race с таймаутом 1500мс,
-        // чтобы на мобильных устройствах сохранение никогда не зависало
+        // Оборачиваем обращения к Supabase в Promise.race с комфортным таймаутом 5000мс
         await Promise.race([
           (async () => {
+            // 1. Максимально надёжно вычисляем ID пользователя
             let targetId = profileId;
+            if (!targetId && typeof document !== "undefined") {
+              const match = document.cookie.match(/ayda_user_id=([^;]+)/);
+              if (match) targetId = match[1].trim();
+            }
+            if (!targetId) {
+              try {
+                const stored = getStoredAuthSession();
+                if (stored.userId) targetId = stored.userId;
+              } catch (e) {}
+            }
             if (!targetId) {
               try {
                 const { data: sData } = await client.auth.getSession();
@@ -373,6 +384,16 @@ export default function EditProfileModal({
               try {
                 const { data: aData } = await client.auth.getUser();
                 if (aData?.user?.id) targetId = aData.user.id;
+              } catch (e) {}
+            }
+            if (!targetId && email.trim()) {
+              try {
+                const { data: pByEmail } = await client
+                  .from("profiles")
+                  .select("id")
+                  .eq("email", email.trim())
+                  .maybeSingle();
+                if (pByEmail?.id) targetId = pByEmail.id;
               } catch (e) {}
             }
 
@@ -422,16 +443,20 @@ export default function EditProfileModal({
               // Игнорируем
             }
           })(),
-          new Promise((resolve) => setTimeout(resolve, 1500)),
+          new Promise((resolve) => setTimeout(resolve, 5000)),
         ]);
       }
     } catch (err: any) {
       console.warn("Supabase profile save error/timeout:", err);
     } finally {
-      // 4. ГАРАНТИРОВАННО сохраняем в локальное хранилище и обновляем интерфейс
+      // 4. ГАРАНТИРОВАННО сохраняем в локальное хранилище и синхронизируем cookie
       try {
         localStorage.setItem(`ayda_profile_${roleNormalized.toLowerCase()}`, JSON.stringify(finalProfileData));
         localStorage.setItem("ayda_current_user_profile", JSON.stringify(finalProfileData));
+
+        if (finalProfileData.id) {
+          setAuthCookies(roleNormalized, finalProfileData.id);
+        }
 
         window.dispatchEvent(
           new CustomEvent("ayda:profile-updated", {
@@ -453,7 +478,7 @@ export default function EditProfileModal({
       setTimeout(() => {
         onClose();
         setSuccess(false);
-      }, 900);
+      }, 600);
     }
   };
 
@@ -698,10 +723,10 @@ export default function EditProfileModal({
               </div>
             </div>
 
-            {/* Никнейм в стиле Telegram (@username) */}
+            {/* Никнейм пользователя (@username) */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Никнейм как в Telegram (@username):
+                Никнейм (@username):
               </label>
               <div className="relative">
                 <span className="w-4 h-4 text-blue-600 font-black absolute left-3 top-1/2 -translate-y-1/2 flex items-center justify-center select-none text-sm">
@@ -889,7 +914,7 @@ export default function EditProfileModal({
                   Удобный способ связи для куратора:
                 </label>
                 <div className="grid grid-cols-3 gap-2">
-                  {["Telegram", "WhatsApp", "Телефонный звонок"].map((contact) => (
+                  {["Чат на платформе", "WhatsApp", "Телефонный звонок"].map((contact) => (
                     <button
                       type="button"
                       key={contact}
