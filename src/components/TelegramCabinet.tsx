@@ -173,7 +173,6 @@ export default function TelegramCabinet({
   const [activeScreen, setActiveScreen] = useState<string>(
     extraCabinetSections[0]?.key || "schedule"
   );
-  const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
   const [editProfileOpen, setEditProfileOpen] = useState<boolean>(false);
 
   // 2. Чаты
@@ -445,200 +444,94 @@ export default function TelegramCabinet({
   return (
     <div className="flex h-[100dvh] w-full bg-[#eef3f7] overflow-hidden select-none relative font-sans text-slate-800">
       {/* =========================================================================
-          1. БОКОВОЕ МЕНЮ (SLIDE-OVER DRAWER)
-         ========================================================================= */}
-      {drawerOpen && (
-        <div
-          onClick={() => setDrawerOpen(false)}
-          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs transition-opacity animate-fade-in"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="w-72 sm:w-80 h-full bg-white shadow-2xl flex flex-col justify-between overflow-y-auto animate-slide-right"
-          >
-            <div>
-              {/* Шапка профиля (фирменный синий градиент) */}
-              <div className="p-4 bg-gradient-to-b from-[#2481cc] to-[#1f70b0] text-white">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="relative">
-                    <img
-                      src={
-                        currentUser.avatar ||
-                        "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop&crop=faces"
-                      }
-                      alt={currentUser.name}
-                      className="w-14 h-14 rounded-full object-cover border-2 border-white/80 shadow-md"
-                    />
-                    <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-emerald-400 border-2 border-white rounded-full" />
-                  </div>
-                  <button
-                    onClick={() => {
-                      setDrawerOpen(false);
-                      setEditProfileOpen(true);
-                    }}
-                    className="p-2 rounded-xl bg-white/15 hover:bg-white/25 text-white transition cursor-pointer"
-                    title="Редактировать профиль"
-                  >
-                    <Edit3 className="w-4 h-4" />
-                  </button>
-                </div>
-
-                <h3 className="font-bold text-base tracking-tight truncate">{currentUser.name}</h3>
-                {currentUser.username && (
-                  <div className="text-xs text-blue-100 font-mono mt-0.5 flex items-center gap-1">
-                    <span>{formatUsername(currentUser.username)}</span>
-                  </div>
-                )}
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-xs text-blue-100 font-medium">
-                    {currentRole === "TEACHER"
-                      ? "Преподаватель"
-                      : currentRole === "STUDENT"
-                      ? "Ученик"
-                      : currentRole === "PARENT"
-                      ? "Родитель"
-                      : "Администратор"}
-                  </span>
-                  {currentUser.grade && (
-                    <span className="px-1.5 py-0.2 rounded bg-white/20 text-[11px] font-semibold">
-                      {currentUser.grade}
-                    </span>
-                  )}
-                </div>
-
-                {currentUser.balance !== undefined && (
-                  <div className="mt-3 pt-2.5 border-t border-white/20 flex items-center justify-between text-xs">
-                    <span className="text-blue-100">Баланс занятий:</span>
-                    <span className="font-extrabold bg-white/20 px-2 py-0.5 rounded-lg text-white">
-                      {currentUser.balance} уроков
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* Пункты меню */}
-              <div className="p-2 space-y-1">
-                {/* Дополнительные разделы кабинета */}
-                {extraCabinetSections.map((sec) => {
-                  const Icon = sec.icon;
-                  const isSelected = activeScreen === sec.key;
-                  return (
-                    <button
-                      key={sec.key}
-                      onClick={() => {
-                        setActiveScreen(sec.key);
-                        setMobileShowChat(false);
-                        setMobileShowSection(true);
-                        setDrawerOpen(false);
-                      }}
-                      className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-sm transition cursor-pointer ${
-                        isSelected
-                          ? "bg-[#2481cc]/10 text-[#2481cc] font-bold"
-                          : "text-slate-700 hover:bg-slate-100"
-                      }`}
-                    >
-                      <div className="flex items-center gap-3.5">
-                        <Icon className={`w-5 h-5 ${isSelected ? "text-[#2481cc]" : "text-slate-500"}`} />
-                        <span>{sec.title}</span>
-                      </div>
-                      {Boolean(sec.badge) && String(sec.badge) !== "0" && Number(sec.badge) !== 0 ? (
-                        <span className="px-2 py-0.5 rounded-full bg-[#2481cc] text-white text-[11px] font-bold">
-                          {sec.badge}
-                        </span>
-                      ) : null}
-                    </button>
-                  );
-                })}
-
-                <button
-                  onClick={() => {
-                    setActiveScreen("chat");
-                    setActiveChatId("chat-support");
-                    setMobileShowChat(true);
-                    setDrawerOpen(false);
-                  }}
-                  className={`w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl font-medium text-sm transition cursor-pointer ${
-                    activeScreen === "chat"
-                      ? "bg-[#2481cc]/10 text-[#2481cc] font-bold"
-                      : "text-slate-700 hover:bg-slate-100"
-                  }`}
-                >
-                  <MessageSquare className="w-5 h-5 text-[#2481cc]" />
-                  <span>Служба поддержки 24/7</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    setDrawerOpen(false);
-                    setEditProfileOpen(true);
-                  }}
-                  className="w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl font-medium text-sm text-slate-700 hover:bg-slate-100 transition cursor-pointer"
-                >
-                  <User className="w-5 h-5 text-slate-500" />
-                  <span>Мой профиль и данные</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Подвал бокового меню */}
-            <div className="p-3 border-t border-slate-100 space-y-1">
-              <button
-                type="button"
-                disabled={isLoggingOut}
-                onClick={handleLogout}
-                onTouchEnd={handleLogout}
-                className="w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl font-bold text-sm text-rose-600 hover:bg-rose-50 active:bg-rose-100 transition cursor-pointer select-none touch-manipulation disabled:opacity-50"
-              >
-                <LogOut className="w-5 h-5 shrink-0" />
-                <span>{isLoggingOut ? "Выходим..." : "Выйти из аккаунта"}</span>
-              </button>
-              <div className="text-[11px] text-center text-slate-400 pt-2 font-mono">
-                АйДаУмничка • Личный кабинет
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* =========================================================================
-          2. ЛЕВАЯ КОЛОНКА (РАЗДЕЛЫ КАБИНЕТА И СЛУЖБА ПОДДЕРЖКИ)
+          ЛЕВАЯ КОЛОНКА (ПРОФИЛЬ, РАЗДЕЛЫ КАБИНЕТА, ПОДДЕРЖКА, ВЫХОД)
          ========================================================================= */}
       <aside
         className={`w-full md:w-80 lg:w-96 bg-white border-r border-slate-200 flex flex-col shrink-0 h-full ${
           mobileShowChat || mobileShowSection ? "hidden md:flex" : "flex"
         }`}
       >
-        {/* Шапка левой колонки с гамбургером и брендом */}
-        <div className="p-3 bg-white border-b border-slate-100 flex items-center justify-between gap-2 shrink-0">
+        {/* 1. Шапка бренда школы */}
+        <div className="p-3.5 bg-white border-b border-slate-100 flex items-center justify-between gap-2 shrink-0">
           <div className="flex items-center gap-2.5">
-            <button
-              onClick={() => setDrawerOpen(true)}
-              className="p-2 rounded-xl text-slate-600 hover:text-[#2481cc] hover:bg-slate-100 transition cursor-pointer"
-              title="Открыть меню кабинета"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-[#2481cc] text-white flex items-center justify-center font-black text-xs shadow-xs">
-                У
-              </div>
-              <span className="font-extrabold text-sm text-slate-900 tracking-tight">
+            <div className="w-8 h-8 rounded-xl bg-[#2481cc] text-white flex items-center justify-center font-black text-sm shadow-xs">
+              У
+            </div>
+            <div>
+              <span className="font-extrabold text-sm text-slate-900 tracking-tight block leading-tight">
                 АйДаУмничка
+              </span>
+              <span className="text-[10px] text-slate-400 font-medium">
+                Онлайн-школа
               </span>
             </div>
           </div>
 
-          <button
-            onClick={() => setEditProfileOpen(true)}
-            className="p-1.5 rounded-xl text-slate-500 hover:text-[#2481cc] hover:bg-slate-100 transition cursor-pointer"
-            title="Профиль и данные"
-          >
-            <User className="w-4 h-4" />
-          </button>
+          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-[#2481cc] border border-blue-200">
+            {currentRole === "TEACHER"
+              ? "Преподаватель"
+              : currentRole === "STUDENT"
+              ? "Ученик"
+              : currentRole === "PARENT"
+              ? "Родитель"
+              : "Администратор"}
+          </span>
         </div>
 
-        {/* Список разделов кабинета */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-1">
+        {/* 2. Карточка пользователя (прямо в меню) */}
+        <div className="p-3 bg-gradient-to-br from-[#2481cc] to-[#1a68a5] text-white m-3 rounded-2xl shadow-sm relative shrink-0">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="relative shrink-0">
+                <img
+                  src={
+                    currentUser.avatar ||
+                    "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop&crop=faces"
+                  }
+                  alt={currentUser.name}
+                  className="w-12 h-12 rounded-full object-cover border-2 border-white/80 shadow-md"
+                />
+                <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-400 border-2 border-white rounded-full" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="font-bold text-sm text-white truncate leading-tight">
+                  {currentUser.name}
+                </h3>
+                {currentUser.username && (
+                  <div className="text-[11px] text-blue-100 font-mono truncate">
+                    {formatUsername(currentUser.username)}
+                  </div>
+                )}
+                {currentUser.grade && (
+                  <span className="inline-block mt-0.5 px-1.5 py-0.2 rounded bg-white/20 text-[10px] font-semibold text-white">
+                    {currentUser.grade}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setEditProfileOpen(true)}
+              className="p-1.5 rounded-lg bg-white/15 hover:bg-white/25 text-white transition cursor-pointer shrink-0"
+              title="Редактировать профиль"
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {currentUser.balance !== undefined && (
+            <div className="mt-2.5 pt-2 border-t border-white/20 flex items-center justify-between text-[11px]">
+              <span className="text-blue-100">Баланс занятий:</span>
+              <span className="font-extrabold bg-white/20 px-2 py-0.5 rounded-md text-white">
+                {currentUser.balance} уроков
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* 3. Список разделов кабинета */}
+        <div className="flex-1 overflow-y-auto px-3 space-y-1">
           <div className="px-2 py-1 text-[11px] font-black uppercase tracking-wider text-slate-400">
             Разделы кабинета
           </div>
@@ -681,7 +574,7 @@ export default function TelegramCabinet({
 
           <div className="pt-3 border-t border-slate-100 mt-2 space-y-1">
             <div className="px-2 py-1 text-[11px] font-black uppercase tracking-wider text-slate-400">
-              Служба поддержки
+              Служба заботы
             </div>
 
             {/* Официальный чат поддержки */}
@@ -718,6 +611,29 @@ export default function TelegramCabinet({
               </div>
             </div>
           </div>
+        </div>
+
+        {/* 4. Подвал левого меню (профиль и выход) */}
+        <div className="p-3 border-t border-slate-100 space-y-1 bg-white shrink-0">
+          <button
+            type="button"
+            onClick={() => setEditProfileOpen(true)}
+            className="w-full flex items-center gap-3 px-3.5 py-2 rounded-xl font-medium text-xs text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+          >
+            <User className="w-4 h-4 text-slate-500" />
+            <span>Мой профиль и данные</span>
+          </button>
+
+          <button
+            type="button"
+            disabled={isLoggingOut}
+            onClick={handleLogout}
+            onTouchEnd={handleLogout}
+            className="w-full flex items-center gap-3 px-3.5 py-2 rounded-xl font-bold text-xs text-rose-600 hover:bg-rose-50 active:bg-rose-100 transition cursor-pointer select-none touch-manipulation disabled:opacity-50"
+          >
+            <LogOut className="w-4 h-4 shrink-0" />
+            <span>{isLoggingOut ? "Выходим..." : "Выйти из аккаунта"}</span>
+          </button>
         </div>
       </aside>
 
@@ -781,14 +697,6 @@ export default function TelegramCabinet({
                     <span className="hidden sm:inline">Войти в урок</span>
                   </Link>
                 )}
-
-                <button
-                  onClick={() => setDrawerOpen(true)}
-                  className="p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition cursor-pointer"
-                  title="Меню кабинета"
-                >
-                  <MoreVertical className="w-5 h-5" />
-                </button>
               </div>
             </header>
 
@@ -991,13 +899,6 @@ export default function TelegramCabinet({
                 >
                   <MessageSquare className="w-3.5 h-3.5 text-[#2481cc]" />
                   <span>Поддержка 24/7</span>
-                </button>
-                <button
-                  onClick={() => setDrawerOpen(true)}
-                  className="p-2 rounded-xl text-slate-500 hover:bg-slate-100 transition cursor-pointer"
-                  title="Меню"
-                >
-                  <Menu className="w-5 h-5" />
                 </button>
               </div>
             </div>
