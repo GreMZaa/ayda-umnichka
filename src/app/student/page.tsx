@@ -33,6 +33,7 @@ import { fetchWithAuth } from "@/lib/api-client";
 import { useAuthGuard, AuthLoadingScreen } from "@/lib/auth-session";
 import ScheduleCalendar from "@/components/ScheduleCalendar";
 import EditProfileModal from "@/components/EditProfileModal";
+import TelegramCabinet from "@/components/TelegramCabinet";
 
 interface HomeworkItem {
   id: string;
@@ -396,7 +397,12 @@ export default function StudentCabinet() {
   };
 
   if (authLoading || !isAuthorized) {
-    return <AuthLoadingScreen roleTitle="Личный кабинет ученика" />;
+    return (
+      <AuthLoadingScreen
+        roleTitle="Личный кабинет ученика"
+        onBypass={() => window.location.reload()}
+      />
+    );
   }
 
   return (

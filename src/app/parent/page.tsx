@@ -498,7 +498,12 @@ export default function ParentCabinet() {
   };
 
   if (authLoading || !isAuthorized) {
-    return <AuthLoadingScreen roleTitle="Личный кабинет родителя" />;
+    return (
+      <AuthLoadingScreen
+        roleTitle="Личный кабинет родителя"
+        onBypass={() => window.location.reload()}
+      />
+    );
   }
 
   return (

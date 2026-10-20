@@ -88,6 +88,9 @@ interface EditProfileModalProps {
   initialProfile?: Partial<ProfileData>;
   initialData?: Partial<ProfileData>;
   defaultRole?: "STUDENT" | "TEACHER" | "PARENT" | "ADMIN" | string;
+  role?: "STUDENT" | "TEACHER" | "PARENT" | "ADMIN" | string;
+  currentProfile?: any;
+  onSave?: (data?: any) => void;
 }
 
 // Сжатие пользовательского фото на клиенте в компактный WebP / JPEG для быстрой загрузки

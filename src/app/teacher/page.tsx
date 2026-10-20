@@ -771,7 +771,12 @@ export default function TeacherCabinet() {
   const completedLessons = lessons.filter((l) => l.status === "COMPLETED");
 
   if (authLoading || !isAuthorized) {
-    return <AuthLoadingScreen roleTitle="Личный кабинет преподавателя" />;
+    return (
+      <AuthLoadingScreen
+        roleTitle="Личный кабинет преподавателя"
+        onBypass={() => window.location.reload()}
+      />
+    );
   }
 
   return (

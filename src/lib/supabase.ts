@@ -72,13 +72,19 @@ export const setCustomSupabaseConfig = (url: string, key: string) => {
       localStorage.setItem("umnichka_supabase_url", cleanedUrl);
       localStorage.setItem("umnichka_supabase_anon_key", cleanedKey);
       clientInstance = createClient(cleanedUrl, cleanedKey, {
-        auth: { persistSession: true, autoRefreshToken: true },
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+        },
       });
     } else {
       localStorage.removeItem("umnichka_supabase_url");
       localStorage.removeItem("umnichka_supabase_anon_key");
       clientInstance = createClient(PROD_SUPABASE_URL, PROD_SUPABASE_ANON_KEY, {
-        auth: { persistSession: true, autoRefreshToken: true },
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+        },
       });
     }
   }
