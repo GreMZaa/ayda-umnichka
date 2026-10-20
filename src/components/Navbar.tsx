@@ -29,7 +29,7 @@ import {
   Edit3,
 } from "lucide-react";
 import { getSupabase } from "@/lib/supabase";
-import { setAuthCookies, clearAuthCookies, normalizeRole } from "@/lib/auth-session";
+import { setAuthCookies, clearAuthCookies, performLogout, normalizeRole } from "@/lib/auth-session";
 import EditProfileModal from "@/components/EditProfileModal";
 
 export default function Navbar() {
@@ -233,26 +233,8 @@ export default function Navbar() {
   };
 
   const handleLogout = async () => {
-    clearAuthCookies();
-    try {
-      localStorage.removeItem("ayda_current_user_profile");
-      localStorage.removeItem("ayda_profile_student");
-      localStorage.removeItem("ayda_profile_teacher");
-      localStorage.removeItem("ayda_profile_parent");
-      localStorage.removeItem("ayda_profile_admin");
-    } catch (e) {}
-
-    const client = getSupabase();
-    if (client) {
-      try {
-        await client.auth.signOut();
-      } catch (e) {
-        console.error(e);
-      }
-    }
-    setAuthProfile(null);
     setUserMenuOpen(false);
-    router.push("/?logout=1");
+    await performLogout();
   };
 
   return (

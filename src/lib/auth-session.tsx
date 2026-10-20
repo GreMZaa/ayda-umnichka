@@ -49,16 +49,67 @@ export function setAuthCookies(role: string, userId: string, token?: string) {
 }
 
 /**
- * Очищает все авторизационные cookie
+ * Очищает все авторизационные cookie и локальные хранилища
  */
 export function clearAuthCookies() {
   if (typeof document === "undefined") return;
-  document.cookie = "ayda_session=; path=/; max-age=0; SameSite=Lax";
-  document.cookie = "ayda_role=; path=/; max-age=0; SameSite=Lax";
-  document.cookie = "ayda_user_id=; path=/; max-age=0; SameSite=Lax";
-  document.cookie = "sb-access-token=; path=/; max-age=0; SameSite=Lax";
-  document.cookie = "admin_session=; path=/; max-age=0; SameSite=Lax";
+  const expired = "expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; max-age=0; SameSite=Lax";
+  document.cookie = `ayda_session=; ${expired}`;
+  document.cookie = `ayda_role=; ${expired}`;
+  document.cookie = `ayda_user_id=; ${expired}`;
+  document.cookie = `sb-access-token=; ${expired}`;
+  document.cookie = `admin_session=; ${expired}`;
+
+  try {
+    const host = window.location.hostname;
+    document.cookie = `ayda_session=; domain=${host}; ${expired}`;
+    document.cookie = `ayda_role=; domain=${host}; ${expired}`;
+    document.cookie = `ayda_user_id=; domain=${host}; ${expired}`;
+    document.cookie = `sb-access-token=; domain=${host}; ${expired}`;
+    document.cookie = `admin_session=; domain=${host}; ${expired}`;
+  } catch (e) {}
+
+  try {
+    localStorage.removeItem("ayda_session");
+    localStorage.removeItem("ayda_role");
+    localStorage.removeItem("ayda_user_id");
+    localStorage.removeItem("ayda_current_user_profile");
+    localStorage.removeItem("ayda_profile_student");
+    localStorage.removeItem("ayda_profile_teacher");
+    localStorage.removeItem("ayda_profile_parent");
+    localStorage.removeItem("ayda_profile_admin");
+
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && (k.startsWith("sb-") || k.includes("supabase") || k.startsWith("ayda_tg_msgs_"))) {
+        localStorage.removeItem(k);
+      }
+    }
+    sessionStorage.clear();
+  } catch (e) {}
 }
+
+/**
+ * Надежный выход из системы: очищает все сессии, отключает Supabase с таймаутом
+ * и выполняет жесткий переход на /login?logout=1 (не блокируется middleware)
+ */
+export async function performLogout() {
+  clearAuthCookies();
+  try {
+    const client = getSupabase();
+    if (client) {
+      await Promise.race([
+        client.auth.signOut(),
+        new Promise((resolve) => setTimeout(resolve, 600)),
+      ]);
+    }
+  } catch (e) {
+    console.warn("SignOut timeout or error:", e);
+  }
+  clearAuthCookies();
+  window.location.replace("/login?logout=1");
+}
+
 
 export interface UserSessionData {
   user: any | null;

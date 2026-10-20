@@ -45,7 +45,7 @@ import {
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { getSupabase } from "@/lib/supabase";
-import { clearAuthCookies } from "@/lib/auth-session";
+import { clearAuthCookies, performLogout } from "@/lib/auth-session";
 import EditProfileModal from "@/components/EditProfileModal";
 import ScheduleCalendar from "@/components/ScheduleCalendar";
 import { formatUsername } from "@/lib/nickname";
@@ -159,180 +159,132 @@ export default function TelegramCabinet({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLInputElement>(null);
 
-  // Формирование списка чатов в зависимости от роли
-  const [chats, setChats] = useState<TelegramChat[]>(() => {
-    if (currentRole === "TEACHER") {
-      return [
-        {
-          id: "chat-student-1",
-          name: "Артём Смирнов",
-          role: "student",
-          roleLabel: "Ученик (3 класс)",
-          avatar: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&h=150&fit=crop&crop=faces",
-          online: true,
-          statusText: "в сети",
-          lastMessage: "Здравствуйте! Домашнее задание по дробям загрузил в кабинет 📚",
-          lastMessageTime: "11:42",
-          unreadCount: 1,
-          lessonId: "lesson-1",
-          lessonTitle: "Математика и логика",
-          lessonTime: "Сегодня в 15:00",
-        },
-        {
-          id: "chat-parent-1",
-          name: "Елена Викторовна",
-          role: "parent",
-          roleLabel: "Родитель Артёма",
-          avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop&crop=faces",
-          online: false,
-          statusText: "была 15 минут назад",
-          lastMessage: "Спасибо большое за подробный отчёт по уроку!",
-          lastMessageTime: "09:15",
-          unreadCount: 0,
-        },
-        {
-          id: "chat-student-2",
-          name: "София Васильева",
-          role: "student",
-          roleLabel: "Ученица (4 класс)",
-          avatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&h=150&fit=crop&crop=faces",
-          online: true,
-          statusText: "в сети",
-          lastMessage: "А мы сегодня будем разбирать олимпиадные задачи?",
-          lastMessageTime: "Вчера",
-          unreadCount: 0,
-          lessonId: "lesson-2",
-          lessonTitle: "Олимпиадная математика",
-          lessonTime: "Завтра в 16:30",
-        },
-        {
-          id: "chat-support",
-          name: "Поддержка «АйДаУмничка»",
-          role: "support",
-          roleLabel: "Служба заботы 24/7",
-          avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&h=150&fit=crop&crop=faces",
-          online: true,
-          statusText: "онлайн",
-          lastMessage: "Здравствуйте! Ваше расписание на неделю успешно синхронизировано.",
-          lastMessageTime: "18 окт",
-          unreadCount: 0,
-        },
-      ];
-    } else if (currentRole === "STUDENT") {
-      return [
-        {
-          id: "chat-teacher-1",
-          name: "Анна Сергеевна Иванова",
-          role: "teacher",
-          roleLabel: "Преподаватель математики",
-          avatar: "https://images.unsplash.com/photo-1544717305-2782549b5136?w=150&h=150&fit=crop&crop=faces",
-          online: true,
-          statusText: "в сети",
-          lastMessage: "Привет! Молодец, отлично справился с примерами на доске!",
-          lastMessageTime: "12:10",
-          unreadCount: 1,
-          lessonId: "lesson-1",
-          lessonTitle: "Математика и логика",
-          lessonTime: "Сегодня в 15:00",
-        },
-        {
-          id: "chat-parent-me",
-          name: "Мама (Родитель)",
-          role: "parent",
-          roleLabel: "Семья",
-          avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop&crop=faces",
-          online: true,
-          statusText: "в сети",
-          lastMessage: "Не забудь подключиться к уроку в 15:00 ⭐",
-          lastMessageTime: "10:05",
-          unreadCount: 0,
-        },
-        {
-          id: "chat-teacher-2",
-          name: "Мария Павловна",
-          role: "teacher",
-          roleLabel: "Русский язык и чтение",
-          avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&h=150&fit=crop&crop=faces",
-          online: false,
-          statusText: "была недавно",
-          lastMessage: "Новое домашнее задание добавлено в твой личный кабинет.",
-          lastMessageTime: "Вчера",
-          unreadCount: 0,
-        },
-        {
-          id: "chat-support",
-          name: "Помощник «АйДаУмничка»",
-          role: "support",
-          roleLabel: "Бот-помощник",
-          avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&h=150&fit=crop&crop=faces",
-          online: true,
-          statusText: "онлайн",
-          lastMessage: "Ты заработал 5 звёзд за выполненные задания! Так держать! 🚀",
-          lastMessageTime: "18 окт",
-          unreadCount: 0,
-        },
-      ];
-    } else {
-      // PARENT / ADMIN
-      return [
-        {
-          id: "chat-teacher-1",
-          name: "Анна Сергеевна Иванова",
-          role: "teacher",
-          roleLabel: "Учитель математики",
-          avatar: "https://images.unsplash.com/photo-1544717305-2782549b5136?w=150&h=150&fit=crop&crop=faces",
-          online: true,
-          statusText: "в сети",
-          lastMessage: "Здравствуйте! У Артёма отличные успехи с устным счётом.",
-          lastMessageTime: "11:50",
-          unreadCount: 1,
-          lessonId: "lesson-1",
-          lessonTitle: "Математика и логика",
-          lessonTime: "Сегодня в 15:00",
-        },
-        {
-          id: "chat-child-1",
-          name: "Артём (Ребёнок)",
-          role: "student",
-          roleLabel: "Ученик 3 класса",
-          avatar: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&h=150&fit=crop&crop=faces",
-          online: true,
-          statusText: "в сети",
-          lastMessage: "Мам, я решил все примеры на звёздочки!",
-          lastMessageTime: "10:12",
-          unreadCount: 0,
-        },
-        {
-          id: "chat-billing",
-          name: "Отдел заботы и оплаты",
-          role: "support",
-          roleLabel: "Куратор школы",
-          avatar: "https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=150&h=150&fit=crop&crop=faces",
-          online: true,
-          statusText: "онлайн",
-          lastMessage: "Ваш пакет из 8 уроков успешно активирован. Приятных занятий!",
-          lastMessageTime: "Вчера",
-          unreadCount: 0,
-        },
-        {
-          id: "chat-support",
-          name: "Техподдержка АйДаУмничка",
-          role: "support",
-          roleLabel: "Поддержка платформы",
-          avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&h=150&fit=crop&crop=faces",
-          online: true,
-          statusText: "онлайн",
-          lastMessage: "Если возникнут вопросы по видеосвязи или доске, мы на связи 24/7.",
-          lastMessageTime: "17 окт",
-          unreadCount: 0,
-        },
-      ];
+  // Динамическое формирование списка чатов на основе реальных уроков и официальной поддержки
+  const buildChats = useCallback((): TelegramChat[] => {
+    const list: TelegramChat[] = [];
+
+    // 1. Официальный канал службы поддержки и заботы «АйДаУмничка» (всегда доступен)
+    list.push({
+      id: "chat-support",
+      name: "Поддержка «АйДаУмничка»",
+      role: "support",
+      roleLabel: "Служба заботы 24/7",
+      avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&h=150&fit=crop&crop=faces",
+      online: true,
+      statusText: "онлайн",
+      lastMessage: "Здравствуйте! Мы на связи, если у вас возникнут любые вопросы по урокам или платформе.",
+      lastMessageTime: "Сегодня",
+      unreadCount: 0,
+    });
+
+    // 2. Формируем диалоги на основе РЕАЛЬНЫХ назначенных уроков
+    if (Array.isArray(lessons) && lessons.length > 0) {
+      if (currentRole === "TEACHER") {
+        lessons.forEach((l) => {
+          const sId = l.studentId || l.student_id || l.student?.id;
+          const sName = l.studentName || l.student?.name;
+          if (!sName && !sId) return;
+          const chatId = `student-${sId || sName}`;
+          if (!list.some((c) => c.id === chatId)) {
+            list.push({
+              id: chatId,
+              name: sName || "Ученик",
+              role: "student",
+              roleLabel: l.subjectName ? `Ученик • ${l.subjectName}` : "Ученик",
+              avatar:
+                l.studentAvatar ||
+                l.student?.avatar_url ||
+                "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&h=150&fit=crop&crop=faces",
+              online: true,
+              statusText: "в сети",
+              lastMessage: l.title ? `Занятие: ${l.title}` : "Диалог открыт",
+              lastMessageTime: l.startTime ? format(new Date(l.startTime), "HH:mm") : "Недавно",
+              unreadCount: 0,
+              lessonId: l.id,
+              lessonTitle: l.title,
+              lessonTime: l.startTime
+                ? format(new Date(l.startTime), "d MMMM в HH:mm", { locale: ru })
+                : undefined,
+            });
+          }
+        });
+      } else if (currentRole === "STUDENT") {
+        lessons.forEach((l) => {
+          const tId = l.teacherId || l.teacher_id || l.teacher?.id;
+          const tName = l.teacherName || l.teacher?.name;
+          if (!tName && !tId) return;
+          const chatId = `teacher-${tId || tName}`;
+          if (!list.some((c) => c.id === chatId)) {
+            list.push({
+              id: chatId,
+              name: tName || "Преподаватель",
+              role: "teacher",
+              roleLabel: l.subjectName ? `Преподаватель • ${l.subjectName}` : "Преподаватель",
+              avatar:
+                l.teacherAvatar ||
+                l.teacher?.avatar_url ||
+                "https://images.unsplash.com/photo-1544717305-2782549b5136?w=150&h=150&fit=crop&crop=faces",
+              online: true,
+              statusText: "в сети",
+              lastMessage: l.title ? `Занятие: ${l.title}` : "Диалог открыт",
+              lastMessageTime: l.startTime ? format(new Date(l.startTime), "HH:mm") : "Недавно",
+              unreadCount: 0,
+              lessonId: l.id,
+              lessonTitle: l.title,
+              lessonTime: l.startTime
+                ? format(new Date(l.startTime), "d MMMM в HH:mm", { locale: ru })
+                : undefined,
+            });
+          }
+        });
+      } else {
+        // PARENT / ADMIN
+        lessons.forEach((l) => {
+          const tId = l.teacherId || l.teacher_id || l.teacher?.id;
+          const tName = l.teacherName || l.teacher?.name;
+          if (!tName && !tId) return;
+          const chatId = `teacher-${tId || tName}`;
+          if (!list.some((c) => c.id === chatId)) {
+            list.push({
+              id: chatId,
+              name: tName || "Преподаватель",
+              role: "teacher",
+              roleLabel: l.subjectName ? `Преподаватель • ${l.subjectName}` : "Преподаватель",
+              avatar:
+                l.teacherAvatar ||
+                l.teacher?.avatar_url ||
+                "https://images.unsplash.com/photo-1544717305-2782549b5136?w=150&h=150&fit=crop&crop=faces",
+              online: true,
+              statusText: "в сети",
+              lastMessage: l.title ? `Занятие: ${l.title}` : "Диалог открыт",
+              lastMessageTime: l.startTime ? format(new Date(l.startTime), "HH:mm") : "Недавно",
+              unreadCount: 0,
+              lessonId: l.id,
+              lessonTitle: l.title,
+              lessonTime: l.startTime
+                ? format(new Date(l.startTime), "d MMMM в HH:mm", { locale: ru })
+                : undefined,
+            });
+          }
+        });
+      }
     }
-  });
+
+    return list;
+  }, [lessons, currentRole]);
+
+  const [chats, setChats] = useState<TelegramChat[]>(() => buildChats());
+
+  // Обновляем чаты при изменении уроков или роли
+  useEffect(() => {
+    setChats(buildChats());
+  }, [buildChats]);
 
   // Установка первого чата по умолчанию
   useEffect(() => {
     if (!activeChatId && chats.length > 0) {
+      setActiveChatId(chats[0].id);
+    } else if (activeChatId && !chats.some((c) => c.id === activeChatId) && chats.length > 0) {
       setActiveChatId(chats[0].id);
     }
   }, [chats, activeChatId]);
@@ -349,58 +301,53 @@ export default function TelegramCabinet({
       }
     } catch (e) {}
 
-    // Дефолтные реалистичные сообщения диалога
     const activeChat = chats.find((c) => c.id === activeChatId);
     const partnerName = activeChat?.name || "Собеседник";
     const partnerAvatar = activeChat?.avatar;
 
-    const defaultMsgs: TelegramMessage[] = [
-      {
-        id: "msg-1",
-        senderId: activeChatId,
-        senderName: partnerName,
-        senderAvatar: partnerAvatar,
-        isMe: false,
-        text: `Здравствуйте! Рады видеть вас на платформе «АйДаУмничка».`,
-        time: "10:15",
-        date: "Сегодня",
-        read: true,
-      },
-      {
-        id: "msg-2",
-        senderId: currentUser.id || "me",
-        senderName: currentUser.name || "Я",
-        isMe: true,
-        text: `Добрый день! Подскажите, всё ли готово к сегодняшнему уроку?`,
-        time: "10:18",
-        date: "Сегодня",
-        read: true,
-      },
-    ];
-
-    if (activeChat?.lessonId) {
-      defaultMsgs.push({
-        id: "msg-3",
-        senderId: activeChatId,
-        senderName: partnerName,
-        senderAvatar: partnerAvatar,
-        isMe: false,
-        text: `Да, интерактивная доска и материалы к уроку подготовлены! Жду вас в виртуальном классе.`,
-        time: "10:20",
-        date: "Сегодня",
-        type: "lesson_invite",
-        lessonData: {
-          id: activeChat.lessonId,
-          title: activeChat.lessonTitle || "Индивидуальный онлайн-урок",
-          time: activeChat.lessonTime || "Сегодня в 15:00",
-          subject: "Математика и логика",
+    if (activeChatId === "chat-support") {
+      setMessages([
+        {
+          id: "msg-support-welcome",
+          senderId: "chat-support",
+          senderName: "Поддержка «АйДаУмничка»",
+          senderAvatar: partnerAvatar,
+          isMe: false,
+          text: `Здравствуйте! Рады приветствовать вас на платформе «АйДаУмничка». Если у вас возникнут вопросы по расписанию, оплате или проведению занятий — напишите нам здесь.`,
+          time: "10:00",
+          date: "Сегодня",
+          read: true,
         },
-        read: true,
-      });
+      ]);
+      return;
     }
 
-    setMessages(defaultMsgs);
-  }, [activeChatId, chats, currentUser.id, currentUser.name]);
+    if (activeChat?.lessonId) {
+      setMessages([
+        {
+          id: "msg-lesson-invite",
+          senderId: activeChatId,
+          senderName: partnerName,
+          senderAvatar: partnerAvatar,
+          isMe: false,
+          text: `Здравствуйте! Ссылка на подключение к уроку:`,
+          time: "10:00",
+          date: "Сегодня",
+          type: "lesson_invite",
+          lessonData: {
+            id: activeChat.lessonId,
+            title: activeChat.lessonTitle || "Онлайн-урок",
+            time: activeChat.lessonTime || "По расписанию",
+            subject: activeChat.roleLabel || "Занятие",
+          },
+          read: true,
+        },
+      ]);
+      return;
+    }
+
+    setMessages([]);
+  }, [activeChatId, chats]);
 
   // Автопрокрутка вниз при новом сообщении
   useEffect(() => {
@@ -523,14 +470,17 @@ export default function TelegramCabinet({
     );
   };
 
-  // Выход из аккаунта
-  const handleLogout = async () => {
-    const supabase = getSupabase();
-    if (supabase) {
-      await supabase.auth.signOut();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  // Выход из аккаунта (гарантированно работает на смартфонах)
+  const handleLogout = async (e?: React.SyntheticEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
     }
-    clearAuthCookies();
-    router.push("/login");
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    await performLogout();
   };
 
   // Фильтрация списка чатов
@@ -689,11 +639,14 @@ export default function TelegramCabinet({
             {/* Подвал бокового меню */}
             <div className="p-3 border-t border-slate-100 space-y-1">
               <button
+                type="button"
+                disabled={isLoggingOut}
                 onClick={handleLogout}
-                className="w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl font-bold text-sm text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                onTouchEnd={handleLogout}
+                className="w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl font-bold text-sm text-rose-600 hover:bg-rose-50 active:bg-rose-100 transition cursor-pointer select-none touch-manipulation disabled:opacity-50"
               >
-                <LogOut className="w-5 h-5" />
-                <span>Выйти из аккаунта</span>
+                <LogOut className="w-5 h-5 shrink-0" />
+                <span>{isLoggingOut ? "Выходим..." : "Выйти из аккаунта"}</span>
               </button>
               <div className="text-[11px] text-center text-slate-400 pt-2 font-mono">
                 АйДаУмничка • Telegram Web
