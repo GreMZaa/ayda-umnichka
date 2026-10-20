@@ -36,6 +36,7 @@ import { fetchWithAuth } from "@/lib/api-client";
 import { useAuthGuard, AuthLoadingScreen } from "@/lib/auth-session";
 import ScheduleCalendar from "@/components/ScheduleCalendar";
 import EditProfileModal from "@/components/EditProfileModal";
+import TelegramCabinet from "@/components/TelegramCabinet";
 import { cleanUsername, formatUsername, resolveProfileUsername } from "@/lib/nickname";
 import {
   getTolyattiTomorrowDateStr,
@@ -922,141 +923,27 @@ export default function TeacherCabinet() {
 
   return (
     <>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 pb-20">
-      {/* 1. ГЛАВНАЯ КАРТОЧКА ПРЕПОДАВАТЕЛЯ В СТИЛЕ FOXFORD */}
-      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-sm relative overflow-hidden">
-        {/* Декоративное свечение */}
-        <div className="absolute -top-12 -right-12 w-48 h-48 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-full blur-2xl opacity-60 pointer-events-none" />
-
-        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative z-10">
-          <div className="flex items-center gap-4 sm:gap-5">
-            <div className="relative group">
-              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden border-2 border-white shadow-lg ring-4 ring-blue-50 bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white font-black text-2xl">
-                {teacherAvatar ? (
-                  <img
-                    src={teacherAvatar}
-                    alt={teacherName}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  teacherName.charAt(0).toUpperCase()
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => setEditProfileModalOpen(true)}
-                className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-blue-600 hover:bg-blue-700 text-white border-2 border-white flex items-center justify-center text-xs shadow-xs cursor-pointer transition active:scale-95"
-                title="Сменить фото / редактировать профиль"
-              >
-                <Edit3 className="w-3 h-3" />
-              </button>
-            </div>
-
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
-                  {teacherName}
-                </h1>
-                {teacherUsername && (
-                  <span className="text-xs text-blue-600 font-mono bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-200">
-                    {formatUsername(teacherUsername)}
-                  </span>
-                )}
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800">
-                  Преподаватель
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setEditProfileModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 text-xs font-bold transition border border-slate-200 hover:border-blue-200 cursor-pointer shadow-2xs active:scale-95"
-                  title="Редактировать профиль и сменить фото"
-                >
-                  <Edit3 className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Редактировать</span>
-                </button>
-              </div>
-              <p className="text-xs sm:text-sm text-slate-500 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-                <span>{teacherSubjects || "Математика и логика"}</span>
-                <span>•</span>
-                <span>{teacherExperience || "Стаж 12 лет"}</span>
-                <span>•</span>
-                <span>Онлайн-школа «АйДаУмничка»</span>
-              </p>
-            </div>
-          </div>
-
-          {/* Информационные виджеты + Кнопка создания урока */}
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full lg:w-auto">
-            {/* Проведено уроков */}
-            <div className="flex-1 sm:flex-none flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-blue-50 border border-blue-200 text-blue-900 shadow-2xs">
-              <GraduationCap className="w-5 h-5 text-blue-600" />
-              <div>
-                <div className="text-xs font-black text-blue-950">{completedLessons.length} уроков</div>
-                <div className="text-[10px] text-blue-700 font-medium">Проведено занятий</div>
-              </div>
-            </div>
-
-            {/* Учеников в друзьях */}
-            <div className="flex-1 sm:flex-none flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-amber-50 border border-amber-200/80 text-amber-900 shadow-2xs">
-              <Users className="w-5 h-5 text-amber-600" />
-              <div>
-                <div className="text-xs font-black text-amber-950">{friends.length} учеников</div>
-                <div className="text-[10px] text-amber-700 font-medium">В группе обучения</div>
-              </div>
-            </div>
-
-            {/* Создать урок */}
-            <button
-              type="button"
-              onClick={() => handleOpenCreateModal()}
-              className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs sm:text-sm shadow-md shadow-blue-500/25 transition active:scale-95 cursor-pointer whitespace-nowrap"
-            >
-              <Plus className="w-4 h-4 stroke-[3]" />
-              <span>Создать урок</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* 2. ТАБЫ КАБИНЕТА */}
-      <div className="flex p-1.5 bg-slate-100 rounded-2xl gap-1 overflow-x-auto">
-        {[
-          { id: "schedule" as const, label: "Расписание и уроки", icon: Calendar, badge: lessons.length },
-          { id: "students" as const, label: "Мои ученики", icon: Users, badge: friends.length },
-          { id: "journal" as const, label: "Журнал и отчёты", icon: FileText, badge: completedLessons.length },
-        ].map((tab) => {
-          const Icon = tab.icon;
-          const isSelected = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 min-w-[140px] flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer ${
-                isSelected
-                  ? "bg-white text-slate-900 shadow-xs"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <Icon className={`w-4 h-4 ${isSelected ? "text-blue-600" : "text-slate-400"}`} />
-              <span>{tab.label}</span>
-              {tab.badge !== undefined && tab.badge > 0 && (
-                <span
-                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                    isSelected ? "bg-blue-100 text-blue-700" : "bg-slate-200 text-slate-600"
-                  }`}
-                >
-                  {tab.badge}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* 3. КОНТЕНТ АКТИВНОГО ТАБА */}
-      {activeTab === "schedule" && (
-        <div className="space-y-6">
+      <TelegramCabinet
+        currentRole="TEACHER"
+        currentUser={{
+          id: teacherId,
+          name: teacherName,
+          username: teacherUsername,
+          email: teacherEmail || authUser?.email || undefined,
+          phone: teacherPhone || "+7 (900) 123-45-67",
+          avatar: teacherAvatar,
+          bio: teacherBio || teacherSubjects || "Преподаватель онлайн-школы «АйДаУмничка»",
+        }}
+        lessons={lessons}
+        onRefreshData={() => window.location.reload()}
+        extraCabinetSections={[
+          {
+            key: "schedule",
+            title: "Расписание и уроки",
+            icon: Calendar,
+            badge: lessons.length,
+            render: () => (
+              <div className="space-y-6">
                 {liveLessons.length > 0 && (
                   <div className="bg-white rounded-3xl p-6 sm:p-7 border-2 border-[#2481cc] shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5 animate-in fade-in duration-300">
                     <div className="space-y-2">
@@ -1120,12 +1007,16 @@ export default function TeacherCabinet() {
                   onOpenReportModal={handleOpenReportModal}
                   onCreateLesson={() => handleOpenCreateModal()}
                 />
-        </div>
-      )}
-
-      {/* 4. ТАБ 2: МОИ УЧЕНИКИ */}
-      {activeTab === "students" && (
-        <div className="space-y-4">
+              </div>
+            ),
+          },
+          {
+            key: "students",
+            title: "Мои ученики",
+            icon: Users,
+            badge: friends.length,
+            render: () => (
+              <div className="space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1">
                   <div>
                     <div className="flex items-center gap-2">
@@ -1268,12 +1159,16 @@ export default function TeacherCabinet() {
                     })}
                   </div>
                 )}
-        </div>
-      )}
-
-      {/* 5. ТАБ 3: ЖУРНАЛ И ОТЧЁТЫ */}
-      {activeTab === "journal" && (
-        <div className="space-y-4">
+              </div>
+            ),
+          },
+          {
+            key: "journal",
+            title: "Журнал и отчёты",
+            icon: FileText,
+            badge: completedLessons.length,
+            render: () => (
+              <div className="space-y-4">
                 <div className="flex items-center justify-between px-1">
                   <div>
                     <h2 className="text-base font-extrabold text-slate-900">
@@ -1362,19 +1257,11 @@ export default function TeacherCabinet() {
                     ))}
                   </div>
                 )}
-        </div>
-      )}
-      </div>
-
-      {/* Плавающая кнопка службы поддержки (чат доступен только в поддержке) */}
-      <Link
-        href="/chat"
-        className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-5 py-3.5 rounded-full bg-[#2481cc] hover:bg-[#1f70b0] text-white shadow-xl shadow-blue-500/30 transition transform hover:scale-105 active:scale-95 text-xs sm:text-sm font-bold cursor-pointer"
-        title="Служба поддержки 24/7"
-      >
-        <MessageSquare className="w-4 h-4 text-white" />
-        <span>Поддержка 24/7</span>
-      </Link>
+              </div>
+            ),
+          },
+        ]}
+      />
 
       {/* 8. МОДАЛЬНОЕ ОКНО «СОЗДАТЬ УРОК» (Портал в body с 100% перекрытием) */}
       {createModalOpen && mounted && createPortal(

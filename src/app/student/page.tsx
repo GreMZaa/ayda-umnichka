@@ -23,8 +23,8 @@ import {
   Check,
   X,
   ChevronRight,
+  AlertCircle,
   Edit3,
-  MessageSquare,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -33,6 +33,7 @@ import { fetchWithAuth } from "@/lib/api-client";
 import { useAuthGuard, AuthLoadingScreen } from "@/lib/auth-session";
 import ScheduleCalendar from "@/components/ScheduleCalendar";
 import EditProfileModal from "@/components/EditProfileModal";
+import TelegramCabinet from "@/components/TelegramCabinet";
 import { formatUsername, resolveProfileUsername } from "@/lib/nickname";
 import { formatTolyatti } from "@/lib/tolyatti-time";
 
@@ -437,337 +438,245 @@ export default function StudentCabinet() {
 
   return (
     <>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 pb-20">
-        {/* 1. ГЛАВНАЯ КАРТОЧКА ПРОФИЛЯ С ДАННЫМИ ИЗ SUPABASE */}
-        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-sm relative overflow-hidden">
-          {/* Фоновый декоративный круг */}
-          <div className="absolute -top-12 -right-12 w-48 h-48 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-full blur-2xl opacity-60 pointer-events-none" />
+      <TelegramCabinet
+        currentRole="STUDENT"
+        currentUser={{
+          id: studentId,
+          name: studentName,
+          username: studentUsername,
+          email: authUser?.email || undefined,
+          phone: "+7 (900) 123-45-67",
+          avatar: avatarUrl,
+          grade: grade,
+          bio: bio || "Онлайн-школа «АйДаУмничка»",
+          balance: balance,
+          stars: stars,
+        }}
+        lessons={lessons}
+        onRefreshData={() => window.location.reload()}
+        extraCabinetSections={[
+          {
+            key: "schedule",
+            title: "Расписание и уроки",
+            icon: Calendar,
+            badge: lessons.length,
+            render: () => (
+              <div className="space-y-6">
+                {liveLesson && (
+                  <div className="bg-white rounded-3xl p-6 sm:p-7 border-2 border-[#2481cc] shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5 animate-in fade-in duration-300">
+                    <div className="space-y-2">
+                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-[#2481cc] text-xs font-black border border-blue-200">
+                        <span className="w-2.5 h-2.5 rounded-full bg-[#2481cc] animate-ping" />
+                        <span>Урок идёт прямо сейчас!</span>
+                      </div>
+                      <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
+                        {liveLesson.title}
+                      </h2>
+                      <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm text-slate-600">
+                        <span>Преподаватель: <strong className="text-slate-800">{liveLesson.teacherName}</strong></span>
+                        <span>•</span>
+                        <span>До {formatTolyatti(liveLesson.endTime, "HH:mm")}</span>
+                      </div>
+                    </div>
 
-          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative z-10">
-            <div className="flex items-center gap-4 sm:gap-5">
-              <div className="relative group">
-                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-black text-2xl sm:text-3xl flex items-center justify-center shadow-lg shadow-blue-500/25 ring-4 ring-blue-50 overflow-hidden">
-                  {avatarUrl ? (
-                    <img src={avatarUrl} alt={studentName} className="w-full h-full object-cover" />
-                  ) : (
-                    initial || <User className="w-8 h-8" />
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setEditProfileModalOpen(true)}
-                  className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-blue-600 hover:bg-blue-700 text-white border-2 border-white flex items-center justify-center text-xs shadow-xs cursor-pointer transition active:scale-95"
-                  title="Сменить фото / редактировать профиль"
-                >
-                  <Edit3 className="w-3 h-3" />
-                </button>
-              </div>
-
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
-                    Привет, {studentName}! 👋
-                  </h1>
-                  {studentUsername && (
-                    <span className="text-xs text-blue-600 font-mono bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-200">
-                      {formatUsername(studentUsername)}
-                    </span>
-                  )}
-                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800">
-                    {grade}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setEditProfileModalOpen(true)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 text-xs font-bold transition border border-slate-200 hover:border-blue-200 cursor-pointer shadow-2xs active:scale-95"
-                    title="Редактировать профиль и сменить фото"
-                  >
-                    <Edit3 className="w-3.5 h-3.5 text-blue-600" />
-                    <span>Редактировать</span>
-                  </button>
-                </div>
-                <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                  {school || "Онлайн-школа «АйДаУмничка»"} {bio ? `• ${bio}` : "• Персональный образовательный трек"}
-                </p>
-              </div>
-            </div>
-
-            {/* Виджеты достижений: Звёзды, Серия */}
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full lg:w-auto">
-              {/* Звёзды */}
-              <div className="flex-1 sm:flex-none flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-amber-50 border border-amber-200/80 text-amber-900 shadow-2xs">
-                <Star className="w-5 h-5 fill-amber-400 text-amber-500" />
-                <div>
-                  <div className="text-xs font-black text-amber-950">{stars} звёзд</div>
-                  <div className="text-[10px] text-amber-700 font-medium">За успехи в учебе</div>
-                </div>
-              </div>
-
-              {/* Серия дней */}
-              <div className="flex-1 sm:flex-none flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-rose-50 border border-rose-200/80 text-rose-900 shadow-2xs">
-                <Flame className="w-5 h-5 fill-rose-500 text-rose-500" />
-                <div>
-                  <div className="text-xs font-black text-rose-950">3 дня подряд</div>
-                  <div className="text-[10px] text-rose-700 font-medium">Ударный темп 🔥</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* 2. ТЕКУЩИЙ УРОК ПРЯМО СЕЙЧАС */}
-        {liveLesson && (
-          <div className="bg-white rounded-3xl p-6 sm:p-7 border-2 border-[#2481cc] shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5 animate-in fade-in duration-300">
-            <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-[#2481cc] text-xs font-black border border-blue-200">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#2481cc] animate-ping" />
-                <span>Урок идёт прямо сейчас!</span>
-              </div>
-              <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
-                {liveLesson.title}
-              </h2>
-              <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm text-slate-600">
-                <span>Преподаватель: <strong className="text-slate-800">{liveLesson.teacherName}</strong></span>
-                <span>•</span>
-                <span>До {formatTolyatti(liveLesson.endTime, "HH:mm")}</span>
-              </div>
-            </div>
-
-            <Link
-              href={`/room/${liveLesson.id || liveLesson.roomName}?role=student`}
-              className="inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-2xl bg-[#2481cc] text-white font-black text-sm sm:text-base shadow-lg shadow-blue-500/25 hover:bg-[#1f70b0] transition transform hover:scale-105 active:scale-95 shrink-0 w-full sm:w-auto cursor-pointer"
-            >
-              <Video className="w-5 h-5 text-white" />
-              <span>Войти в видеокласс</span>
-              <ArrowRight className="w-4 h-4 ml-1" />
-            </Link>
-          </div>
-        )}
-
-        {/* 3. НАВИГАЦИОННЫЕ ТАБЫ КАБИНЕТА */}
-        <div className="flex p-1.5 bg-slate-100 rounded-2xl gap-1 overflow-x-auto">
-          {[
-            { id: "schedule" as const, label: "Расписание и уроки", icon: Calendar, badge: lessons.length },
-            { id: "homework" as const, label: "Домашние задания", icon: FileText, badge: homeworkList.filter(h => h.status === "NEW").length },
-            { id: "awards" as const, label: "Награды и звёзды", icon: Award, badge: stars },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            const isSelected = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 min-w-[130px] flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer ${
-                  isSelected
-                    ? "bg-white text-slate-900 shadow-xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                <Icon className={`w-4 h-4 ${isSelected ? "text-[#2481cc]" : "text-slate-400"}`} />
-                <span>{tab.label}</span>
-                {tab.badge !== undefined && tab.badge > 0 && (
-                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                    isSelected ? "bg-blue-100 text-blue-700" : "bg-slate-200 text-slate-600"
-                  }`}>
-                    {tab.badge}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* 4. ТАБ: РАСПИСАНИЕ И УРОКИ */}
-        {activeTab === "schedule" && (
-          <div className="space-y-6">
-            <ScheduleCalendar
-              role="student"
-              lessons={lessons}
-            />
-
-            {schoolSubjects.length > 0 && (
-              <div className="space-y-3 pt-2">
-                <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-600 px-1">
-                  Доступные дисциплины школы «АйДаУмничка»:
-                </h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-                  {schoolSubjects.map((sub) => (
-                    <div
-                      key={sub.id}
-                      className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-1.5"
+                    <Link
+                      href={`/room/${liveLesson.id || liveLesson.roomName}?role=student`}
+                      className="inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-2xl bg-[#2481cc] text-white font-black text-sm sm:text-base shadow-lg shadow-blue-500/25 hover:bg-[#1f70b0] transition transform hover:scale-105 active:scale-95 shrink-0 w-full sm:w-auto cursor-pointer"
                     >
+                      <Video className="w-5 h-5 text-white" />
+                      <span>Войти в видеокласс</span>
+                      <ArrowRight className="w-4 h-4 ml-1" />
+                    </Link>
+                  </div>
+                )}
+
+                <ScheduleCalendar
+                  role="student"
+                  lessons={lessons}
+                />
+
+                {schoolSubjects.length > 0 && (
+                  <div className="space-y-3 pt-2">
+                    <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-600 px-1">
+                      Доступные дисциплины школы «АйДаУмничка»:
+                    </h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                      {schoolSubjects.map((sub) => (
+                        <div
+                          key={sub.id}
+                          className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-1.5"
+                        >
+                          <div
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: sub.color || "#2481cc" }}
+                          />
+                          <div className="font-extrabold text-xs text-slate-900">{sub.name}</div>
+                          <div className="text-[10px] text-slate-500">Индивидуальная программа</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ),
+          },
+          {
+            key: "homework",
+            title: "Домашние задания",
+            icon: FileText,
+            badge: homeworkList.filter((h) => h.status === "NEW").length,
+            render: () => (
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
+                  <div>
+                    <h2 className="text-base font-extrabold text-slate-900">
+                      Домашние задания и практика
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Выполняйте задания вовремя для получения звёзд и рекомендаций преподавателя
+                    </p>
+                  </div>
+                  <span className="text-xs text-amber-700 bg-amber-50 px-3 py-1 rounded-xl border border-amber-200 font-bold self-start sm:self-auto">
+                    Нужно сдать: {homeworkList.filter((h) => h.status === "NEW").length}
+                  </span>
+                </div>
+
+                {homeworkList.length === 0 ? (
+                  <div className="bg-white rounded-3xl border border-slate-200 p-10 sm:p-14 text-center shadow-xs">
+                    <div className="w-14 h-14 mx-auto mb-3.5 rounded-2xl bg-blue-50/60 flex items-center justify-center border border-blue-100/80 text-[#2481cc]">
+                      <FileText className="w-7 h-7" />
+                    </div>
+                    <h3 className="text-base font-extrabold text-slate-900 mb-1">
+                      Нет активных домашних заданий
+                    </h3>
+                    <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                      Когда преподаватель добавит практическое задание или тест к уроку, оно появится в этом разделе.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-3xl divide-y divide-slate-100 border border-slate-200 overflow-hidden shadow-xs">
+                    {homeworkList.map((hw) => (
                       <div
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: sub.color || "#2481cc" }}
-                      />
-                      <div className="font-extrabold text-xs text-slate-900">{sub.name}</div>
-                      <div className="text-[10px] text-slate-500">Индивидуальная программа</div>
+                        key={hw.id}
+                        className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/50 transition"
+                      >
+                        <div className="space-y-1.5 max-w-2xl">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+                              {hw.subject}
+                            </span>
+                            <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${hw.badgeColor}`}>
+                              {hw.statusText}
+                            </span>
+                          </div>
+
+                          <h3 className="font-extrabold text-slate-900 text-sm sm:text-base">
+                            {hw.title}
+                          </h3>
+
+                          <p className="text-xs text-slate-600 line-clamp-1">
+                            {hw.description}
+                          </p>
+
+                          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 pt-1">
+                            <span className="flex items-center gap-1.5">
+                              <Clock className="w-3.5 h-3.5 text-slate-400" />
+                              <span>Срок: {hw.deadline}</span>
+                            </span>
+                            <span>•</span>
+                            <span>Преподаватель: <strong className="text-slate-700">{hw.teacher}</strong></span>
+                          </div>
+                        </div>
+
+                        {hw.status === "CHECKED" ? (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenHomework(hw)}
+                            className="px-4 py-2.5 rounded-xl bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200 font-bold text-xs transition cursor-pointer self-start sm:self-auto shrink-0 shadow-2xs active:scale-95 flex items-center gap-1.5"
+                          >
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                            <span>Проверено • {hw.grade}/5 ⭐</span>
+                          </button>
+                        ) : hw.status === "SUBMITTED" ? (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenHomework(hw)}
+                            className="px-4 py-2.5 rounded-xl bg-blue-50 text-blue-800 hover:bg-blue-100 border border-blue-200 font-bold text-xs transition cursor-pointer self-start sm:self-auto shrink-0 shadow-2xs active:scale-95 flex items-center gap-1.5"
+                          >
+                            <Clock className="w-4 h-4 text-[#2481cc]" />
+                            <span>Отправлено • Посмотреть</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenHomework(hw)}
+                            className="px-5 py-2.5 rounded-xl bg-[#2481cc] hover:bg-[#1f70b0] text-white font-bold text-xs transition cursor-pointer self-start sm:self-auto shrink-0 shadow-md shadow-blue-500/20 active:scale-95 flex items-center gap-1.5"
+                          >
+                            <span>Сдать задание</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ),
+          },
+          {
+            key: "awards",
+            title: "Награды и звёзды",
+            icon: Award,
+            badge: `${stars} ⭐`,
+            render: () => (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between px-1">
+                  <div>
+                    <h2 className="text-base font-extrabold text-slate-900">
+                      Школьные достижения и звёзды
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Награды начисляются преподавателями за успехи на уроках и выполнение заданий
+                    </p>
+                  </div>
+                  <span className="text-xs font-bold text-amber-700 bg-amber-50 px-3 py-1 rounded-xl border border-amber-200">
+                    Баланс звёзд: {stars} ⭐
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {academicAwards.map((ach, i) => (
+                    <div
+                      key={i}
+                      className={`rounded-3xl p-5 border text-center space-y-2.5 transition flex flex-col justify-between ${
+                        ach.unlocked
+                          ? "bg-white border-amber-200/90 shadow-xs ring-1 ring-amber-100"
+                          : "bg-slate-50/70 border-slate-200/70 opacity-60"
+                      }`}
+                    >
+                      <div>
+                        <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center text-2xl bg-amber-50 border border-amber-100 shadow-2xs">
+                          {ach.icon}
+                        </div>
+                        <h3 className="font-extrabold text-sm text-slate-900 mt-2.5">{ach.title}</h3>
+                        <p className="text-xs text-slate-500 leading-tight mt-1">{ach.desc}</p>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-100">
+                        <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-bold ${
+                          ach.unlocked ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"
+                        }`}>
+                          {ach.unlocked ? "Получено ✓" : ach.criteria}
+                        </span>
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
-            )}
-          </div>
-        )}
-
-        {/* 5. ТАБ: ДОМАШНИЕ ЗАДАНИЯ */}
-        {activeTab === "homework" && (
-          <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
-              <div>
-                <h2 className="text-base font-extrabold text-slate-900">
-                  Домашние задания и практика
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Выполняйте задания вовремя для получения звёзд и рекомендаций преподавателя
-                </p>
-              </div>
-              <span className="text-xs text-amber-700 bg-amber-50 px-3 py-1 rounded-xl border border-amber-200 font-bold self-start sm:self-auto">
-                Нужно сдать: {homeworkList.filter((h) => h.status === "NEW").length}
-              </span>
-            </div>
-
-            {homeworkList.length === 0 ? (
-              <div className="bg-white rounded-3xl border border-slate-200 p-10 sm:p-14 text-center shadow-xs">
-                <div className="w-14 h-14 mx-auto mb-3.5 rounded-2xl bg-blue-50/60 flex items-center justify-center border border-blue-100/80 text-[#2481cc]">
-                  <FileText className="w-7 h-7" />
-                </div>
-                <h3 className="text-base font-extrabold text-slate-900 mb-1">
-                  Нет активных домашних заданий
-                </h3>
-                <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                  Когда преподаватель добавит практическое задание или тест к уроку, оно появится в этом разделе.
-                </p>
-              </div>
-            ) : (
-              <div className="bg-white rounded-3xl divide-y divide-slate-100 border border-slate-200 overflow-hidden shadow-xs">
-                {homeworkList.map((hw) => (
-                  <div
-                    key={hw.id}
-                    className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/50 transition"
-                  >
-                    <div className="space-y-1.5 max-w-2xl">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">
-                          {hw.subject}
-                        </span>
-                        <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${hw.badgeColor}`}>
-                          {hw.statusText}
-                        </span>
-                      </div>
-
-                      <h3 className="font-extrabold text-slate-900 text-sm sm:text-base">
-                        {hw.title}
-                      </h3>
-
-                      <p className="text-xs text-slate-600 line-clamp-1">
-                        {hw.description}
-                      </p>
-
-                      <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 pt-1">
-                        <span className="flex items-center gap-1.5">
-                          <Clock className="w-3.5 h-3.5 text-slate-400" />
-                          <span>Срок: {hw.deadline}</span>
-                        </span>
-                        <span>•</span>
-                        <span>Преподаватель: <strong className="text-slate-700">{hw.teacher}</strong></span>
-                      </div>
-                    </div>
-
-                    {hw.status === "CHECKED" ? (
-                      <button
-                        type="button"
-                        onClick={() => handleOpenHomework(hw)}
-                        className="px-4 py-2.5 rounded-xl bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200 font-bold text-xs transition cursor-pointer self-start sm:self-auto shrink-0 shadow-2xs active:scale-95 flex items-center gap-1.5"
-                      >
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                        <span>Проверено • {hw.grade}/5 ⭐</span>
-                      </button>
-                    ) : hw.status === "SUBMITTED" ? (
-                      <button
-                        type="button"
-                        onClick={() => handleOpenHomework(hw)}
-                        className="px-4 py-2.5 rounded-xl bg-blue-50 text-blue-800 hover:bg-blue-100 border border-blue-200 font-bold text-xs transition cursor-pointer self-start sm:self-auto shrink-0 shadow-2xs active:scale-95 flex items-center gap-1.5"
-                      >
-                        <Clock className="w-4 h-4 text-[#2481cc]" />
-                        <span>Отправлено • Посмотреть</span>
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => handleOpenHomework(hw)}
-                        className="px-5 py-2.5 rounded-xl bg-[#2481cc] hover:bg-[#1f70b0] text-white font-bold text-xs transition cursor-pointer self-start sm:self-auto shrink-0 shadow-md shadow-blue-500/20 active:scale-95 flex items-center gap-1.5"
-                      >
-                        <span>Сдать задание</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* 6. ТАБ: НАГРАДЫ И ЗВЁЗДЫ */}
-        {activeTab === "awards" && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between px-1">
-              <div>
-                <h2 className="text-base font-extrabold text-slate-900">
-                  Школьные достижения и звёзды
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Награды начисляются преподавателями за успехи на уроках и выполнение заданий
-                </p>
-              </div>
-              <span className="text-xs font-bold text-amber-700 bg-amber-50 px-3 py-1 rounded-xl border border-amber-200">
-                Баланс звёзд: {stars} ⭐
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {academicAwards.map((ach, i) => (
-                <div
-                  key={i}
-                  className={`rounded-3xl p-5 border text-center space-y-2.5 transition flex flex-col justify-between ${
-                    ach.unlocked
-                      ? "bg-white border-amber-200/90 shadow-xs ring-1 ring-amber-100"
-                      : "bg-slate-50/70 border-slate-200/70 opacity-60"
-                  }`}
-                >
-                  <div>
-                    <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center text-2xl bg-amber-50 border border-amber-100 shadow-2xs">
-                      {ach.icon}
-                    </div>
-                    <h3 className="font-extrabold text-sm text-slate-900 mt-2.5">{ach.title}</h3>
-                    <p className="text-xs text-slate-500 leading-tight mt-1">{ach.desc}</p>
-                  </div>
-
-                  <div className="pt-2 border-t border-slate-100">
-                    <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-bold ${
-                      ach.unlocked ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"
-                    }`}>
-                      {ach.unlocked ? "Получено ✓" : ach.criteria}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Плавающая кнопка службы поддержки (чат доступен только в поддержке) */}
-      <Link
-        href="/chat"
-        className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-5 py-3.5 rounded-full bg-[#2481cc] hover:bg-[#1f70b0] text-white shadow-xl shadow-blue-500/30 transition transform hover:scale-105 active:scale-95 text-xs sm:text-sm font-bold cursor-pointer"
-        title="Служба поддержки 24/7"
-      >
-        <MessageSquare className="w-4 h-4 text-white" />
-        <span>Поддержка 24/7</span>
-      </Link>
+            ),
+          },
+        ]}
+      />
 
       {/* 8. ИНТЕРАКТИВНОЕ МОДАЛЬНОЕ ОКНО ДОМАШНЕГО ЗАДАНИЯ (Портал прямо в body, закрывает 100% экрана) */}
       {homeworkModalOpen && selectedHomework && mounted && createPortal(
