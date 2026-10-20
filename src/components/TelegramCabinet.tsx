@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -41,6 +41,10 @@ import {
   Eye,
   EyeOff,
   Copy,
+  Settings,
+  Bell,
+  BellOff,
+  Info,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -185,6 +189,72 @@ export default function TelegramCabinet({
   const [isTyping, setIsTyping] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
+
+  // 4. Настройки и меню активного чата
+  const [chatMenuOpen, setChatMenuOpen] = useState(false);
+  const [showChatSettingsModal, setShowChatSettingsModal] = useState(false);
+  const [isChatMuted, setIsChatMuted] = useState(false);
+  const [inChatSearchOpen, setInChatSearchOpen] = useState(false);
+  const [inChatSearchQuery, setInChatSearchQuery] = useState("");
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [copiedLessonToast, setCopiedLessonToast] = useState(false);
+  const chatMenuRef = useRef<HTMLDivElement>(null);
+
+  // Закрытие выпадающего меню при клике снаружи
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (chatMenuRef.current && !chatMenuRef.current.contains(e.target as Node)) {
+        setChatMenuOpen(false);
+      }
+    };
+    if (chatMenuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [chatMenuOpen]);
+
+  // Загрузка статуса звука/уведомлений чата
+  useEffect(() => {
+    if (!activeChatId) return;
+    try {
+      const muted = localStorage.getItem(`ayda_chat_muted_${activeChatId}`) === "true";
+      setIsChatMuted(muted);
+    } catch (e) {}
+    setChatMenuOpen(false);
+    setInChatSearchOpen(false);
+    setInChatSearchQuery("");
+  }, [activeChatId]);
+
+  const toggleMute = () => {
+    const next = !isChatMuted;
+    setIsChatMuted(next);
+    try {
+      localStorage.setItem(`ayda_chat_muted_${activeChatId}`, String(next));
+    } catch (e) {}
+  };
+
+  const handleClearHistory = () => {
+    setMessages([]);
+    try {
+      localStorage.removeItem(`ayda_tg_msgs_${activeChatId}`);
+    } catch (e) {}
+    setChats((prev) =>
+      prev.map((c) =>
+        c.id === activeChatId
+          ? { ...c, lastMessage: "История сообщений очищена", unreadCount: 0 }
+          : c
+      )
+    );
+    setShowClearConfirm(false);
+    setShowChatSettingsModal(false);
+    setChatMenuOpen(false);
+  };
+
+  const displayedMessages = useMemo(() => {
+    if (!inChatSearchQuery.trim()) return messages;
+    const q = inChatSearchQuery.toLowerCase();
+    return messages.filter((m) => (m.text || "").toLowerCase().includes(q));
+  }, [messages, inChatSearchQuery]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLInputElement>(null);
@@ -885,10 +955,17 @@ export default function TelegramCabinet({
           <>
             {/* Шапка активного диалога */}
             <header className="h-16 bg-white border-b border-slate-200 px-4 flex items-center justify-between shrink-0 z-10 shadow-xs">
-              <div className="flex items-center gap-3 min-w-0">
+              <div
+                onClick={() => setShowChatSettingsModal(true)}
+                className="flex items-center gap-3 min-w-0 cursor-pointer hover:opacity-90 transition group"
+                title="Нажмите для открытия информации и настроек чата"
+              >
                 {/* Кнопка "Назад" для мобильных */}
                 <button
-                  onClick={() => setMobileShowChat(false)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMobileShowChat(false);
+                  }}
                   className="md:hidden p-1.5 -ml-1 rounded-lg text-slate-600 hover:bg-slate-100 transition cursor-pointer"
                 >
                   <ChevronLeft className="w-6 h-6" />
@@ -898,7 +975,7 @@ export default function TelegramCabinet({
                   <img
                     src={activeChat.avatar}
                     alt={activeChat.name}
-                    className="w-10 h-10 rounded-full object-cover"
+                    className="w-10 h-10 rounded-full object-cover ring-2 ring-transparent group-hover:ring-blue-400/40 transition"
                   />
                   {activeChat.online && (
                     <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-400 border border-white rounded-full" />
@@ -906,11 +983,16 @@ export default function TelegramCabinet({
                 </div>
 
                 <div className="min-w-0">
-                  <h3 className="font-bold text-sm text-slate-900 truncate flex items-center gap-1.5">
+                  <h3 className="font-bold text-sm text-slate-900 truncate flex items-center gap-1.5 group-hover:text-[#2481cc] transition">
                     <span>{activeChat.name}</span>
                     <span className="text-[11px] font-normal text-slate-400">
                       ({activeChat.roleLabel})
                     </span>
+                    {isChatMuted && (
+                      <span title="Уведомления без звука">
+                        <BellOff className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-0.5" />
+                      </span>
+                    )}
                   </h3>
                   <p className="text-xs text-emerald-600 font-medium truncate">
                     {isTyping ? "печатает..." : activeChat.statusText}
@@ -919,7 +1001,7 @@ export default function TelegramCabinet({
               </div>
 
               {/* Действия в шапке чата */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 relative">
                 {/* Кнопка "Войти в онлайн-урок" */}
                 {activeChat.lessonId && (
                   <Link
@@ -931,15 +1013,145 @@ export default function TelegramCabinet({
                   </Link>
                 )}
 
-                <button
-                  onClick={() => setDrawerOpen(true)}
-                  className="p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition cursor-pointer"
-                  title="Меню кабинета"
-                >
-                  <MoreVertical className="w-5 h-5" />
-                </button>
+                {/* Кнопка и меню настроек чата */}
+                <div ref={chatMenuRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setChatMenuOpen((prev) => !prev)}
+                    className={`p-2 rounded-xl transition cursor-pointer ${
+                      chatMenuOpen
+                        ? "bg-blue-50 text-[#2481cc]"
+                        : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"
+                    }`}
+                    title="Настройки чата"
+                    aria-label="Настройки чата"
+                  >
+                    <MoreVertical className="w-5 h-5" />
+                  </button>
+
+                  {/* ВЫПАДАЮЩЕЕ МЕНЮ НАСТРОЕК ЧАТА */}
+                  {chatMenuOpen && (
+                    <div className="absolute right-0 top-full mt-1.5 w-60 bg-white rounded-2xl shadow-xl border border-slate-200/90 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+                      <div className="px-3 py-2 border-b border-slate-100">
+                        <div className="text-xs font-bold text-slate-800 truncate">{activeChat.name}</div>
+                        <div className="text-[11px] text-slate-400">{activeChat.roleLabel}</div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setChatMenuOpen(false);
+                          setShowChatSettingsModal(true);
+                        }}
+                        className="w-full px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition cursor-pointer"
+                      >
+                        <Settings className="w-4 h-4 text-[#2481cc]" />
+                        <span>Настройки чата</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setChatMenuOpen(false);
+                          setInChatSearchOpen(true);
+                        }}
+                        className="w-full px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition cursor-pointer"
+                      >
+                        <Search className="w-4 h-4 text-slate-500" />
+                        <span>Поиск по сообщениям</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          toggleMute();
+                          setChatMenuOpen(false);
+                        }}
+                        className="w-full px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center justify-between transition cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          {isChatMuted ? (
+                            <BellOff className="w-4 h-4 text-rose-500" />
+                          ) : (
+                            <Bell className="w-4 h-4 text-slate-500" />
+                          )}
+                          <span>{isChatMuted ? "Включить звук" : "Без звука"}</span>
+                        </div>
+                        <span className="text-[10px] text-slate-400">
+                          {isChatMuted ? "Выкл" : "Вкл"}
+                        </span>
+                      </button>
+
+                      {activeChat.lessonId && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (typeof window !== "undefined") {
+                              const url = `${window.location.origin}/room/${activeChat.lessonId}`;
+                              navigator.clipboard.writeText(url);
+                              setCopiedLessonToast(true);
+                              setTimeout(() => setCopiedLessonToast(false), 2500);
+                            }
+                            setChatMenuOpen(false);
+                          }}
+                          className="w-full px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition cursor-pointer"
+                        >
+                          <Copy className="w-4 h-4 text-slate-500" />
+                          <span>Скопировать ссылку на урок</span>
+                        </button>
+                      )}
+
+                      <div className="border-t border-slate-100 my-1" />
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setChatMenuOpen(false);
+                          setShowClearConfirm(true);
+                        }}
+                        className="w-full px-3 py-2 text-left text-xs font-bold text-rose-600 hover:bg-rose-50 flex items-center gap-2.5 transition cursor-pointer"
+                      >
+                        <Trash2 className="w-4 h-4 text-rose-500" />
+                        <span>Очистить историю</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </header>
+
+            {/* Встроенная панель поиска по сообщениям чата */}
+            {inChatSearchOpen && (
+              <div className="bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between gap-3 shadow-2xs animate-in slide-in-from-top-2 duration-150">
+                <div className="flex items-center gap-2 flex-1">
+                  <Search className="w-4 h-4 text-slate-400 shrink-0" />
+                  <input
+                    type="text"
+                    autoFocus
+                    placeholder="Поиск по сообщениям в этом чате..."
+                    value={inChatSearchQuery}
+                    onChange={(e) => setInChatSearchQuery(e.target.value)}
+                    className="w-full text-xs sm:text-sm bg-transparent outline-none text-slate-800 placeholder:text-slate-400"
+                  />
+                </div>
+                {inChatSearchQuery.trim() && (
+                  <span className="text-[11px] text-slate-400 font-medium whitespace-nowrap">
+                    Найдено: {displayedMessages.length}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInChatSearchOpen(false);
+                    setInChatSearchQuery("");
+                  }}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                  title="Закрыть поиск"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
 
             {/* Область сообщений (с фирменным фоном) */}
             <div
@@ -959,8 +1171,17 @@ export default function TelegramCabinet({
                   </span>
                 </div>
 
+                {/* Сообщение при пустом поиске */}
+                {inChatSearchQuery.trim() && displayedMessages.length === 0 && (
+                  <div className="flex justify-center my-6">
+                    <div className="bg-white/95 backdrop-blur-xs text-slate-600 text-xs px-4 py-2.5 rounded-2xl shadow-xs border border-slate-200 text-center">
+                      Сообщений по запросу «<strong>{inChatSearchQuery}</strong>» не найдено
+                    </div>
+                  </div>
+                )}
+
               {/* Список сообщений */}
-              {messages.map((msg) => {
+              {displayedMessages.map((msg) => {
                 const isMe = msg.isMe;
                 return (
                   <div
@@ -1201,6 +1422,214 @@ export default function TelegramCabinet({
             setEditProfileOpen(false);
           }}
         />
+      )}
+
+      {/* Модальное окно: Настройки чата */}
+      {showChatSettingsModal && activeChat && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+            {/* Шапка модалки */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-blue-50 text-[#2481cc] flex items-center justify-center">
+                  <Settings className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-base">Настройки чата</h3>
+                  <p className="text-[11px] text-slate-500">Информация и управление диалогом</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowChatSettingsModal(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Карточка собеседника */}
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center gap-4">
+              <div className="relative shrink-0">
+                <img
+                  src={activeChat.avatar}
+                  alt={activeChat.name}
+                  className="w-14 h-14 rounded-full object-cover ring-2 ring-blue-500/20"
+                />
+                {activeChat.online && (
+                  <span className="w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-white absolute bottom-0 right-0" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <h4 className="font-bold text-slate-900 text-base truncate">{activeChat.name}</h4>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="inline-block px-2 py-0.5 rounded-md bg-blue-100/70 text-[#2481cc] text-[11px] font-bold">
+                    {activeChat.roleLabel}
+                  </span>
+                  <span className="text-[11px] text-emerald-600 font-medium">
+                    {activeChat.online ? "● в сети" : activeChat.statusText}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Параметры диалога */}
+            <div className="space-y-3 text-xs">
+              {/* Уведомления со звуком */}
+              <div className="p-3.5 rounded-2xl bg-white border border-slate-200 flex items-center justify-between">
+                <div className="space-y-0.5 pr-2">
+                  <div className="font-bold text-slate-800 flex items-center gap-2">
+                    {isChatMuted ? (
+                      <BellOff className="w-4 h-4 text-rose-500" />
+                    ) : (
+                      <Bell className="w-4 h-4 text-[#2481cc]" />
+                    )}
+                    <span>Звук уведомлений</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    {isChatMuted
+                      ? "Звуковые сигналы отключены для этого диалога"
+                      : "Воспроизводить звук при получении новых сообщений"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={toggleMute}
+                  className={`w-12 h-6 flex items-center rounded-full p-1 cursor-pointer transition shrink-0 ${
+                    isChatMuted ? "bg-slate-200" : "bg-[#2481cc]"
+                  }`}
+                >
+                  <div
+                    className={`bg-white w-4 h-4 rounded-full shadow-md transform transition ${
+                      isChatMuted ? "translate-x-0" : "translate-x-6"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Поиск по переписке */}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowChatSettingsModal(false);
+                  setInChatSearchOpen(true);
+                }}
+                className="w-full p-3.5 rounded-2xl bg-white border border-slate-200 hover:border-blue-300 text-left flex items-center justify-between transition cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Search className="w-4 h-4 text-[#2481cc]" />
+                  <div>
+                    <div className="font-bold text-slate-800">Поиск по сообщениям</div>
+                    <div className="text-[11px] text-slate-500">Найти ключевые слова в истории переписки</div>
+                  </div>
+                </div>
+                <ChevronLeft className="w-4 h-4 text-slate-400 rotate-180" />
+              </button>
+
+              {/* Прикрепленный онлайн-урок */}
+              {activeChat.lessonId && (
+                <div className="p-3.5 rounded-2xl bg-blue-50/70 border border-blue-200/90 space-y-2.5">
+                  <div className="font-bold text-blue-900 flex items-center gap-2">
+                    <Video className="w-4 h-4 text-[#2481cc]" />
+                    <span>Прикреплённый онлайн-урок</span>
+                  </div>
+                  <div className="text-xs text-blue-950 space-y-1 bg-white/70 p-3 rounded-xl border border-blue-100">
+                    <div>Тема: <strong>{activeChat.lessonTitle || "Онлайн-занятие"}</strong></div>
+                    {activeChat.lessonTime && <div>Время: <strong>{activeChat.lessonTime}</strong></div>}
+                  </div>
+                  <div className="flex items-center gap-2 pt-1">
+                    <Link
+                      href={`/room/${activeChat.lessonId}`}
+                      className="flex-1 py-2.5 px-3 rounded-xl bg-[#2481cc] hover:bg-[#1f70b0] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition"
+                    >
+                      <Video className="w-4 h-4" />
+                      <span>Войти в видеокласс</span>
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (typeof window !== "undefined") {
+                          const url = `${window.location.origin}/room/${activeChat.lessonId}`;
+                          navigator.clipboard.writeText(url);
+                          setCopiedLessonToast(true);
+                          setTimeout(() => setCopiedLessonToast(false), 2500);
+                        }
+                      }}
+                      className="p-2.5 rounded-xl bg-white border border-blue-200 text-[#2481cc] hover:bg-blue-50 transition cursor-pointer"
+                      title="Скопировать ссылку на урок"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Опасные действия: Очистка истории */}
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowChatSettingsModal(false);
+                    setShowClearConfirm(true);
+                  }}
+                  className="px-3.5 py-2 rounded-xl text-rose-600 hover:bg-rose-50 font-bold transition flex items-center gap-2 cursor-pointer"
+                >
+                  <Trash2 className="w-4 h-4 text-rose-500" />
+                  <span>Очистить переписку</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowChatSettingsModal(false)}
+                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition shadow-xs cursor-pointer active:scale-95"
+                >
+                  Готово
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Модальное окно подтверждения очистки истории сообщений */}
+      {showClearConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in zoom-in-95 duration-200 text-center">
+            <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-extrabold text-slate-900 text-base">Очистить историю сообщений?</h3>
+              <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                Все сообщения в диалоге с «<strong>{activeChat.name}</strong>» будут удалены с устройства. Это действие нельзя отменить.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowClearConfirm(false)}
+                className="py-2.5 px-4 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50 transition cursor-pointer"
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                onClick={handleClearHistory}
+                className="py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition shadow-xs cursor-pointer"
+              >
+                Да, очистить
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Всплывающее уведомление о копировании ссылки */}
+      {copiedLessonToast && (
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[70] bg-slate-900/90 text-white px-4 py-2.5 rounded-full text-xs font-bold shadow-xl flex items-center gap-2 animate-in fade-in slide-in-from-top-4 duration-200">
+          <Check className="w-4 h-4 text-emerald-400" />
+          <span>Ссылка на видеокласс скопирована в буфер обмена!</span>
+        </div>
       )}
     </div>
   );

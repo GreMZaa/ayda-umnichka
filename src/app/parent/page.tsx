@@ -45,7 +45,6 @@ import { fetchWithAuth } from "@/lib/api-client";
 import { useAuthGuard, AuthLoadingScreen } from "@/lib/auth-session";
 import ScheduleCalendar from "@/components/ScheduleCalendar";
 import EditProfileModal from "@/components/EditProfileModal";
-import TelegramCabinet from "@/components/TelegramCabinet";
 import { formatTolyatti } from "@/lib/tolyatti-time";
 
 interface Child {
@@ -510,341 +509,423 @@ export default function ParentCabinet() {
 
   return (
     <>
-      <TelegramCabinet
-        currentRole="PARENT"
-        currentUser={{
-          id: parentId,
-          name: parentName,
-          email: parentEmail || authUser?.email || undefined,
-          phone: parentPhone || "+7 (900) 123-45-67",
-          avatar: parentAvatar,
-          bio: parentBio || `Родитель ${children.length > 0 ? children.map((c) => c.name).join(", ") : "ученика"}`,
-        }}
-        lessons={lessons}
-        onRefreshData={() => window.location.reload()}
-        extraCabinetSections={[
-          {
-            key: "children",
-            title: "Мои дети",
-            icon: Users,
-            badge: children.length,
-            render: () => (
-              <div className="space-y-4">
-                {liveLesson && selectedChild && (
-                  <div className="bg-emerald-50 border-2 border-emerald-500 rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm animate-in fade-in duration-300">
-                    <div className="space-y-1.5">
-                      <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-black">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-                        <span>{selectedChild.name} сейчас на онлайн-уроке</span>
-                      </div>
-                      <h2 className="text-base sm:text-lg font-extrabold text-slate-900">
-                        {liveLesson.title}
-                      </h2>
-                      <p className="text-xs text-slate-600">
-                        Преподаватель: <strong>{liveLesson.teacherName}</strong> • До {formatTolyatti(liveLesson.endTime, "HH:mm")}
-                      </p>
-                    </div>
-
-                    <Link
-                      href={`/room/${liveLesson.id || liveLesson.roomName}?role=parent`}
-                      className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow-md transition self-stretch sm:self-auto justify-center cursor-pointer"
-                    >
-                      <Video className="w-4 h-4" />
-                      <span>Присутствовать на уроке</span>
-                      <ArrowRight className="w-4 h-4 ml-0.5" />
-                    </Link>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 pb-20">
+        {/* 1. ШАПКА РОДИТЕЛЯ В СТИЛЕ FOXFORD */}
+        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-sm relative overflow-hidden">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative z-10">
+            <div className="flex items-center gap-4 sm:gap-5">
+              <div className="relative group">
+                {parentAvatar ? (
+                  <img
+                    src={parentAvatar}
+                    alt={parentName}
+                    className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover shadow-lg shadow-amber-500/10 ring-4 ring-amber-50 border border-amber-200"
+                  />
+                ) : (
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-600 text-white font-black text-2xl sm:text-3xl flex items-center justify-center shadow-lg shadow-amber-500/20 ring-4 ring-amber-50">
+                    {initial || <Users className="w-8 h-8" />}
                   </div>
                 )}
+                <button
+                  type="button"
+                  onClick={() => setEditProfileModalOpen(true)}
+                  className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#2481cc] hover:bg-[#1f70b0] text-white flex items-center justify-center text-[10px] shadow-sm border-2 border-white cursor-pointer transition active:scale-95"
+                  title="Изменить фото профиля"
+                >
+                  <Pencil className="w-3 h-3" />
+                </button>
+              </div>
 
-                <div className="flex items-center justify-between px-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-extrabold uppercase tracking-wider text-slate-600">
-                      Обучающиеся дети ({children.length}):
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleOpenAddChild}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-50 text-[#2481cc] hover:bg-blue-100 border border-blue-200 font-bold text-xs transition cursor-pointer shadow-2xs active:scale-95"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Добавить ребёнка</span>
-                  </button>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
+                    {parentName}
+                  </h1>
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
+                    Родительский контроль
+                  </span>
                 </div>
+                <p className="text-xs sm:text-sm text-slate-500 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span>Центр «АйДаУмничка»</span>
+                  <span>•</span>
+                  <span>Детей на обучении: {children.length}</span>
+                  <span>•</span>
+                  <span className="font-bold text-slate-700">Баланс уроков: {selectedChild?.balance || 0}</span>
+                </p>
+              </div>
+            </div>
 
-                {children.length === 0 ? (
-                  <div className="bg-white rounded-3xl p-8 sm:p-10 border border-slate-200 text-center space-y-3.5 shadow-xs">
-                    <div className="w-14 h-14 rounded-2xl bg-blue-50 text-[#2481cc] border border-blue-100 flex items-center justify-center mx-auto">
-                      <Users className="w-7 h-7" />
+            <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 w-full lg:w-auto">
+              <button
+                type="button"
+                onClick={() => setEditProfileModalOpen(true)}
+                className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs sm:text-sm transition border border-amber-200/80 cursor-pointer shadow-2xs active:scale-95"
+                title="Настройки профиля и замена фото"
+              >
+                <Edit3 className="w-4 h-4 text-amber-700" />
+                <span>Редактировать профиль</span>
+              </button>
+
+              <a
+                href="tel:+79954854667"
+                className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200/80 text-slate-700 font-bold text-xs sm:text-sm transition border border-slate-200/80 cursor-pointer"
+                title="Связаться с куратором центра"
+              >
+                <PhoneCall className="w-4 h-4 text-slate-500" />
+                <span>Куратор центра</span>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        {/* 2. СЕЛЕКТОР ДЕТЕЙ */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between px-1">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-extrabold uppercase tracking-wider text-slate-600">
+                Обучающиеся дети ({children.length}):
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleOpenAddChild}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-50 text-[#2481cc] hover:bg-blue-100 border border-blue-200 font-bold text-xs transition cursor-pointer shadow-2xs active:scale-95"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Добавить ребёнка</span>
+            </button>
+          </div>
+
+          {children.length === 0 ? (
+            <div className="bg-white rounded-3xl p-8 sm:p-10 border border-slate-200 text-center space-y-3.5 shadow-xs">
+              <div className="w-14 h-14 rounded-2xl bg-blue-50 text-[#2481cc] border border-blue-100 flex items-center justify-center mx-auto">
+                <Users className="w-7 h-7" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="font-extrabold text-slate-900 text-base">
+                  У вас пока не добавлено детей
+                </h3>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  Нажмите кнопку ниже, чтобы создать профиль ребёнка. Система автоматически сформирует для него логин и пароль для самостоятельного входа в кабинет.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleOpenAddChild}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#2481cc] hover:bg-[#1f70b0] text-white font-bold text-xs shadow-md shadow-blue-500/20 transition cursor-pointer active:scale-95"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Добавить ребёнка</span>
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {children.map((child) => {
+                const isSelected = child.id === selectedChildId;
+                return (
+                  <div
+                    key={child.id}
+                    onClick={() => setSelectedChildId(child.id)}
+                    className={`p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl border text-left transition flex items-center justify-between gap-3 sm:gap-4 relative cursor-pointer group ${
+                      isSelected
+                        ? "bg-white border-[#2481cc] shadow-md ring-2 ring-blue-500/10"
+                        : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 sm:gap-3.5">
+                      <img
+                        src={child.avatar}
+                        alt={child.name}
+                        className="w-11 h-11 sm:w-13 sm:h-13 rounded-2xl object-cover border border-slate-200 shrink-0"
+                      />
+                      <div>
+                        <div className="flex items-center gap-1.5 sm:gap-2">
+                          <h3 className="font-extrabold text-slate-900 text-xs sm:text-base">{child.name}</h3>
+                          <span className="text-[10px] sm:text-[11px] font-bold px-1.5 sm:px-2 py-0.5 rounded-md bg-blue-50 text-[#2481cc]">
+                            {child.grade}
+                          </span>
+                        </div>
+                        <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 sm:mt-1">
+                          Урок: <strong className="text-slate-800">{child.nextLesson}</strong>
+                        </p>
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <h3 className="font-extrabold text-slate-900 text-base">
-                        У вас пока не добавлено детей
-                      </h3>
-                      <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                        Нажмите кнопку ниже, чтобы создать профиль ребёнка. Система автоматически сформирует для него логин и пароль для самостоятельного входа в кабинет.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleOpenAddChild}
-                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#2481cc] hover:bg-[#1f70b0] text-white font-bold text-xs shadow-md shadow-blue-500/20 transition cursor-pointer active:scale-95"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>Добавить ребёнка</span>
-                    </button>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {children.map((child) => {
-                      const isSelected = child.id === selectedChildId;
-                      return (
-                        <div
-                          key={child.id}
-                          onClick={() => setSelectedChildId(child.id)}
-                          className={`p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl border text-left transition flex items-center justify-between gap-3 sm:gap-4 relative cursor-pointer group ${
-                            isSelected
-                              ? "bg-white border-[#2481cc] shadow-md ring-2 ring-blue-500/10"
-                              : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50"
-                          }`}
+
+                    <div className="flex flex-col items-end gap-1.5 sm:gap-2 shrink-0">
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={(e) => handleOpenEditChild(e, child)}
+                          className="p-2 rounded-xl text-slate-400 hover:text-[#2481cc] hover:bg-blue-50 transition cursor-pointer active:scale-95"
+                          title="Редактировать профиль ребёнка"
                         >
-                          <div className="flex items-center gap-3 sm:gap-3.5">
-                            <img
-                              src={child.avatar}
-                              alt={child.name}
-                              className="w-11 h-11 sm:w-13 sm:h-13 rounded-2xl object-cover border border-slate-200 shrink-0"
-                            />
-                            <div>
-                              <div className="flex items-center gap-1.5 sm:gap-2">
-                                <h3 className="font-extrabold text-slate-900 text-xs sm:text-base">{child.name}</h3>
-                                <span className="text-[10px] sm:text-[11px] font-bold px-1.5 sm:px-2 py-0.5 rounded-md bg-blue-50 text-[#2481cc]">
-                                  {child.grade}
-                                </span>
-                              </div>
-                              <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 sm:mt-1">
-                                Урок: <strong className="text-slate-800">{child.nextLesson}</strong>
-                              </p>
-                            </div>
-                          </div>
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => handleDeleteChild(e, child.id)}
+                          className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer active:scale-95"
+                          title="Удалить ребёнка"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
 
-                          <div className="flex flex-col items-end gap-1.5 sm:gap-2 shrink-0">
-                            <div className="flex items-center gap-1">
-                              <button
-                                type="button"
-                                onClick={(e) => handleOpenEditChild(e, child)}
-                                className="p-2 rounded-xl text-slate-400 hover:text-[#2481cc] hover:bg-blue-50 transition cursor-pointer active:scale-95"
-                                title="Редактировать профиль ребёнка"
-                              >
-                                <Pencil className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={(e) => handleDeleteChild(e, child.id)}
-                                className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer active:scale-95"
-                                title="Удалить ребёнка"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-
-                            <div className="text-right">
-                              <div className="text-[11px] sm:text-xs font-black text-emerald-800 bg-emerald-50 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-xl border border-emerald-200">
-                                {child.balance} ур.
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            ),
-          },
-          {
-            key: "reports",
-            title: "Отчёты и оценки",
-            icon: FileText,
-            badge: completedLessons.length,
-            render: () => (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between px-1">
-                  <div>
-                    <h2 className="text-base font-extrabold text-slate-900">
-                      Отчёты преподавателей по урокам
-                    </h2>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Рекомендации, оценки и комментарии репетиторов по занятиям {selectedChild?.name || "ребёнка"}
-                    </p>
-                  </div>
-                  <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-xl border border-emerald-200">
-                    Уроков: {completedLessons.length}
-                  </span>
-                </div>
-
-                {completedLessons.length === 0 ? (
-                  <div className="bg-white rounded-3xl p-10 border border-slate-200 text-center text-slate-500 text-xs">
-                    Пока нет завершённых уроков с отчётами для {selectedChild?.name || "ребёнка"}
-                  </div>
-                ) : (
-                  completedLessons.map((lesson) => {
-                    const note = lesson.notes && lesson.notes.length > 0 ? lesson.notes[lesson.notes.length - 1] : null;
-                    return (
-                      <div
-                        key={lesson.id}
-                        className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-4 hover:border-blue-200 transition"
-                      >
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-bold text-[#2481cc] uppercase tracking-wider">
-                                {lesson.subjectName}
-                              </span>
-                              <span className="text-xs text-slate-400">•</span>
-                              <span className="text-xs text-slate-500 font-medium">
-                                {formatTolyatti(lesson.startTime, "d MMMM yyyy, HH:mm")}
-                              </span>
-                            </div>
-                            <h3 className="font-extrabold text-slate-900 text-base mt-1">
-                              {lesson.title}
-                            </h3>
-                          </div>
-
-                          <div className="flex items-center gap-3">
-                            {note?.grade ? (
-                              <div className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 font-extrabold text-xs">
-                                <Star className="w-4 h-4 fill-amber-400 text-amber-500" />
-                                <span>Оценка: {note.grade} / 5</span>
-                              </div>
-                            ) : (
-                              <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-xl">
-                                Без оценки
-                              </span>
-                            )}
-                            <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                              Урок проведён
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-1.5">
-                            <div className="flex items-center gap-1.5 font-bold text-slate-800">
-                              <GraduationCap className="w-4 h-4 text-[#2481cc]" />
-                              <span>Что прошли на занятии:</span>
-                            </div>
-                            <p className="text-slate-700 leading-relaxed">
-                              {note?.content || `Урок по теме «${lesson.title}» успешно завершён.`}
-                            </p>
-                          </div>
-
-                          <div className="p-4 rounded-2xl bg-blue-50/60 border border-blue-100 space-y-1.5">
-                            <div className="flex items-center gap-1.5 font-bold text-blue-900">
-                              <Sparkles className="w-4 h-4 text-[#2481cc]" />
-                              <span>Совет родителям на дом:</span>
-                            </div>
-                            <p className="text-slate-700 leading-relaxed">
-                              {note?.feedback || "Продолжайте регулярные занятия и поддерживайте интерес ребёнка к предмету!"}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-500 pt-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-slate-400">Преподаватель:</span>
-                            <strong className="text-slate-800">{note?.authorName || lesson.teacherName}</strong>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <span className="text-slate-400">Статус отчёта:</span>
-                            {note ? (
-                              <span className="font-bold text-emerald-700">✓ Отчёт получен и проверен</span>
-                            ) : (
-                              <span className="text-amber-700 font-medium">Ожидает отчёта преподавателя</span>
-                            )}
-                          </div>
+                      <div className="text-right">
+                        <div className="text-[11px] sm:text-xs font-black text-emerald-800 bg-emerald-50 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-xl border border-emerald-200">
+                          {child.balance} ур.
                         </div>
                       </div>
-                    );
-                  })
-                )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* 3. УРОК ИДЁТ ПРЯМО СЕЙЧАС */}
+        {liveLesson && selectedChild && (
+          <div className="bg-emerald-50 border-2 border-emerald-500 rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm animate-in fade-in duration-300">
+            <div className="space-y-1.5">
+              <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-black">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                <span>{selectedChild.name} сейчас на онлайн-уроке</span>
               </div>
-            ),
-          },
-          {
-            key: "schedule",
-            title: "Расписание занятий",
-            icon: Calendar,
-            badge: upcomingLessons.length,
-            render: () => (
-              <ScheduleCalendar
-                role="parent"
-                lessons={lessons}
-              />
-            ),
-          },
-          {
-            key: "billing",
-            title: "Абонемент и баланс",
-            icon: CreditCard,
-            render: () => (
-              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
-                  <div>
-                    <span className="text-xs font-extrabold text-[#2481cc] uppercase tracking-wider">
-                      Текущий тарифный план
-                    </span>
-                    <h3 className="text-lg sm:text-xl font-extrabold text-slate-900 mt-1">
-                      Абонемент «Оптимальный» (8 уроков в месяц)
-                    </h3>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Действует до 30 ноября 2026 г. • Прикреплен к {selectedChild?.name || "ребёнку"}
-                    </p>
-                  </div>
+              <h2 className="text-base sm:text-lg font-extrabold text-slate-900">
+                {liveLesson.title}
+              </h2>
+              <p className="text-xs text-slate-600">
+                Преподаватель: <strong>{liveLesson.teacherName}</strong> • До {formatTolyatti(liveLesson.endTime, "HH:mm")}
+              </p>
+            </div>
 
-                  <button
-                    onClick={() => setShowTopupModal(true)}
-                    className="px-6 py-3 rounded-2xl bg-[#2481cc] hover:bg-[#1f70b0] text-white font-bold text-xs sm:text-sm shadow-md shadow-blue-500/25 transition cursor-pointer"
-                  >
-                    Продлить абонемент
-                  </button>
-                </div>
+            <Link
+              href={`/room/${liveLesson.id || liveLesson.roomName}?role=parent`}
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow-md transition self-stretch sm:self-auto justify-center cursor-pointer"
+            >
+              <Video className="w-4 h-4" />
+              <span>Присутствовать на уроке</span>
+              <ArrowRight className="w-4 h-4 ml-0.5" />
+            </Link>
+          </div>
+        )}
 
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs font-bold">
-                    <span className="text-slate-600">Использовано уроков:</span>
-                    <span className="text-slate-900">2 из 8 (осталось {selectedChild?.balance ?? 0})</span>
-                  </div>
-                  <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
-                    <div className="bg-[#2481cc] h-3 rounded-full" style={{ width: "25%" }} />
-                  </div>
-                </div>
-
-                <div className="space-y-3 pt-2">
-                  <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wider block">
-                    История посещений и оплат:
+        {/* 4. ТАБЫ РОДИТЕЛЯ */}
+        <div className="flex p-1.5 bg-slate-100 rounded-2xl gap-1 overflow-x-auto">
+          {[
+            { id: "reports" as const, label: "Отчёты и оценки", icon: FileText, badge: completedLessons.length },
+            { id: "schedule" as const, label: "Расписание", icon: Calendar, badge: upcomingLessons.length },
+            { id: "billing" as const, label: "Абонемент", icon: CreditCard, badge: selectedChild?.balance },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isSelected = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex-1 min-w-[130px] flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer ${
+                  isSelected
+                    ? "bg-white text-slate-900 shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <Icon className={`w-4 h-4 ${isSelected ? "text-[#2481cc]" : "text-slate-400"}`} />
+                <span>{tab.label}</span>
+                {tab.badge !== undefined && (
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                    isSelected ? "bg-blue-100 text-blue-700" : "bg-slate-200 text-slate-600"
+                  }`}>
+                    {tab.badge}
                   </span>
-                  <div className="divide-y divide-slate-100 text-xs text-slate-600">
-                    <div className="py-3 flex items-center justify-between">
-                      <span>Урок по математике (Анна Сергеевна)</span>
-                      <span className="font-bold text-slate-800">-1 занятие (17 октября)</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* 5. КОНТЕНТ ТАБА: ОТЧЁТЫ */}
+        {activeTab === "reports" && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between px-1">
+              <div>
+                <h2 className="text-base font-extrabold text-slate-900">
+                  Отчёты преподавателей по урокам
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Рекомендации, оценки и комментарии репетиторов по занятиям {selectedChild?.name || "ребёнка"}
+                </p>
+              </div>
+              <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-xl border border-emerald-200">
+                Уроков: {completedLessons.length}
+              </span>
+            </div>
+
+            {completedLessons.length === 0 ? (
+              <div className="bg-white rounded-3xl p-10 border border-slate-200 text-center text-slate-500 text-xs">
+                Пока нет завершённых уроков с отчётами для {selectedChild?.name || "ребёнка"}
+              </div>
+            ) : (
+              completedLessons.map((lesson) => {
+                const note = lesson.notes && lesson.notes.length > 0 ? lesson.notes[lesson.notes.length - 1] : null;
+                return (
+                  <div
+                    key={lesson.id}
+                    className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-4 hover:border-blue-200 transition"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-[#2481cc] uppercase tracking-wider">
+                            {lesson.subjectName}
+                          </span>
+                          <span className="text-xs text-slate-400">•</span>
+                          <span className="text-xs text-slate-500 font-medium">
+                            {formatTolyatti(lesson.startTime, "d MMMM yyyy, HH:mm")}
+                          </span>
+                        </div>
+                        <h3 className="font-extrabold text-slate-900 text-base mt-1">
+                          {lesson.title}
+                        </h3>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        {note?.grade ? (
+                          <div className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 font-extrabold text-xs">
+                            <Star className="w-4 h-4 fill-amber-400 text-amber-500" />
+                            <span>Оценка: {note.grade} / 5</span>
+                          </div>
+                        ) : (
+                          <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-xl">
+                            Без оценки
+                          </span>
+                        )}
+                        <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          Урок проведён
+                        </span>
+                      </div>
                     </div>
-                    <div className="py-3 flex items-center justify-between">
-                      <span>Урок по логике (Анна Сергеевна)</span>
-                      <span className="font-bold text-slate-800">-1 занятие (14 октября)</span>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                      <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-1.5">
+                        <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                          <GraduationCap className="w-4 h-4 text-[#2481cc]" />
+                          <span>Что прошли на занятии:</span>
+                        </div>
+                        <p className="text-slate-700 leading-relaxed">
+                          {note?.content || `Урок по теме «${lesson.title}» успешно завершён.`}
+                        </p>
+                      </div>
+
+                      <div className="p-4 rounded-2xl bg-blue-50/60 border border-blue-100 space-y-1.5">
+                        <div className="flex items-center gap-1.5 font-bold text-blue-900">
+                          <Sparkles className="w-4 h-4 text-[#2481cc]" />
+                          <span>Совет родителям на дом:</span>
+                        </div>
+                        <p className="text-slate-700 leading-relaxed">
+                          {note?.feedback || "Продолжайте регулярные занятия и поддерживайте интерес ребёнка к предмету!"}
+                        </p>
+                      </div>
                     </div>
-                    <div className="py-3 flex items-center justify-between text-emerald-700 font-bold">
-                      <span>Оплата абонемента на 8 занятий через СБП</span>
-                      <span>+8 занятий (10 октября)</span>
+
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-500 pt-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-400">Преподаватель:</span>
+                        <strong className="text-slate-800">{note?.authorName || lesson.teacherName}</strong>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-400">Статус отчёта:</span>
+                        {note ? (
+                          <span className="font-bold text-emerald-700">✓ Отчёт получен и проверен</span>
+                        ) : (
+                          <span className="text-amber-700 font-medium">Ожидает отчёта преподавателя</span>
+                        )}
+                      </div>
                     </div>
                   </div>
+                );
+              })
+            )}
+          </div>
+        )}
+
+        {/* 6. КОНТЕНТ ТАБА: РАСПИСАНИЕ */}
+        {activeTab === "schedule" && (
+          <ScheduleCalendar
+            role="parent"
+            lessons={lessons}
+          />
+        )}
+
+        {/* 7. КОНТЕНТ ТАБА: АБОНЕМЕНТ */}
+        {activeTab === "billing" && (
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+              <div>
+                <span className="text-xs font-extrabold text-[#2481cc] uppercase tracking-wider">
+                  Текущий тарифный план
+                </span>
+                <h3 className="text-lg sm:text-xl font-extrabold text-slate-900 mt-1">
+                  Абонемент «Оптимальный» (8 уроков в месяц)
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Действует до 30 ноября 2026 г. • Прикреплен к {selectedChild?.name || "ребёнку"}
+                </p>
+              </div>
+
+              <button
+                onClick={() => setShowTopupModal(true)}
+                className="px-6 py-3 rounded-2xl bg-[#2481cc] hover:bg-[#1f70b0] text-white font-bold text-xs sm:text-sm shadow-md shadow-blue-500/25 transition cursor-pointer"
+              >
+                Продлить абонемент
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs font-bold">
+                <span className="text-slate-600">Использовано уроков:</span>
+                <span className="text-slate-900">2 из 8 (осталось {selectedChild?.balance ?? 0})</span>
+              </div>
+              <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                <div className="bg-[#2481cc] h-3 rounded-full" style={{ width: "25%" }} />
+              </div>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wider block">
+                История посещений и оплат:
+              </span>
+              <div className="divide-y divide-slate-100 text-xs text-slate-600">
+                <div className="py-3 flex items-center justify-between">
+                  <span>Урок по математике (Анна Сергеевна)</span>
+                  <span className="font-bold text-slate-800">-1 занятие (17 октября)</span>
+                </div>
+                <div className="py-3 flex items-center justify-between">
+                  <span>Урок по логике (Анна Сергеевна)</span>
+                  <span className="font-bold text-slate-800">-1 занятие (14 октября)</span>
+                </div>
+                <div className="py-3 flex items-center justify-between text-emerald-700 font-bold">
+                  <span>Оплата абонемента на 8 занятий через СБП</span>
+                  <span>+8 занятий (10 октября)</span>
                 </div>
               </div>
-            ),
-          },
-        ]}
-      />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Плавающая кнопка службы поддержки (чат доступен только в поддержке) */}
+      <Link
+        href="/chat"
+        className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-5 py-3.5 rounded-full bg-[#2481cc] hover:bg-[#1f70b0] text-white shadow-xl shadow-blue-500/30 transition transform hover:scale-105 active:scale-95 text-xs sm:text-sm font-bold cursor-pointer"
+        title="Служба поддержки 24/7"
+      >
+        <MessageSquare className="w-4 h-4 text-white" />
+        <span>Поддержка 24/7</span>
+      </Link>
 
       {/* 5. МОДАЛЬНОЕ ОКНО ДОБАВЛЕНИЯ / РЕДАКТИРОВАНИЯ РЕБЁНКА */}
       {childModalOpen && (
