@@ -75,10 +75,8 @@ const DEFAULT_STUDENTS: StudentProfile[] = [];
 export default function TeacherCabinet() {
   const { loading: authLoading, isAuthorized, user: authUser } = useAuthGuard("teacher");
   const [teacherId, setTeacherId] = useState("");
-  const [teacherName, setTeacherName] = useState("Анна Сергеевна Иванова");
-  const [teacherAvatar, setTeacherAvatar] = useState(
-    "https://images.unsplash.com/photo-1544717305-2782549b5136?w=200&h=200&fit=crop&crop=faces"
-  );
+  const [teacherName, setTeacherName] = useState("Преподаватель");
+  const [teacherAvatar, setTeacherAvatar] = useState("");
   const [teacherSubjects, setTeacherSubjects] = useState("Математика и логика");
   const [teacherExperience, setTeacherExperience] = useState("Стаж 12 лет");
   const [teacherEducation, setTeacherEducation] = useState("МГПУ, физ-мат факультет");
@@ -244,6 +242,30 @@ export default function TeacherCabinet() {
 
   // Первичная загрузка данных из Supabase: профиль текущего преподавателя, предметы, ученики
   useEffect(() => {
+    // 0. Сначала читаем локально сохраненный профиль в приоритете
+    const applyLocalProfile = () => {
+      try {
+        const saved =
+          localStorage.getItem("ayda_profile_teacher") ||
+          localStorage.getItem("ayda_current_user_profile");
+        if (saved) {
+          const p = JSON.parse(saved);
+          if (p.name) setTeacherName(p.name);
+          if (p.username) setTeacherUsername(p.username);
+          if (p.avatarUrl !== undefined) setTeacherAvatar(p.avatarUrl);
+          if (p.subjects) setTeacherSubjects(p.subjects);
+          if (p.experience) setTeacherExperience(p.experience);
+          if (p.education) setTeacherEducation(p.education);
+          if (p.bio) setTeacherBio(p.bio);
+          if (p.phone) setTeacherPhone(p.phone);
+          if (p.email) setTeacherEmail(p.email);
+          return true;
+        }
+      } catch (e) {}
+      return false;
+    };
+    applyLocalProfile();
+
     if (!authUser?.id) return;
     const currentUserId = authUser.id;
     setTeacherId(currentUserId);
@@ -323,10 +345,10 @@ export default function TeacherCabinet() {
 
       client.auth.getUser().then(({ data }) => {
         if (data?.user?.user_metadata?.full_name) {
-          setTeacherName(data.user.user_metadata.full_name);
+          setTeacherName((prev) => (prev && prev !== "Преподаватель" ? prev : data.user.user_metadata.full_name));
         }
         if (data?.user?.user_metadata?.avatar_url) {
-          setTeacherAvatar(data.user.user_metadata.avatar_url);
+          setTeacherAvatar((prev) => prev || data.user.user_metadata.avatar_url);
         }
       });
 
@@ -364,13 +386,24 @@ export default function TeacherCabinet() {
                 bio: s.bio,
               });
 
+              let studentAvatar = s.avatar_url;
+              try {
+                const localStudent = localStorage.getItem("ayda_profile_student");
+                if (localStudent) {
+                  const parsed = JSON.parse(localStudent);
+                  if (parsed.id === s.id && parsed.avatarUrl) {
+                    studentAvatar = parsed.avatarUrl;
+                  }
+                }
+              } catch {}
+
               return {
                 id: s.id,
                 name: s.name || "Ученик",
                 username: uname,
                 grade: parsedBio.grade || "Начальная школа",
                 school: parsedBio.school || "АйДаУмничка",
-                avatarUrl: s.avatar_url,
+                avatarUrl: studentAvatar,
                 email: s.email,
               };
             });

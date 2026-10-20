@@ -140,11 +140,44 @@ export default function TelegramCabinet({
   const router = useRouter();
 
   // Реактивное состояние текущего пользователя (мгновенно обновляется без перезагрузки страницы)
-  const [currentUser, setCurrentUser] = useState(initialCurrentUser);
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      if (typeof window !== "undefined") {
+        const saved =
+          localStorage.getItem(`ayda_profile_${currentRole.toLowerCase()}`) ||
+          localStorage.getItem("ayda_current_user_profile");
+        if (saved) {
+          const p = JSON.parse(saved);
+          return {
+            ...initialCurrentUser,
+            avatar: p.avatarUrl !== undefined ? p.avatarUrl : initialCurrentUser.avatar,
+            name: p.name || initialCurrentUser.name,
+            username: p.username !== undefined ? p.username : initialCurrentUser.username,
+          };
+        }
+      }
+    } catch (e) {}
+    return initialCurrentUser;
+  });
 
   useEffect(() => {
-    setCurrentUser(initialCurrentUser);
-  }, [initialCurrentUser]);
+    setCurrentUser((prev) => {
+      let av = initialCurrentUser.avatar;
+      try {
+        const saved =
+          localStorage.getItem(`ayda_profile_${currentRole.toLowerCase()}`) ||
+          localStorage.getItem("ayda_current_user_profile");
+        if (saved) {
+          const p = JSON.parse(saved);
+          if (p.avatarUrl) av = p.avatarUrl;
+        }
+      } catch (e) {}
+      return {
+        ...initialCurrentUser,
+        avatar: av || prev.avatar,
+      };
+    });
+  }, [initialCurrentUser, currentRole]);
 
   // Слушатель событий обновления профиля для мгновенной синхронизации во всех шапках и меню
   useEffect(() => {
@@ -483,15 +516,18 @@ export default function TelegramCabinet({
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-3 min-w-0">
               <div className="relative shrink-0">
-                <img
-                  src={
-                    currentUser.avatar ||
-                    "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop&crop=faces"
-                  }
-                  alt={currentUser.name}
-                  className="w-12 h-12 rounded-full object-cover border-2 border-white/80 shadow-md"
-                />
-                <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-400 border-2 border-white rounded-full" />
+                {currentUser.avatar ? (
+                  <img
+                    src={currentUser.avatar}
+                    alt={currentUser.name}
+                    className="w-12 h-12 rounded-full object-cover border-2 border-white/80 shadow-md"
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-full bg-white/20 border-2 border-white/80 text-white font-black text-lg flex items-center justify-center shadow-md">
+                    {(currentUser.name || "У").charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-400 border-2 border-white rounded-full shadow-xs" />
               </div>
               <div className="min-w-0">
                 <h3 className="font-bold text-sm text-white truncate leading-tight">
