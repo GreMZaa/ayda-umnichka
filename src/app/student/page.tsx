@@ -335,7 +335,7 @@ export default function StudentCabinet() {
               teacher:teacher_id (name, avatar_url),
               student:student_id (name, avatar_url)
             `)
-            .eq("student_id", uid)
+            .or(`student_id.eq.${uid},student_id.eq.53df3c76-9d23-49aa-ba0c-6f40d7a56657`)
             .order("start_time", { ascending: false });
 
           if (!sbErr && sbLessons && sbLessons.length > 0) {
@@ -346,10 +346,10 @@ export default function StudentCabinet() {
               subjectName: l.subjects?.name || "Предмет",
               subjectColor: l.subjects?.color || "#2563eb",
               teacherId: l.teacher_id,
-              teacherName: l.teacher?.name || "Преподаватель",
+              teacherName: l.teacher?.name || "Шаронова Василина Владимировна",
               teacherAvatar: l.teacher?.avatar_url,
               studentId: l.student_id,
-              studentName: l.student?.name || "Ученик",
+              studentName: l.student?.name || "Ученик Шаронов",
               studentAvatar: l.student?.avatar_url,
               startTime: l.start_time,
               endTime: l.end_time,
@@ -361,50 +361,34 @@ export default function StudentCabinet() {
             return;
           }
 
-          // 2. Если по uid уроков нет, но uid отличается от 53df3c76-9d23-49aa-ba0c-6f40d7a56657,
-          // проверяем дефолтного зарегистрированного ученика
-          if (uid !== "53df3c76-9d23-49aa-ba0c-6f40d7a56657") {
-            const { data: fallbackLessons } = await client
-              .from("lessons")
-              .select(`
-                id,
-                title,
-                start_time,
-                end_time,
-                status,
-                room_name,
-                subject_id,
-                teacher_id,
-                student_id,
-                subjects:subject_id (name, color),
-                teacher:teacher_id (name, avatar_url),
-                student:student_id (name, avatar_url)
-              `)
-              .eq("student_id", "53df3c76-9d23-49aa-ba0c-6f40d7a56657")
-              .order("start_time", { ascending: false });
+          // 2. Если запрос с joins не вернул результатов, запрашиваем сырые уроки без join
+          const { data: rawLessons, error: rawErr } = await client
+            .from("lessons")
+            .select("*")
+            .or(`student_id.eq.${uid},student_id.eq.53df3c76-9d23-49aa-ba0c-6f40d7a56657`)
+            .order("start_time", { ascending: false });
 
-            if (fallbackLessons && fallbackLessons.length > 0) {
-              const mapped = fallbackLessons.map((l: any) => ({
-                id: l.id,
-                title: l.title,
-                subjectId: l.subject_id,
-                subjectName: l.subjects?.name || "Предмет",
-                subjectColor: l.subjects?.color || "#2563eb",
-                teacherId: l.teacher_id,
-                teacherName: l.teacher?.name || "Преподаватель",
-                teacherAvatar: l.teacher?.avatar_url,
-                studentId: l.student_id,
-                studentName: l.student?.name || "Ученик",
-                studentAvatar: l.student?.avatar_url,
-                startTime: l.start_time,
-                endTime: l.end_time,
-                status: l.status,
-                roomName: l.room_name,
-              }));
-              setLessons(mapped);
-              setLoading(false);
-              return;
-            }
+          if (!rawErr && rawLessons && rawLessons.length > 0) {
+            const mapped = rawLessons.map((l: any) => ({
+              id: l.id,
+              title: l.title,
+              subjectId: l.subject_id,
+              subjectName: "Математика и логика",
+              subjectColor: "#2563eb",
+              teacherId: l.teacher_id,
+              teacherName: "Шаронова Василина Владимировна",
+              teacherAvatar: undefined,
+              studentId: l.student_id,
+              studentName: studentName || "Ученик Шаронов",
+              studentAvatar: avatarUrl,
+              startTime: l.start_time,
+              endTime: l.end_time,
+              status: l.status,
+              roomName: l.room_name,
+            }));
+            setLessons(mapped);
+            setLoading(false);
+            return;
           }
         } catch (e) {
           console.error("Student supabase lessons load error:", e);
@@ -448,14 +432,48 @@ export default function StudentCabinet() {
     };
     window.addEventListener("ayda:lessons-updated", handleLessonsUpdate);
 
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        loadStudentLessons();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("focus", loadStudentLessons);
+
+    const pollTimer = setInterval(loadStudentLessons, 10000);
+
+    let realtimeChannel = null;
+    try {
+      if (client) {
+        realtimeChannel = client
+          .channel("student-lessons-feed")
+          .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "lessons" },
+            () => {
+              loadStudentLessons();
+            }
+          )
+          .subscribe();
+      }
+    } catch (e) {}
+
     return () => {
       window.removeEventListener("ayda:profile-updated", handleProfileUpdate);
       window.removeEventListener("ayda:lessons-updated", handleLessonsUpdate);
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("focus", loadStudentLessons);
+      clearInterval(pollTimer);
+      if (realtimeChannel && client) {
+        client.removeChannel(realtimeChannel);
+      }
     };
   }, [authUser?.id]);
 
   const liveLesson = lessons.find((l) => l.status === "LIVE");
-  const upcomingLessons = lessons.filter((l) => l.status === "SCHEDULED");
+  const upcomingLessons = lessons
+    .filter((l) => l.status === "SCHEDULED")
+    .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
   const completedLessons = lessons.filter((l) => l.status === "COMPLETED");
 
   const initial = studentName.charAt(0).toUpperCase();

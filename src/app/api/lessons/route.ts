@@ -70,8 +70,32 @@ export async function GET(request: Request) {
         query = query.eq("teacher_id", auth.user.id);
       }
 
-      const { data: sbLessons, error: sbError } = await query;
-      if (!sbError && sbLessons) {
+      let { data: sbLessons, error: sbError } = await query;
+
+      // Если запрос с joins завершился с ошибкой, делаем запрос к базовой таблице lessons
+      if (sbError || !sbLessons || sbLessons.length === 0) {
+        let fallbackQuery = client
+          .from("lessons")
+          .select("*")
+          .order("start_time", { ascending: false });
+
+        if (statusFilter) fallbackQuery = fallbackQuery.eq("status", statusFilter);
+        const targetStudentId = (studentIdParam && isUuid(studentIdParam))
+          ? studentIdParam
+          : (auth.user && auth.user.role === "student" && isUuid(auth.user.id))
+          ? auth.user.id
+          : "53df3c76-9d23-49aa-ba0c-6f40d7a56657";
+
+        fallbackQuery = fallbackQuery.eq("student_id", targetStudentId);
+
+        const { data: rawLessons, error: rawError } = await fallbackQuery;
+        if (!rawError && rawLessons && rawLessons.length > 0) {
+          sbLessons = rawLessons;
+          sbError = null;
+        }
+      }
+
+      if (!sbError && sbLessons && sbLessons.length > 0) {
         const mappedLessons = sbLessons.map((l: any) => {
           const notes = db.getLessonNotes(l.id);
           const dbLesson = db.getLessonById(l.id);

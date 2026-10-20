@@ -70,13 +70,13 @@ export async function authenticateRequest(request: Request): Promise<{
     try {
       const { data: profile } = await client
         .from("profiles")
-        .select("role, full_name")
+        .select("role, name")
         .eq("id", sbUser.id)
         .single();
 
       if (profile) {
         if (profile.role) role = profile.role.toLowerCase() as UserRole;
-        if (profile.full_name) name = profile.full_name;
+        if (profile.name) name = profile.name;
       } else if (metadata.role) {
         role = metadata.role.toLowerCase() as UserRole;
       }

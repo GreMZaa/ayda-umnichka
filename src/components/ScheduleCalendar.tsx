@@ -224,11 +224,29 @@ export default function ScheduleCalendar({
     const now = currentTime;
     const hour = now.getHours();
     const min = now.getMinutes();
-    const startHour = 9; // 09:00
-    if (hour < startHour || hour > 20) return null;
+    const startHour = 8; // 08:00
+    if (hour < startHour || hour > 22) return null;
     const totalMinutesFromStart = (hour - startHour) * 60 + min;
     return (totalMinutesFromStart / 60) * SLOT_HEIGHT;
   }, [currentTime, isCurrentWeek]);
+
+  // Автоматический фокус на ближайший день с уроками в мобильном виде
+  useEffect(() => {
+    const today = nowInTolyatti();
+    const todayLessons = filteredLessons.filter((l) => isSameDay(toTolyattiDate(l.startTime), today));
+    if (todayLessons.length === 0 && weekLessons.length > 0) {
+      const upcomingThisWeek = weekLessons
+        .map((l) => toTolyattiDate(l.startTime))
+        .filter((d) => d >= today || isSameDay(d, today))
+        .sort((a, b) => a.getTime() - b.getTime());
+
+      if (upcomingThisWeek.length > 0) {
+        setSelectedMobileDay(upcomingThisWeek[0]);
+      } else if (weekLessons.length > 0) {
+        setSelectedMobileDay(toTolyattiDate(weekLessons[0].startTime));
+      }
+    }
+  }, [filteredLessons, weekLessons]);
 
   return (
     <div className="space-y-4">

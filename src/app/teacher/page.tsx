@@ -766,6 +766,31 @@ export default function TeacherCabinet() {
       console.warn("API fallback error:", e);
     }
 
+    // Сохраняем в локальное хранилище для мгновенной синхронизации с кабинетом ученика
+    try {
+      const localLessons = localStorage.getItem("ayda_latest_lessons");
+      const list = localLessons ? JSON.parse(localLessons) : [];
+      const newL = {
+        id: `loc-${Date.now()}`,
+        title: newTitle.trim(),
+        subjectId: finalSubjectId,
+        subjectName: finalSubjectName,
+        subjectColor: finalSubjectColor,
+        teacherId: currentTeacherId,
+        teacherName,
+        studentId: finalStudentId,
+        studentName: finalStudentName,
+        startTime: startIso,
+        endTime: endIso,
+        status: "SCHEDULED",
+        roomName: roomName,
+      };
+      localStorage.setItem(
+        "ayda_latest_lessons",
+        JSON.stringify([newL, ...list.filter((x: any) => x.id !== newL.id)])
+      );
+    } catch (e) {}
+
     // Оповещаем все кабинеты (ученик, родитель) о появлении нового урока
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("ayda:lessons-updated"));
