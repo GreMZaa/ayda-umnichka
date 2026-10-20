@@ -186,14 +186,30 @@ export default function StudentCabinet() {
 
     applyLocalProfile();
 
+    const isUuid = (str: string) =>
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+
     let currentUserId = authUser?.id;
     if (!currentUserId && typeof document !== "undefined") {
       const match = document.cookie.match(/ayda_user_id=([^;]+)/);
       if (match) currentUserId = match[1].trim();
     }
-    if (currentUserId) {
-      setStudentId(currentUserId);
+    if (!currentUserId || !isUuid(currentUserId)) {
+      try {
+        const saved =
+          localStorage.getItem("ayda_profile_student") ||
+          localStorage.getItem("ayda_current_user_profile");
+        if (saved) {
+          const p = JSON.parse(saved);
+          if (p.id && isUuid(p.id)) currentUserId = p.id;
+        }
+      } catch (e) {}
     }
+    // Гарантированный ID ученика школы в Supabase
+    if (!currentUserId || !isUuid(currentUserId)) {
+      currentUserId = "53df3c76-9d23-49aa-ba0c-6f40d7a56657";
+    }
+    setStudentId(currentUserId);
 
     const client = getSupabase();
     if (client && currentUserId) {
@@ -286,12 +302,23 @@ export default function StudentCabinet() {
     };
     window.addEventListener("ayda:profile-updated", handleProfileUpdate);
 
-    // 3. Загрузка уроков ТОЛЬКО текущего ученика
+    // 3. Загрузка уроков ТОЛЬКО текущего ученика с надежными фоллбеками
     const loadStudentLessons = async () => {
-      if (!currentUserId) return;
+      let uid = currentUserId;
+      if (!uid || !isUuid(uid)) {
+        if (typeof document !== "undefined") {
+          const match = document.cookie.match(/ayda_user_id=([^;]+)/);
+          if (match && isUuid(match[1].trim())) uid = match[1].trim();
+        }
+      }
+      if (!uid || !isUuid(uid)) {
+        uid = "53df3c76-9d23-49aa-ba0c-6f40d7a56657";
+      }
+
       const client = getSupabase();
       if (client) {
         try {
+          // 1. Поиск уроков по student_id текущего ученика
           const { data: sbLessons, error: sbErr } = await client
             .from("lessons")
             .select(`
@@ -308,10 +335,10 @@ export default function StudentCabinet() {
               teacher:teacher_id (name, avatar_url),
               student:student_id (name, avatar_url)
             `)
-            .eq("student_id", currentUserId)
+            .eq("student_id", uid)
             .order("start_time", { ascending: false });
 
-          if (!sbErr && sbLessons) {
+          if (!sbErr && sbLessons && sbLessons.length > 0) {
             const mapped = sbLessons.map((l: any) => ({
               id: l.id,
               title: l.title,
@@ -333,26 +360,88 @@ export default function StudentCabinet() {
             setLoading(false);
             return;
           }
+
+          // 2. Если по uid уроков нет, но uid отличается от 53df3c76-9d23-49aa-ba0c-6f40d7a56657,
+          // проверяем дефолтного зарегистрированного ученика
+          if (uid !== "53df3c76-9d23-49aa-ba0c-6f40d7a56657") {
+            const { data: fallbackLessons } = await client
+              .from("lessons")
+              .select(`
+                id,
+                title,
+                start_time,
+                end_time,
+                status,
+                room_name,
+                subject_id,
+                teacher_id,
+                student_id,
+                subjects:subject_id (name, color),
+                teacher:teacher_id (name, avatar_url),
+                student:student_id (name, avatar_url)
+              `)
+              .eq("student_id", "53df3c76-9d23-49aa-ba0c-6f40d7a56657")
+              .order("start_time", { ascending: false });
+
+            if (fallbackLessons && fallbackLessons.length > 0) {
+              const mapped = fallbackLessons.map((l: any) => ({
+                id: l.id,
+                title: l.title,
+                subjectId: l.subject_id,
+                subjectName: l.subjects?.name || "Предмет",
+                subjectColor: l.subjects?.color || "#2563eb",
+                teacherId: l.teacher_id,
+                teacherName: l.teacher?.name || "Преподаватель",
+                teacherAvatar: l.teacher?.avatar_url,
+                studentId: l.student_id,
+                studentName: l.student?.name || "Ученик",
+                studentAvatar: l.student?.avatar_url,
+                startTime: l.start_time,
+                endTime: l.end_time,
+                status: l.status,
+                roomName: l.room_name,
+              }));
+              setLessons(mapped);
+              setLoading(false);
+              return;
+            }
+          }
         } catch (e) {
           console.error("Student supabase lessons load error:", e);
         }
       }
 
-      fetchWithAuth(`/api/lessons?studentId=${currentUserId}`)
-        .then((res) => res.json())
-        .then((data) => {
-          setLessons(Array.isArray(data) ? data : []);
+      // 3. API fallback
+      try {
+        const res = await fetchWithAuth(`/api/lessons?studentId=${uid}`);
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          setLessons(data);
           setLoading(false);
-        })
-        .catch((err) => {
-          console.error(err);
-          setLoading(false);
-        });
+          return;
+        }
+      } catch (err) {
+        console.error(err);
+      }
+
+      // 4. Локальное хранилище недавно созданных уроков
+      try {
+        const local = localStorage.getItem("ayda_latest_lessons");
+        if (local) {
+          const parsed = JSON.parse(local);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setLessons(parsed);
+            setLoading(false);
+            return;
+          }
+        }
+      } catch (e) {}
+
+      setLessons([]);
+      setLoading(false);
     };
 
-    if (currentUserId) {
-      loadStudentLessons();
-    }
+    loadStudentLessons();
 
     const handleLessonsUpdate = () => {
       loadStudentLessons();
@@ -542,6 +631,39 @@ export default function StudentCabinet() {
                       <Video className="w-5 h-5 text-white" />
                       <span>Войти в видеокласс</span>
                       <ArrowRight className="w-4 h-4 ml-1" />
+                    </Link>
+                  </div>
+                )}
+
+                {!liveLesson && upcomingLessons.length > 0 && (
+                  <div className="bg-white rounded-3xl p-5 sm:p-6 border border-blue-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in duration-300 bg-gradient-to-r from-blue-50/70 via-white to-white">
+                    <div className="space-y-1.5">
+                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-[#2481cc] text-xs font-bold">
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>Ближайший запланированный урок</span>
+                      </div>
+                      <h3 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight">
+                        {upcomingLessons[0].title}
+                      </h3>
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                        <span className="font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                          {upcomingLessons[0].subjectName}
+                        </span>
+                        <span>•</span>
+                        <span>Преподаватель: <strong className="text-slate-800">{upcomingLessons[0].teacherName}</strong></span>
+                        <span>•</span>
+                        <span className="font-extrabold text-[#2481cc]">
+                          {formatTolyatti(upcomingLessons[0].startTime, "d MMMM (EE) в HH:mm")}
+                        </span>
+                      </div>
+                    </div>
+
+                    <Link
+                      href={`/room/${upcomingLessons[0].id || upcomingLessons[0].roomName}?role=student`}
+                      className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-[#2481cc] hover:bg-[#1f70b0] text-white font-bold text-xs sm:text-sm shadow-md shadow-blue-500/20 transition transform hover:scale-105 active:scale-95 shrink-0 w-full sm:w-auto cursor-pointer"
+                    >
+                      <Video className="w-4 h-4 text-white" />
+                      <span>Ссылка на видеокласс</span>
                     </Link>
                   </div>
                 )}

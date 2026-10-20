@@ -36,3 +36,4 @@ scripts/
 next-env.d.ts
 
 .vercel
+data/

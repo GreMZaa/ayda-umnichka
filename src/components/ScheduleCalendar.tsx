@@ -67,6 +67,7 @@ interface ScheduleCalendarProps {
 }
 
 const TIME_SLOTS = [
+  "08:00",
   "09:00",
   "10:00",
   "11:00",
@@ -79,6 +80,8 @@ const TIME_SLOTS = [
   "18:00",
   "19:00",
   "20:00",
+  "21:00",
+  "22:00",
 ];
 
 const SLOT_HEIGHT = 72; // Высота каждого часового слота в пикселях

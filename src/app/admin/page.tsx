@@ -38,6 +38,7 @@ import { getSupabase } from "@/lib/supabase";
 import { setAuthCookies, clearAuthCookies } from "@/lib/auth-session";
 import EditProfileModal from "@/components/EditProfileModal";
 import { formatTolyatti } from "@/lib/tolyatti-time";
+import { parseProfileBio, mergeProfileBio } from "@/lib/profile";
 
 export default function AdminPage() {
   // Авторизация администратора через Supabase
@@ -518,7 +519,8 @@ export default function AdminPage() {
     setStudentName(stud.name || "");
     setStudentPhone(stud.phone || "");
     setStudentEmail(stud.email || "");
-    setStudentGrade(stud.bio || "3 класс");
+    const parsed = parseProfileBio(stud.bio);
+    setStudentGrade(parsed.grade || "3 класс");
     setStudentParentId(currentParentId || "");
     setShowAddStudentModal(true);
   };
@@ -532,13 +534,18 @@ export default function AdminPage() {
 
     try {
       if (editingStudentId) {
+        const existingStud = students.find((s) => s.id === editingStudentId);
+        const finalBio = mergeProfileBio(existingStud?.bio, {
+          grade: studentGrade || "3 класс",
+        });
+
         const { error } = await client
           .from("profiles")
           .update({
             name: studentName.trim(),
             phone: studentPhone.trim() || null,
             email: studentEmail.trim() || null,
-            bio: studentGrade || "3 класс",
+            bio: finalBio,
           })
           .eq("id", editingStudentId);
 
@@ -558,6 +565,9 @@ export default function AdminPage() {
         showToast(`Ученик «${studentName}» успешно обновлен!`);
       } else {
         const email = studentEmail.trim() || `student_${Date.now()}@umnichka.ru`;
+        const initialBio = JSON.stringify({
+          grade: studentGrade || "3 класс",
+        });
         const { data: newProfile, error } = await client
           .from("profiles")
           .insert([
@@ -566,7 +576,7 @@ export default function AdminPage() {
               role: "STUDENT",
               email: email,
               phone: studentPhone.trim() || null,
-              bio: studentGrade || "3 класс",
+              bio: initialBio,
               avatar_url: `https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&h=200&fit=crop&crop=faces`,
             },
           ])
@@ -613,7 +623,8 @@ export default function AdminPage() {
     setTeacherName(teacher.name || "");
     setTeacherPhone(teacher.phone || "");
     setTeacherEmail(teacher.email || "");
-    setTeacherBio(teacher.bio || "");
+    const parsed = parseProfileBio(teacher.bio);
+    setTeacherBio(parsed.bio || "");
     setShowAddTeacherModal(true);
   };
 
@@ -626,13 +637,18 @@ export default function AdminPage() {
 
     try {
       if (editingTeacherId) {
+        const existingTeacher = teachers.find((t) => t.id === editingTeacherId);
+        const finalBio = mergeProfileBio(existingTeacher?.bio, {
+          bio: teacherBio.trim() || "Преподаватель центра «АйДаУмничка»",
+        });
+
         const { error } = await client
           .from("profiles")
           .update({
             name: teacherName.trim(),
             phone: teacherPhone.trim() || null,
             email: teacherEmail.trim() || null,
-            bio: teacherBio.trim() || null,
+            bio: finalBio,
           })
           .eq("id", editingTeacherId);
 
@@ -640,13 +656,16 @@ export default function AdminPage() {
         showToast(`Преподаватель «${teacherName}» обновлен!`);
       } else {
         const email = teacherEmail.trim() || `teacher_${Date.now()}@umnichka.ru`;
+        const initialBio = JSON.stringify({
+          bio: teacherBio.trim() || "Преподаватель центра «АйДаУмничка»",
+        });
         const { error } = await client.from("profiles").insert([
           {
             name: teacherName.trim(),
             role: "TEACHER",
             email: email,
             phone: teacherPhone.trim() || null,
-            bio: teacherBio.trim() || "Преподаватель центра «АйДаУмничка»",
+            bio: initialBio,
             avatar_url: `https://images.unsplash.com/photo-1544717305-2782549b5136?w=200&h=200&fit=crop&crop=faces`,
           },
         ]);
@@ -673,7 +692,8 @@ export default function AdminPage() {
     setParentName(parent.name || "");
     setParentPhone(parent.phone || "");
     setParentEmail(parent.email || "");
-    setParentBio(parent.bio || "");
+    const parsed = parseProfileBio(parent.bio);
+    setParentBio(parsed.bio || "");
     setShowEditParentModal(true);
   };
 
@@ -685,13 +705,18 @@ export default function AdminPage() {
     if (!client || !editingParentId) return;
 
     try {
+      const existingParent = parents.find((p) => p.id === editingParentId);
+      const finalBio = mergeProfileBio(existingParent?.bio, {
+        bio: parentBio.trim() || "",
+      });
+
       const { error } = await client
         .from("profiles")
         .update({
           name: parentName.trim(),
           phone: parentPhone.trim() || null,
           email: parentEmail.trim() || null,
-          bio: parentBio.trim() || null,
+          bio: finalBio,
         })
         .eq("id", editingParentId);
 
@@ -852,18 +877,32 @@ export default function AdminPage() {
   const getStudent = (sId: string) => students.find((s) => s.id === sId) || { name: "Ученик" };
 
   // Фильтрация данных по поисковому запросу
-  const filteredStudents = students.filter(
-    (s) =>
-      s.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.phone?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredStudents = students.filter((s) => {
+    const q = searchQuery.toLowerCase();
+    const parsed = parseProfileBio(s.bio);
+    return (
+      s.name?.toLowerCase().includes(q) ||
+      s.phone?.toLowerCase().includes(q) ||
+      s.email?.toLowerCase().includes(q) ||
+      parsed.grade?.toLowerCase().includes(q) ||
+      parsed.school?.toLowerCase().includes(q) ||
+      parsed.username?.toLowerCase().includes(q) ||
+      parsed.bio?.toLowerCase().includes(q)
+    );
+  });
 
-  const filteredTeachers = teachers.filter(
-    (t) =>
-      t.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.phone?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.bio?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredTeachers = teachers.filter((t) => {
+    const q = searchQuery.toLowerCase();
+    const parsed = parseProfileBio(t.bio);
+    return (
+      t.name?.toLowerCase().includes(q) ||
+      t.phone?.toLowerCase().includes(q) ||
+      t.email?.toLowerCase().includes(q) ||
+      parsed.subjects?.toLowerCase().includes(q) ||
+      parsed.bio?.toLowerCase().includes(q) ||
+      parsed.experience?.toLowerCase().includes(q)
+    );
+  });
 
   const filteredLessons = lessons.filter((l) => {
     const sub = getSubject(l.subject_id);
@@ -1376,66 +1415,113 @@ export default function AdminPage() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+          <div className="overflow-x-auto border border-slate-200/80 rounded-xl bg-white shadow-2xs">
+            <table className="w-full text-left text-xs min-w-[760px]">
               <thead>
-                <tr className="border-b border-slate-200 text-slate-400 uppercase font-semibold text-[11px]">
-                  <th className="py-2.5 px-3">Ученик</th>
-                  <th className="py-2.5 px-3">Класс / Описание</th>
-                  <th className="py-2.5 px-3">Контакты</th>
-                  <th className="py-2.5 px-3">Привязанный родитель</th>
-                  <th className="py-2.5 px-3 text-right">Действия</th>
+                <tr className="border-b border-slate-200 bg-slate-50/70 text-slate-500 uppercase font-bold text-[11px] tracking-wider">
+                  <th className="py-3 px-3.5 min-w-[200px]">Ученик</th>
+                  <th className="py-3 px-3.5 min-w-[180px]">Класс / Школа</th>
+                  <th className="py-3 px-3.5 min-w-[160px]">Контакты</th>
+                  <th className="py-3 px-3.5 min-w-[160px]">Привязанный родитель</th>
+                  <th className="py-3 px-3.5 text-right w-20">Действия</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredStudents.map((stud) => {
-                  const psLink = parentStudents.find((ps) => ps.student_id === stud.id);
-                  const parent = parents.find((p) => p.id === psLink?.parent_id);
-                  return (
-                    <tr key={stud.id} className="hover:bg-slate-50 transition">
-                      <td className="py-3 px-3">
-                        <div className="flex items-center gap-2.5">
-                          <img
-                            src={stud.avatar_url || "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&h=200&fit=crop&crop=faces"}
-                            alt={stud.name}
-                            className="w-8 h-8 rounded-full object-cover"
-                          />
-                          <div>
-                            <div className="font-bold text-slate-900">{stud.name}</div>
-                            <div className="text-[10px] text-slate-400 font-mono">{stud.email}</div>
+                {filteredStudents.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-slate-400">
+                      Ученики не найдены
+                    </td>
+                  </tr>
+                ) : (
+                  filteredStudents.map((stud) => {
+                    const psLink = parentStudents.find((ps) => ps.student_id === stud.id);
+                    const parent = parents.find((p) => p.id === psLink?.parent_id);
+                    const parsed = parseProfileBio(stud.bio);
+                    return (
+                      <tr key={stud.id} className="hover:bg-slate-50/80 transition">
+                        <td className="py-3 px-3.5">
+                          <div className="flex items-center gap-2.5">
+                            <img
+                              src={stud.avatar_url || "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&h=200&fit=crop&crop=faces"}
+                              alt={stud.name}
+                              className="w-9 h-9 rounded-full object-cover shrink-0 ring-1 ring-slate-200"
+                            />
+                            <div className="min-w-0">
+                              <div className="font-bold text-slate-900 truncate">{stud.name}</div>
+                              <div className="text-[10px] text-slate-400 font-mono truncate">
+                                {parsed.username ? `@${parsed.username}` : stud.email}
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                      <td className="py-3 px-3 text-slate-600">{stud.bio || "Не указан"}</td>
-                      <td className="py-3 px-3 text-slate-700 font-mono">{stud.phone || "—"}</td>
-                      <td className="py-3 px-3">
-                        {parent ? (
-                          <span className="font-semibold text-blue-600">{parent.name}</span>
-                        ) : (
-                          <span className="text-slate-400 italic">Не привязан</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={() => handleOpenEditStudent(stud, psLink?.parent_id)}
-                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
-                            title="Редактировать данные ученика"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteProfile(stud.id, stud.name)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                            title="Удалить ученика"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                        </td>
+                        <td className="py-3 px-3.5">
+                          <div className="space-y-1">
+                            <span className="inline-block px-2.5 py-0.5 rounded-md bg-blue-50 text-blue-700 font-bold text-[11px] border border-blue-100/80">
+                              {parsed.grade || "Класс не указан"}
+                            </span>
+                            {parsed.school && (
+                              <div className="text-[11px] text-slate-500 truncate max-w-[220px]" title={parsed.school}>
+                                {parsed.school}
+                              </div>
+                            )}
+                            {parsed.bio && parsed.bio !== parsed.school && parsed.bio !== parsed.grade && (
+                              <div className="text-[10px] text-slate-400 truncate max-w-[220px]" title={parsed.bio}>
+                                {parsed.bio}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-3.5">
+                          <div className="space-y-1 whitespace-nowrap">
+                            <div className="flex items-center gap-1.5 text-slate-700 font-mono text-xs">
+                              <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              <span>{stud.phone || "—"}</span>
+                            </div>
+                            {stud.email && (
+                              <div className="flex items-center gap-1.5 text-slate-400 font-mono text-[10px]">
+                                <Mail className="w-3 h-3 text-slate-400 shrink-0" />
+                                <span>{stud.email}</span>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-3.5">
+                          {parent ? (
+                            <div>
+                              <span className="font-semibold text-blue-600 block">{parent.name}</span>
+                              {parent.phone && (
+                                <span className="text-[10px] font-mono text-slate-400 block whitespace-nowrap">
+                                  {parent.phone}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 italic">Не привязан</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-3.5 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => handleOpenEditStudent(stud, psLink?.parent_id)}
+                              className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
+                              title="Редактировать данные ученика"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteProfile(stud.id, stud.name)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                              title="Удалить ученика"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
@@ -1461,56 +1547,78 @@ export default function AdminPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {filteredTeachers.map((teacher) => (
-              <div
-                key={teacher.id}
-                className="p-4 rounded-xl border border-slate-200 bg-white space-y-3 hover:border-slate-300 transition"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={teacher.avatar_url || "https://images.unsplash.com/photo-1544717305-2782549b5136?w=200&h=200&fit=crop&crop=faces"}
-                      alt={teacher.name}
-                      className="w-12 h-12 rounded-xl object-cover"
-                    />
-                    <div>
-                      <h3 className="font-bold text-sm text-slate-900">{teacher.name}</h3>
-                      <p className="text-[11px] text-blue-600 font-semibold">Преподаватель центра</p>
+            {filteredTeachers.map((teacher) => {
+              const parsed = parseProfileBio(teacher.bio);
+              return (
+                <div
+                  key={teacher.id}
+                  className="p-4 rounded-xl border border-slate-200 bg-white space-y-3 hover:border-slate-300 transition"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <img
+                        src={teacher.avatar_url || "https://images.unsplash.com/photo-1544717305-2782549b5136?w=200&h=200&fit=crop&crop=faces"}
+                        alt={teacher.name}
+                        className="w-12 h-12 rounded-xl object-cover shrink-0 ring-1 ring-slate-200"
+                      />
+                      <div className="min-w-0">
+                        <h3 className="font-bold text-sm text-slate-900 truncate">{teacher.name}</h3>
+                        <p className="text-[11px] text-blue-600 font-semibold truncate">
+                          {parsed.subjects || "Преподаватель центра"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => handleOpenEditTeacher(teacher)}
+                        className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
+                        title="Редактировать преподавателя"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteProfile(teacher.id, teacher.name)}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                        title="Удалить педагога"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => handleOpenEditTeacher(teacher)}
-                      className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
-                      title="Редактировать преподавателя"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteProfile(teacher.id, teacher.name)}
-                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                      title="Удалить педагога"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    {parsed.bio || "Преподаватель центра «АйДаУмничка»"}
+                  </p>
+
+                  {(parsed.experience || parsed.education) && (
+                    <div className="flex flex-wrap gap-1.5 pt-1 text-[11px]">
+                      {parsed.experience && (
+                        <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">
+                          Опыт: {parsed.experience}
+                        </span>
+                      )}
+                      {parsed.education && (
+                        <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">
+                          {parsed.education}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-mono">
+                    <span className="flex items-center gap-1">
+                      <Phone className="w-3 h-3 text-slate-400" />
+                      {teacher.phone || "—"}
+                    </span>
+                    <span className="flex items-center gap-1 truncate max-w-[180px]" title={teacher.email}>
+                      <Mail className="w-3 h-3 text-slate-400 shrink-0" />
+                      <span className="truncate">{teacher.email}</span>
+                    </span>
                   </div>
                 </div>
-
-                <p className="text-xs text-slate-600 leading-relaxed">{teacher.bio || "Преподаватель центра"}</p>
-
-                <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-mono">
-                  <span className="flex items-center gap-1">
-                    <Phone className="w-3 h-3 text-slate-400" />
-                    {teacher.phone || "—"}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Mail className="w-3 h-3 text-slate-400" />
-                    {teacher.email}
-                  </span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -1525,54 +1633,79 @@ export default function AdminPage() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+          <div className="overflow-x-auto border border-slate-200/80 rounded-xl bg-white shadow-2xs">
+            <table className="w-full text-left text-xs min-w-[760px]">
               <thead>
-                <tr className="border-b border-slate-200 text-slate-400 uppercase font-semibold text-[11px]">
-                  <th className="py-2.5 px-3">Родитель</th>
-                  <th className="py-2.5 px-3">Телефон</th>
-                  <th className="py-2.5 px-3">Дети (ученики)</th>
-                  <th className="py-2.5 px-3">Баланс / Заметка</th>
-                  <th className="py-2.5 px-3 text-right">Действия</th>
+                <tr className="border-b border-slate-200 bg-slate-50/70 text-slate-500 uppercase font-bold text-[11px] tracking-wider">
+                  <th className="py-3 px-3.5 min-w-[180px]">Родитель</th>
+                  <th className="py-3 px-3.5 min-w-[160px]">Контакты</th>
+                  <th className="py-3 px-3.5 min-w-[180px]">Дети (ученики)</th>
+                  <th className="py-3 px-3.5 min-w-[160px]">Баланс / Заметка</th>
+                  <th className="py-3 px-3.5 text-right w-20">Действия</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {parents.map((par) => {
-                  const links = parentStudents.filter((ps) => ps.parent_id === par.id);
-                  const children = students.filter((s) => links.some((l) => l.student_id === s.id));
-                  return (
-                    <tr key={par.id} className="hover:bg-slate-50 transition">
-                      <td className="py-3 px-3">
-                        <div className="font-bold text-slate-900">{par.name}</div>
-                        <div className="text-[10px] text-slate-400 font-mono">{par.email}</div>
-                      </td>
-                      <td className="py-3 px-3 font-mono text-slate-700">{par.phone || "—"}</td>
-                      <td className="py-3 px-3">
-                        {children.length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {children.map((c) => (
-                              <span
-                                key={c.id}
-                                className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-semibold text-[11px]"
-                              >
-                                {c.name}
-                              </span>
-                            ))}
+                {parents.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-slate-400">
+                      Родители не зарегистрированы
+                    </td>
+                  </tr>
+                ) : (
+                  parents.map((par) => {
+                    const links = parentStudents.filter((ps) => ps.parent_id === par.id);
+                    const children = students.filter((s) => links.some((l) => l.student_id === s.id));
+                    const parsed = parseProfileBio(par.bio);
+                    return (
+                      <tr key={par.id} className="hover:bg-slate-50/80 transition">
+                        <td className="py-3 px-3.5">
+                          <div className="font-bold text-slate-900">{par.name}</div>
+                          <div className="text-[10px] text-slate-400 font-mono truncate">
+                            {parsed.username ? `@${parsed.username}` : par.email}
                           </div>
-                        ) : (
-                          <span className="text-slate-400 italic">Нет привязанных детей</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-3 text-slate-600">{par.bio || "—"}</td>
-                      <td className="py-3 px-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={() => handleOpenEditParent(par)}
-                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
-                            title="Редактировать данные родителя"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
+                        </td>
+                        <td className="py-3 px-3.5">
+                          <div className="space-y-1 whitespace-nowrap">
+                            <div className="flex items-center gap-1.5 text-slate-700 font-mono text-xs">
+                              <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              <span>{par.phone || "—"}</span>
+                            </div>
+                            {par.email && (
+                              <div className="flex items-center gap-1.5 text-slate-400 font-mono text-[10px]">
+                                <Mail className="w-3 h-3 text-slate-400 shrink-0" />
+                                <span>{par.email}</span>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-3.5">
+                          {children.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {children.map((c) => (
+                                <span
+                                  key={c.id}
+                                  className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-semibold text-[11px] border border-blue-100"
+                                >
+                                  {c.name}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 italic">Нет привязанных детей</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-3.5 text-slate-600">
+                          {parsed.bio || par.bio || "—"}
+                        </td>
+                        <td className="py-3 px-3.5 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => handleOpenEditParent(par)}
+                              className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
+                              title="Редактировать данные родителя"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
                           <button
                             onClick={() => handleDeleteProfile(par.id, par.name)}
                             className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
@@ -1584,8 +1717,9 @@ export default function AdminPage() {
                       </td>
                     </tr>
                   );
-                })}
-              </tbody>
+                })
+              )}
+            </tbody>
             </table>
           </div>
         </div>
@@ -1994,6 +2128,7 @@ export default function AdminPage() {
                         {g} класс
                       </option>
                     ))}
+                    <option value="Дошкольник">Дошкольник</option>
                     <option value="Дошкольник (5-7 лет)">Дошкольник (5-7 лет)</option>
                   </select>
                 </div>
