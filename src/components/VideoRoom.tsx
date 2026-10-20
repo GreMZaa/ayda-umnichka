@@ -74,8 +74,8 @@ function LessonTimer({ initialSeconds = 15 * 60 + 35 }: { initialSeconds?: numbe
   const formatted = `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
 
   return (
-    <div className="flex items-center gap-1.5 font-mono font-bold text-emerald-400 bg-white/10 backdrop-blur-md px-2.5 sm:px-3 py-1 rounded-full border border-white/15 text-xs shrink-0 shadow-inner">
-      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+    <div className="flex items-center gap-1.5 font-mono font-bold text-emerald-700 bg-emerald-50 px-2.5 sm:px-3 py-1 rounded-full border border-emerald-200 text-xs shrink-0 shadow-xs">
+      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
       <span>{formatted}</span>
     </div>
   );
@@ -1514,14 +1514,14 @@ export default function VideoRoom({
   };
 
   return (
-    <div className="fixed inset-0 z-[60] bg-[#0e1621] text-white flex flex-col font-sans select-none overflow-hidden h-[100dvh] max-h-[100dvh] w-screen relative">
-      {/* 1. TELEGRAM СТИЛЬ: ВЕРХНИЙ ХЕДЕР ЗВОНКА */}
-      <header className="h-14 sm:h-16 bg-[#17212b]/90 backdrop-blur-xl border-b border-white/10 px-3 sm:px-5 flex items-center justify-between gap-2 shrink-0 z-30">
+    <div className="fixed inset-0 z-[60] bg-[#f0f2f5] text-slate-900 flex flex-col font-sans select-none overflow-hidden h-[100dvh] max-h-[100dvh] w-screen relative">
+      {/* 1. TELEGRAM СТИЛЬ: ВЕРХНИЙ ХЕДЕР ЗВОНКА (СВЕТЛАЯ ТЕМА) */}
+      <header className="h-14 sm:h-16 bg-white/95 backdrop-blur-xl border-b border-slate-200/80 px-3 sm:px-5 flex items-center justify-between gap-2 shrink-0 z-30 shadow-xs">
         {/* Слева: Кнопка назад + Собеседник + Эмодзи шифрования */}
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <Link
             href={userRole === "TEACHER" ? "/teacher" : userRole === "PARENT" ? "/parent" : "/student"}
-            className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer shrink-0 border border-white/10"
+            className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition cursor-pointer shrink-0 border border-slate-200"
             title="Выйти в кабинет"
           >
             <ChevronLeft className="w-5 h-5" />
@@ -1532,27 +1532,27 @@ export default function VideoRoom({
               <img
                 src={partnerAvatar}
                 alt={partnerName}
-                className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover ring-2 ring-sky-500/50"
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover ring-2 ring-[#2481cc]/25"
               />
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-[#17212b] absolute bottom-0 right-0" />
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white absolute bottom-0 right-0" />
             </div>
 
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 sm:gap-2">
-                <h1 className="font-bold text-xs sm:text-sm text-white truncate max-w-[110px] sm:max-w-xs md:max-w-md">
+                <h1 className="font-bold text-xs sm:text-sm text-slate-900 truncate max-w-[110px] sm:max-w-xs md:max-w-md">
                   {partnerName}
                 </h1>
-                <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold text-sky-400 bg-sky-400/10 px-2 py-0.5 rounded-full border border-sky-400/20">
+                <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold text-[#2481cc] bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
                   {partnerRole}
                 </span>
               </div>
-              <div className="flex items-center gap-1.5 sm:gap-2 text-[11px] text-white/60">
-                <span className="flex items-center gap-1 text-emerald-400 font-medium">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <div className="flex items-center gap-1.5 sm:gap-2 text-[11px] text-slate-500">
+                <span className="flex items-center gap-1 text-emerald-600 font-medium">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                   В эфире
                 </span>
                 <span className="hidden xs:inline">•</span>
-                <span className="hidden xs:inline text-white/50">{subjectName}</span>
+                <span className="hidden xs:inline text-slate-400">{subjectName}</span>
                 <span className="hidden md:inline">•</span>
                 <span
                   className="hidden md:inline-flex items-center gap-1 text-xs tracking-wider cursor-help"
@@ -1563,21 +1563,10 @@ export default function VideoRoom({
               </div>
             </div>
           </div>
-
-          {onRoleChange && (
-            <button
-              onClick={() => onRoleChange(userRole === "TEACHER" ? "STUDENT" : "TEACHER")}
-              className="hidden lg:flex px-2.5 py-1 rounded-full text-xs font-semibold bg-white/10 hover:bg-white/20 text-white/90 border border-white/15 transition items-center gap-1.5 cursor-pointer shrink-0 ml-1"
-              title="Нажмите для переключения роли (Преподаватель / Ученик)"
-            >
-              <span>{userRole === "TEACHER" ? "👨‍🏫 Учитель" : "🎒 Ученик"}</span>
-              <span className="text-[10px] text-sky-400 underline">сменить</span>
-            </button>
-          )}
         </div>
 
         {/* Центр: Telegram Pill Tabs (Звонок / Доска / Заметки) */}
-        <div className="flex items-center bg-[#0e1621]/80 p-1 rounded-full border border-white/10 text-xs shadow-inner">
+        <div className="flex items-center bg-slate-100 p-1 rounded-full border border-slate-200 text-xs shadow-inner">
           <button
             onClick={() => {
               setActiveTab("video");
@@ -1585,8 +1574,8 @@ export default function VideoRoom({
             }}
             className={`px-3 sm:px-4 py-1.5 rounded-full font-bold transition flex items-center gap-1.5 cursor-pointer ${
               activeTab === "video" && mobileTab !== "chat" && mobileTab !== "notes"
-                ? "bg-[#2481cc] text-white shadow-md"
-                : "text-white/70 hover:text-white"
+                ? "bg-[#2481cc] text-white shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
             }`}
           >
             <Video className="w-3.5 h-3.5" />
@@ -1599,8 +1588,8 @@ export default function VideoRoom({
             }}
             className={`px-3 sm:px-4 py-1.5 rounded-full font-bold transition flex items-center gap-1.5 cursor-pointer ${
               activeTab === "board" && mobileTab === "board"
-                ? "bg-[#2481cc] text-white shadow-md"
-                : "text-white/70 hover:text-white"
+                ? "bg-[#2481cc] text-white shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
             }`}
           >
             <PenTool className="w-3.5 h-3.5" />
@@ -1613,8 +1602,8 @@ export default function VideoRoom({
             }}
             className={`px-3 sm:px-4 py-1.5 rounded-full font-bold transition flex items-center gap-1.5 cursor-pointer ${
               activeTab === "notes" || mobileTab === "notes"
-                ? "bg-[#2481cc] text-white shadow-md"
-                : "text-white/70 hover:text-white"
+                ? "bg-[#2481cc] text-white shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
             }`}
           >
             <BookOpen className="w-3.5 h-3.5" />
@@ -1628,7 +1617,7 @@ export default function VideoRoom({
 
           <button
             onClick={copyRoomLink}
-            className="p-2 sm:px-3 sm:py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white/90 border border-white/10 font-medium transition flex items-center gap-1.5 cursor-pointer"
+            className="p-2 sm:px-3 sm:py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 font-medium transition flex items-center gap-1.5 cursor-pointer"
             title="Скопировать ссылку на урок"
           >
             <Share2 className="w-3.5 h-3.5" />
@@ -1637,7 +1626,7 @@ export default function VideoRoom({
 
           <button
             onClick={toggleFullscreen}
-            className="hidden sm:flex p-2 rounded-full bg-white/10 hover:bg-white/20 text-white/90 border border-white/10 transition cursor-pointer"
+            className="hidden sm:flex p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer"
             title={isFullscreen ? "Свернуть" : "На весь экран"}
           >
             {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
@@ -1645,7 +1634,7 @@ export default function VideoRoom({
 
           <button
             onClick={onEndLesson}
-            className="hidden md:flex px-3.5 py-1.5 rounded-full bg-[#e53935] hover:bg-[#d32f2f] text-white font-bold transition items-center gap-1.5 cursor-pointer shadow-md shadow-rose-900/30"
+            className="hidden md:flex px-3.5 py-1.5 rounded-full bg-[#e53935] hover:bg-[#d32f2f] text-white font-bold transition items-center gap-1.5 cursor-pointer shadow-md shadow-rose-600/20"
             title="Завершить урок"
           >
             <PhoneOff className="w-3.5 h-3.5" />
@@ -2277,9 +2266,9 @@ export default function VideoRoom({
           </div>
         </div>
 
-        {/* РЕЖИМ 3: СОБЕСЕДНИК В ОСНОВНОМ ОКНЕ (TELEGRAM CALL FULLSTAGE) */}
+        {/* РЕЖИМ 3: СОБЕСЕДНИК В ОСНОВНОМ ОКНЕ (TELEGRAM CALL FULLSTAGE - СВЕТЛАЯ ТЕМА) */}
         <div
-          className={`flex-1 flex flex-col bg-[radial-gradient(ellipse_at_center,_#1a2838_0%,_#0e1621_70%,_#070b10_100%)] relative overflow-hidden min-h-0 ${
+          className={`flex-1 flex flex-col bg-gradient-to-b from-[#eef2f5] via-[#f4f6f8] to-[#e7ecf0] relative overflow-hidden min-h-0 ${
             activeTab === "video" ? "md:flex" : "md:hidden"
           } ${
             mobileTab === "video" ? "flex" : "hidden md:flex"
@@ -2287,10 +2276,10 @@ export default function VideoRoom({
         >
           {/* Верхняя плашка звонка */}
           <div className="absolute top-3 left-3 right-3 z-20 flex items-center justify-between pointer-events-none">
-            <div className="bg-[#17212b]/85 backdrop-blur-md border border-white/10 text-white rounded-full shadow-lg px-4 py-1.5 flex items-center gap-2.5 text-xs font-semibold pointer-events-auto">
+            <div className="bg-white/95 backdrop-blur-md border border-slate-200 text-slate-800 rounded-full shadow-sm px-4 py-1.5 flex items-center gap-2.5 text-xs font-semibold pointer-events-auto">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
               <span>
-                {partnerRole}: <strong className="text-white">{partnerName}</strong>
+                {partnerRole}: <strong className="text-slate-900">{partnerName}</strong>
               </span>
               {partnerRole === "Ученик" && raisedHand && (
                 <span className="bg-amber-400 text-slate-950 px-2 py-0.5 rounded-full font-bold text-[10px] animate-bounce">
@@ -2305,10 +2294,10 @@ export default function VideoRoom({
                   setActiveTab("board");
                   setMobileTab("board");
                 }}
-                className="px-3.5 py-1.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/10 text-white font-bold text-xs flex items-center gap-1.5 shadow-md transition cursor-pointer"
+                className="px-3.5 py-1.5 rounded-full bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 shadow-xs transition cursor-pointer"
                 title="Вернуться к интерактивной доске"
               >
-                <PenTool className="w-3.5 h-3.5 text-sky-400" />
+                <PenTool className="w-3.5 h-3.5 text-[#2481cc]" />
                 <span>К доске</span>
               </button>
             </div>
@@ -2316,7 +2305,7 @@ export default function VideoRoom({
 
           {/* Большое центрированное видео или Telegram-аватар с пульсирующими кольцами */}
           <div className="flex-1 flex items-center justify-center p-3 sm:p-6 relative">
-            <div className="w-full h-full max-w-5xl rounded-3xl overflow-hidden relative shadow-2xl bg-[#0b1118]/80 border border-white/10 flex items-center justify-center">
+            <div className="w-full h-full max-w-5xl rounded-3xl overflow-hidden relative shadow-xl bg-slate-900 border border-slate-200 flex items-center justify-center">
               {partnerCamOn && remoteStream ? (
                 <video
                   ref={remoteVideoMainRef}
@@ -2325,69 +2314,69 @@ export default function VideoRoom({
                   className="w-full h-full object-cover sm:object-contain"
                 />
               ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center relative bg-gradient-to-b from-[#17212b]/40 via-[#0e1621] to-[#070b10] p-6 text-center">
-                  {/* Пульсирующие кольца Telegram-звонка */}
+                <div className="w-full h-full flex flex-col items-center justify-center relative bg-gradient-to-b from-slate-50 via-white to-slate-100 p-6 text-center">
+                  {/* Пульсирующие кольца Telegram-звонка в светлой теме */}
                   <div className="relative flex items-center justify-center my-auto">
                     {/* Внешнее кольцо с затухающей анимацией */}
-                    <div className="absolute w-56 h-56 sm:w-72 sm:h-72 rounded-full border border-sky-400/20 animate-ping opacity-25 [animation-duration:3s]" />
+                    <div className="absolute w-56 h-56 sm:w-72 sm:h-72 rounded-full border border-sky-300/40 animate-ping opacity-25 [animation-duration:3s]" />
                     {/* Среднее пульсирующее кольцо */}
-                    <div className="absolute w-44 h-44 sm:w-56 sm:h-56 rounded-full bg-sky-500/10 border border-sky-400/25 animate-pulse" />
+                    <div className="absolute w-44 h-44 sm:w-56 sm:h-56 rounded-full bg-sky-100/60 border border-sky-300/60 animate-pulse" />
                     {/* Ближнее кольцо */}
-                    <div className="absolute w-36 h-36 sm:w-44 sm:h-44 rounded-full bg-sky-500/15 border border-sky-400/40" />
+                    <div className="absolute w-36 h-36 sm:w-44 sm:h-44 rounded-full bg-sky-100 border border-sky-400/60" />
 
                     {/* Аватар в центре */}
-                    <div className="w-28 h-28 sm:w-36 sm:h-36 rounded-full overflow-hidden shadow-2xl ring-4 ring-sky-500/50 relative z-10 bg-[#17212b]">
+                    <div className="w-28 h-28 sm:w-36 sm:h-36 rounded-full overflow-hidden shadow-xl ring-4 ring-[#2481cc]/40 relative z-10 bg-white">
                       <img src={partnerAvatar} alt={partnerName} className="w-full h-full object-cover" />
                     </div>
                   </div>
 
                   {/* Имя и статус собеседника */}
                   <div className="relative z-10 mt-3 mb-2">
-                    <h2 className="text-xl sm:text-2xl font-bold text-white tracking-wide">{partnerName}</h2>
-                    <p className="text-xs sm:text-sm text-sky-400/80 font-medium mt-0.5 flex items-center justify-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-wide">{partnerName}</h2>
+                    <p className="text-xs sm:text-sm text-[#2481cc] font-medium mt-0.5 flex items-center justify-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                       <span>{partnerRole} • Звонок АйДаУмничка</span>
                     </p>
 
                     {/* Анимированный эквалайзер Telegram */}
                     <div className="flex items-center justify-center gap-1 mt-3 h-6">
-                      <span className="w-1 bg-sky-400 rounded-full animate-[pulse_0.8s_ease-in-out_infinite] h-3" />
-                      <span className="w-1 bg-sky-400 rounded-full animate-[pulse_0.6s_ease-in-out_infinite_0.1s] h-5" />
-                      <span className="w-1 bg-sky-400 rounded-full animate-[pulse_1.0s_ease-in-out_infinite_0.2s] h-2.5" />
-                      <span className="w-1 bg-sky-400 rounded-full animate-[pulse_0.7s_ease-in-out_infinite_0.3s] h-6" />
-                      <span className="w-1 bg-sky-400 rounded-full animate-[pulse_0.9s_ease-in-out_infinite_0.15s] h-4" />
-                      <span className="w-1 bg-sky-400 rounded-full animate-[pulse_0.5s_ease-in-out_infinite_0.25s] h-3" />
+                      <span className="w-1 bg-[#2481cc] rounded-full animate-[pulse_0.8s_ease-in-out_infinite] h-3" />
+                      <span className="w-1 bg-[#2481cc] rounded-full animate-[pulse_0.6s_ease-in-out_infinite_0.1s] h-5" />
+                      <span className="w-1 bg-[#2481cc] rounded-full animate-[pulse_1.0s_ease-in-out_infinite_0.2s] h-2.5" />
+                      <span className="w-1 bg-[#2481cc] rounded-full animate-[pulse_0.7s_ease-in-out_infinite_0.3s] h-6" />
+                      <span className="w-1 bg-[#2481cc] rounded-full animate-[pulse_0.9s_ease-in-out_infinite_0.15s] h-4" />
+                      <span className="w-1 bg-[#2481cc] rounded-full animate-[pulse_0.5s_ease-in-out_infinite_0.25s] h-3" />
                     </div>
 
                     {/* Telegram End-to-End Encryption Banner */}
-                    <div className="mt-5 inline-flex flex-col items-center gap-1 bg-[#17212b]/70 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/10 shadow-lg">
+                    <div className="mt-5 inline-flex flex-col items-center gap-1 bg-white/90 backdrop-blur-md px-4 py-2 rounded-2xl border border-slate-200 shadow-sm">
                       <div className="text-lg tracking-widest select-none flex items-center gap-2">
                         <span>🦊</span>
                         <span>🍇</span>
                         <span>💎</span>
                         <span>🚀</span>
                       </div>
-                      <span className="text-[10px] text-white/50 font-mono tracking-wider">
+                      <span className="text-[10px] text-slate-500 font-mono tracking-wider">
                         Сквозное шифрование Telegram
                       </span>
                     </div>
                   </div>
                 </div>
               )}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 pointer-events-none" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
 
               {/* Бейдж собеседника внизу экрана */}
               <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between pointer-events-none">
-                <div className="bg-[#17212b]/85 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/10 text-white flex items-center gap-2 shadow-lg">
-                  <div className={`w-2 h-2 rounded-full ${partnerCamOn ? "bg-emerald-400 animate-pulse" : "bg-slate-400"}`} />
+                <div className="bg-white/90 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-slate-200 text-slate-800 flex items-center gap-2 shadow-md">
+                  <div className={`w-2 h-2 rounded-full ${partnerCamOn ? "bg-emerald-500 animate-pulse" : "bg-slate-400"}`} />
                   <span className="text-xs sm:text-sm font-bold truncate">{partnerName}</span>
-                  <span className="text-xs text-sky-400/80">({partnerRole})</span>
+                  <span className="text-xs text-[#2481cc]">({partnerRole})</span>
                 </div>
               </div>
             </div>
 
             {/* Картинка-в-картинке (камера пользователя) */}
-            <div className="absolute bottom-24 right-5 sm:bottom-24 sm:right-8 w-36 sm:w-48 aspect-video rounded-2xl overflow-hidden bg-[#17212b] border-2 border-white/20 shadow-2xl z-30 transition-all hover:scale-105 group">
+            <div className="absolute bottom-24 right-5 sm:bottom-24 sm:right-8 w-36 sm:w-48 aspect-video rounded-2xl overflow-hidden bg-white border-2 border-slate-300 shadow-xl z-30 transition-all hover:scale-105 group">
               {camOn ? (
                 <video
                   ref={localVideoMainRef}
@@ -2397,34 +2386,34 @@ export default function VideoRoom({
                   className="w-full h-full object-cover transform -scale-x-100"
                 />
               ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center bg-[#17212b] text-slate-300 p-2">
+                <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 text-slate-600 p-2">
                   <img
                     src={myAvatar}
                     alt={myName}
-                    className="w-10 h-10 rounded-full object-cover border border-white/20 mb-1"
+                    className="w-10 h-10 rounded-full object-cover border border-slate-200 mb-1"
                   />
-                  <span className="text-[10px] font-bold text-white/70 truncate max-w-full">Вы (камера выкл)</span>
+                  <span className="text-[10px] font-bold text-slate-500 truncate max-w-full">Вы (камера выкл)</span>
                 </div>
               )}
-              <div className="absolute bottom-1.5 left-1.5 bg-black/60 backdrop-blur-sm px-2 py-0.5 rounded-full text-[9px] text-white font-bold border border-white/10">
+              <div className="absolute bottom-1.5 left-1.5 bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-full text-[9px] text-slate-800 font-bold border border-slate-200">
                 Вы
               </div>
             </div>
           </div>
         </div>
 
-        {/* ПРАВАЯ ПАНЕЛЬ: КАМЕРЫ + ЧАТ В СТИЛЕ TELEGRAM */}
+        {/* ПРАВАЯ ПАНЕЛЬ: КАМЕРЫ + ЧАТ В СТИЛЕ TELEGRAM (СВЕТЛАЯ ТЕМА) */}
         <div
-          className={`w-full md:w-80 lg:w-96 bg-[#17212b] border-t md:border-t-0 md:border-l border-white/10 flex flex-col shrink-0 h-full min-h-0 z-30 ${
+          className={`w-full md:w-80 lg:w-96 bg-white border-t md:border-t-0 md:border-l border-slate-200 flex flex-col shrink-0 h-full min-h-0 z-30 ${
             mobileTab === "chat" ? "flex" : (isChatOpen || activeTab === "board") ? "hidden md:flex" : "hidden"
           }`}
         >
           {chatCollapsed ? (
             /* РЕЖИМ: ЧАТ СВЕРНУТ ВНИЗ — КАМЕРА СОБЕСЕДНИКА БОЛЬШАЯ */
             <>
-              <div className="flex-1 flex flex-col p-3 bg-[#0e1621] min-h-0 overflow-hidden">
+              <div className="flex-1 flex flex-col p-3 bg-slate-100 min-h-0 overflow-hidden">
                 {/* Камера собеседника на весь размер панели */}
-                <div className="flex-1 w-full min-h-0 relative rounded-2xl overflow-hidden bg-[#17212b] border border-white/10 shadow-sm flex items-center justify-center group">
+                <div className="flex-1 w-full min-h-0 relative rounded-2xl overflow-hidden bg-slate-900 border border-slate-200 shadow-xs flex items-center justify-center group">
                   {partnerCamOn && remoteStream ? (
                     <video
                       ref={remoteVideoSideRef}
@@ -2443,8 +2432,8 @@ export default function VideoRoom({
 
                   {/* Верхняя плашка (показывается только при наведении) */}
                   <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-auto">
-                    <div className="bg-[#17212b]/85 backdrop-blur px-2.5 py-1 rounded-lg text-white font-bold text-xs flex items-center gap-1.5 border border-white/10 shadow-xs">
-                      <span className={`w-2 h-2 rounded-full ${partnerCamOn ? "bg-emerald-400 animate-pulse" : "bg-slate-400"}`} />
+                    <div className="bg-white/90 backdrop-blur px-2.5 py-1 rounded-lg text-slate-800 font-bold text-xs flex items-center gap-1.5 border border-slate-200 shadow-xs">
+                      <span className={`w-2 h-2 rounded-full ${partnerCamOn ? "bg-emerald-500 animate-pulse" : "bg-slate-400"}`} />
                       <span className="truncate">{partnerName}</span>
                     </div>
                     <button
@@ -2452,7 +2441,7 @@ export default function VideoRoom({
                         setActiveTab("video");
                         setMobileTab("video");
                       }}
-                      className="p-1.5 rounded-lg bg-[#17212b]/85 hover:bg-[#2481cc] text-white transition border border-white/10 shadow-xs cursor-pointer"
+                      className="p-1.5 rounded-lg bg-white/90 hover:bg-[#2481cc] hover:text-white text-slate-700 transition border border-slate-200 shadow-xs cursor-pointer"
                       title="Вывести в главное окно"
                     >
                       <Maximize2 className="w-3.5 h-3.5" />
@@ -2461,7 +2450,7 @@ export default function VideoRoom({
 
                   {/* Нижняя информация (показывается только при наведении) */}
                   <div className="absolute bottom-2.5 left-2.5 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                    <span className="bg-[#17212b]/85 backdrop-blur px-2 py-0.5 rounded text-[11px] text-sky-400 font-medium border border-white/10">
+                    <span className="bg-white/90 backdrop-blur px-2 py-0.5 rounded text-[11px] text-[#2481cc] font-medium border border-slate-200">
                       {partnerRole}
                     </span>
                     {partnerRole === "Ученик" && raisedHand && (
@@ -2472,7 +2461,7 @@ export default function VideoRoom({
                   </div>
 
                   {/* PiP текущего пользователя */}
-                  <div className="absolute bottom-2.5 right-2.5 w-24 sm:w-28 aspect-video rounded-xl overflow-hidden bg-[#17212b] border-2 border-white/20 shadow-lg z-10">
+                  <div className="absolute bottom-2.5 right-2.5 w-24 sm:w-28 aspect-video rounded-xl overflow-hidden bg-white border-2 border-white shadow-lg z-10">
                     {camOn ? (
                       <video
                         ref={localVideoSideRef}
@@ -2498,26 +2487,26 @@ export default function VideoRoom({
               {/* Свернутая плашка чата внизу */}
               <div
                 onClick={() => setChatCollapsed(false)}
-                className="p-3 bg-[#17212b] border-t border-white/10 flex items-center justify-between shadow-xs hover:bg-[#1f2d3b] transition cursor-pointer select-none text-white"
+                className="p-3 bg-white border-t border-slate-200 flex items-center justify-between shadow-xs hover:bg-slate-50 transition cursor-pointer select-none text-slate-800"
                 title="Нажмите, чтобы развернуть чат"
               >
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-sky-500/10 text-sky-400 flex items-center justify-center shrink-0 border border-sky-400/20">
+                  <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#2481cc] flex items-center justify-center shrink-0 border border-blue-100">
                     <MessageSquare className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-bold text-white">Чат урока</span>
-                      <span className="px-1.5 py-0.2 rounded-full bg-white/10 text-[10px] font-bold text-white/70">
+                      <span className="text-xs font-bold text-slate-800">Чат урока</span>
+                      <span className="px-1.5 py-0.2 rounded-full bg-slate-100 text-[10px] font-bold text-slate-600">
                         {messages.length}
                       </span>
                     </div>
                     {messages.length > 0 ? (
-                      <p className="text-[11px] text-white/50 truncate max-w-[150px] sm:max-w-[180px]">
+                      <p className="text-[11px] text-slate-500 truncate max-w-[150px] sm:max-w-[180px]">
                         {messages[messages.length - 1].sender}: {messages[messages.length - 1].text}
                       </p>
                     ) : (
-                      <p className="text-[11px] text-white/40">Сообщений пока нет</p>
+                      <p className="text-[11px] text-slate-400">Сообщений пока нет</p>
                     )}
                   </div>
                 </div>
@@ -2526,7 +2515,7 @@ export default function VideoRoom({
                     e.stopPropagation();
                     setChatCollapsed(false);
                   }}
-                  className="px-2.5 py-1.5 rounded-lg bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 text-xs font-bold flex items-center gap-1 transition shrink-0 cursor-pointer"
+                  className="px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#2481cc] text-xs font-bold flex items-center gap-1 transition shrink-0 cursor-pointer"
                 >
                   <ChevronUp className="w-3.5 h-3.5" />
                   <span>Развернуть</span>
@@ -2578,7 +2567,6 @@ export default function VideoRoom({
                       />
                     )
                   )}
-                  {/* Имя скрыто по умолчанию, показывается при наведении */}
                   <div className="absolute bottom-1 left-1 right-1 bg-slate-900/80 backdrop-blur px-1.5 py-0.5 rounded text-[10px] text-white font-bold truncate flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
                     <span className="truncate">{teacherName} {isTeacher ? "(Вы)" : ""}</span>
                     <span className={`w-1.5 h-1.5 rounded-full ${isTeacher ? (camOn ? "bg-emerald-400" : "bg-slate-400") : (partnerCamOn ? "bg-emerald-400 animate-pulse" : "bg-slate-400")}`} />
@@ -2588,10 +2576,10 @@ export default function VideoRoom({
                       setActiveTab("video");
                       setMobileTab("video");
                     }}
-                    className="absolute top-1 right-1 p-1 rounded-md bg-slate-900/70 hover:bg-blue-600 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 shadow-xs cursor-pointer"
+                    className="absolute top-1 right-1 p-1 rounded-md bg-slate-900/70 hover:bg-[#2481cc] text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 shadow-xs cursor-pointer"
                     title="Вывести в главное окно"
                   >
-                    <Maximize2 className="w-3 h-3" />
+                    <Maximize2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
 
@@ -2635,7 +2623,6 @@ export default function VideoRoom({
                       />
                     )
                   )}
-                  {/* Имя скрыто по умолчанию, показывается при наведении */}
                   <div className="absolute bottom-1 left-1 right-1 bg-slate-900/80 backdrop-blur px-1.5 py-0.5 rounded text-[10px] text-white font-bold truncate flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
                     <span className="truncate">{studentName} {!isTeacher ? "(Вы)" : ""}</span>
                     <div className="flex items-center gap-1">
@@ -2648,30 +2635,30 @@ export default function VideoRoom({
                       setActiveTab("video");
                       setMobileTab("video");
                     }}
-                    className="absolute top-1 right-1 p-1 rounded-md bg-slate-900/70 hover:bg-blue-600 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 shadow-xs cursor-pointer"
+                    className="absolute top-1 right-1 p-1 rounded-md bg-slate-900/70 hover:bg-[#2481cc] text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 shadow-xs cursor-pointer"
                     title="Вывести в главное окно"
                   >
-                    <Maximize2 className="w-3 h-3" />
+                    <Maximize2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
 
               {/* БОЛЬШОЙ ЧАТ С КНОПКОЙ СВОРАЧИВАНИЯ / ЗАКРЫТИЯ В СТИЛЕ TELEGRAM */}
-              <div className="flex-1 flex flex-col justify-between bg-[#0e1621] overflow-hidden min-h-0">
-                <div className="flex items-center justify-between p-3.5 bg-[#17212b] border-b border-white/10">
+              <div className="flex-1 flex flex-col justify-between bg-[#f0f2f5] overflow-hidden min-h-0">
+                <div className="flex items-center justify-between p-3.5 bg-white border-b border-slate-200">
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-sm text-white flex items-center gap-2">
-                      <MessageSquare className="w-4 h-4 text-sky-400" />
+                    <span className="font-bold text-sm text-slate-800 flex items-center gap-2">
+                      <MessageSquare className="w-4 h-4 text-[#2481cc]" />
                       Чат звонка
                     </span>
-                    <span className="px-2 py-0.5 rounded-full bg-white/10 text-white/70 text-[11px] font-semibold">
+                    <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[11px] font-semibold">
                       {messages.length}
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => setChatCollapsed(true)}
-                      className="p-1 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition cursor-pointer hidden md:flex"
+                      className="p-1 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition cursor-pointer hidden md:flex"
                       title="Скрыть чат вниз"
                     >
                       <ChevronDown className="w-4 h-4" />
@@ -2681,7 +2668,7 @@ export default function VideoRoom({
                         setIsChatOpen(false);
                         if (mobileTab === "chat") setMobileTab("video");
                       }}
-                      className="p-1.5 rounded-full text-white/60 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                      className="p-1.5 rounded-full text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition cursor-pointer"
                       title="Закрыть чат"
                     >
                       <X className="w-4 h-4" />
@@ -2689,15 +2676,15 @@ export default function VideoRoom({
                   </div>
                 </div>
 
-                {/* Список сообщений в стиле Telegram */}
+                {/* Список сообщений в стиле Telegram (светлая тема) */}
                 <div className="flex-1 overflow-y-auto space-y-3 p-3.5">
                   {messages.length === 0 ? (
-                    <div className="h-full min-h-[140px] flex flex-col items-center justify-center text-center p-4 text-white/40">
-                      <div className="w-10 h-10 rounded-2xl bg-[#17212b] border border-white/10 flex items-center justify-center mb-2 text-sky-400">
+                    <div className="h-full min-h-[140px] flex flex-col items-center justify-center text-center p-4 text-slate-400">
+                      <div className="w-10 h-10 rounded-2xl bg-white border border-slate-200 flex items-center justify-center mb-2 text-[#2481cc] shadow-xs">
                         <MessageSquare className="w-5 h-5" />
                       </div>
-                      <p className="text-xs font-semibold text-white/70">В чате пока нет сообщений</p>
-                      <p className="text-[11px] text-white/40 mt-0.5">Напишите вопрос или реплику в поле ниже</p>
+                      <p className="text-xs font-semibold text-slate-700">В чате пока нет сообщений</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">Напишите вопрос или реплику в поле ниже</p>
                     </div>
                   ) : (
                     messages.map((m) => {
@@ -2707,19 +2694,19 @@ export default function VideoRoom({
                       return (
                         <div
                           key={m.id}
-                          className={`p-3 rounded-2xl max-w-[85%] text-sm shadow-md ${
+                          className={`p-3 rounded-2xl max-w-[85%] text-sm shadow-xs ${
                             isMe
-                              ? "bg-[#2b5278] text-white ml-auto rounded-tr-sm"
-                              : "bg-[#182533] text-white mr-auto rounded-tl-sm border border-white/5"
+                              ? "bg-[#effdde] text-slate-900 ml-auto rounded-tr-sm border border-[#d2f3b5]"
+                              : "bg-white text-slate-900 mr-auto rounded-tl-sm border border-slate-200/80"
                           }`}
                         >
                           <div className="flex items-center justify-between gap-3 text-xs mb-1">
-                            <span className={`font-bold ${isMe ? "text-sky-200" : "text-sky-400"}`}>
+                            <span className={`font-bold ${isMe ? "text-emerald-700" : "text-[#2481cc]"}`}>
                               {isMe ? "Вы" : m.sender}
                             </span>
-                            <span className="text-[10px] text-white/50 flex items-center gap-1">
+                            <span className="text-[10px] text-slate-400 flex items-center gap-1">
                               {m.time}
-                              {isMe && <span className="text-sky-300">✓✓</span>}
+                              {isMe && <span className="text-[#2481cc] font-bold">✓✓</span>}
                             </span>
                           </div>
                           <p className="font-normal text-sm leading-relaxed break-words">{m.text}</p>
@@ -2729,18 +2716,18 @@ export default function VideoRoom({
                   )}
                 </div>
 
-                {/* Форма ввода сообщения в стиле Telegram */}
-                <form onSubmit={handleSendMessage} className="p-3 bg-[#17212b] border-t border-white/10 flex items-center gap-2">
+                {/* Форма ввода сообщения в стиле Telegram (светлая тема) */}
+                <form onSubmit={handleSendMessage} className="p-3 bg-white border-t border-slate-200 flex items-center gap-2">
                   <input
                     type="text"
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
                     placeholder="Написать сообщение..."
-                    className="flex-1 text-sm px-4 py-2.5 rounded-full bg-[#0e1621] border border-white/10 text-white placeholder:text-white/40 focus:outline-none focus:border-sky-500 transition"
+                    className="flex-1 text-sm px-4 py-2.5 rounded-full bg-slate-100 border border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#2481cc] focus:bg-white transition"
                   />
                   <button
                     type="submit"
-                    className="w-10 h-10 rounded-full bg-[#2481cc] hover:bg-[#1d6fa5] text-white flex items-center justify-center transition shrink-0 cursor-pointer shadow-md"
+                    className="w-10 h-10 rounded-full bg-[#2481cc] hover:bg-[#1d6fa5] text-white flex items-center justify-center transition shrink-0 cursor-pointer shadow-xs"
                     title="Отправить"
                   >
                     <Send className="w-4 h-4" />
@@ -2752,16 +2739,16 @@ export default function VideoRoom({
         </div>
       </div>
 
-      {/* 3. TELEGRAM FLOATING BOTTOM CONTROL DOCK */}
+      {/* 3. TELEGRAM FLOATING BOTTOM CONTROL DOCK (СВЕТЛАЯ ТЕМА) */}
       {mobileTab !== "chat" && (
-        <div className="fixed bottom-5 sm:bottom-6 left-1/2 -translate-x-1/2 z-50 bg-[#17212b]/95 backdrop-blur-2xl border border-white/15 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-full shadow-[0_12px_40px_rgba(0,0,0,0.65)] flex items-center gap-2 sm:gap-3.5 max-w-[96vw]">
+        <div className="fixed bottom-5 sm:bottom-6 left-1/2 -translate-x-1/2 z-50 bg-white/95 backdrop-blur-2xl border border-slate-200/90 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-full shadow-[0_12px_40px_rgba(0,0,0,0.12)] flex items-center gap-2 sm:gap-3.5 max-w-[96vw]">
           {/* Микрофон */}
           <button
             onClick={toggleMic}
-            className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-md ${
+            className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-xs ${
               micOn
-                ? "bg-white/10 hover:bg-white/20 text-white hover:scale-105 active:scale-95 border border-white/10"
-                : "bg-[#e53935] hover:bg-[#d32f2f] text-white shadow-rose-600/40 animate-pulse"
+                ? "bg-slate-100 hover:bg-slate-200 text-slate-700 hover:scale-105 active:scale-95 border border-slate-200/80"
+                : "bg-[#e53935] hover:bg-[#d32f2f] text-white shadow-rose-600/30 animate-pulse"
             }`}
             title={micOn ? "Выключить микрофон" : "Включить микрофон"}
           >
@@ -2771,10 +2758,10 @@ export default function VideoRoom({
           {/* Камера */}
           <button
             onClick={toggleCamera}
-            className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-md ${
+            className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-xs ${
               camOn
-                ? "bg-[#2481cc] hover:bg-[#1d6fa5] text-white shadow-blue-500/30 hover:scale-105 active:scale-95"
-                : "bg-white/10 hover:bg-white/20 text-white/70 hover:scale-105 active:scale-95 border border-white/10"
+                ? "bg-[#2481cc] hover:bg-[#1d6fa5] text-white shadow-blue-500/25 hover:scale-105 active:scale-95"
+                : "bg-slate-100 hover:bg-slate-200 text-slate-600 hover:scale-105 active:scale-95 border border-slate-200/80"
             }`}
             title={camOn ? "Выключить камеру" : "Включить камеру"}
           >
@@ -2784,10 +2771,10 @@ export default function VideoRoom({
           {/* Показ экрана (десктоп) */}
           <button
             onClick={toggleScreenShare}
-            className={`hidden md:flex w-11 h-11 sm:w-12 sm:h-12 rounded-full items-center justify-center transition-all cursor-pointer shadow-md ${
+            className={`hidden md:flex w-11 h-11 sm:w-12 sm:h-12 rounded-full items-center justify-center transition-all cursor-pointer shadow-xs ${
               screenSharing
-                ? "bg-[#2481cc] text-white shadow-blue-500/30"
-                : "bg-white/10 hover:bg-white/20 text-white/80 hover:scale-105 active:scale-95 border border-white/10"
+                ? "bg-[#2481cc] text-white shadow-blue-500/25"
+                : "bg-slate-100 hover:bg-slate-200 text-slate-700 hover:scale-105 active:scale-95 border border-slate-200/80"
             }`}
             title={screenSharing ? "Остановить показ экрана" : "Демонстрация экрана"}
           >
@@ -2801,10 +2788,10 @@ export default function VideoRoom({
               setActiveTab(next);
               setMobileTab(next);
             }}
-            className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-md ${
+            className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-xs ${
               activeTab === "board"
-                ? "bg-[#2481cc] text-white shadow-blue-500/30"
-                : "bg-white/10 hover:bg-white/20 text-white/80 hover:scale-105 active:scale-95 border border-white/10"
+                ? "bg-[#2481cc] text-white shadow-blue-500/25"
+                : "bg-slate-100 hover:bg-slate-200 text-slate-700 hover:scale-105 active:scale-95 border border-slate-200/80"
             }`}
             title={activeTab === "board" ? "Вернуться к звонку" : "Открыть интерактивную доску"}
           >
@@ -2817,26 +2804,26 @@ export default function VideoRoom({
               setIsChatOpen((prev) => !prev);
               setMobileTab((prev) => (prev === "chat" ? activeTab : "chat"));
             }}
-            className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-md relative ${
+            className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-xs relative ${
               isChatOpen
-                ? "bg-[#2481cc] text-white shadow-blue-500/30"
-                : "bg-white/10 hover:bg-white/20 text-white/80 hover:scale-105 active:scale-95 border border-white/10"
+                ? "bg-[#2481cc] text-white shadow-blue-500/25"
+                : "bg-slate-100 hover:bg-slate-200 text-slate-700 hover:scale-105 active:scale-95 border border-slate-200/80"
             }`}
             title="Чат урока"
           >
             <MessageSquare className="w-5 h-5" />
             {messages.length > 0 && (
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-[#17212b] absolute top-2 right-2 animate-pulse" />
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white absolute top-2 right-2 animate-pulse" />
             )}
           </button>
 
           {/* Поднять руку */}
           <button
             onClick={handleToggleRaisedHand}
-            className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-md ${
+            className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-xs ${
               raisedHand
                 ? "bg-amber-400 text-slate-950 font-black animate-bounce shadow-amber-400/40"
-                : "bg-white/10 hover:bg-white/20 text-white/80 hover:scale-105 active:scale-95 border border-white/10"
+                : "bg-slate-100 hover:bg-slate-200 text-slate-700 hover:scale-105 active:scale-95 border border-slate-200/80"
             }`}
             title={raisedHand ? "Опустить руку" : "Поднять руку"}
           >
@@ -2846,7 +2833,7 @@ export default function VideoRoom({
           {/* Завершить звонок (Красная кнопка Telegram) */}
           <button
             onClick={onEndLesson}
-            className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[#e53935] hover:bg-[#d32f2f] text-white flex items-center justify-center transition-all cursor-pointer shadow-lg shadow-rose-600/50 hover:scale-105 active:scale-95"
+            className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[#e53935] hover:bg-[#d32f2f] text-white flex items-center justify-center transition-all cursor-pointer shadow-lg shadow-rose-600/40 hover:scale-105 active:scale-95"
             title="Завершить звонок"
           >
             <PhoneOff className="w-5 h-5" />
