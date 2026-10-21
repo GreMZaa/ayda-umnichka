@@ -1742,21 +1742,6 @@ export default function VideoRoom({
               ) : (
                 /* ЛАКОНИЧНЫЙ ТУЛБАР ДОСКИ С ГОРИЗОНТАЛЬНОЙ ПРОКРУТКОЙ НА ТЕЛЕФОНЕ */
                 <div className="absolute top-2.5 left-2.5 z-20 bg-white border border-slate-200 rounded-xl shadow-md p-1 flex items-center gap-1 text-xs max-w-[calc(100vw-1.25rem)] overflow-x-auto">
-                  {/* Кнопка сплит-экрана для телефона */}
-                  <button
-                    onClick={() => setMobileSplitView((prev) => !prev)}
-                    className={`md:hidden px-2 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 ${
-                      mobileSplitView
-                        ? "bg-blue-600 text-white"
-                        : "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200"
-                    }`}
-                    title={mobileSplitView ? "Развернуть доску на весь экран" : "Показать камеру учителя сверху"}
-                  >
-                    <Video className="w-3.5 h-3.5" />
-                    <span className="text-[11px]">{mobileSplitView ? "Доска" : "Сплит"}</span>
-                  </button>
-                  <div className="md:hidden h-4 w-px bg-slate-200 mx-0.5" />
-
                   <button
                     onClick={() => setCurrentTool("pen")}
                     className={`p-2 rounded-lg transition cursor-pointer shrink-0 ${
@@ -2275,31 +2260,15 @@ export default function VideoRoom({
             mobileTab === "video" ? "flex" : "hidden md:flex"
           }`}
         >
-          {/* Верхняя плашка звонка: статус поднятой руки и быстрый переход к доске */}
-          <div className="absolute top-3 left-3 right-3 z-20 flex items-center justify-between pointer-events-none">
-            <div className="pointer-events-auto">
-              {partnerRole === "Ученик" && raisedHand && (
-                <div className="bg-amber-400 text-slate-950 px-3 py-1 rounded-full font-bold text-xs shadow-md animate-bounce flex items-center gap-1.5">
-                  <span>✋</span>
-                  <span>Ученик поднял руку</span>
-                </div>
-              )}
+          {/* Верхняя плашка звонка: статус поднятой руки */}
+          {partnerRole === "Ученик" && raisedHand && (
+            <div className="absolute top-3 left-3 z-20 pointer-events-none">
+              <div className="bg-amber-400 text-slate-950 px-3 py-1 rounded-full font-bold text-xs shadow-md animate-bounce flex items-center gap-1.5 pointer-events-auto">
+                <span>✋</span>
+                <span>Ученик поднял руку</span>
+              </div>
             </div>
-
-            <div className="flex items-center gap-2 pointer-events-auto">
-              <button
-                onClick={() => {
-                  setActiveTab("board");
-                  setMobileTab("board");
-                }}
-                className="px-3.5 py-1.5 rounded-full bg-white/95 hover:bg-white backdrop-blur-md border border-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 shadow-sm transition hover:shadow cursor-pointer"
-                title="Вернуться к интерактивной доске"
-              >
-                <PenTool className="w-3.5 h-3.5 text-[#2481cc]" />
-                <span>К доске</span>
-              </button>
-            </div>
-          </div>
+          )}
 
           {/* Большое центрированное видео или аватар с пульсирующими кольцами */}
           <div className="flex-1 flex items-center justify-center p-3 sm:p-6 pb-24 sm:pb-28 relative">
@@ -2394,243 +2363,8 @@ export default function VideoRoom({
             mobileTab === "chat" ? "flex" : (isChatOpen || activeTab === "board") ? "hidden md:flex" : "hidden"
           }`}
         >
-          {chatCollapsed ? (
-            /* РЕЖИМ: ЧАТ СВЕРНУТ ВНИЗ — КАМЕРА СОБЕСЕДНИКА БОЛЬШАЯ */
-            <>
-              <div className="flex-1 flex flex-col p-3 bg-slate-100 min-h-0 overflow-hidden">
-                {/* Камера собеседника на весь размер панели */}
-                <div className="flex-1 w-full min-h-0 relative rounded-2xl overflow-hidden bg-slate-900 border border-slate-200 shadow-xs flex items-center justify-center group">
-                  {partnerCamOn && remoteStream ? (
-                    <video
-                      ref={remoteVideoSideRef}
-                      autoPlay
-                      playsInline
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <img
-                      src={partnerAvatar}
-                      alt={partnerName}
-                      className="w-full h-full object-cover"
-                    />
-                  )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 pointer-events-none" />
-
-                  {/* Верхняя плашка (показывается только при наведении) */}
-                  <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-auto">
-                    <div className="bg-white/90 backdrop-blur px-2.5 py-1 rounded-lg text-slate-800 font-bold text-xs flex items-center gap-1.5 border border-slate-200 shadow-xs">
-                      <span className={`w-2 h-2 rounded-full ${partnerCamOn ? "bg-emerald-500 animate-pulse" : "bg-slate-400"}`} />
-                      <span className="truncate">{partnerName}</span>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setActiveTab("video");
-                        setMobileTab("video");
-                      }}
-                      className="p-1.5 rounded-lg bg-white/90 hover:bg-[#2481cc] hover:text-white text-slate-700 transition border border-slate-200 shadow-xs cursor-pointer"
-                      title="Вывести в главное окно"
-                    >
-                      <Maximize2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-
-                  {/* Нижняя информация (показывается только при наведении) */}
-                  <div className="absolute bottom-2.5 left-2.5 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                    <span className="bg-white/90 backdrop-blur px-2 py-0.5 rounded text-[11px] text-[#2481cc] font-medium border border-slate-200">
-                      {partnerRole}
-                    </span>
-                    {partnerRole === "Ученик" && raisedHand && (
-                      <span className="bg-amber-400 text-slate-950 px-2 py-0.5 rounded font-bold text-[11px] animate-pulse">
-                        ✋ Рука
-                      </span>
-                    )}
-                  </div>
-
-                  {/* PiP текущего пользователя */}
-                  <div className="absolute bottom-2.5 right-2.5 w-24 sm:w-28 aspect-video rounded-xl overflow-hidden bg-white border-2 border-white shadow-lg z-10">
-                    {camOn ? (
-                      <video
-                        ref={localVideoSideRef}
-                        autoPlay
-                        muted
-                        playsInline
-                        className="w-full h-full object-cover transform -scale-x-100"
-                      />
-                    ) : (
-                      <img
-                        src={myAvatar}
-                        alt={myName}
-                        className="w-full h-full object-cover"
-                      />
-                    )}
-                    <div className="absolute bottom-0.5 left-0.5 bg-black/60 px-1 py-0.2 rounded text-[9px] text-white font-bold opacity-0 hover:opacity-100 transition-opacity">
-                      Вы
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Свернутая плашка чата внизу */}
-              <div
-                onClick={() => setChatCollapsed(false)}
-                className="p-3 bg-white border-t border-slate-200 flex items-center justify-between shadow-xs hover:bg-slate-50 transition cursor-pointer select-none text-slate-800"
-                title="Нажмите, чтобы развернуть чат"
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#2481cc] flex items-center justify-center shrink-0 border border-blue-100">
-                    <MessageSquare className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-bold text-slate-800">Чат урока</span>
-                      <span className="px-1.5 py-0.2 rounded-full bg-slate-100 text-[10px] font-bold text-slate-600">
-                        {messages.length}
-                      </span>
-                    </div>
-                    {messages.length > 0 ? (
-                      <p className="text-[11px] text-slate-500 truncate max-w-[150px] sm:max-w-[180px]">
-                        {messages[messages.length - 1].sender}: {messages[messages.length - 1].text}
-                      </p>
-                    ) : (
-                      <p className="text-[11px] text-slate-400">Сообщений пока нет</p>
-                    )}
-                  </div>
-                </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setChatCollapsed(false);
-                  }}
-                  className="px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#2481cc] text-xs font-bold flex items-center gap-1 transition shrink-0 cursor-pointer"
-                >
-                  <ChevronUp className="w-3.5 h-3.5" />
-                  <span>Развернуть</span>
-                </button>
-              </div>
-            </>
-          ) : (
-            /* РЕЖИМ: ОБЫЧНЫЙ (ВИДЕО СВЕРХУ + РАЗВЕРНУТЫЙ ЧАТ) */
-            <>
-              {/* Компактный блок видео */}
-              <div className="p-3 border-b border-slate-200 bg-slate-50 grid grid-cols-2 gap-2">
-                {/* Преподаватель */}
-                <div className="rounded-xl overflow-hidden bg-slate-200 aspect-video relative border border-slate-300 group cursor-pointer">
-                  {isTeacher ? (
-                    camOn ? (
-                      <video
-                        ref={localVideoRef}
-                        autoPlay
-                        muted
-                        playsInline
-                        className="w-full h-full object-cover transform -scale-x-100"
-                      />
-                    ) : (
-                      <img
-                        src={
-                          teacherAvatar ||
-                          "https://images.unsplash.com/photo-1544717305-2782549b5136?w=400&h=300&fit=crop&crop=faces"
-                        }
-                        alt={teacherName}
-                        className="w-full h-full object-cover"
-                      />
-                    )
-                  ) : (
-                    partnerCamOn && remoteStream ? (
-                      <video
-                        ref={remoteVideoRef}
-                        autoPlay
-                        playsInline
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <img
-                        src={
-                          teacherAvatar ||
-                          "https://images.unsplash.com/photo-1544717305-2782549b5136?w=400&h=300&fit=crop&crop=faces"
-                        }
-                        alt={teacherName}
-                        className="w-full h-full object-cover"
-                      />
-                    )
-                  )}
-                  <div className="absolute bottom-1 left-1 right-1 bg-slate-900/80 backdrop-blur px-1.5 py-0.5 rounded text-[10px] text-white font-bold truncate flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                    <span className="truncate">{teacherName} {isTeacher ? "(Вы)" : ""}</span>
-                    <span className={`w-1.5 h-1.5 rounded-full ${isTeacher ? (camOn ? "bg-emerald-400" : "bg-slate-400") : (partnerCamOn ? "bg-emerald-400 animate-pulse" : "bg-slate-400")}`} />
-                  </div>
-                  <button
-                    onClick={() => {
-                      setActiveTab("video");
-                      setMobileTab("video");
-                    }}
-                    className="absolute top-1 right-1 p-1 rounded-md bg-slate-900/70 hover:bg-[#2481cc] text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 shadow-xs cursor-pointer"
-                    title="Вывести в главное окно"
-                  >
-                    <Maximize2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-
-                {/* Ученик */}
-                <div className="rounded-xl overflow-hidden bg-slate-200 aspect-video relative border border-slate-300 group cursor-pointer">
-                  {!isTeacher ? (
-                    camOn ? (
-                      <video
-                        ref={localVideoRef}
-                        autoPlay
-                        muted
-                        playsInline
-                        className="w-full h-full object-cover transform -scale-x-100"
-                      />
-                    ) : (
-                      <img
-                        src={
-                          studentAvatar ||
-                          "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400&h=300&fit=crop&crop=faces"
-                        }
-                        alt={studentName}
-                        className="w-full h-full object-cover"
-                      />
-                    )
-                  ) : (
-                    partnerCamOn && remoteStream ? (
-                      <video
-                        ref={remoteVideoRef}
-                        autoPlay
-                        playsInline
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <img
-                        src={
-                          studentAvatar ||
-                          "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400&h=300&fit=crop&crop=faces"
-                        }
-                        alt={studentName}
-                        className="w-full h-full object-cover"
-                      />
-                    )
-                  )}
-                  <div className="absolute bottom-1 left-1 right-1 bg-slate-900/80 backdrop-blur px-1.5 py-0.5 rounded text-[10px] text-white font-bold truncate flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                    <span className="truncate">{studentName} {!isTeacher ? "(Вы)" : ""}</span>
-                    <div className="flex items-center gap-1">
-                      {raisedHand && <span className="text-amber-300">✋</span>}
-                      <span className={`w-1.5 h-1.5 rounded-full ${!isTeacher ? (camOn ? "bg-emerald-400" : "bg-slate-400") : (partnerCamOn ? "bg-emerald-400 animate-pulse" : "bg-slate-400")}`} />
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setActiveTab("video");
-                      setMobileTab("video");
-                    }}
-                    className="absolute top-1 right-1 p-1 rounded-md bg-slate-900/70 hover:bg-[#2481cc] text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 shadow-xs cursor-pointer"
-                    title="Вывести в главное окно"
-                  >
-                    <Maximize2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* БОЛЬШОЙ ЧАТ С КНОПКОЙ СВОРАЧИВАНИЯ / ЗАКРЫТИЯ */}
-              <div className="flex-1 flex flex-col justify-between bg-[#f0f2f5] overflow-hidden min-h-0">
+          {/* РЕЖИМ: ОБЫЧНЫЙ (РАЗВЕРНУТЫЙ ЧАТ) */}
+          <div className="flex-1 flex flex-col justify-between bg-[#f0f2f5] overflow-hidden min-h-0">
                 <div className="flex items-center justify-between p-3.5 bg-white border-b border-slate-200">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-sm text-slate-800 flex items-center gap-2">
@@ -2720,8 +2454,6 @@ export default function VideoRoom({
                   </button>
                 </form>
               </div>
-            </>
-          )}
         </div>
       </div>
 
