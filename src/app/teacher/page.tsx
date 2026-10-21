@@ -1024,6 +1024,7 @@ export default function TeacherCabinet() {
           bio: teacherBio || teacherSubjects || "Преподаватель онлайн-школы «АйДаУмничка»",
         }}
         lessons={lessons}
+        friendStudents={friends}
         onRefreshData={() => window.location.reload()}
         extraCabinetSections={[
           {

@@ -107,6 +107,20 @@ interface TelegramCabinetProps {
     stars?: number;
   };
   lessons?: any[];
+  friendTeachers?: {
+    id: string;
+    name: string;
+    username?: string;
+    avatarUrl?: string;
+    subjects?: string;
+  }[];
+  friendStudents?: {
+    id: string;
+    name: string;
+    username?: string;
+    avatarUrl?: string;
+    grade?: string;
+  }[];
   onRefreshData?: () => void;
   // Role-specific slots
   extraCabinetSections?: {
@@ -136,6 +150,8 @@ export default function TelegramCabinet({
   currentRole,
   currentUser: initialCurrentUser,
   lessons = [],
+  friendTeachers = [],
+  friendStudents = [],
   onRefreshData,
   extraCabinetSections = [],
 }: TelegramCabinetProps) {
@@ -168,6 +184,21 @@ export default function TelegramCabinet({
     };
     window.addEventListener("ayda:profile-updated", handleProfileUpdated);
     return () => window.removeEventListener("ayda:profile-updated", handleProfileUpdated);
+  }, []);
+
+  // Слушатель открытия конкретного диалога из внешних карточек учеников/учителей
+  useEffect(() => {
+    const handleOpenChat = (e: any) => {
+      const chatId = e.detail?.chatId;
+      if (chatId) {
+        setActiveScreen("chats");
+        setActiveChatId(chatId);
+        setMobileShowChat(true);
+        setMobileShowSection(false);
+      }
+    };
+    window.addEventListener("ayda:open-chat", handleOpenChat);
+    return () => window.removeEventListener("ayda:open-chat", handleOpenChat);
   }, []);
 
   // 1. Навигация и активный экран
@@ -257,12 +288,33 @@ export default function TelegramCabinet({
           });
         }
       }
-    } else if (Array.isArray(lessons) && lessons.length > 0) {
-      if (currentRole === "TEACHER") {
+
+      // Добавляем преподавателей, добавленных учеником в друзья (даже если урока еще нет)
+      if (Array.isArray(friendTeachers) && friendTeachers.length > 0) {
+        friendTeachers.forEach((t) => {
+          const chatId = `teacher-${t.id}`;
+          if (!list.some((c) => c.id === chatId)) {
+            list.push({
+              id: chatId,
+              name: t.name,
+              role: "teacher",
+              roleLabel: t.subjects ? `Преподаватель • ${t.subjects}` : "Преподаватель",
+              avatar: t.avatarUrl || TEACHER_VASILINA_AVATAR,
+              online: true,
+              statusText: "в сети",
+              lastMessage: "Преподаватель добавлен в друзья. Можно обсудить расписание и задать вопросы.",
+              lastMessageTime: "Сегодня",
+              unreadCount: 0,
+            });
+          }
+        });
+      }
+    } else if (currentRole === "TEACHER") {
+      if (Array.isArray(lessons) && lessons.length > 0) {
         lessons.forEach((l) => {
           const sId = l.studentId || l.student_id || l.student?.id;
-          const sName = l.studentName || l.student?.name || "Ученик Шаронов";
-          const chatId = `student-${sId || "sharonov"}`;
+          const sName = l.studentName || l.student?.name || "Ученик";
+          const chatId = `student-${sId || "unknown"}`;
           if (!list.some((c) => c.id === chatId)) {
             list.push({
               id: chatId,
@@ -288,6 +340,29 @@ export default function TelegramCabinet({
           }
         });
       }
+
+      // Добавляем учеников, добавленных учителем в друзья
+      if (Array.isArray(friendStudents) && friendStudents.length > 0) {
+        friendStudents.forEach((st) => {
+          const chatId = `student-${st.id}`;
+          if (!list.some((c) => c.id === chatId)) {
+            list.push({
+              id: chatId,
+              name: st.name,
+              role: "student",
+              roleLabel: st.grade ? `Ученик • ${st.grade}` : "Ученик",
+              avatar:
+                st.avatarUrl ||
+                "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&h=150&fit=crop&crop=faces",
+              online: true,
+              statusText: "в сети",
+              lastMessage: "Ученик добавлен в друзья. Начните диалог или запланируйте урок.",
+              lastMessageTime: "Сегодня",
+              unreadCount: 0,
+            });
+          }
+        });
+      }
     }
 
     // 2. Официальный чат службы поддержки и заботы «АйДаУмничка»
@@ -305,7 +380,7 @@ export default function TelegramCabinet({
     });
 
     return list;
-  }, [lessons, currentRole]);
+  }, [lessons, currentRole, friendTeachers, friendStudents, currentUser]);
 
   const [chats, setChats] = useState<TelegramChat[]>(() => buildChats());
 
