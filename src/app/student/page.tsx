@@ -36,6 +36,8 @@ import EditProfileModal from "@/components/EditProfileModal";
 import TelegramCabinet from "@/components/TelegramCabinet";
 import { cleanUsername, formatUsername, resolveProfileUsername } from "@/lib/nickname";
 import { formatTolyatti } from "@/lib/tolyatti-time";
+import { SHARONOV_AVATAR } from "@/lib/default-avatar";
+import { DEFAULT_STUDENT_LESSONS } from "@/lib/default-lessons";
 
 interface HomeworkItem {
   id: string;
@@ -60,14 +62,14 @@ export default function StudentCabinet() {
   const [studentId, setStudentId] = useState("53df3c76-9d23-49aa-ba0c-6f40d7a56657");
   const [studentName, setStudentName] = useState("Сергей Дмитриевич");
   const [studentUsername, setStudentUsername] = useState("sharonov");
-  const [avatarUrl, setAvatarUrl] = useState("https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=240&h=240&fit=crop&crop=faces");
+  const [avatarUrl, setAvatarUrl] = useState(SHARONOV_AVATAR);
   const [grade, setGrade] = useState("Дошкольник");
   const [school, setSchool] = useState("Онлайн-школа «АйДаУмничка»");
   const [bio, setBio] = useState("");
   const [balance, setBalance] = useState(8);
   const [stars, setStars] = useState(28);
   const [editProfileModalOpen, setEditProfileModalOpen] = useState(false);
-  const [lessons, setLessons] = useState<any[]>([]);
+  const [lessons, setLessons] = useState<any[]>(DEFAULT_STUDENT_LESSONS);
   const [schoolSubjects, setSchoolSubjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"schedule" | "homework" | "awards">("schedule");
@@ -379,10 +381,7 @@ export default function StudentCabinet() {
               setLoading(false);
               return;
             } else {
-              try {
-                localStorage.removeItem("ayda_latest_lessons");
-              } catch (e) {}
-              setLessons([]);
+              setLessons((prev) => (prev && prev.length > 0 ? prev : DEFAULT_STUDENT_LESSONS));
               setLoading(false);
               return;
             }
@@ -418,7 +417,7 @@ export default function StudentCabinet() {
         }
       } catch (e) {}
 
-      setLessons([]);
+      setLessons((prev) => (prev && prev.length > 0 ? prev : DEFAULT_STUDENT_LESSONS));
       setLoading(false);
     };
 

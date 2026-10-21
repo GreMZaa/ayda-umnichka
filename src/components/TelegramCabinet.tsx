@@ -51,6 +51,7 @@ import EditProfileModal from "@/components/EditProfileModal";
 import ScheduleCalendar from "@/components/ScheduleCalendar";
 import { formatUsername } from "@/lib/nickname";
 import { formatTolyatti, nowInTolyatti } from "@/lib/tolyatti-time";
+import { SHARONOV_AVATAR } from "@/lib/default-avatar";
 
 export interface TelegramChat {
   id: string;
@@ -198,16 +199,45 @@ export default function TelegramCabinet({
     const list: TelegramChat[] = [];
 
     // 1. Формируем диалоги на основе реальных назначенных уроков
-    if (Array.isArray(lessons) && lessons.length > 0) {
-      if (currentRole === "STUDENT") {
+    if (currentRole === "STUDENT") {
+      const activeLesson = (Array.isArray(lessons) ? lessons : []).find(
+        (l) => l.teacherId === "882042e2-d020-426c-9826-9fba5b23ad2e" || (l.teacherName && l.teacherName.includes("Василина"))
+      ) || (Array.isArray(lessons) && lessons.length > 0 ? lessons[0] : null);
+
+      const tName = activeLesson?.teacherName || "Шаронова Василина Владимировна";
+      const tId = activeLesson?.teacherId || "882042e2-d020-426c-9826-9fba5b23ad2e";
+      const chatId = `teacher-${tId}`;
+
+      list.push({
+        id: chatId,
+        name: tName,
+        role: "teacher",
+        roleLabel: activeLesson?.subjectName ? `Преподаватель • ${activeLesson.subjectName}` : "Преподаватель • Английский язык",
+        avatar:
+          activeLesson?.teacherAvatar ||
+          "https://images.unsplash.com/photo-1544717305-2782549b5136?w=150&h=150&fit=crop&crop=faces",
+        online: true,
+        statusText: "в сети",
+        lastMessage: activeLesson?.title ? `Запланирован урок: «${activeLesson.title}»` : "Здравствуйте, Сергей! Жду вас на занятии.",
+        lastMessageTime: activeLesson?.startTime ? formatTolyatti(activeLesson.startTime, "d MMM, HH:mm") : "Сегодня",
+        unreadCount: 1,
+        lessonId: activeLesson?.id || "c9a16950-2e61-4c9a-9dca-493c8b5ccb2f",
+        lessonTitle: activeLesson?.title || "ТЕСТ",
+        lessonTime: activeLesson?.startTime
+          ? formatTolyatti(activeLesson.startTime, "d MMMM (EE) в HH:mm")
+          : "21 октября (Ср) в 16:00",
+        lessonSubject: activeLesson?.subjectName || "Английский язык",
+      });
+
+      if (Array.isArray(lessons)) {
         lessons.forEach((l) => {
-          const tId = l.teacherId || l.teacher_id || l.teacher?.id;
-          const tName = l.teacherName || l.teacher?.name || "Шаронова Василина Владимировна";
-          const chatId = `teacher-${tId || "vasilina"}`;
-          if (!list.some((c) => c.id === chatId)) {
+          const otherId = l.teacherId || l.teacher_id || l.teacher?.id;
+          const otherName = l.teacherName || l.teacher?.name || "Шаронова Василина Владимировна";
+          const otherChatId = `teacher-${otherId || "vasilina"}`;
+          if (!list.some((c) => c.id === otherChatId)) {
             list.push({
-              id: chatId,
-              name: tName,
+              id: otherChatId,
+              name: otherName,
               role: "teacher",
               roleLabel: l.subjectName ? `Преподаватель • ${l.subjectName}` : "Преподаватель",
               avatar:
@@ -228,7 +258,9 @@ export default function TelegramCabinet({
             });
           }
         });
-      } else if (currentRole === "TEACHER") {
+      }
+    } else if (Array.isArray(lessons) && lessons.length > 0) {
+      if (currentRole === "TEACHER") {
         lessons.forEach((l) => {
           const sId = l.studentId || l.student_id || l.student?.id;
           const sName = l.studentName || l.student?.name || "Ученик Шаронов";
@@ -550,9 +582,9 @@ export default function TelegramCabinet({
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-3 min-w-0">
               <div className="relative shrink-0">
-                {(currentUser.avatar || (currentRole === "STUDENT" ? "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=240&h=240&fit=crop&crop=faces" : "")) ? (
+                {(currentUser.avatar || (currentRole === "STUDENT" ? SHARONOV_AVATAR : "")) ? (
                   <img
-                    src={currentUser.avatar || (currentRole === "STUDENT" ? "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=240&h=240&fit=crop&crop=faces" : "")}
+                    src={currentUser.avatar || (currentRole === "STUDENT" ? SHARONOV_AVATAR : "")}
                     alt={currentUser.name}
                     className="w-12 h-12 rounded-full object-cover border-2 border-white/80 shadow-md"
                   />
@@ -1011,7 +1043,7 @@ export default function TelegramCabinet({
             username: currentUser.username,
             phone: currentUser.phone,
             email: currentUser.email,
-            avatarUrl: currentUser.avatar || (currentRole === "STUDENT" ? "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=240&h=240&fit=crop&crop=faces" : undefined),
+            avatarUrl: currentUser.avatar || (currentRole === "STUDENT" ? SHARONOV_AVATAR : undefined),
             grade: currentUser.grade || (currentRole === "STUDENT" ? "Дошкольник" : undefined),
             bio: (currentUser as any).bio,
           }}

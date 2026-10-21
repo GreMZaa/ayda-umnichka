@@ -44,6 +44,7 @@ import {
   tolyattiToIso,
   formatTolyatti,
 } from "@/lib/tolyatti-time";
+import { DEFAULT_STUDENT_LESSONS } from "@/lib/default-lessons";
 
 interface StudentProfile {
   id: string;
@@ -75,8 +76,8 @@ const DEFAULT_STUDENTS: StudentProfile[] = [];
 
 export default function TeacherCabinet() {
   const { loading: authLoading, isAuthorized, user: authUser } = useAuthGuard("teacher");
-  const [teacherId, setTeacherId] = useState("");
-  const [teacherName, setTeacherName] = useState("Преподаватель");
+  const [teacherId, setTeacherId] = useState("882042e2-d020-426c-9826-9fba5b23ad2e");
+  const [teacherName, setTeacherName] = useState("Шаронова Василина Владимировна");
   const [teacherAvatar, setTeacherAvatar] = useState("");
   const [teacherSubjects, setTeacherSubjects] = useState("Математика и логика");
   const [teacherExperience, setTeacherExperience] = useState("Стаж 12 лет");
@@ -87,7 +88,7 @@ export default function TeacherCabinet() {
   const [teacherUsername, setTeacherUsername] = useState("");
   const [editProfileModalOpen, setEditProfileModalOpen] = useState(false);
 
-  const [lessons, setLessons] = useState<any[]>([]);
+  const [lessons, setLessons] = useState<any[]>(DEFAULT_STUDENT_LESSONS);
   const [subjects, setSubjects] = useState<SubjectItem[]>(DEFAULT_SUBJECTS);
   const [students, setStudents] = useState<StudentProfile[]>(DEFAULT_STUDENTS);
   const [friendStudentIds, setFriendStudentIds] = useState<string[]>([]);
@@ -242,7 +243,7 @@ export default function TeacherCabinet() {
             try {
               localStorage.removeItem("ayda_latest_lessons");
             } catch (e) {}
-            setLessons([]);
+            setLessons((prev) => (prev && prev.length > 0 ? prev : DEFAULT_STUDENT_LESSONS));
             setLoading(false);
             return;
           }
