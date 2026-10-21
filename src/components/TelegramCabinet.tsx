@@ -550,9 +550,9 @@ export default function TelegramCabinet({
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-3 min-w-0">
               <div className="relative shrink-0">
-                {currentUser.avatar ? (
+                {(currentUser.avatar || (currentRole === "STUDENT" ? "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=240&h=240&fit=crop&crop=faces" : "")) ? (
                   <img
-                    src={currentUser.avatar}
+                    src={currentUser.avatar || (currentRole === "STUDENT" ? "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=240&h=240&fit=crop&crop=faces" : "")}
                     alt={currentUser.name}
                     className="w-12 h-12 rounded-full object-cover border-2 border-white/80 shadow-md"
                   />
@@ -572,9 +572,9 @@ export default function TelegramCabinet({
                     {formatUsername(currentUser.username)}
                   </div>
                 )}
-                {currentUser.grade && (
+                {(currentUser.grade || (currentRole === "STUDENT" ? "Дошкольник" : "")) && (
                   <span className="inline-block mt-0.5 px-1.5 py-0.2 rounded bg-white/20 text-[10px] font-semibold text-white">
-                    {currentUser.grade}
+                    {currentUser.grade || (currentRole === "STUDENT" ? "Дошкольник" : "")}
                   </span>
                 )}
               </div>
@@ -1011,8 +1011,8 @@ export default function TelegramCabinet({
             username: currentUser.username,
             phone: currentUser.phone,
             email: currentUser.email,
-            avatarUrl: currentUser.avatar,
-            grade: currentUser.grade,
+            avatarUrl: currentUser.avatar || (currentRole === "STUDENT" ? "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=240&h=240&fit=crop&crop=faces" : undefined),
+            grade: currentUser.grade || (currentRole === "STUDENT" ? "Дошкольник" : undefined),
             bio: (currentUser as any).bio,
           }}
           onProfileUpdated={(upd) => {

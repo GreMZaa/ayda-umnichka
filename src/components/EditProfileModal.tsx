@@ -164,10 +164,12 @@ export default function EditProfileModal({
   const [role, setRole] = useState(init?.role || effectiveDefaultRole);
   const [email, setEmail] = useState(init?.email || "");
   const [phone, setPhone] = useState(init?.phone || "");
-  const [avatarUrl, setAvatarUrl] = useState(init?.avatarUrl || "");
+  const [avatarUrl, setAvatarUrl] = useState(
+    init?.avatarUrl || (role.toUpperCase() === "STUDENT" ? "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=240&h=240&fit=crop&crop=faces" : "")
+  );
 
   // Дополнительные поля по ролям
-  const [grade, setGrade] = useState(init?.grade || "3 класс");
+  const [grade, setGrade] = useState(init?.grade || (role.toUpperCase() === "STUDENT" ? "Дошкольник" : "3 класс"));
   const [school, setSchool] = useState(init?.school || "Онлайн-школа «АйДаУмничка»");
   const [subjects, setSubjects] = useState(init?.subjects || "Математика и логика");
   const [experience, setExperience] = useState(init?.experience || "12 лет");

@@ -61,11 +61,11 @@ export default function StudentCabinet() {
   const [studentName, setStudentName] = useState("Сергей Дмитриевич");
   const [studentUsername, setStudentUsername] = useState("sharonov");
   const [avatarUrl, setAvatarUrl] = useState("https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=240&h=240&fit=crop&crop=faces");
-  const [grade, setGrade] = useState("3 класс");
+  const [grade, setGrade] = useState("Дошкольник");
   const [school, setSchool] = useState("Онлайн-школа «АйДаУмничка»");
   const [bio, setBio] = useState("");
-  const [balance, setBalance] = useState(0);
-  const [stars, setStars] = useState(0);
+  const [balance, setBalance] = useState(8);
+  const [stars, setStars] = useState(28);
   const [editProfileModalOpen, setEditProfileModalOpen] = useState(false);
   const [lessons, setLessons] = useState<any[]>([]);
   const [schoolSubjects, setSchoolSubjects] = useState<any[]>([]);
@@ -200,11 +200,13 @@ export default function StudentCabinet() {
           });
           setStudentUsername(uname || "sharonov");
 
-          if (parsedBio.grade) setGrade(parsedBio.grade);
+          setGrade(parsedBio.grade || "Дошкольник");
           if (parsedBio.school) setSchool(parsedBio.school);
           if (parsedBio.bio) setBio(parsedBio.bio);
           if (typeof parsedBio.balance === "number") setBalance(parsedBio.balance);
+          else setBalance(8);
           if (typeof parsedBio.stars === "number") setStars(parsedBio.stars);
+          else setStars(28);
 
           // Обновляем локальный кэш свежими данными из БД
           try {
@@ -212,8 +214,8 @@ export default function StudentCabinet() {
               id: effectiveId,
               name: profile.name,
               username: uname || "sharonov",
-              avatarUrl: profile.avatar_url,
-              grade: parsedBio.grade || "3 класс",
+              avatarUrl: profile.avatar_url || "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=240&h=240&fit=crop&crop=faces",
+              grade: parsedBio.grade || "Дошкольник",
               school: parsedBio.school || "Онлайн-школа «АйДаУмничка»",
               bio: parsedBio.bio || "",
               role: "STUDENT",
@@ -222,7 +224,7 @@ export default function StudentCabinet() {
         } else {
           // Если нового пользователя действительно нет в базе
           const defName = authUser?.user_metadata?.full_name || authUser?.email?.split("@")[0] || "Сергей Дмитриевич";
-          const defGrade = authUser?.user_metadata?.grade || "3 класс";
+          const defGrade = authUser?.user_metadata?.grade || "Дошкольник";
           const defUname = resolveProfileUsername({
             id: currentUserId,
             email: authUser?.email,
@@ -236,12 +238,13 @@ export default function StudentCabinet() {
             email: authUser?.email,
             name: defName,
             role: "STUDENT",
+            avatar_url: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=240&h=240&fit=crop&crop=faces",
             bio: JSON.stringify({
               username: defUname,
               grade: defGrade,
               school: "Онлайн-школа «АйДаУмничка»",
-              balance: 0,
-              stars: 0,
+              balance: 8,
+              stars: 28,
             }),
           }).then(() => {});
         }
@@ -605,8 +608,8 @@ export default function StudentCabinet() {
           username: studentUsername || "sharonov",
           email: authUser?.email || undefined,
           phone: "+7 (900) 123-45-67",
-          avatar: avatarUrl,
-          grade: grade,
+          avatar: avatarUrl || "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=240&h=240&fit=crop&crop=faces",
+          grade: grade || "Дошкольник",
           bio: bio || "Онлайн-школа «АйДаУмничка»",
           balance: balance,
           stars: stars,
