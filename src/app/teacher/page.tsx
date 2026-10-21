@@ -45,6 +45,7 @@ import {
   formatTolyatti,
 } from "@/lib/tolyatti-time";
 import { DEFAULT_STUDENT_LESSONS } from "@/lib/default-lessons";
+import { TEACHER_VASILINA_AVATAR } from "@/lib/default-avatar";
 
 interface StudentProfile {
   id: string;
@@ -78,7 +79,7 @@ export default function TeacherCabinet() {
   const { loading: authLoading, isAuthorized, user: authUser } = useAuthGuard("teacher");
   const [teacherId, setTeacherId] = useState("882042e2-d020-426c-9826-9fba5b23ad2e");
   const [teacherName, setTeacherName] = useState("Шаронова Василина Владимировна");
-  const [teacherAvatar, setTeacherAvatar] = useState("");
+  const [teacherAvatar, setTeacherAvatar] = useState(TEACHER_VASILINA_AVATAR);
   const [teacherSubjects, setTeacherSubjects] = useState("Математика и логика");
   const [teacherExperience, setTeacherExperience] = useState("Стаж 12 лет");
   const [teacherEducation, setTeacherEducation] = useState("МГПУ, физ-мат факультет");

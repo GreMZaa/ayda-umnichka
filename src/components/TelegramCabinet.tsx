@@ -51,7 +51,7 @@ import EditProfileModal from "@/components/EditProfileModal";
 import ScheduleCalendar from "@/components/ScheduleCalendar";
 import { formatUsername } from "@/lib/nickname";
 import { formatTolyatti, nowInTolyatti } from "@/lib/tolyatti-time";
-import { SHARONOV_AVATAR } from "@/lib/default-avatar";
+import { SHARONOV_AVATAR, TEACHER_VASILINA_AVATAR } from "@/lib/default-avatar";
 
 export interface TelegramChat {
   id: string;
@@ -215,7 +215,7 @@ export default function TelegramCabinet({
         roleLabel: activeLesson?.subjectName ? `Преподаватель • ${activeLesson.subjectName}` : "Преподаватель • Английский язык",
         avatar:
           activeLesson?.teacherAvatar ||
-          "https://images.unsplash.com/photo-1544717305-2782549b5136?w=150&h=150&fit=crop&crop=faces",
+          TEACHER_VASILINA_AVATAR,
         online: true,
         statusText: "в сети",
         lastMessage: activeLesson?.title ? `Запланирован урок: «${activeLesson.title}»` : "Здравствуйте, Сергей! Жду вас на занятии.",
@@ -243,7 +243,7 @@ export default function TelegramCabinet({
               avatar:
                 l.teacherAvatar ||
                 l.teacher?.avatar_url ||
-                "https://images.unsplash.com/photo-1544717305-2782549b5136?w=150&h=150&fit=crop&crop=faces",
+                TEACHER_VASILINA_AVATAR,
               online: true,
               statusText: "в сети",
               lastMessage: l.title ? `Заказ на урок: «${l.title}»` : "Диалог открыт",

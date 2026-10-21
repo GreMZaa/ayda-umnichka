@@ -1,4 +1,4 @@
-import { SHARONOV_AVATAR } from "./default-avatar";
+import { SHARONOV_AVATAR, TEACHER_VASILINA_AVATAR } from "./default-avatar";
 
 export const DEFAULT_STUDENT_LESSONS = [
   {
@@ -9,7 +9,7 @@ export const DEFAULT_STUDENT_LESSONS = [
     subjectColor: "#059669",
     teacherId: "882042e2-d020-426c-9826-9fba5b23ad2e",
     teacherName: "Шаронова Василина Владимировна",
-    teacherAvatar: "https://images.unsplash.com/photo-1544717305-2782549b5136?w=200&h=200&fit=crop&crop=faces",
+    teacherAvatar: TEACHER_VASILINA_AVATAR,
     studentId: "53df3c76-9d23-49aa-ba0c-6f40d7a56657",
     studentName: "Сергей Дмитриевич",
     studentAvatar: SHARONOV_AVATAR,

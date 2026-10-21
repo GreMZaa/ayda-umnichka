@@ -44,6 +44,7 @@ import {
 } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api-client";
 import { getSupabase } from "@/lib/supabase";
+import { SHARONOV_AVATAR, TEACHER_VASILINA_AVATAR } from "@/lib/default-avatar";
 
 interface VideoRoomProps {
   roomName: string;
@@ -140,13 +141,13 @@ export default function VideoRoom({
   const partnerName = isTeacher ? studentName : teacherName;
   const partnerRole = isTeacher ? "Ученик" : "Преподаватель";
   const partnerAvatar = isTeacher
-    ? studentAvatar || "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=800&h=600&fit=crop&crop=faces"
-    : teacherAvatar || "https://images.unsplash.com/photo-1544717305-2782549b5136?w=800&h=600&fit=crop&crop=faces";
+    ? studentAvatar || SHARONOV_AVATAR
+    : teacherAvatar || TEACHER_VASILINA_AVATAR;
 
   const myName = isTeacher ? teacherName : studentName;
   const myAvatar = isTeacher
-    ? teacherAvatar || "https://images.unsplash.com/photo-1544717305-2782549b5136?w=400&h=300&fit=crop&crop=faces"
-    : studentAvatar || "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400&h=300&fit=crop&crop=faces";
+    ? teacherAvatar || TEACHER_VASILINA_AVATAR
+    : studentAvatar || SHARONOV_AVATAR;
 
   // Всплывающие уведомления полностью отключены по запросу пользователя
   const showToast = (_msg: string) => {};

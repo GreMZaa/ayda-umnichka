@@ -36,7 +36,7 @@ import EditProfileModal from "@/components/EditProfileModal";
 import TelegramCabinet from "@/components/TelegramCabinet";
 import { cleanUsername, formatUsername, resolveProfileUsername } from "@/lib/nickname";
 import { formatTolyatti } from "@/lib/tolyatti-time";
-import { SHARONOV_AVATAR } from "@/lib/default-avatar";
+import { SHARONOV_AVATAR, TEACHER_VASILINA_AVATAR } from "@/lib/default-avatar";
 import { DEFAULT_STUDENT_LESSONS } from "@/lib/default-lessons";
 
 interface HomeworkItem {
@@ -337,10 +337,10 @@ export default function StudentCabinet() {
               subjectColor: l.subjects?.color || "#2563eb",
               teacherId: l.teacher_id,
               teacherName: l.teacher?.name || "Шаронова Василина Владимировна",
-              teacherAvatar: l.teacher?.avatar_url,
+              teacherAvatar: l.teacher?.avatar_url || TEACHER_VASILINA_AVATAR,
               studentId: l.student_id,
-              studentName: l.student?.name || "Ученик Шаронов",
-              studentAvatar: l.student?.avatar_url,
+              studentName: l.student?.name || studentName || "Сергей Дмитриевич",
+              studentAvatar: l.student?.avatar_url || avatarUrl || SHARONOV_AVATAR,
               startTime: l.start_time,
               endTime: l.end_time,
               status: l.status,
@@ -368,10 +368,10 @@ export default function StudentCabinet() {
                 subjectColor: "#2563eb",
                 teacherId: l.teacher_id,
                 teacherName: "Шаронова Василина Владимировна",
-                teacherAvatar: undefined,
+                teacherAvatar: TEACHER_VASILINA_AVATAR,
                 studentId: l.student_id,
-                studentName: studentName || "Ученик Шаронов",
-                studentAvatar: avatarUrl,
+                studentName: studentName || "Сергей Дмитриевич",
+                studentAvatar: avatarUrl || SHARONOV_AVATAR,
                 startTime: l.start_time,
                 endTime: l.end_time,
                 status: l.status,
