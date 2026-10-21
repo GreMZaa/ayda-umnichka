@@ -363,6 +363,27 @@ export default function TelegramCabinet({
           }
         });
       }
+
+      // Добавляем коллег-преподавателей, добавленных учителем в друзья
+      if (Array.isArray(friendTeachers) && friendTeachers.length > 0) {
+        friendTeachers.forEach((t) => {
+          const chatId = `teacher-${t.id}`;
+          if (!list.some((c) => c.id === chatId)) {
+            list.push({
+              id: chatId,
+              name: t.name,
+              role: "teacher",
+              roleLabel: t.subjects ? `Коллега • ${t.subjects}` : "Коллега • Преподаватель",
+              avatar: t.avatarUrl || TEACHER_VASILINA_AVATAR,
+              online: true,
+              statusText: "в сети",
+              lastMessage: "Преподаватель добавлен в друзья. Можно обсудить расписание и методику.",
+              lastMessageTime: "Сегодня",
+              unreadCount: 0,
+            });
+          }
+        });
+      }
     }
 
     // 2. Официальный чат службы поддержки и заботы «АйДаУмничка»

@@ -75,6 +75,21 @@ const DEFAULT_SUBJECTS: SubjectItem[] = [
 
 const DEFAULT_STUDENTS: StudentProfile[] = [];
 
+export interface ColleagueProfile {
+  id: string;
+  name: string;
+  username: string;
+  avatarUrl?: string;
+  email?: string;
+  subjects?: string;
+  experience?: string;
+  education?: string;
+  bio?: string;
+}
+
+const isUuid = (str: string) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+
 export default function TeacherCabinet() {
   const { loading: authLoading, isAuthorized, user: authUser } = useAuthGuard("teacher");
   const [teacherId, setTeacherId] = useState("882042e2-d020-426c-9826-9fba5b23ad2e");
@@ -95,6 +110,10 @@ export default function TeacherCabinet() {
   const [friendStudentIds, setFriendStudentIds] = useState<string[]>([]);
   const [addFriendModalOpen, setAddFriendModalOpen] = useState(false);
   const [searchFriendQuery, setSearchFriendQuery] = useState("");
+  const [colleagues, setColleagues] = useState<ColleagueProfile[]>([]);
+  const [friendTeacherIds, setFriendTeacherIds] = useState<string[]>([]);
+  const [addColleagueModalOpen, setAddColleagueModalOpen] = useState(false);
+  const [searchColleagueQuery, setSearchColleagueQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"schedule" | "students" | "journal">("schedule");
   const [mounted, setMounted] = useState(false);
@@ -334,6 +353,19 @@ export default function TeacherCabinet() {
               setFriendStudentIds(friendsFromBio);
             }
 
+            let friendTeachersFromBio: string[] = [];
+            if (Array.isArray(parsed.friendTeacherIds)) {
+              friendTeachersFromBio = parsed.friendTeacherIds;
+            } else {
+              try {
+                const local = localStorage.getItem(`ayda_teacher_colleagues_${p.id}`);
+                if (local) friendTeachersFromBio = JSON.parse(local);
+              } catch (e) {}
+            }
+            if (friendTeachersFromBio.length > 0) {
+              setFriendTeacherIds(friendTeachersFromBio);
+            }
+
             if (parsed.subjects) setTeacherSubjects(parsed.subjects);
             if (parsed.experience) setTeacherExperience(parsed.experience);
             if (parsed.education) setTeacherEducation(parsed.education);
@@ -447,6 +479,46 @@ export default function TeacherCabinet() {
             });
           }
         });
+
+      // 4. Список других преподавателей (коллег) из Supabase
+      client
+        .from("profiles")
+        .select("id, name, email, bio, avatar_url")
+        .eq("role", "TEACHER")
+        .order("name", { ascending: true })
+        .then(({ data }) => {
+          if (data && data.length > 0) {
+            const mappedColleagues: ColleagueProfile[] = data
+              .filter((t: any) => t.id !== currentUserId)
+              .map((t: any) => {
+                let parsedBio: any = {};
+                try {
+                  if (t.bio && t.bio.startsWith("{")) parsedBio = JSON.parse(t.bio);
+                  else if (t.bio) parsedBio.bio = t.bio;
+                } catch (e) {}
+
+                const uname = resolveProfileUsername({
+                  id: t.id,
+                  name: t.name,
+                  email: t.email,
+                  bio: t.bio,
+                });
+
+                return {
+                  id: t.id,
+                  name: t.name || "Преподаватель школы",
+                  username: uname,
+                  avatarUrl: t.avatar_url,
+                  email: t.email,
+                  subjects: parsedBio.subjects || "Все дисциплины школы",
+                  experience: parsedBio.experience || "Стаж более 5 лет",
+                  education: parsedBio.education || "Высшее образование",
+                  bio: parsedBio.bio || "",
+                };
+              });
+            setColleagues(mappedColleagues);
+          }
+        });
     }
 
     // Слушатель событий обновления профиля
@@ -469,13 +541,21 @@ export default function TeacherCabinet() {
     };
     window.addEventListener("ayda:profile-updated", handleProfileUpdate);
 
-    // Слушатель событий обновления друзей
+    // Слушатель событий обновления друзей-учеников
     const handleFriendsUpdate = (e: any) => {
       if (e.detail?.friends && Array.isArray(e.detail.friends)) {
         setFriendStudentIds(e.detail.friends);
       }
     };
     window.addEventListener("ayda:teacher-friends-updated", handleFriendsUpdate);
+
+    // Слушатель событий обновления друзей-коллег
+    const handleColleaguesUpdate = (e: any) => {
+      if (e.detail?.friends && Array.isArray(e.detail.friends)) {
+        setFriendTeacherIds(e.detail.friends);
+      }
+    };
+    window.addEventListener("ayda:teacher-colleagues-updated", handleColleaguesUpdate);
 
     // Слушатель событий обновления уроков
     const handleLessonsUpdate = () => {
@@ -488,6 +568,7 @@ export default function TeacherCabinet() {
     return () => {
       window.removeEventListener("ayda:profile-updated", handleProfileUpdate);
       window.removeEventListener("ayda:teacher-friends-updated", handleFriendsUpdate);
+      window.removeEventListener("ayda:teacher-colleagues-updated", handleColleaguesUpdate);
       window.removeEventListener("ayda:lessons-updated", handleLessonsUpdate);
     };
   }, [authUser?.id]);
@@ -614,6 +695,122 @@ export default function TeacherCabinet() {
       );
     }
   };
+
+  // Добавление коллеги-преподавателя в друзья
+  const handleAddColleagueFriend = async (colleagueId: string) => {
+    if (friendTeacherIds.includes(colleagueId)) return;
+    const updated = [...friendTeacherIds, colleagueId];
+    setFriendTeacherIds(updated);
+
+    try {
+      localStorage.setItem(`ayda_teacher_colleagues_${teacherId}`, JSON.stringify(updated));
+    } catch (e) {}
+
+    const client = getSupabase();
+    if (client && teacherId && isUuid(teacherId)) {
+      try {
+        const { data: current } = await client
+          .from("profiles")
+          .select("bio")
+          .eq("id", teacherId)
+          .maybeSingle();
+        let parsedBio: any = {};
+        try {
+          if (current?.bio && current.bio.startsWith("{")) parsedBio = JSON.parse(current.bio);
+          else if (current?.bio) parsedBio.bio = current.bio;
+        } catch (e) {}
+
+        parsedBio.friendTeacherIds = updated;
+        await client
+          .from("profiles")
+          .update({ bio: JSON.stringify(parsedBio) })
+          .eq("id", teacherId);
+      } catch (err) {
+        console.error("Error saving colleague friend to Supabase:", err);
+      }
+
+      // Взаимная привязка для коллеги:
+      if (isUuid(colleagueId)) {
+        try {
+          const { data: cProf } = await client
+            .from("profiles")
+            .select("bio")
+            .eq("id", colleagueId)
+            .maybeSingle();
+          if (cProf) {
+            let cBio: any = {};
+            try {
+              if (cProf.bio && cProf.bio.startsWith("{")) cBio = JSON.parse(cProf.bio);
+            } catch (e) {}
+            const curFriends = Array.isArray(cBio.friendTeacherIds) ? cBio.friendTeacherIds : [];
+            if (!curFriends.includes(teacherId)) {
+              cBio.friendTeacherIds = [...curFriends, teacherId];
+              await client.from("profiles").update({ bio: JSON.stringify(cBio) }).eq("id", colleagueId);
+            }
+          }
+        } catch (e) {}
+      }
+    }
+
+    try {
+      window.dispatchEvent(
+        new CustomEvent("ayda:teacher-colleagues-updated", { detail: { friends: updated } })
+      );
+    } catch (e) {}
+  };
+
+  // Удаление коллеги из друзей
+  const handleRemoveColleagueFriend = async (colleagueId: string) => {
+    const updated = friendTeacherIds.filter((id) => id !== colleagueId);
+    setFriendTeacherIds(updated);
+
+    try {
+      localStorage.setItem(`ayda_teacher_colleagues_${teacherId}`, JSON.stringify(updated));
+    } catch (e) {}
+
+    const client = getSupabase();
+    if (client && teacherId && isUuid(teacherId)) {
+      try {
+        const { data: current } = await client
+          .from("profiles")
+          .select("bio")
+          .eq("id", teacherId)
+          .maybeSingle();
+        let parsedBio: any = {};
+        try {
+          if (current?.bio && current.bio.startsWith("{")) parsedBio = JSON.parse(current.bio);
+          else if (current?.bio) parsedBio.bio = current.bio;
+        } catch (e) {}
+
+        parsedBio.friendTeacherIds = updated;
+        await client
+          .from("profiles")
+          .update({ bio: JSON.stringify(parsedBio) })
+          .eq("id", teacherId);
+      } catch (err) {
+        console.error("Error removing colleague friend in Supabase:", err);
+      }
+    }
+
+    try {
+      window.dispatchEvent(
+        new CustomEvent("ayda:teacher-colleagues-updated", { detail: { friends: updated } })
+      );
+    } catch (e) {}
+  };
+
+  const friendColleagues = colleagues.filter((t) => friendTeacherIds.includes(t.id));
+
+  const filteredSearchColleagues = colleagues.filter((t) => {
+    if (!searchColleagueQuery.trim()) return true;
+    const q = searchColleagueQuery.toLowerCase().trim().replace(/^@/, "");
+    return (
+      t.name.toLowerCase().includes(q) ||
+      t.username.toLowerCase().includes(q) ||
+      (t.subjects && t.subjects.toLowerCase().includes(q)) ||
+      (t.bio && t.bio.toLowerCase().includes(q))
+    );
+  });
 
   // Открытие модалки создания урока (с возможностью предвыбора ученика из списка друзей)
   const handleOpenCreateModal = (studentId?: string) => {
@@ -1025,6 +1222,7 @@ export default function TeacherCabinet() {
         }}
         lessons={lessons}
         friendStudents={friends}
+        friendTeachers={friendColleagues}
         onRefreshData={() => window.location.reload()}
         extraCabinetSections={[
           {
@@ -1343,6 +1541,150 @@ export default function TeacherCabinet() {
                             ))}
                           </div>
                         )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ),
+          },
+          {
+            key: "colleagues",
+            title: "Коллеги",
+            icon: GraduationCap,
+            badge: friendColleagues.length,
+            render: () => (
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-base font-extrabold text-slate-900">
+                        Коллеги (преподаватели в друзьях)
+                      </h2>
+                      <span className="text-xs font-bold text-[#2481cc] bg-blue-50 px-2.5 py-0.5 rounded-lg border border-blue-200">
+                        {friendColleagues.length}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Общайтесь с коллегами школы, обменивайтесь методическими материалами и опытом
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchColleagueQuery("");
+                      setAddColleagueModalOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#2481cc] text-white font-bold text-xs hover:bg-[#1f70b0] transition cursor-pointer shadow-xs self-start sm:self-auto active:scale-95"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span>Добавить коллегу</span>
+                  </button>
+                </div>
+
+                {friendColleagues.length === 0 ? (
+                  <div className="bg-white rounded-3xl p-8 sm:p-12 border border-slate-200 text-center space-y-4 shadow-xs">
+                    <div className="w-16 h-16 rounded-3xl bg-blue-50 text-[#2481cc] flex items-center justify-center mx-auto shadow-inner">
+                      <GraduationCap className="w-8 h-8" />
+                    </div>
+                    <div className="max-w-md mx-auto space-y-1">
+                      <h3 className="font-extrabold text-slate-900 text-base">
+                        У вас пока нет коллег в друзьях
+                      </h3>
+                      <p className="text-xs text-slate-500 leading-relaxed">
+                        Найдите других преподавателей школы по имени или никнейму, чтобы вести переписку и совместно планировать работу.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchColleagueQuery("");
+                        setAddColleagueModalOpen(true);
+                      }}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-[#2481cc] text-white font-bold text-xs hover:bg-[#1f70b0] transition shadow-md shadow-blue-500/20 cursor-pointer active:scale-95"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      <span>Найти преподавателя по никнейму</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {friendColleagues.map((t) => (
+                      <div
+                        key={t.id}
+                        className="bg-white rounded-3xl p-5 border border-slate-200 hover:border-blue-200 transition shadow-xs flex flex-col justify-between gap-4"
+                      >
+                        <div className="space-y-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-center gap-3 min-w-0">
+                              {t.avatarUrl ? (
+                                <img
+                                  src={t.avatarUrl}
+                                  alt={t.name}
+                                  className="w-12 h-12 rounded-2xl object-cover border border-slate-100 shadow-xs shrink-0"
+                                />
+                              ) : (
+                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#2481cc] to-indigo-600 text-white font-extrabold text-lg flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0">
+                                  {t.name.charAt(0).toUpperCase()}
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <h3 className="font-extrabold text-slate-900 text-sm sm:text-base leading-tight truncate">
+                                  {t.name}
+                                </h3>
+                                <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-sky-50 text-sky-700 border border-sky-200">
+                                    {formatUsername(t.username)}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveColleagueFriend(t.id)}
+                              className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer shrink-0"
+                              title={`Удалить «${t.name}» из коллег`}
+                            >
+                              <UserMinus className="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          <div className="bg-slate-50 rounded-2xl p-3 space-y-1.5 text-xs">
+                            <div className="flex items-center justify-between text-slate-600">
+                              <span>Предметы:</span>
+                              <strong className="text-slate-800 truncate max-w-[160px]">{t.subjects || "Все дисциплины"}</strong>
+                            </div>
+                            <div className="flex items-center justify-between text-slate-600">
+                              <span>Опыт:</span>
+                              <strong className="text-slate-800 truncate max-w-[160px]">{t.experience || "Преподаватель школы"}</strong>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              window.dispatchEvent(
+                                new CustomEvent("ayda:open-chat", { detail: { chatId: `teacher-${t.id}` } })
+                              );
+                            }}
+                            className="flex-1 py-2.5 rounded-xl bg-[#2481cc] hover:bg-[#1f70b0] text-white font-bold text-xs transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            <span>Написать</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveColleagueFriend(t.id)}
+                            className="p-2.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 transition cursor-pointer active:scale-95"
+                            title={`Удалить «${t.name}» из коллег`}
+                          >
+                            <UserMinus className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -2013,6 +2355,148 @@ export default function TeacherCabinet() {
                 className="font-bold text-slate-600 hover:text-slate-900 cursor-pointer"
               >
                 Закрыть
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Модальное окно поиска и добавления коллег-преподавателей */}
+      {addColleagueModalOpen && mounted && createPortal(
+        <div
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setAddColleagueModalOpen(false)}
+        >
+          <div
+            className="bg-white rounded-3xl w-full max-w-lg p-5 sm:p-6 shadow-2xl border border-slate-100 space-y-4 animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900">
+                  Добавить коллегу в друзья
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Поиск среди других преподавателей платформы «АйДаУмничка»
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAddColleagueModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Поисковая строка */}
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchColleagueQuery}
+                onChange={(e) => setSearchColleagueQuery(e.target.value)}
+                placeholder="Поиск по имени или никнейму преподавателя..."
+                className="w-full pl-10 pr-9 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-[#2481cc] focus:bg-white transition"
+                autoFocus
+              />
+              {searchColleagueQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchColleagueQuery("")}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            {/* Список найденных коллег */}
+            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+              {filteredSearchColleagues.length === 0 ? (
+                <div className="py-8 text-center text-slate-400 text-xs space-y-1">
+                  <Users className="w-8 h-8 mx-auto text-slate-300 stroke-[1.5]" />
+                  <p className="font-semibold text-slate-600">
+                    {searchColleagueQuery ? "Никого не найдено по этому запросу" : "Другие преподаватели не найдены"}
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    Попробуйте изменить поисковый запрос
+                  </p>
+                </div>
+              ) : (
+                filteredSearchColleagues.map((t) => {
+                  const isFriend = friendTeacherIds.includes(t.id);
+                  return (
+                    <div
+                      key={t.id}
+                      className="flex items-center justify-between gap-3 p-3 rounded-2xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50/30 transition"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        {t.avatarUrl ? (
+                          <img
+                            src={t.avatarUrl}
+                            alt={t.name}
+                            className="w-10 h-10 rounded-xl object-cover shrink-0 border border-slate-100"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#2481cc] to-indigo-600 text-white font-bold text-sm flex items-center justify-center shrink-0 shadow-xs">
+                            {t.name.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-slate-900 text-xs sm:text-sm truncate">
+                            {t.name}
+                          </h4>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="font-mono text-[11px] font-bold text-blue-600">
+                              {formatUsername(t.username)}
+                            </span>
+                            {t.subjects && (
+                              <span className="text-[10px] text-slate-400 truncate max-w-[120px] sm:max-w-[160px]">• {t.subjects}</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {isFriend ? (
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold">
+                            <Check className="w-3.5 h-3.5" />
+                            <span>В друзьях</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveColleagueFriend(t.id)}
+                            className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                            title="Удалить из друзей"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleAddColleagueFriend(t.id)}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#2481cc] hover:bg-[#1f70b0] text-white text-xs font-bold transition shadow-xs cursor-pointer active:scale-95 shrink-0"
+                        >
+                          <UserPlus className="w-3.5 h-3.5" />
+                          <span>Добавить</span>
+                        </button>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setAddColleagueModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer"
+              >
+                Готово
               </button>
             </div>
           </div>
