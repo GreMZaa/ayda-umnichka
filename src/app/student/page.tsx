@@ -53,59 +53,7 @@ interface HomeworkItem {
   grade?: number;
 }
 
-const DEFAULT_HOMEWORK: HomeworkItem[] = [
-  {
-    id: "hw-1",
-    subject: "Математика и логика",
-    title: "Решение уравнений и олимпиадных задач на логику",
-    teacher: "Василина Владимировна",
-    deadline: "До завтра, 18:00",
-    status: "NEW",
-    statusText: "Нужно сдать",
-    badgeColor: "bg-amber-100 text-amber-800 border-amber-200",
-    description: "Выполнить упражнения №14-18 на странице 42. Решить логическую задачу с весами и переливанием воды.",
-    tasks: [
-      "№14: Решить 4 уравнения с одной неизвестной",
-      "№16: Вычислить периметр и площадь составной фигуры",
-      "№18: Логическая задача на переливание из 8-литрового кувшина в 3-литровый",
-    ],
-  },
-  {
-    id: "hw-2",
-    subject: "Русский язык",
-    title: "Безударные гласные в корне слова и разбор по составу",
-    teacher: "Елена Викторовна",
-    deadline: "Послезавтра, 15:00",
-    status: "NEW",
-    statusText: "Нужно сдать",
-    badgeColor: "bg-amber-100 text-amber-800 border-amber-200",
-    description: "Подобрать проверочные слова к словарному диктанту, выделить корень и суффиксы в 10 словах.",
-    tasks: [
-      "Записать 10 слов с безударной гласной в корне и проверочные слова",
-      "Разобрать по составу слова: «подснежник», «ветерок», «пришкольный»",
-      "Составить 2 распространенных предложения с однородными членами",
-    ],
-  },
-  {
-    id: "hw-3",
-    subject: "Английский язык",
-    title: "Present Simple vs Present Continuous: диалоги и лексика",
-    teacher: "Анна Смирнова",
-    deadline: "Вчера",
-    status: "CHECKED",
-    statusText: "Проверено • 5/5 ⭐",
-    badgeColor: "bg-emerald-100 text-emerald-800 border-emerald-200",
-    description: "Чтение и перевод текста 'A Day in the Life of a Space Explorer'. Составление 5 собственных предложений.",
-    tasks: [
-      "Прочитать диалог на стр. 28 вслух",
-      "Вставить правильные формы глаголов (to be / action verbs)",
-      "Ответить на 3 вопроса к тексту полными предложениями",
-    ],
-    studentAnswer: "1. The astronaut is looking out of the window.\n2. Every morning he exercises for two hours.\n3. They are conducting a science experiment right now.",
-    teacherFeedback: "Прекрасная работа! Все глагольные формы использованы абсолютно точно, отличный словарный запас. Молодец, 5 звёзд!",
-    grade: 5,
-  },
-];
+const DEFAULT_HOMEWORK: HomeworkItem[] = [];
 
 export default function StudentCabinet() {
   const { loading: authLoading, isAuthorized, user: authUser } = useAuthGuard("student");
@@ -116,8 +64,8 @@ export default function StudentCabinet() {
   const [grade, setGrade] = useState("3 класс");
   const [school, setSchool] = useState("Онлайн-школа «АйДаУмничка»");
   const [bio, setBio] = useState("");
-  const [balance, setBalance] = useState(8);
-  const [stars, setStars] = useState(28);
+  const [balance, setBalance] = useState(0);
+  const [stars, setStars] = useState(0);
   const [editProfileModalOpen, setEditProfileModalOpen] = useState(false);
   const [lessons, setLessons] = useState<any[]>([]);
   const [schoolSubjects, setSchoolSubjects] = useState<any[]>([]);
@@ -143,11 +91,15 @@ export default function StudentCabinet() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          setHomeworkList(parsed);
-          return;
+          const clean = parsed.filter((item: any) => !item.id?.startsWith("hw-"));
+          if (clean.length > 0) {
+            setHomeworkList(clean);
+            return;
+          }
         }
       }
-      localStorage.setItem("ayda_student_hw", JSON.stringify(DEFAULT_HOMEWORK));
+      setHomeworkList([]);
+      localStorage.removeItem("ayda_student_hw");
     } catch (e) {}
   }, []);
 
@@ -266,8 +218,8 @@ export default function StudentCabinet() {
                 username: defUname,
                 grade: defGrade,
                 school: "Онлайн-школа «АйДаУмничка»",
-                balance: 8,
-                stars: 28,
+                balance: 0,
+                stars: 0,
               }),
             }).then(() => {});
           }
@@ -368,27 +320,36 @@ export default function StudentCabinet() {
             .or(`student_id.eq.${uid},student_id.eq.53df3c76-9d23-49aa-ba0c-6f40d7a56657`)
             .order("start_time", { ascending: false });
 
-          if (!rawErr && rawLessons && rawLessons.length > 0) {
-            const mapped = rawLessons.map((l: any) => ({
-              id: l.id,
-              title: l.title,
-              subjectId: l.subject_id,
-              subjectName: "Математика и логика",
-              subjectColor: "#2563eb",
-              teacherId: l.teacher_id,
-              teacherName: "Шаронова Василина Владимировна",
-              teacherAvatar: undefined,
-              studentId: l.student_id,
-              studentName: studentName || "Ученик Шаронов",
-              studentAvatar: avatarUrl,
-              startTime: l.start_time,
-              endTime: l.end_time,
-              status: l.status,
-              roomName: l.room_name,
-            }));
-            setLessons(mapped);
-            setLoading(false);
-            return;
+          if (!rawErr && rawLessons) {
+            if (rawLessons.length > 0) {
+              const mapped = rawLessons.map((l: any) => ({
+                id: l.id,
+                title: l.title,
+                subjectId: l.subject_id,
+                subjectName: "Математика и логика",
+                subjectColor: "#2563eb",
+                teacherId: l.teacher_id,
+                teacherName: "Шаронова Василина Владимировна",
+                teacherAvatar: undefined,
+                studentId: l.student_id,
+                studentName: studentName || "Ученик Шаронов",
+                studentAvatar: avatarUrl,
+                startTime: l.start_time,
+                endTime: l.end_time,
+                status: l.status,
+                roomName: l.room_name,
+              }));
+              setLessons(mapped);
+              setLoading(false);
+              return;
+            } else {
+              try {
+                localStorage.removeItem("ayda_latest_lessons");
+              } catch (e) {}
+              setLessons([]);
+              setLoading(false);
+              return;
+            }
           }
         } catch (e) {
           console.error("Student supabase lessons load error:", e);
@@ -484,42 +445,42 @@ export default function StudentCabinet() {
       title: "Первая пятёрка",
       desc: "Получил высший балл «5» за активную работу на онлайн-уроке",
       icon: "⭐",
-      unlocked: true,
+      unlocked: stars >= 5 || completedLessons.length > 0,
       criteria: "Оценка 5/5 от репетитора",
     },
     {
       title: "Отличник четверти",
       desc: "Выполнил 10 домашних заданий подряд на высший балл",
       icon: "📚",
-      unlocked: true,
+      unlocked: stars >= 50,
       criteria: "10 проверенных ДЗ",
     },
     {
       title: "Знаток математики",
       desc: "Успешно решил блок олимпиадных логических задач и уравнений",
       icon: "📐",
-      unlocked: true,
+      unlocked: stars >= 15,
       criteria: "Раздел логики освоен",
     },
     {
       title: "Грамотей",
       desc: "Безупречное знание правил правописания и словарных слов",
       icon: "✍️",
-      unlocked: true,
+      unlocked: stars >= 20,
       criteria: "0 ошибок в диктанте",
     },
     {
       title: "English Speaker",
       desc: "Уверенно поддержал диалог на английском языке с преподавателем",
       icon: "🇬🇧",
-      unlocked: true,
+      unlocked: stars >= 25,
       criteria: "Разговорный клуб 1-го уровня",
     },
     {
       title: "100% пунктуальность",
       desc: "5 уроков подряд вовремя без единого опоздания и пропусков",
       icon: "⏱️",
-      unlocked: true,
+      unlocked: completedLessons.length >= 5,
       criteria: "Посещаемость 100%",
     },
     {

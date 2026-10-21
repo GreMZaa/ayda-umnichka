@@ -200,35 +200,44 @@ export default function TeacherCabinet() {
 
         const { data: sbLessons, error: sbError } = await query;
 
-        if (!sbError && sbLessons && sbLessons.length > 0) {
-          const mapped = sbLessons.map((l: any) => {
-            let notes: any[] = [];
+        if (!sbError && sbLessons) {
+          if (sbLessons.length > 0) {
+            const mapped = sbLessons.map((l: any) => {
+              let notes: any[] = [];
+              try {
+                const raw = localStorage.getItem(`ayda_lesson_notes_${l.id}`);
+                if (raw) notes = JSON.parse(raw);
+              } catch (e) {}
+              return {
+                id: l.id,
+                title: l.title,
+                subjectId: l.subject_id,
+                subjectName: l.subjects?.name || "Предмет",
+                subjectColor: l.subjects?.color || "#2563eb",
+                teacherId: l.teacher_id,
+                teacherName: l.teacher?.name || "Преподаватель",
+                teacherAvatar: l.teacher?.avatar_url,
+                studentId: l.student_id,
+                studentName: l.student?.name || "Ученик",
+                studentAvatar: l.student?.avatar_url,
+                startTime: l.start_time,
+                endTime: l.end_time,
+                status: notes && notes.length > 0 ? "COMPLETED" : l.status,
+                roomName: l.room_name,
+                notes,
+              };
+            });
+            setLessons(mapped);
+            setLoading(false);
+            return;
+          } else {
             try {
-              const raw = localStorage.getItem(`ayda_lesson_notes_${l.id}`);
-              if (raw) notes = JSON.parse(raw);
+              localStorage.removeItem("ayda_latest_lessons");
             } catch (e) {}
-            return {
-              id: l.id,
-              title: l.title,
-              subjectId: l.subject_id,
-              subjectName: l.subjects?.name || "Предмет",
-              subjectColor: l.subjects?.color || "#2563eb",
-              teacherId: l.teacher_id,
-              teacherName: l.teacher?.name || "Преподаватель",
-              teacherAvatar: l.teacher?.avatar_url,
-              studentId: l.student_id,
-              studentName: l.student?.name || "Ученик",
-              studentAvatar: l.student?.avatar_url,
-              startTime: l.start_time,
-              endTime: l.end_time,
-              status: notes && notes.length > 0 ? "COMPLETED" : l.status,
-              roomName: l.room_name,
-              notes,
-            };
-          });
-          setLessons(mapped);
-          setLoading(false);
-          return;
+            setLessons([]);
+            setLoading(false);
+            return;
+          }
         }
       }
 
