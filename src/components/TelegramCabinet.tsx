@@ -66,6 +66,7 @@ export interface TelegramChat {
   lessonId?: string;
   lessonTitle?: string;
   lessonTime?: string;
+  lessonSubject?: string;
 }
 
 export interface TelegramMessage {
@@ -225,23 +226,89 @@ export default function TelegramCabinet({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLInputElement>(null);
 
-  // Официальный чат со службой заботы и поддержки 24/7 (чат доступен только в поддержке)
+  // Динамическое формирование списка диалогов на основе уроков и официальной поддержки
   const buildChats = useCallback((): TelegramChat[] => {
-    return [
-      {
-        id: "chat-support",
-        name: "Поддержка «АйДаУмничка»",
-        role: "support",
-        roleLabel: "Служба заботы 24/7",
-        avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&h=150&fit=crop&crop=faces",
-        online: true,
-        statusText: "онлайн",
-        lastMessage: "Здравствуйте! Мы на связи, если у вас возникнут любые вопросы по урокам или платформе.",
-        lastMessageTime: "Сегодня",
-        unreadCount: 0,
-      },
-    ];
-  }, []);
+    const list: TelegramChat[] = [];
+
+    // 1. Формируем диалоги на основе реальных назначенных уроков
+    if (Array.isArray(lessons) && lessons.length > 0) {
+      if (currentRole === "STUDENT") {
+        lessons.forEach((l) => {
+          const tId = l.teacherId || l.teacher_id || l.teacher?.id;
+          const tName = l.teacherName || l.teacher?.name || "Шаронова Василина Владимировна";
+          const chatId = `teacher-${tId || "vasilina"}`;
+          if (!list.some((c) => c.id === chatId)) {
+            list.push({
+              id: chatId,
+              name: tName,
+              role: "teacher",
+              roleLabel: l.subjectName ? `Преподаватель • ${l.subjectName}` : "Преподаватель",
+              avatar:
+                l.teacherAvatar ||
+                l.teacher?.avatar_url ||
+                "https://images.unsplash.com/photo-1544717305-2782549b5136?w=150&h=150&fit=crop&crop=faces",
+              online: true,
+              statusText: "в сети",
+              lastMessage: l.title ? `Заказ на урок: «${l.title}»` : "Диалог открыт",
+              lastMessageTime: l.startTime ? formatTolyatti(l.startTime, "d MMM, HH:mm") : "Недавно",
+              unreadCount: 1,
+              lessonId: l.id,
+              lessonTitle: l.title,
+              lessonTime: l.startTime
+                ? formatTolyatti(l.startTime, "d MMMM (EE) в HH:mm")
+                : undefined,
+              lessonSubject: l.subjectName || "Английский язык",
+            });
+          }
+        });
+      } else if (currentRole === "TEACHER") {
+        lessons.forEach((l) => {
+          const sId = l.studentId || l.student_id || l.student?.id;
+          const sName = l.studentName || l.student?.name || "Ученик Шаронов";
+          const chatId = `student-${sId || "sharonov"}`;
+          if (!list.some((c) => c.id === chatId)) {
+            list.push({
+              id: chatId,
+              name: sName,
+              role: "student",
+              roleLabel: l.subjectName ? `Ученик • ${l.subjectName}` : "Ученик",
+              avatar:
+                l.studentAvatar ||
+                l.student?.avatar_url ||
+                "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&h=150&fit=crop&crop=faces",
+              online: true,
+              statusText: "в сети",
+              lastMessage: l.title ? `Заказ на урок: «${l.title}»` : "Диалог открыт",
+              lastMessageTime: l.startTime ? formatTolyatti(l.startTime, "d MMM, HH:mm") : "Недавно",
+              unreadCount: 0,
+              lessonId: l.id,
+              lessonTitle: l.title,
+              lessonTime: l.startTime
+                ? formatTolyatti(l.startTime, "d MMMM (EE) в HH:mm")
+                : undefined,
+              lessonSubject: l.subjectName || "Занятие",
+            });
+          }
+        });
+      }
+    }
+
+    // 2. Официальный чат службы поддержки и заботы «АйДаУмничка»
+    list.push({
+      id: "chat-support",
+      name: "Поддержка «АйДаУмничка»",
+      role: "support",
+      roleLabel: "Служба заботы 24/7",
+      avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&h=150&fit=crop&crop=faces",
+      online: true,
+      statusText: "онлайн",
+      lastMessage: "Здравствуйте! Мы на связи, если у вас возникнут любые вопросы по урокам или платформе.",
+      lastMessageTime: "Сегодня",
+      unreadCount: 0,
+    });
+
+    return list;
+  }, [lessons, currentRole]);
 
   const [chats, setChats] = useState<TelegramChat[]>(() => buildChats());
 
@@ -300,7 +367,7 @@ export default function TelegramCabinet({
           senderName: partnerName,
           senderAvatar: partnerAvatar,
           isMe: false,
-          text: `Здравствуйте! Ссылка на подключение к уроку:`,
+          text: `Здравствуйте! Вам назначен заказ на онлайн-урок в «АйДаУмничка»:`,
           time: "10:00",
           date: "Сегодня",
           type: "lesson_invite",
@@ -308,7 +375,7 @@ export default function TelegramCabinet({
             id: activeChat.lessonId,
             title: activeChat.lessonTitle || "Онлайн-урок",
             time: activeChat.lessonTime || "По расписанию",
-            subject: activeChat.roleLabel || "Занятие",
+            subject: activeChat.lessonSubject || activeChat.roleLabel || "Занятие",
           },
           read: true,
         },
@@ -610,42 +677,52 @@ export default function TelegramCabinet({
 
           <div className="pt-3 border-t border-slate-100 mt-2 space-y-1">
             <div className="px-2 py-1 text-[11px] font-black uppercase tracking-wider text-slate-400">
-              Служба заботы
+              Диалоги и чаты
             </div>
 
-            {/* Официальный чат поддержки */}
-            <div
-              onClick={() => {
-                setActiveChatId("chat-support");
-                setActiveScreen("chat");
-                setMobileShowChat(true);
-              }}
-              className={`p-3 rounded-2xl flex items-center gap-3 cursor-pointer transition select-none ${
-                activeScreen === "chat"
-                  ? "bg-[#2481cc] text-white shadow-md shadow-blue-500/20"
-                  : "hover:bg-slate-100 text-slate-800"
-              }`}
-            >
-              <div className="relative shrink-0">
-                <img
-                  src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&h=150&fit=crop&crop=faces"
-                  alt="Поддержка"
-                  className="w-10 h-10 rounded-full object-cover shadow-xs"
-                />
-                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-400 border border-white rounded-full shadow-xs" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-1 mb-0.5">
-                  <h4 className="font-bold text-xs sm:text-sm truncate">Поддержка «АйДаУмничка»</h4>
-                  <span className={`text-[10px] font-bold shrink-0 ${activeScreen === "chat" ? "text-blue-100" : "text-emerald-600"}`}>
-                    онлайн
-                  </span>
+            {chats.map((chat) => {
+              const isChatActive = activeScreen === "chat" && activeChatId === chat.id;
+              return (
+                <div
+                  key={chat.id}
+                  onClick={() => {
+                    setActiveChatId(chat.id);
+                    setActiveScreen("chat");
+                    setMobileShowChat(true);
+                  }}
+                  className={`p-3 rounded-2xl flex items-center gap-3 cursor-pointer transition select-none ${
+                    isChatActive
+                      ? "bg-[#2481cc] text-white shadow-md shadow-blue-500/20"
+                      : "hover:bg-slate-100 text-slate-800"
+                  }`}
+                >
+                  <div className="relative shrink-0">
+                    <img
+                      src={chat.avatar}
+                      alt={chat.name}
+                      className="w-10 h-10 rounded-full object-cover shadow-xs"
+                    />
+                    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-400 border border-white rounded-full shadow-xs" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-1 mb-0.5">
+                      <h4 className="font-bold text-xs sm:text-sm truncate">{chat.name}</h4>
+                      <span className={`text-[10px] font-bold shrink-0 ${isChatActive ? "text-blue-100" : "text-emerald-600"}`}>
+                        {chat.statusText}
+                      </span>
+                    </div>
+                    <p className={`text-[11px] truncate ${isChatActive ? "text-blue-50" : "text-slate-500"}`}>
+                      {chat.lastMessage}
+                    </p>
+                  </div>
+                  {chat.unreadCount > 0 && !isChatActive && (
+                    <span className="w-5 h-5 rounded-full bg-emerald-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
+                      {chat.unreadCount}
+                    </span>
+                  )}
                 </div>
-                <p className={`text-[11px] truncate ${activeScreen === "chat" ? "text-blue-50" : "text-slate-500"}`}>
-                  Служба заботы 24/7
-                </p>
-              </div>
-            </div>
+              );
+            })}
           </div>
         </div>
 

@@ -287,7 +287,7 @@ export default function StudentCabinet() {
               teacher:teacher_id (name, avatar_url),
               student:student_id (name, avatar_url)
             `)
-            .or(`student_id.eq.${uid},student_id.eq.53df3c76-9d23-49aa-ba0c-6f40d7a56657`)
+            .in("student_id", [uid, "53df3c76-9d23-49aa-ba0c-6f40d7a56657"])
             .order("start_time", { ascending: false });
 
           if (!sbErr && sbLessons && sbLessons.length > 0) {
@@ -317,7 +317,7 @@ export default function StudentCabinet() {
           const { data: rawLessons, error: rawErr } = await client
             .from("lessons")
             .select("*")
-            .or(`student_id.eq.${uid},student_id.eq.53df3c76-9d23-49aa-ba0c-6f40d7a56657`)
+            .in("student_id", [uid, "53df3c76-9d23-49aa-ba0c-6f40d7a56657"])
             .order("start_time", { ascending: false });
 
           if (!rawErr && rawLessons) {
