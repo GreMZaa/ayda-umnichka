@@ -263,8 +263,8 @@ export default function ParentCabinet() {
                 }
               } catch (e) {}
 
-              const balance = typeof parsedBio.balance === "number" ? parsedBio.balance : 8;
-              const stars = typeof parsedBio.stars === "number" ? parsedBio.stars : 25;
+              const balance = typeof parsedBio.balance === "number" ? parsedBio.balance : 0;
+              const stars = typeof parsedBio.stars === "number" ? parsedBio.stars : 0;
               const grade = parsedBio.grade || d.bio || "3 класс";
 
               return {

@@ -95,7 +95,10 @@ export async function GET(request: Request) {
         }
       }
 
-      if (!sbError && sbLessons && sbLessons.length > 0) {
+      if (!sbError && sbLessons) {
+        if (sbLessons.length === 0) {
+          return NextResponse.json([]);
+        }
         const mappedLessons = sbLessons.map((l: any) => {
           const notes = db.getLessonNotes(l.id);
           const dbLesson = db.getLessonById(l.id);

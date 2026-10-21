@@ -499,6 +499,8 @@ export default function StudentCabinet() {
     },
   ];
 
+  const unlockedAwards = academicAwards.filter((ach) => ach.unlocked);
+
   // Открытие модального окна задания
   const handleOpenHomework = (hw: HomeworkItem) => {
     setSelectedHomework(hw);
@@ -681,7 +683,7 @@ export default function StudentCabinet() {
             key: "homework",
             title: "Домашние задания",
             icon: FileText,
-            badge: homeworkList.filter((h) => h.status === "NEW").length,
+            badge: homeworkList.length > 0 ? homeworkList.filter((h) => h.status === "NEW").length : undefined,
             render: () => (
               <div className="space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
@@ -784,7 +786,7 @@ export default function StudentCabinet() {
             key: "awards",
             title: "Награды и звёзды",
             icon: Award,
-            badge: `${stars} ⭐`,
+            badge: stars > 0 ? `${stars} ⭐` : undefined,
             render: () => (
               <div className="space-y-4">
                 <div className="flex items-center justify-between px-1">
@@ -801,34 +803,40 @@ export default function StudentCabinet() {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {academicAwards.map((ach, i) => (
-                    <div
-                      key={i}
-                      className={`rounded-3xl p-5 border text-center space-y-2.5 transition flex flex-col justify-between ${
-                        ach.unlocked
-                          ? "bg-white border-amber-200/90 shadow-xs ring-1 ring-amber-100"
-                          : "bg-slate-50/70 border-slate-200/70 opacity-60"
-                      }`}
-                    >
-                      <div>
-                        <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center text-2xl bg-amber-50 border border-amber-100 shadow-2xs">
-                          {ach.icon}
-                        </div>
-                        <h3 className="font-extrabold text-sm text-slate-900 mt-2.5">{ach.title}</h3>
-                        <p className="text-xs text-slate-500 leading-tight mt-1">{ach.desc}</p>
-                      </div>
-
-                      <div className="pt-2 border-t border-slate-100">
-                        <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-bold ${
-                          ach.unlocked ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"
-                        }`}>
-                          {ach.unlocked ? "Получено ✓" : ach.criteria}
-                        </span>
-                      </div>
+                {unlockedAwards.length === 0 ? (
+                  <div className="bg-white rounded-3xl border border-slate-200 p-10 sm:p-14 text-center shadow-xs">
+                    <div className="w-14 h-14 mx-auto mb-3.5 rounded-2xl bg-amber-50 flex items-center justify-center border border-amber-100 text-amber-600">
+                      <Award className="w-7 h-7" />
                     </div>
-                  ))}
-                </div>
+                    <h3 className="text-base font-extrabold text-slate-800">Наград пока нет</h3>
+                    <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1 leading-relaxed">
+                      Здесь будут появляться школьные награды и звёзды за проведённые онлайн-уроки и успехи в учёбе.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {unlockedAwards.map((ach, i) => (
+                      <div
+                        key={i}
+                        className="rounded-3xl p-5 border text-center space-y-2.5 transition flex flex-col justify-between bg-white border-amber-200/90 shadow-xs ring-1 ring-amber-100"
+                      >
+                        <div>
+                          <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center text-2xl bg-amber-50 border border-amber-100 shadow-2xs">
+                            {ach.icon}
+                          </div>
+                          <h3 className="font-extrabold text-sm text-slate-900 mt-2.5">{ach.title}</h3>
+                          <p className="text-xs text-slate-500 leading-tight mt-1">{ach.desc}</p>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-100">
+                          <span className="inline-block px-3 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                            Получено ✓
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ),
           },
