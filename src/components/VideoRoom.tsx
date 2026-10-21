@@ -2267,6 +2267,7 @@ export default function VideoRoom({
         </div>
 
         {/* РЕЖИМ 3: СОБЕСЕДНИК В ОСНОВНОМ ОКНЕ (FULLSTAGE - СВЕТЛАЯ ТЕМА) */}
+        {/* СРЕДНЯЯ ОБЛАСТЬ: БОЛЬШОЙ ЭКРАН ВИДЕОЗВОНКА */}
         <div
           className={`flex-1 flex flex-col bg-gradient-to-b from-[#eef2f5] via-[#f4f6f8] to-[#e7ecf0] relative overflow-hidden min-h-0 ${
             activeTab === "video" ? "md:flex" : "md:hidden"
@@ -2274,17 +2275,14 @@ export default function VideoRoom({
             mobileTab === "video" ? "flex" : "hidden md:flex"
           }`}
         >
-          {/* Верхняя плашка звонка */}
+          {/* Верхняя плашка звонка: статус поднятой руки и быстрый переход к доске */}
           <div className="absolute top-3 left-3 right-3 z-20 flex items-center justify-between pointer-events-none">
-            <div className="bg-white/95 backdrop-blur-md border border-slate-200 text-slate-800 rounded-full shadow-sm px-4 py-1.5 flex items-center gap-2.5 text-xs font-semibold pointer-events-auto">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span>
-                {partnerRole}: <strong className="text-slate-900">{partnerName}</strong>
-              </span>
+            <div className="pointer-events-auto">
               {partnerRole === "Ученик" && raisedHand && (
-                <span className="bg-amber-400 text-slate-950 px-2 py-0.5 rounded-full font-bold text-[10px] animate-bounce">
-                  ✋ Поднята рука
-                </span>
+                <div className="bg-amber-400 text-slate-950 px-3 py-1 rounded-full font-bold text-xs shadow-md animate-bounce flex items-center gap-1.5">
+                  <span>✋</span>
+                  <span>Ученик поднял руку</span>
+                </div>
               )}
             </div>
 
@@ -2294,7 +2292,7 @@ export default function VideoRoom({
                   setActiveTab("board");
                   setMobileTab("board");
                 }}
-                className="px-3.5 py-1.5 rounded-full bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                className="px-3.5 py-1.5 rounded-full bg-white/95 hover:bg-white backdrop-blur-md border border-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 shadow-sm transition hover:shadow cursor-pointer"
                 title="Вернуться к интерактивной доске"
               >
                 <PenTool className="w-3.5 h-3.5 text-[#2481cc]" />
@@ -2304,79 +2302,67 @@ export default function VideoRoom({
           </div>
 
           {/* Большое центрированное видео или аватар с пульсирующими кольцами */}
-          <div className="flex-1 flex items-center justify-center p-3 sm:p-6 relative">
+          <div className="flex-1 flex items-center justify-center p-3 sm:p-6 pb-24 sm:pb-28 relative">
             <div className="w-full h-full max-w-5xl rounded-3xl overflow-hidden relative shadow-xl bg-slate-900 border border-slate-200 flex items-center justify-center">
               {partnerCamOn && remoteStream ? (
-                <video
-                  ref={remoteVideoMainRef}
-                  autoPlay
-                  playsInline
-                  className="w-full h-full object-cover sm:object-contain"
-                />
+                <>
+                  <video
+                    ref={remoteVideoMainRef}
+                    autoPlay
+                    playsInline
+                    className="w-full h-full object-cover sm:object-contain"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent pointer-events-none" />
+                  {/* Бейдж собеседника при включенном видео */}
+                  <div className="absolute bottom-4 left-4 flex items-center pointer-events-none">
+                    <div className="bg-black/60 backdrop-blur-md px-3.5 py-1.5 rounded-full text-white flex items-center gap-2 border border-white/20 shadow-md">
+                      <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span className="text-xs sm:text-sm font-bold truncate">{partnerName}</span>
+                      <span className="text-xs text-sky-300">({partnerRole})</span>
+                    </div>
+                  </div>
+                </>
               ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center relative bg-gradient-to-b from-slate-50 via-white to-slate-100 p-6 text-center">
                   {/* Пульсирующие кольца звонка в светлой теме */}
                   <div className="relative flex items-center justify-center my-auto">
                     {/* Внешнее кольцо с затухающей анимацией */}
-                    <div className="absolute w-56 h-56 sm:w-72 sm:h-72 rounded-full border border-sky-300/40 animate-ping opacity-25 [animation-duration:3s]" />
+                    <div className="absolute w-52 h-52 sm:w-64 sm:h-64 rounded-full border border-sky-300/40 animate-ping opacity-25 [animation-duration:3s]" />
                     {/* Среднее пульсирующее кольцо */}
-                    <div className="absolute w-44 h-44 sm:w-56 sm:h-56 rounded-full bg-sky-100/60 border border-sky-300/60 animate-pulse" />
+                    <div className="absolute w-40 h-40 sm:w-52 sm:h-52 rounded-full bg-sky-100/60 border border-sky-300/60 animate-pulse" />
                     {/* Ближнее кольцо */}
-                    <div className="absolute w-36 h-36 sm:w-44 sm:h-44 rounded-full bg-sky-100 border border-sky-400/60" />
+                    <div className="absolute w-32 h-32 sm:w-40 sm:h-40 rounded-full bg-sky-100 border border-sky-400/60" />
 
                     {/* Аватар в центре */}
-                    <div className="w-28 h-28 sm:w-36 sm:h-36 rounded-full overflow-hidden shadow-xl ring-4 ring-[#2481cc]/40 relative z-10 bg-white">
+                    <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full overflow-hidden shadow-xl ring-4 ring-[#2481cc]/40 relative z-10 bg-white">
                       <img src={partnerAvatar} alt={partnerName} className="w-full h-full object-cover" />
                     </div>
                   </div>
 
                   {/* Имя и статус собеседника */}
-                  <div className="relative z-10 mt-3 mb-2">
+                  <div className="relative z-10 mt-4 mb-auto">
                     <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-wide">{partnerName}</h2>
-                    <p className="text-xs sm:text-sm text-[#2481cc] font-medium mt-0.5 flex items-center justify-center gap-1.5">
+                    <p className="text-xs sm:text-sm text-[#2481cc] font-medium mt-1 flex items-center justify-center gap-1.5">
                       <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                       <span>{partnerRole} • Звонок АйДаУмничка</span>
                     </p>
 
                     {/* Анимированный эквалайзер */}
-                    <div className="flex items-center justify-center gap-1 mt-3 h-6">
+                    <div className="flex items-center justify-center gap-1 mt-3 h-5">
                       <span className="w-1 bg-[#2481cc] rounded-full animate-[pulse_0.8s_ease-in-out_infinite] h-3" />
                       <span className="w-1 bg-[#2481cc] rounded-full animate-[pulse_0.6s_ease-in-out_infinite_0.1s] h-5" />
                       <span className="w-1 bg-[#2481cc] rounded-full animate-[pulse_1.0s_ease-in-out_infinite_0.2s] h-2.5" />
-                      <span className="w-1 bg-[#2481cc] rounded-full animate-[pulse_0.7s_ease-in-out_infinite_0.3s] h-6" />
+                      <span className="w-1 bg-[#2481cc] rounded-full animate-[pulse_0.7s_ease-in-out_infinite_0.3s] h-5" />
                       <span className="w-1 bg-[#2481cc] rounded-full animate-[pulse_0.9s_ease-in-out_infinite_0.15s] h-4" />
                       <span className="w-1 bg-[#2481cc] rounded-full animate-[pulse_0.5s_ease-in-out_infinite_0.25s] h-3" />
-                    </div>
-
-                    {/* End-to-End Encryption Banner */}
-                    <div className="mt-5 inline-flex flex-col items-center gap-1 bg-white/90 backdrop-blur-md px-4 py-2 rounded-2xl border border-slate-200 shadow-sm">
-                      <div className="text-lg tracking-widest select-none flex items-center gap-2">
-                        <span>🦊</span>
-                        <span>🍇</span>
-                        <span>💎</span>
-                        <span>🚀</span>
-                      </div>
-                      <span className="text-[10px] text-slate-500 font-mono tracking-wider">
-                        Сквозное шифрование
-                      </span>
                     </div>
                   </div>
                 </div>
               )}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
-
-              {/* Бейдж собеседника внизу экрана */}
-              <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between pointer-events-none">
-                <div className="bg-white/90 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-slate-200 text-slate-800 flex items-center gap-2 shadow-md">
-                  <div className={`w-2 h-2 rounded-full ${partnerCamOn ? "bg-emerald-500 animate-pulse" : "bg-slate-400"}`} />
-                  <span className="text-xs sm:text-sm font-bold truncate">{partnerName}</span>
-                  <span className="text-xs text-[#2481cc]">({partnerRole})</span>
-                </div>
-              </div>
             </div>
 
             {/* Картинка-в-картинке (камера пользователя) */}
-            <div className="absolute bottom-24 right-5 sm:bottom-24 sm:right-8 w-36 sm:w-48 aspect-video rounded-2xl overflow-hidden bg-white border-2 border-slate-300 shadow-xl z-30 transition-all hover:scale-105 group">
+            <div className="absolute bottom-24 right-5 sm:bottom-28 sm:right-8 w-32 sm:w-44 aspect-video rounded-2xl overflow-hidden bg-white border-2 border-slate-300 shadow-xl z-30 transition-all hover:scale-105 group">
               {camOn ? (
                 <video
                   ref={localVideoMainRef}
@@ -2390,7 +2376,7 @@ export default function VideoRoom({
                   <img
                     src={myAvatar}
                     alt={myName}
-                    className="w-10 h-10 rounded-full object-cover border border-slate-200 mb-1"
+                    className="w-8 h-8 rounded-full object-cover border border-slate-200 mb-1"
                   />
                   <span className="text-[10px] font-bold text-slate-500 truncate max-w-full">Вы (камера выкл)</span>
                 </div>
