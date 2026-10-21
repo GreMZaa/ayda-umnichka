@@ -140,45 +140,12 @@ export default function TelegramCabinet({
 }: TelegramCabinetProps) {
   const router = useRouter();
 
-  // Реактивное состояние текущего пользователя (мгновенно обновляется без перезагрузки страницы)
-  const [currentUser, setCurrentUser] = useState(() => {
-    try {
-      if (typeof window !== "undefined") {
-        const saved =
-          localStorage.getItem(`ayda_profile_${currentRole.toLowerCase()}`) ||
-          localStorage.getItem("ayda_current_user_profile");
-        if (saved) {
-          const p = JSON.parse(saved);
-          return {
-            ...initialCurrentUser,
-            avatar: p.avatarUrl !== undefined ? p.avatarUrl : initialCurrentUser.avatar,
-            name: p.name || initialCurrentUser.name,
-            username: p.username !== undefined ? p.username : initialCurrentUser.username,
-          };
-        }
-      }
-    } catch (e) {}
-    return initialCurrentUser;
-  });
+  // Реактивное состояние текущего пользователя (всегда синхронизировано со свойствами из БД)
+  const [currentUser, setCurrentUser] = useState(() => initialCurrentUser);
 
   useEffect(() => {
-    setCurrentUser((prev) => {
-      let av = initialCurrentUser.avatar;
-      try {
-        const saved =
-          localStorage.getItem(`ayda_profile_${currentRole.toLowerCase()}`) ||
-          localStorage.getItem("ayda_current_user_profile");
-        if (saved) {
-          const p = JSON.parse(saved);
-          if (p.avatarUrl) av = p.avatarUrl;
-        }
-      } catch (e) {}
-      return {
-        ...initialCurrentUser,
-        avatar: av || prev.avatar,
-      };
-    });
-  }, [initialCurrentUser, currentRole]);
+    setCurrentUser(initialCurrentUser);
+  }, [initialCurrentUser]);
 
   // Слушатель событий обновления профиля для мгновенной синхронизации во всех шапках и меню
   useEffect(() => {

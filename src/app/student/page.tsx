@@ -116,28 +116,6 @@ export default function StudentCabinet() {
 
   // Загрузка данных ученика, предметов школы и уроков из Supabase
   useEffect(() => {
-    // Читаем локально сохраненный профиль в приоритете
-    const applyLocalProfile = () => {
-      try {
-        const saved =
-          localStorage.getItem("ayda_profile_student") ||
-          localStorage.getItem("ayda_current_user_profile");
-        if (saved) {
-          const p = JSON.parse(saved);
-          if (p.name) setStudentName(p.name);
-          if (p.username) setStudentUsername(p.username);
-          if (p.avatarUrl) setAvatarUrl(p.avatarUrl);
-          if (p.grade) setGrade(p.grade);
-          if (p.school) setSchool(p.school);
-          if (p.bio) setBio(p.bio);
-          return true;
-        }
-      } catch (e) {}
-      return false;
-    };
-
-    applyLocalProfile();
-
     const isUuid = (str: string) =>
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 
@@ -164,8 +142,8 @@ export default function StudentCabinet() {
     setStudentId(currentUserId);
 
     const client = getSupabase();
-    if (client && currentUserId) {
-      // 1. Профиль конкретно текущего вошедшего ученика из Supabase profiles
+    if (client) {
+      // 1. Профиль конкретно текущего вошедшего ученика из Supabase profiles (ИСТОЧНИК ИСТИНЫ)
       (async () => {
         let profile = null;
 
@@ -202,7 +180,7 @@ export default function StudentCabinet() {
         if (profile) {
           const effectiveId = profile.id;
           setStudentId(effectiveId);
-          setStudentName(profile.name || "Ученик Шаронов");
+          setStudentName(profile.name || "Сергей Дмитриевич");
           if (profile.avatar_url) setAvatarUrl(profile.avatar_url);
 
           let parsedBio: any = {};
@@ -228,7 +206,7 @@ export default function StudentCabinet() {
           if (typeof parsedBio.balance === "number") setBalance(parsedBio.balance);
           if (typeof parsedBio.stars === "number") setStars(parsedBio.stars);
 
-          // Обновляем локальный кэш
+          // Обновляем локальный кэш свежими данными из БД
           try {
             localStorage.setItem("ayda_profile_student", JSON.stringify({
               id: effectiveId,
@@ -243,7 +221,7 @@ export default function StudentCabinet() {
           } catch {}
         } else {
           // Если нового пользователя действительно нет в базе
-          const defName = authUser?.user_metadata?.full_name || authUser?.email?.split("@")[0] || "Ученик";
+          const defName = authUser?.user_metadata?.full_name || authUser?.email?.split("@")[0] || "Сергей Дмитриевич";
           const defGrade = authUser?.user_metadata?.grade || "3 класс";
           const defUname = resolveProfileUsername({
             id: currentUserId,
