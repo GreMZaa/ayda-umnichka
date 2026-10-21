@@ -230,23 +230,44 @@ export default function ScheduleCalendar({
     return (totalMinutesFromStart / 60) * SLOT_HEIGHT;
   }, [currentTime, isCurrentWeek]);
 
-  // Автоматический фокус на ближайший день с уроками в мобильном виде
+  // Гарантируем, что календарь всегда сразу открывается на сегодняшний день (по Тольятти)
   useEffect(() => {
     const today = nowInTolyatti();
-    const todayLessons = filteredLessons.filter((l) => isSameDay(toTolyattiDate(l.startTime), today));
-    if (todayLessons.length === 0 && weekLessons.length > 0) {
-      const upcomingThisWeek = weekLessons
-        .map((l) => toTolyattiDate(l.startTime))
-        .filter((d) => d >= today || isSameDay(d, today))
-        .sort((a, b) => a.getTime() - b.getTime());
+    setCalendarDate(today);
+    setSelectedMobileDay(today);
+  }, []);
 
-      if (upcomingThisWeek.length > 0) {
-        setSelectedMobileDay(upcomingThisWeek[0]);
-      } else if (weekLessons.length > 0) {
-        setSelectedMobileDay(toTolyattiDate(weekLessons[0].startTime));
-      }
+  const handleGoPrevWeek = () => {
+    const newDate = subWeeks(calendarDate, 1);
+    setCalendarDate(newDate);
+    const today = nowInTolyatti();
+    const newWeekStart = startOfWeek(newDate, { weekStartsOn: 1 });
+    const newWeekEnd = addDays(newWeekStart, 6);
+    if (isWithinInterval(today, { start: newWeekStart, end: newWeekEnd })) {
+      setSelectedMobileDay(today);
+    } else {
+      setSelectedMobileDay(newWeekStart);
     }
-  }, [filteredLessons, weekLessons]);
+  };
+
+  const handleGoNextWeek = () => {
+    const newDate = addWeeks(calendarDate, 1);
+    setCalendarDate(newDate);
+    const today = nowInTolyatti();
+    const newWeekStart = startOfWeek(newDate, { weekStartsOn: 1 });
+    const newWeekEnd = addDays(newWeekStart, 6);
+    if (isWithinInterval(today, { start: newWeekStart, end: newWeekEnd })) {
+      setSelectedMobileDay(today);
+    } else {
+      setSelectedMobileDay(newWeekStart);
+    }
+  };
+
+  const handleGoToday = () => {
+    const today = nowInTolyatti();
+    setCalendarDate(today);
+    setSelectedMobileDay(today);
+  };
 
   return (
     <div className="space-y-4">
@@ -305,7 +326,7 @@ export default function ScheduleCalendar({
             <div className="flex items-center gap-1 sm:gap-1.5">
               <button
                 type="button"
-                onClick={() => setCalendarDate(subWeeks(calendarDate, 1))}
+                onClick={handleGoPrevWeek}
                 className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition cursor-pointer active:scale-95"
                 title="Предыдущая неделя"
               >
@@ -322,7 +343,7 @@ export default function ScheduleCalendar({
 
               <button
                 type="button"
-                onClick={() => setCalendarDate(addWeeks(calendarDate, 1))}
+                onClick={handleGoNextWeek}
                 className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition cursor-pointer active:scale-95"
                 title="Следующая неделя"
               >
@@ -332,7 +353,7 @@ export default function ScheduleCalendar({
 
             <button
               type="button"
-              onClick={() => setCalendarDate(nowInTolyatti())}
+              onClick={handleGoToday}
               className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-blue-600 hover:bg-blue-50 transition cursor-pointer"
             >
               Сегодня
@@ -384,11 +405,11 @@ export default function ScheduleCalendar({
                       key={idx}
                       type="button"
                       onClick={() => setSelectedMobileDay(day)}
-                      className={`py-2 px-1 rounded-xl flex flex-col items-center gap-1 transition cursor-pointer ${
+                      className={`py-2 px-1 rounded-xl flex flex-col items-center gap-0.5 transition cursor-pointer relative ${
                         isSelected
                           ? "bg-blue-600 text-white shadow-sm shadow-blue-500/25 font-black"
                           : isToday
-                          ? "bg-blue-50 text-blue-700 font-bold"
+                          ? "bg-blue-50 text-blue-700 font-bold border border-blue-200"
                           : "hover:bg-slate-50 text-slate-700 font-medium"
                       }`}
                     >
@@ -398,6 +419,13 @@ export default function ScheduleCalendar({
                       <span className="text-sm font-extrabold leading-none">
                         {formatTolyatti(day, "d")}
                       </span>
+                      {isToday && (
+                        <span className={`text-[8px] uppercase tracking-tighter font-black leading-none ${
+                          isSelected ? "text-blue-100" : "text-blue-600"
+                        }`}>
+                          сегодня
+                        </span>
+                      )}
                       <div className="h-1.5 flex items-center justify-center">
                         {dayLessons.length > 0 && (
                           <span
@@ -419,10 +447,18 @@ export default function ScheduleCalendar({
                 <span className="font-extrabold text-sm text-slate-900 capitalize">
                   {formatTolyatti(selectedMobileDay, "EEEE, d MMMM")}
                 </span>
-                {isSameDay(selectedMobileDay, nowInTolyatti()) && (
+                {isSameDay(selectedMobileDay, nowInTolyatti()) ? (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800">
                     Сегодня
                   </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleGoToday}
+                    className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-600 hover:bg-blue-100 transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                  >
+                    <span>К сегодняшнему дню</span>
+                  </button>
                 )}
               </div>
               <span className="text-xs font-bold text-slate-500">
@@ -584,17 +620,22 @@ export default function ScheduleCalendar({
                     <div
                       key={idx}
                       className={`p-2.5 border-r border-slate-200 last:border-r-0 text-xs font-bold transition ${
-                        isToday ? "bg-blue-50/70" : ""
+                        isToday ? "bg-blue-50/80" : ""
                       }`}
                     >
                       <div
-                        className={`inline-block px-2.5 py-1 rounded-xl transition ${
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl transition ${
                           isToday
                             ? "bg-blue-600 text-white shadow-xs font-black"
                             : "text-slate-700"
                         }`}
                       >
                         <span>{formatTolyatti(day, "EE")} · {formatTolyatti(day, "d MMM")}</span>
+                        {isToday && (
+                          <span className="text-[9px] uppercase px-1.5 py-0.5 bg-white text-blue-700 rounded font-black tracking-wider shadow-2xs">
+                            Сегодня
+                          </span>
+                        )}
                       </div>
                     </div>
                   );
@@ -645,7 +686,7 @@ export default function ScheduleCalendar({
                           <div
                             key={dayIdx}
                             className={`p-1.5 border-r border-slate-100 last:border-r-0 relative transition hover:bg-slate-50/50 flex flex-col gap-1.5 ${
-                              isToday ? "bg-blue-50/20" : ""
+                              isToday ? "bg-blue-50/30 ring-1 ring-inset ring-blue-100/70" : ""
                             }`}
                           >
                             {dayLessons.map((l) => {

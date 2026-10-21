@@ -39,6 +39,7 @@ import EditProfileModal from "@/components/EditProfileModal";
 import TelegramCabinet from "@/components/TelegramCabinet";
 import { cleanUsername, formatUsername, resolveProfileUsername } from "@/lib/nickname";
 import {
+  getTolyattiTodayDateStr,
   getTolyattiTomorrowDateStr,
   tolyattiToIso,
   formatTolyatti,
@@ -121,7 +122,7 @@ export default function TeacherCabinet() {
   const [isCustomStudent, setIsCustomStudent] = useState(false);
   const [customStudentName, setCustomStudentName] = useState("");
 
-  const [lessonDate, setLessonDate] = useState(() => getTolyattiTomorrowDateStr());
+  const [lessonDate, setLessonDate] = useState(() => getTolyattiTodayDateStr());
   const [lessonTime, setLessonTime] = useState("16:00");
   const [lessonDurationMinutes, setLessonDurationMinutes] = useState(45);
   const [lessonRoomName, setLessonRoomName] = useState(() => `room-${Math.random().toString(36).substring(2, 8)}`);
@@ -625,6 +626,7 @@ export default function TeacherCabinet() {
     setIsCustomSubject(false);
     setCustomSubjectName("");
     setLessonRoomName(`room-${Math.random().toString(36).substring(2, 8)}`);
+    setLessonDate(getTolyattiTodayDateStr());
     setCreateError(null);
     setCreateSuccess(false);
     setCreateModalOpen(true);
