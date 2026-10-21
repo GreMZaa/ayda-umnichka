@@ -39,6 +39,8 @@ import {
   ChevronDown,
   ChevronUp,
   X,
+  ArrowLeftRight,
+  Move,
 } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api-client";
 import { getSupabase } from "@/lib/supabase";
@@ -154,6 +156,50 @@ export default function VideoRoom({
   const [camOn, setCamOn] = useState(false);
   const [screenSharing, setScreenSharing] = useState(false);
   const [raisedHand, setRaisedHand] = useState(false);
+
+  // Переключение камер местами (Основная / PiP)
+  const [isSwapped, setIsSwapped] = useState(false);
+
+  // Перетаскивание плавающего окна камеры (PiP)
+  const [pipPosition, setPipPosition] = useState<{ x: number; y: number } | null>(null);
+  const pipDraggingRef = useRef<{ startX: number; startY: number; initialX: number; initialY: number } | null>(null);
+  const pipRef = useRef<HTMLDivElement>(null);
+
+  const handlePipMouseDown = (e: React.MouseEvent) => {
+    // Не начинаем драг, если кликнули на кнопку смены камер
+    if ((e.target as HTMLElement).closest("button")) return;
+    e.preventDefault();
+    const pipEl = pipRef.current;
+    if (!pipEl) return;
+    const rect = pipEl.getBoundingClientRect();
+    const currentX = pipPosition ? pipPosition.x : rect.left;
+    const currentY = pipPosition ? pipPosition.y : rect.top;
+
+    pipDraggingRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      initialX: currentX,
+      initialY: currentY,
+    };
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!pipDraggingRef.current) return;
+      const dx = moveEvent.clientX - pipDraggingRef.current.startX;
+      const dy = moveEvent.clientY - pipDraggingRef.current.startY;
+      const newX = Math.max(10, Math.min(window.innerWidth - 180, pipDraggingRef.current.initialX + dx));
+      const newY = Math.max(70, Math.min(window.innerHeight - 180, pipDraggingRef.current.initialY + dy));
+      setPipPosition({ x: newX, y: newY });
+    };
+
+    const handleMouseUp = () => {
+      pipDraggingRef.current = null;
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+  };
   const localStreamRef = useRef<MediaStream | null>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const localVideoSideRef = useRef<HTMLVideoElement>(null);
@@ -2273,7 +2319,47 @@ export default function VideoRoom({
           {/* Большое центрированное видео или аватар с пульсирующими кольцами */}
           <div className="flex-1 flex items-center justify-center p-3 sm:p-6 pb-24 sm:pb-28 relative">
             <div className="w-full h-full max-w-5xl rounded-3xl overflow-hidden relative shadow-xl bg-slate-900 border border-slate-200 flex items-center justify-center">
-              {partnerCamOn && remoteStream ? (
+              {isSwapped ? (
+                /* В главном окне находится текущий пользователь (Вы) */
+                camOn ? (
+                  <>
+                    <video
+                      ref={localVideoRef}
+                      autoPlay
+                      muted
+                      playsInline
+                      className="w-full h-full object-cover sm:object-contain transform -scale-x-100"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent pointer-events-none" />
+                    <div className="absolute bottom-4 left-4 flex items-center pointer-events-none">
+                      <div className="bg-black/60 backdrop-blur-md px-3.5 py-1.5 rounded-full text-white flex items-center gap-2 border border-white/20 shadow-md">
+                        <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="text-xs sm:text-sm font-bold truncate">{myName}</span>
+                        <span className="text-xs text-sky-300">(Вы)</span>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center relative bg-gradient-to-b from-slate-50 via-white to-slate-100 p-6 text-center">
+                    <div className="relative flex items-center justify-center my-auto">
+                      <div className="absolute w-52 h-52 sm:w-64 sm:h-64 rounded-full border border-sky-300/40 animate-ping opacity-25 [animation-duration:3s]" />
+                      <div className="absolute w-40 h-40 sm:w-52 sm:h-52 rounded-full bg-sky-100/60 border border-sky-300/60 animate-pulse" />
+                      <div className="absolute w-32 h-32 sm:w-40 sm:h-40 rounded-full bg-sky-100 border border-sky-400/60" />
+                      <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full overflow-hidden shadow-xl ring-4 ring-[#2481cc]/40 relative z-10 bg-white">
+                        <img src={myAvatar} alt={myName} className="w-full h-full object-cover" />
+                      </div>
+                    </div>
+                    <div className="relative z-10 mt-4 mb-auto">
+                      <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-wide">{myName}</h2>
+                      <p className="text-xs sm:text-sm text-[#2481cc] font-medium mt-1 flex items-center justify-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        <span>Вы • Камера выключена</span>
+                      </p>
+                    </div>
+                  </div>
+                )
+              ) : partnerCamOn && remoteStream ? (
+                /* В главном окне находится собеседник с видео */
                 <>
                   <video
                     ref={remoteVideoMainRef}
@@ -2292,6 +2378,7 @@ export default function VideoRoom({
                   </div>
                 </>
               ) : (
+                /* В главном окне находится собеседник с аватаром */
                 <div className="w-full h-full flex flex-col items-center justify-center relative bg-gradient-to-b from-slate-50 via-white to-slate-100 p-6 text-center">
                   {/* Пульсирующие кольца звонка в светлой теме */}
                   <div className="relative flex items-center justify-center my-auto">
@@ -2330,30 +2417,92 @@ export default function VideoRoom({
               )}
             </div>
 
-            {/* Картинка-в-картинке (камера пользователя) */}
-            <div className="absolute bottom-24 right-5 sm:bottom-28 sm:right-8 w-32 sm:w-44 aspect-video rounded-2xl overflow-hidden bg-white border-2 border-slate-300 shadow-xl z-30 transition-all hover:scale-105 group">
-              {camOn ? (
+          {/* Перетаскиваемое плавающее окно PiP с возможностью менять камеры местами */}
+          <div
+            ref={pipRef}
+            onMouseDown={handlePipMouseDown}
+            style={
+              pipPosition
+                ? {
+                    position: "fixed",
+                    left: `${pipPosition.x}px`,
+                    top: `${pipPosition.y}px`,
+                    zIndex: 45,
+                  }
+                : undefined
+            }
+            className={`w-36 sm:w-52 aspect-video rounded-2xl overflow-hidden bg-slate-900 border-2 border-white shadow-2xl transition-shadow select-none group cursor-move ${
+              !pipPosition ? "absolute bottom-24 right-5 sm:bottom-28 sm:right-8 z-30" : ""
+            }`}
+            title="Зажмите левую кнопку мыши, чтобы переместить окно камеры"
+          >
+            {/* Содержимое окна PiP */}
+            {isSwapped ? (
+              /* В PiP находится собеседник */
+              partnerCamOn && remoteStream ? (
+                <video
+                  ref={remoteVideoMainRef}
+                  autoPlay
+                  playsInline
+                  className="w-full h-full object-cover pointer-events-none"
+                />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center bg-slate-800 text-white p-2 pointer-events-none">
+                  <img
+                    src={partnerAvatar}
+                    alt={partnerName}
+                    className="w-10 h-10 rounded-full object-cover border border-slate-600 mb-1"
+                  />
+                  <span className="text-[10px] font-bold text-slate-300 truncate max-w-full">
+                    {partnerName}
+                  </span>
+                </div>
+              )
+            ) : (
+              /* В PiP находится текущий пользователь */
+              camOn ? (
                 <video
                   ref={localVideoMainRef}
                   autoPlay
                   muted
                   playsInline
-                  className="w-full h-full object-cover transform -scale-x-100"
+                  className="w-full h-full object-cover transform -scale-x-100 pointer-events-none"
                 />
               ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 text-slate-600 p-2">
+                <div className="w-full h-full flex flex-col items-center justify-center bg-slate-800 text-slate-200 p-2 pointer-events-none">
                   <img
                     src={myAvatar}
                     alt={myName}
-                    className="w-8 h-8 rounded-full object-cover border border-slate-200 mb-1"
+                    className="w-10 h-10 rounded-full object-cover border border-slate-600 mb-1"
                   />
-                  <span className="text-[10px] font-bold text-slate-500 truncate max-w-full">Вы (камера выкл)</span>
+                  <span className="text-[10px] font-bold text-slate-300 truncate max-w-full">
+                    Вы (камера выкл)
+                  </span>
                 </div>
-              )}
-              <div className="absolute bottom-1.5 left-1.5 bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-full text-[9px] text-slate-800 font-bold border border-slate-200">
-                Вы
-              </div>
+              )
+            )}
+
+            {/* Метка и кнопка перемещения / переключения камер */}
+            <div className="absolute top-1.5 left-1.5 flex items-center gap-1">
+              <span className="bg-black/70 backdrop-blur-xs px-2 py-0.5 rounded-full text-[9px] text-white font-bold flex items-center gap-1 pointer-events-none">
+                <Move className="w-2.5 h-2.5 opacity-70" />
+                <span>{isSwapped ? partnerRole : "Вы"}</span>
+              </span>
             </div>
+
+            {/* Кнопка смены камер местами (Swap) */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsSwapped((prev) => !prev);
+              }}
+              className="absolute top-1.5 right-1.5 p-1.5 rounded-full bg-black/70 hover:bg-[#2481cc] text-white transition-all shadow-md cursor-pointer hover:scale-110 active:scale-95"
+              title="Поменять камеры местами"
+            >
+              <ArrowLeftRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
           </div>
         </div>
 
