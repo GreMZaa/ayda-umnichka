@@ -103,6 +103,13 @@ export default function TeacherCabinet() {
   const [creatingLesson, setCreatingLesson] = useState(false);
   const [createSuccess, setCreateSuccess] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [lessonCreatedModal, setLessonCreatedModal] = useState<{
+    title: string;
+    studentName: string;
+    subjectName: string;
+    timeFormatted: string;
+    roomName: string;
+  } | null>(null);
 
   // Поля формы создания урока (выбор или ручной ввод)
   const [newTitle, setNewTitle] = useState("");
@@ -133,7 +140,7 @@ export default function TeacherCabinet() {
 
   // Блокировка скролла страницы при открытых модалках
   useEffect(() => {
-    if (createModalOpen || !!selectedLessonForNote || addFriendModalOpen) {
+    if (createModalOpen || !!selectedLessonForNote || addFriendModalOpen || !!lessonCreatedModal) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "unset";
@@ -805,15 +812,26 @@ export default function TeacherCabinet() {
       window.dispatchEvent(new CustomEvent("ayda:lessons-updated"));
     }
 
-    setCreateSuccess(true);
     await fetchLessons();
 
-    setTimeout(() => {
-      setCreateModalOpen(false);
-      setCreateSuccess(false);
-    }, 1200);
-
+    // Сразу закрываем форму создания и показываем окно подтверждения
+    setCreateModalOpen(false);
     setCreatingLesson(false);
+
+    let formattedTime = "";
+    try {
+      formattedTime = formatTolyatti(startIso, "d MMMM (EEEE) в HH:mm");
+    } catch {
+      formattedTime = `${lessonDate} в ${lessonTime}`;
+    }
+
+    setLessonCreatedModal({
+      title: newTitle.trim(),
+      studentName: finalStudentName,
+      subjectName: finalSubjectName,
+      timeFormatted: formattedTime,
+      roomName: roomName,
+    });
   };
 
   // Обновление статуса урока (SCHEDULED -> LIVE -> COMPLETED)
@@ -1618,6 +1636,95 @@ export default function TeacherCabinet() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* МОДАЛЬНОЕ ОКНО ПОДТВЕРЖДЕНИЯ СОЗДАНИЯ УРОКА */}
+      {lessonCreatedModal && mounted && createPortal(
+        <div
+          onMouseDown={(e) => {
+            modalMouseDownRef.current = e.target;
+          }}
+          onMouseUp={(e) => {
+            if (modalMouseDownRef.current === e.currentTarget && e.target === e.currentTarget) {
+              setLessonCreatedModal(null);
+            }
+            modalMouseDownRef.current = null;
+          }}
+          className="fixed inset-0 z-[110] w-screen h-screen min-h-screen bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
+        >
+          <div
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 space-y-5 shadow-2xl border border-slate-100 relative animate-in fade-in zoom-in-95 duration-200"
+          >
+            <button
+              type="button"
+              onClick={() => setLessonCreatedModal(null)}
+              className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex flex-col items-center text-center pt-2">
+              <div className="w-16 h-16 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 mb-4 shadow-sm shadow-emerald-500/10">
+                <CheckCircle2 className="w-9 h-9" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900">Урок успешно создан!</h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Урок сохранён в расписании и сразу доступен ученику
+              </p>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 space-y-2.5 text-xs">
+              <div className="flex items-start justify-between gap-2">
+                <span className="text-slate-500 flex items-center gap-1.5 shrink-0">
+                  <BookOpen className="w-3.5 h-3.5 text-blue-500" /> Тема:
+                </span>
+                <span className="font-bold text-slate-800 text-right">{lessonCreatedModal.title}</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-slate-500 flex items-center gap-1.5 shrink-0">
+                  <User className="w-3.5 h-3.5 text-indigo-500" /> Ученик:
+                </span>
+                <span className="font-semibold text-slate-800 text-right">{lessonCreatedModal.studentName}</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-slate-500 flex items-center gap-1.5 shrink-0">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Предмет:
+                </span>
+                <span className="font-semibold text-slate-800 text-right">{lessonCreatedModal.subjectName}</span>
+              </div>
+              <div className="flex items-start justify-between gap-2 pt-1 border-t border-slate-200/60">
+                <span className="text-slate-500 flex items-center gap-1.5 shrink-0">
+                  <Clock className="w-3.5 h-3.5 text-emerald-500" /> Время:
+                </span>
+                <div className="text-right">
+                  <span className="font-bold text-slate-800 block">{lessonCreatedModal.timeFormatted}</span>
+                  <span className="text-[10px] text-slate-400 font-medium">время по Тольятти (UTC+4)</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center gap-2 pt-1">
+              <Link
+                href={`/room/${lessonCreatedModal.roomName}`}
+                target="_blank"
+                className="w-full sm:flex-1 py-3 px-4 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs text-center flex items-center justify-center gap-1.5 transition"
+              >
+                <Video className="w-4 h-4 text-blue-600" />
+                Войти в комнату
+              </Link>
+              <button
+                type="button"
+                onClick={() => setLessonCreatedModal(null)}
+                className="w-full sm:flex-1 py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs text-center shadow-md shadow-blue-500/20 transition cursor-pointer"
+              >
+                Отлично
+              </button>
+            </div>
           </div>
         </div>,
         document.body
