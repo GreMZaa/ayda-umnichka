@@ -57,10 +57,10 @@ const DEFAULT_HOMEWORK: HomeworkItem[] = [];
 
 export default function StudentCabinet() {
   const { loading: authLoading, isAuthorized, user: authUser } = useAuthGuard("student");
-  const [studentId, setStudentId] = useState("");
-  const [studentName, setStudentName] = useState("Ученик");
-  const [studentUsername, setStudentUsername] = useState("");
-  const [avatarUrl, setAvatarUrl] = useState("");
+  const [studentId, setStudentId] = useState("53df3c76-9d23-49aa-ba0c-6f40d7a56657");
+  const [studentName, setStudentName] = useState("Сергей Дмитриевич");
+  const [studentUsername, setStudentUsername] = useState("sharonov");
+  const [avatarUrl, setAvatarUrl] = useState("https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=240&h=240&fit=crop&crop=faces");
   const [grade, setGrade] = useState("3 класс");
   const [school, setSchool] = useState("Онлайн-школа «АйДаУмничка»");
   const [bio, setBio] = useState("");
