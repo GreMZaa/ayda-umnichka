@@ -200,44 +200,18 @@ export default function TelegramCabinet({
 
     // 1. Формируем диалоги на основе реальных назначенных уроков
     if (currentRole === "STUDENT") {
-      const activeLesson = (Array.isArray(lessons) ? lessons : []).find(
-        (l) => l.teacherId === "882042e2-d020-426c-9826-9fba5b23ad2e" || (l.teacherName && l.teacherName.includes("Василина"))
-      ) || (Array.isArray(lessons) && lessons.length > 0 ? lessons[0] : null);
+      const studentLessons = Array.isArray(lessons) ? lessons : [];
 
-      const tName = activeLesson?.teacherName || "Шаронова Василина Владимировна";
-      const tId = activeLesson?.teacherId || "882042e2-d020-426c-9826-9fba5b23ad2e";
-      const chatId = `teacher-${tId}`;
-
-      list.push({
-        id: chatId,
-        name: tName,
-        role: "teacher",
-        roleLabel: activeLesson?.subjectName ? `Преподаватель • ${activeLesson.subjectName}` : "Преподаватель • Английский язык",
-        avatar:
-          activeLesson?.teacherAvatar ||
-          TEACHER_VASILINA_AVATAR,
-        online: true,
-        statusText: "в сети",
-        lastMessage: activeLesson?.title ? `Запланирован урок: «${activeLesson.title}»` : "Здравствуйте, Сергей! Жду вас на занятии.",
-        lastMessageTime: activeLesson?.startTime ? formatTolyatti(activeLesson.startTime, "d MMM, HH:mm") : "Сегодня",
-        unreadCount: 1,
-        lessonId: activeLesson?.id || "c9a16950-2e61-4c9a-9dca-493c8b5ccb2f",
-        lessonTitle: activeLesson?.title || "ТЕСТ",
-        lessonTime: activeLesson?.startTime
-          ? formatTolyatti(activeLesson.startTime, "d MMMM (EE) в HH:mm")
-          : "21 октября (Ср) в 16:00",
-        lessonSubject: activeLesson?.subjectName || "Английский язык",
-      });
-
-      if (Array.isArray(lessons)) {
-        lessons.forEach((l) => {
-          const otherId = l.teacherId || l.teacher_id || l.teacher?.id;
-          const otherName = l.teacherName || l.teacher?.name || "Шаронова Василина Владимировна";
-          const otherChatId = `teacher-${otherId || "vasilina"}`;
-          if (!list.some((c) => c.id === otherChatId)) {
+      if (studentLessons.length > 0) {
+        studentLessons.forEach((l) => {
+          const tId = l.teacherId || l.teacher_id || l.teacher?.id || "vasilina";
+          const tName = l.teacherName || l.teacher?.name || "Шаронова Василина Владимировна";
+          const chatId = `teacher-${tId}`;
+          if (!list.some((c) => c.id === chatId)) {
+            const studentFirstName = currentUser?.name?.split(" ")[0] || "ученик";
             list.push({
-              id: otherChatId,
-              name: otherName,
+              id: chatId,
+              name: tName,
               role: "teacher",
               roleLabel: l.subjectName ? `Преподаватель • ${l.subjectName}` : "Преподаватель",
               avatar:
@@ -246,7 +220,7 @@ export default function TelegramCabinet({
                 TEACHER_VASILINA_AVATAR,
               online: true,
               statusText: "в сети",
-              lastMessage: l.title ? `Заказ на урок: «${l.title}»` : "Диалог открыт",
+              lastMessage: l.title ? `Запланирован урок: «${l.title}»` : `Здравствуйте, ${studentFirstName}! Жду вас на занятии.`,
               lastMessageTime: l.startTime ? formatTolyatti(l.startTime, "d MMM, HH:mm") : "Недавно",
               unreadCount: 1,
               lessonId: l.id,
@@ -254,10 +228,34 @@ export default function TelegramCabinet({
               lessonTime: l.startTime
                 ? formatTolyatti(l.startTime, "d MMMM (EE) в HH:mm")
                 : undefined,
-              lessonSubject: l.subjectName || "Английский язык",
+              lessonSubject: l.subjectName || "Занятие",
             });
           }
         });
+      } else {
+        // Если уроков нет: показываем диалог с учителем ТОЛЬКО если это демо-аккаунт Шаронова
+        const isSharonov = currentUser?.id === "53df3c76-9d23-49aa-ba0c-6f40d7a56657" ||
+          currentUser?.email?.includes("lev-drakon") ||
+          currentUser?.email?.includes("sharonov");
+        if (isSharonov) {
+          const chatId = "teacher-882042e2-d020-426c-9826-9fba5b23ad2e";
+          list.push({
+            id: chatId,
+            name: "Шаронова Василина Владимировна",
+            role: "teacher",
+            roleLabel: "Преподаватель • Английский язык",
+            avatar: TEACHER_VASILINA_AVATAR,
+            online: true,
+            statusText: "в сети",
+            lastMessage: "Запланирован урок: «ТЕСТ»",
+            lastMessageTime: "Сегодня",
+            unreadCount: 1,
+            lessonId: "c9a16950-2e61-4c9a-9dca-493c8b5ccb2f",
+            lessonTitle: "ТЕСТ",
+            lessonTime: "21 октября (Ср) в 16:00",
+            lessonSubject: "Английский язык",
+          });
+        }
       }
     } else if (Array.isArray(lessons) && lessons.length > 0) {
       if (currentRole === "TEACHER") {

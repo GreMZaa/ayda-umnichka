@@ -59,9 +59,9 @@ export async function GET(request: Request) {
         query = query.eq("status", statusFilter);
       }
       if (studentIdParam && isUuid(studentIdParam)) {
-        query = query.in("student_id", [studentIdParam, "53df3c76-9d23-49aa-ba0c-6f40d7a56657"]);
+        query = query.eq("student_id", studentIdParam);
       } else if (auth.user && auth.user.role === "student" && isUuid(auth.user.id)) {
-        query = query.in("student_id", [auth.user.id, "53df3c76-9d23-49aa-ba0c-6f40d7a56657"]);
+        query = query.eq("student_id", auth.user.id);
       }
 
       if (teacherIdParam && isUuid(teacherIdParam)) {
@@ -84,9 +84,16 @@ export async function GET(request: Request) {
           ? studentIdParam
           : (auth.user && auth.user.role === "student" && isUuid(auth.user.id))
           ? auth.user.id
-          : "53df3c76-9d23-49aa-ba0c-6f40d7a56657";
+          : null;
 
-        fallbackQuery = fallbackQuery.in("student_id", [targetStudentId, "53df3c76-9d23-49aa-ba0c-6f40d7a56657"]);
+        if (targetStudentId) {
+          fallbackQuery = fallbackQuery.eq("student_id", targetStudentId);
+        }
+        if (teacherIdParam && isUuid(teacherIdParam)) {
+          fallbackQuery = fallbackQuery.eq("teacher_id", teacherIdParam);
+        } else if (auth.user && auth.user.role === "teacher" && isUuid(auth.user.id)) {
+          fallbackQuery = fallbackQuery.eq("teacher_id", auth.user.id);
+        }
 
         const { data: rawLessons, error: rawError } = await fallbackQuery;
         if (!rawError && rawLessons && rawLessons.length > 0) {

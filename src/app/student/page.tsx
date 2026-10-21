@@ -57,19 +57,32 @@ interface HomeworkItem {
 
 const DEFAULT_HOMEWORK: HomeworkItem[] = [];
 
+const isSharonovUser = (id?: string | null, email?: string | null) => {
+  if (id === "53df3c76-9d23-49aa-ba0c-6f40d7a56657") return true;
+  if (email) {
+    const em = email.toLowerCase();
+    if (em.includes("lev-drakon") || em.includes("sharonov")) return true;
+  }
+  return false;
+};
+
 export default function StudentCabinet() {
   const { loading: authLoading, isAuthorized, user: authUser } = useAuthGuard("student");
-  const [studentId, setStudentId] = useState("53df3c76-9d23-49aa-ba0c-6f40d7a56657");
-  const [studentName, setStudentName] = useState("Сергей Дмитриевич");
-  const [studentUsername, setStudentUsername] = useState("sharonov");
-  const [avatarUrl, setAvatarUrl] = useState(SHARONOV_AVATAR);
-  const [grade, setGrade] = useState("Дошкольник");
+  const isSharonov = isSharonovUser(authUser?.id, authUser?.email);
+
+  const [studentId, setStudentId] = useState(authUser?.id || (isSharonov ? "53df3c76-9d23-49aa-ba0c-6f40d7a56657" : ""));
+  const [studentName, setStudentName] = useState(
+    authUser?.user_metadata?.full_name || (isSharonov ? "Сергей Дмитриевич" : "")
+  );
+  const [studentUsername, setStudentUsername] = useState(isSharonov ? "sharonov" : "");
+  const [avatarUrl, setAvatarUrl] = useState(isSharonov ? SHARONOV_AVATAR : (authUser?.user_metadata?.avatar_url || ""));
+  const [grade, setGrade] = useState(authUser?.user_metadata?.grade || (isSharonov ? "Дошкольник" : ""));
   const [school, setSchool] = useState("Онлайн-школа «АйДаУмничка»");
   const [bio, setBio] = useState("");
   const [balance, setBalance] = useState(8);
-  const [stars, setStars] = useState(28);
+  const [stars, setStars] = useState(isSharonov ? 28 : 0);
   const [editProfileModalOpen, setEditProfileModalOpen] = useState(false);
-  const [lessons, setLessons] = useState<any[]>(DEFAULT_STUDENT_LESSONS);
+  const [lessons, setLessons] = useState<any[]>(isSharonov ? DEFAULT_STUDENT_LESSONS : []);
   const [schoolSubjects, setSchoolSubjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"schedule" | "homework" | "awards">("schedule");
@@ -121,10 +134,12 @@ export default function StudentCabinet() {
     const isUuid = (str: string) =>
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 
+    const isSharonov = isSharonovUser(authUser?.id, authUser?.email);
+
     let currentUserId = authUser?.id;
     if (!currentUserId && typeof document !== "undefined") {
       const match = document.cookie.match(/ayda_user_id=([^;]+)/);
-      if (match) currentUserId = match[1].trim();
+      if (match && isUuid(match[1].trim())) currentUserId = match[1].trim();
     }
     if (!currentUserId || !isUuid(currentUserId)) {
       try {
@@ -133,15 +148,19 @@ export default function StudentCabinet() {
           localStorage.getItem("ayda_current_user_profile");
         if (saved) {
           const p = JSON.parse(saved);
-          if (p.id && isUuid(p.id)) currentUserId = p.id;
+          if (p.id && isUuid(p.id) && (!authUser?.id || p.id === authUser.id)) {
+            currentUserId = p.id;
+          }
         }
       } catch (e) {}
     }
-    // Гарантированный ID ученика школы в Supabase
-    if (!currentUserId || !isUuid(currentUserId)) {
+    // Если пользователь Шаронов или demo без сессии
+    if ((!currentUserId || !isUuid(currentUserId)) && isSharonov) {
       currentUserId = "53df3c76-9d23-49aa-ba0c-6f40d7a56657";
     }
-    setStudentId(currentUserId);
+    if (currentUserId) {
+      setStudentId(currentUserId);
+    }
 
     const client = getSupabase();
     if (client) {
@@ -169,8 +188,8 @@ export default function StudentCabinet() {
           if (data) profile = data;
         }
 
-        // Если все еще не найден и e-mail lev-drakon2011@mail.ru — берем аккаунт Шаронова
-        if (!profile && (!authUser?.email || authUser.email.includes("lev-drakon") || authUser.email.includes("sharonov"))) {
+        // Если все еще не найден и это Шаронов
+        if (!profile && isSharonov) {
           const { data } = await client
             .from("profiles")
             .select("*")
@@ -181,9 +200,16 @@ export default function StudentCabinet() {
 
         if (profile) {
           const effectiveId = profile.id;
+          const userIsSharonov = isSharonovUser(effectiveId, profile.email || authUser?.email);
           setStudentId(effectiveId);
-          setStudentName(profile.name || "Сергей Дмитриевич");
-          if (profile.avatar_url) setAvatarUrl(profile.avatar_url);
+          setStudentName(profile.name || authUser?.user_metadata?.full_name || (userIsSharonov ? "Сергей Дмитриевич" : "Ученик"));
+          if (profile.avatar_url) {
+            setAvatarUrl(profile.avatar_url);
+          } else if (userIsSharonov) {
+            setAvatarUrl(SHARONOV_AVATAR);
+          } else {
+            setAvatarUrl(authUser?.user_metadata?.avatar_url || "");
+          }
 
           let parsedBio: any = {};
           try {
@@ -200,24 +226,24 @@ export default function StudentCabinet() {
             name: profile.name,
             bio: profile.bio,
           });
-          setStudentUsername(uname || "sharonov");
+          setStudentUsername(uname || (userIsSharonov ? "sharonov" : ""));
 
-          setGrade(parsedBio.grade || "Дошкольник");
+          setGrade(parsedBio.grade || authUser?.user_metadata?.grade || (userIsSharonov ? "Дошкольник" : "1 класс"));
           if (parsedBio.school) setSchool(parsedBio.school);
           if (parsedBio.bio) setBio(parsedBio.bio);
           if (typeof parsedBio.balance === "number") setBalance(parsedBio.balance);
           else setBalance(8);
           if (typeof parsedBio.stars === "number") setStars(parsedBio.stars);
-          else setStars(28);
+          else setStars(userIsSharonov ? 28 : 0);
 
           // Обновляем локальный кэш свежими данными из БД
           try {
             localStorage.setItem("ayda_profile_student", JSON.stringify({
               id: effectiveId,
-              name: profile.name,
-              username: uname || "sharonov",
-              avatarUrl: profile.avatar_url || "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=240&h=240&fit=crop&crop=faces",
-              grade: parsedBio.grade || "Дошкольник",
+              name: profile.name || authUser?.user_metadata?.full_name || (userIsSharonov ? "Сергей Дмитриевич" : "Ученик"),
+              username: uname || (userIsSharonov ? "sharonov" : ""),
+              avatarUrl: profile.avatar_url || (userIsSharonov ? SHARONOV_AVATAR : ""),
+              grade: parsedBio.grade || authUser?.user_metadata?.grade || (userIsSharonov ? "Дошкольник" : "1 класс"),
               school: parsedBio.school || "Онлайн-школа «АйДаУмничка»",
               bio: parsedBio.bio || "",
               role: "STUDENT",
@@ -225,8 +251,9 @@ export default function StudentCabinet() {
           } catch {}
         } else {
           // Если нового пользователя действительно нет в базе
-          const defName = authUser?.user_metadata?.full_name || authUser?.email?.split("@")[0] || "Сергей Дмитриевич";
-          const defGrade = authUser?.user_metadata?.grade || "Дошкольник";
+          const userIsSharonov = isSharonov;
+          const defName = authUser?.user_metadata?.full_name || authUser?.email?.split("@")[0] || (userIsSharonov ? "Сергей Дмитриевич" : "Ученик");
+          const defGrade = authUser?.user_metadata?.grade || (userIsSharonov ? "Дошкольник" : "1 класс");
           const defUname = resolveProfileUsername({
             id: currentUserId,
             email: authUser?.email,
@@ -235,20 +262,28 @@ export default function StudentCabinet() {
           setStudentName(defName);
           setGrade(defGrade);
           setStudentUsername(defUname);
-          client.from("profiles").upsert({
-            id: currentUserId,
-            email: authUser?.email,
-            name: defName,
-            role: "STUDENT",
-            avatar_url: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=240&h=240&fit=crop&crop=faces",
-            bio: JSON.stringify({
-              username: defUname,
-              grade: defGrade,
-              school: "Онлайн-школа «АйДаУмничка»",
-              balance: 8,
-              stars: 28,
-            }),
-          }).then(() => {});
+          if (userIsSharonov) {
+            setAvatarUrl(SHARONOV_AVATAR);
+            setStars(28);
+          } else {
+            setStars(0);
+          }
+          if (currentUserId && isUuid(currentUserId)) {
+            client.from("profiles").upsert({
+              id: currentUserId,
+              email: authUser?.email,
+              name: defName,
+              role: "STUDENT",
+              avatar_url: userIsSharonov ? SHARONOV_AVATAR : (authUser?.user_metadata?.avatar_url || null),
+              bio: JSON.stringify({
+                username: defUname,
+                grade: defGrade,
+                school: "Онлайн-школа «АйДаУмничка»",
+                balance: 8,
+                stars: userIsSharonov ? 28 : 0,
+              }),
+            }).then(() => {});
+          }
         }
       })();
 
@@ -291,19 +326,28 @@ export default function StudentCabinet() {
         }
       }
       if (!uid || !isUuid(uid)) {
-        uid = "53df3c76-9d23-49aa-ba0c-6f40d7a56657";
+        if (authUser?.id && isUuid(authUser.id)) uid = authUser.id;
       }
 
+      const userIsSharonov = isSharonovUser(uid, authUser?.email);
+
+      // Запрашиваем уроки ТОЛЬКО текущего ученика! (Для Шаронова добавляем его демонстрационный ID)
       const studentIdsToQuery = Array.from(
         new Set(
           [
             uid,
             studentId,
             authUser?.id,
-            "53df3c76-9d23-49aa-ba0c-6f40d7a56657",
+            ...(userIsSharonov ? ["53df3c76-9d23-49aa-ba0c-6f40d7a56657"] : []),
           ].filter((x): x is string => Boolean(x && isUuid(x)))
         )
       );
+
+      if (studentIdsToQuery.length === 0) {
+        setLessons(userIsSharonov ? DEFAULT_STUDENT_LESSONS : []);
+        setLoading(false);
+        return;
+      }
 
       const client = getSupabase();
       if (client) {
@@ -336,11 +380,11 @@ export default function StudentCabinet() {
               subjectName: l.subjects?.name || "Предмет",
               subjectColor: l.subjects?.color || "#2563eb",
               teacherId: l.teacher_id,
-              teacherName: l.teacher?.name || "Шаронова Василина Владимировна",
+              teacherName: l.teacher?.name || "Преподаватель",
               teacherAvatar: l.teacher?.avatar_url || TEACHER_VASILINA_AVATAR,
               studentId: l.student_id,
-              studentName: l.student?.name || studentName || "Сергей Дмитриевич",
-              studentAvatar: l.student?.avatar_url || avatarUrl || SHARONOV_AVATAR,
+              studentName: l.student?.name || studentName || "Ученик",
+              studentAvatar: l.student?.avatar_url || avatarUrl || (userIsSharonov ? SHARONOV_AVATAR : ""),
               startTime: l.start_time,
               endTime: l.end_time,
               status: l.status,
@@ -364,14 +408,14 @@ export default function StudentCabinet() {
                 id: l.id,
                 title: l.title,
                 subjectId: l.subject_id,
-                subjectName: "Математика и логика",
+                subjectName: "Предмет",
                 subjectColor: "#2563eb",
                 teacherId: l.teacher_id,
-                teacherName: "Шаронова Василина Владимировна",
+                teacherName: "Преподаватель",
                 teacherAvatar: TEACHER_VASILINA_AVATAR,
                 studentId: l.student_id,
-                studentName: studentName || "Сергей Дмитриевич",
-                studentAvatar: avatarUrl || SHARONOV_AVATAR,
+                studentName: studentName || "Ученик",
+                studentAvatar: avatarUrl || (userIsSharonov ? SHARONOV_AVATAR : ""),
                 startTime: l.start_time,
                 endTime: l.end_time,
                 status: l.status,
@@ -381,7 +425,7 @@ export default function StudentCabinet() {
               setLoading(false);
               return;
             } else {
-              setLessons((prev) => (prev && prev.length > 0 ? prev : DEFAULT_STUDENT_LESSONS));
+              setLessons(userIsSharonov ? DEFAULT_STUDENT_LESSONS : []);
               setLoading(false);
               return;
             }
@@ -393,7 +437,8 @@ export default function StudentCabinet() {
 
       // 3. API fallback
       try {
-        const res = await fetchWithAuth(`/api/lessons?studentId=${uid}`);
+        const queryId = studentIdsToQuery[0];
+        const res = await fetchWithAuth(`/api/lessons?studentId=${queryId}`);
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
           setLessons(data);
@@ -404,20 +449,23 @@ export default function StudentCabinet() {
         console.error(err);
       }
 
-      // 4. Локальное хранилище недавно созданных уроков
+      // 4. Локальное хранилище недавно созданных уроков (только если принадлежат текущему ученику)
       try {
         const local = localStorage.getItem("ayda_latest_lessons");
         if (local) {
           const parsed = JSON.parse(local);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            setLessons(parsed);
-            setLoading(false);
-            return;
+            const filtered = parsed.filter((l: any) => studentIdsToQuery.includes(l.studentId || l.student_id));
+            if (filtered.length > 0) {
+              setLessons(filtered);
+              setLoading(false);
+              return;
+            }
           }
         }
       } catch (e) {}
 
-      setLessons((prev) => (prev && prev.length > 0 ? prev : DEFAULT_STUDENT_LESSONS));
+      setLessons(userIsSharonov ? DEFAULT_STUDENT_LESSONS : []);
       setLoading(false);
     };
 
@@ -603,12 +651,12 @@ export default function StudentCabinet() {
         currentRole="STUDENT"
         currentUser={{
           id: studentId,
-          name: studentName,
-          username: studentUsername || "sharonov",
+          name: studentName || (isSharonov ? "Сергей Дмитриевич" : "Ученик"),
+          username: studentUsername || (authUser?.email ? authUser.email.split("@")[0] : (isSharonov ? "sharonov" : "student")),
           email: authUser?.email || undefined,
           phone: "+7 (900) 123-45-67",
-          avatar: avatarUrl || "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=240&h=240&fit=crop&crop=faces",
-          grade: grade || "Дошкольник",
+          avatar: avatarUrl || (isSharonov ? SHARONOV_AVATAR : ""),
+          grade: grade || (isSharonov ? "Дошкольник" : "1 класс"),
           bio: bio || "Онлайн-школа «АйДаУмничка»",
           balance: balance,
           stars: stars,
@@ -1053,8 +1101,8 @@ export default function StudentCabinet() {
         initialProfile={{
           id: studentId,
           name: studentName,
-          username: studentUsername || "sharonov",
-          email: authUser?.email || "lev-drakon2011@mail.ru",
+          username: studentUsername || (authUser?.email ? authUser.email.split("@")[0] : (isSharonov ? "sharonov" : "student")),
+          email: authUser?.email || (isSharonov ? "lev-drakon2011@mail.ru" : ""),
           avatarUrl,
           grade,
           school,
