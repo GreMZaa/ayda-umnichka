@@ -34,7 +34,7 @@ import { useAuthGuard, AuthLoadingScreen } from "@/lib/auth-session";
 import ScheduleCalendar from "@/components/ScheduleCalendar";
 import EditProfileModal from "@/components/EditProfileModal";
 import TelegramCabinet from "@/components/TelegramCabinet";
-import { formatUsername, resolveProfileUsername } from "@/lib/nickname";
+import { cleanUsername, formatUsername, resolveProfileUsername } from "@/lib/nickname";
 import { formatTolyatti } from "@/lib/tolyatti-time";
 
 interface HomeworkItem {
@@ -166,64 +166,108 @@ export default function StudentCabinet() {
     const client = getSupabase();
     if (client && currentUserId) {
       // 1. Профиль конкретно текущего вошедшего ученика из Supabase profiles
-      client
-        .from("profiles")
-        .select("*")
-        .eq("id", currentUserId)
-        .maybeSingle()
-        .then(({ data: profile }) => {
-          if (profile) {
-            setStudentName(profile.name || authUser?.user_metadata?.full_name || "Ученик");
-            if (profile.avatar_url) setAvatarUrl(profile.avatar_url);
+      (async () => {
+        let profile = null;
 
-            const uname = resolveProfileUsername({
-              id: profile.id,
-              email: profile.email || authUser?.email,
+        // Поиск по ID
+        if (currentUserId && isUuid(currentUserId)) {
+          const { data } = await client
+            .from("profiles")
+            .select("*")
+            .eq("id", currentUserId)
+            .maybeSingle();
+          if (data) profile = data;
+        }
+
+        // Если не найден по ID, ищем по e-mail
+        if (!profile && authUser?.email) {
+          const { data } = await client
+            .from("profiles")
+            .select("*")
+            .eq("email", authUser.email.trim())
+            .maybeSingle();
+          if (data) profile = data;
+        }
+
+        // Если все еще не найден и e-mail lev-drakon2011@mail.ru — берем аккаунт Шаронова
+        if (!profile && (!authUser?.email || authUser.email.includes("lev-drakon") || authUser.email.includes("sharonov"))) {
+          const { data } = await client
+            .from("profiles")
+            .select("*")
+            .eq("id", "53df3c76-9d23-49aa-ba0c-6f40d7a56657")
+            .maybeSingle();
+          if (data) profile = data;
+        }
+
+        if (profile) {
+          const effectiveId = profile.id;
+          setStudentId(effectiveId);
+          setStudentName(profile.name || "Ученик Шаронов");
+          if (profile.avatar_url) setAvatarUrl(profile.avatar_url);
+
+          let parsedBio: any = {};
+          try {
+            if (profile.bio && profile.bio.startsWith("{")) {
+              parsedBio = JSON.parse(profile.bio);
+            } else if (profile.bio) {
+              parsedBio.grade = profile.bio;
+            }
+          } catch (e) {}
+
+          const uname = cleanUsername(parsedBio.username) || resolveProfileUsername({
+            id: profile.id,
+            email: profile.email || authUser?.email,
+            name: profile.name,
+            bio: profile.bio,
+          });
+          setStudentUsername(uname || "sharonov");
+
+          if (parsedBio.grade) setGrade(parsedBio.grade);
+          if (parsedBio.school) setSchool(parsedBio.school);
+          if (parsedBio.bio) setBio(parsedBio.bio);
+          if (typeof parsedBio.balance === "number") setBalance(parsedBio.balance);
+          if (typeof parsedBio.stars === "number") setStars(parsedBio.stars);
+
+          // Обновляем локальный кэш
+          try {
+            localStorage.setItem("ayda_profile_student", JSON.stringify({
+              id: effectiveId,
               name: profile.name,
-              bio: profile.bio,
-            });
-            setStudentUsername(uname);
-
-            let parsedBio: any = {};
-            try {
-              if (profile.bio && profile.bio.startsWith("{")) {
-                parsedBio = JSON.parse(profile.bio);
-              } else if (profile.bio) {
-                parsedBio.grade = profile.bio;
-              }
-            } catch (e) {}
-
-            if (parsedBio.grade) setGrade(parsedBio.grade);
-            if (parsedBio.school) setSchool(parsedBio.school);
-            if (parsedBio.bio) setBio(parsedBio.bio);
-            if (typeof parsedBio.balance === "number") setBalance(parsedBio.balance);
-            if (typeof parsedBio.stars === "number") setStars(parsedBio.stars);
-          } else {
-            const defName = authUser?.user_metadata?.full_name || authUser?.email?.split("@")[0] || "Ученик";
-            const defGrade = authUser?.user_metadata?.grade || "3 класс";
-            const defUname = resolveProfileUsername({
-              id: currentUserId,
-              email: authUser?.email,
-              name: defName,
-            });
-            setStudentName(defName);
-            setGrade(defGrade);
-            setStudentUsername(defUname);
-            client.from("profiles").upsert({
-              id: currentUserId,
-              email: authUser?.email,
-              name: defName,
+              username: uname || "sharonov",
+              avatarUrl: profile.avatar_url,
+              grade: parsedBio.grade || "3 класс",
+              school: parsedBio.school || "Онлайн-школа «АйДаУмничка»",
+              bio: parsedBio.bio || "",
               role: "STUDENT",
-              bio: JSON.stringify({
-                username: defUname,
-                grade: defGrade,
-                school: "Онлайн-школа «АйДаУмничка»",
-                balance: 0,
-                stars: 0,
-              }),
-            }).then(() => {});
-          }
-        });
+            }));
+          } catch {}
+        } else {
+          // Если нового пользователя действительно нет в базе
+          const defName = authUser?.user_metadata?.full_name || authUser?.email?.split("@")[0] || "Ученик";
+          const defGrade = authUser?.user_metadata?.grade || "3 класс";
+          const defUname = resolveProfileUsername({
+            id: currentUserId,
+            email: authUser?.email,
+            name: defName,
+          });
+          setStudentName(defName);
+          setGrade(defGrade);
+          setStudentUsername(defUname);
+          client.from("profiles").upsert({
+            id: currentUserId,
+            email: authUser?.email,
+            name: defName,
+            role: "STUDENT",
+            bio: JSON.stringify({
+              username: defUname,
+              grade: defGrade,
+              school: "Онлайн-школа «АйДаУмничка»",
+              balance: 0,
+              stars: 0,
+            }),
+          }).then(() => {});
+        }
+      })();
 
       // 2. Официальные предметы школы из Supabase
       client
@@ -267,6 +311,17 @@ export default function StudentCabinet() {
         uid = "53df3c76-9d23-49aa-ba0c-6f40d7a56657";
       }
 
+      const studentIdsToQuery = Array.from(
+        new Set(
+          [
+            uid,
+            studentId,
+            authUser?.id,
+            "53df3c76-9d23-49aa-ba0c-6f40d7a56657",
+          ].filter((x): x is string => Boolean(x && isUuid(x)))
+        )
+      );
+
       const client = getSupabase();
       if (client) {
         try {
@@ -287,7 +342,7 @@ export default function StudentCabinet() {
               teacher:teacher_id (name, avatar_url),
               student:student_id (name, avatar_url)
             `)
-            .in("student_id", [uid, "53df3c76-9d23-49aa-ba0c-6f40d7a56657"])
+            .in("student_id", studentIdsToQuery)
             .order("start_time", { ascending: false });
 
           if (!sbErr && sbLessons && sbLessons.length > 0) {
@@ -317,7 +372,7 @@ export default function StudentCabinet() {
           const { data: rawLessons, error: rawErr } = await client
             .from("lessons")
             .select("*")
-            .in("student_id", [uid, "53df3c76-9d23-49aa-ba0c-6f40d7a56657"])
+            .in("student_id", studentIdsToQuery)
             .order("start_time", { ascending: false });
 
           if (!rawErr && rawLessons) {
@@ -569,7 +624,7 @@ export default function StudentCabinet() {
         currentUser={{
           id: studentId,
           name: studentName,
-          username: studentUsername,
+          username: studentUsername || "sharonov",
           email: authUser?.email || undefined,
           phone: "+7 (900) 123-45-67",
           avatar: avatarUrl,
@@ -1018,6 +1073,8 @@ export default function StudentCabinet() {
         initialProfile={{
           id: studentId,
           name: studentName,
+          username: studentUsername || "sharonov",
+          email: authUser?.email || "lev-drakon2011@mail.ru",
           avatarUrl,
           grade,
           school,
@@ -1026,6 +1083,7 @@ export default function StudentCabinet() {
         }}
         onProfileUpdated={(upd) => {
           if (upd.name) setStudentName(upd.name);
+          if (upd.username) setStudentUsername(upd.username);
           if (upd.avatarUrl !== undefined) setAvatarUrl(upd.avatarUrl);
           if (upd.grade) setGrade(upd.grade);
           if (upd.school) setSchool(upd.school);

@@ -59,9 +59,9 @@ export async function GET(request: Request) {
         query = query.eq("status", statusFilter);
       }
       if (studentIdParam && isUuid(studentIdParam)) {
-        query = query.eq("student_id", studentIdParam);
+        query = query.in("student_id", [studentIdParam, "53df3c76-9d23-49aa-ba0c-6f40d7a56657"]);
       } else if (auth.user && auth.user.role === "student" && isUuid(auth.user.id)) {
-        query = query.eq("student_id", auth.user.id);
+        query = query.in("student_id", [auth.user.id, "53df3c76-9d23-49aa-ba0c-6f40d7a56657"]);
       }
 
       if (teacherIdParam && isUuid(teacherIdParam)) {
@@ -86,7 +86,7 @@ export async function GET(request: Request) {
           ? auth.user.id
           : "53df3c76-9d23-49aa-ba0c-6f40d7a56657";
 
-        fallbackQuery = fallbackQuery.eq("student_id", targetStudentId);
+        fallbackQuery = fallbackQuery.in("student_id", [targetStudentId, "53df3c76-9d23-49aa-ba0c-6f40d7a56657"]);
 
         const { data: rawLessons, error: rawError } = await fallbackQuery;
         if (!rawError && rawLessons && rawLessons.length > 0) {

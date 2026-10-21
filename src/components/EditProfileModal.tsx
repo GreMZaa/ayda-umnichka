@@ -386,14 +386,17 @@ export default function EditProfileModal({
                 if (aData?.user?.id) targetId = aData.user.id;
               } catch (e) {}
             }
-            if (!targetId && email.trim()) {
+            // 1.1 Если передан e-mail, всегда проверяем существование профиля в базе по e-mail
+            if (email.trim()) {
               try {
                 const { data: pByEmail } = await client
                   .from("profiles")
                   .select("id")
                   .eq("email", email.trim())
                   .maybeSingle();
-                if (pByEmail?.id) targetId = pByEmail.id;
+                if (pByEmail?.id) {
+                  targetId = pByEmail.id;
+                }
               } catch (e) {}
             }
 
@@ -411,16 +414,28 @@ export default function EditProfileModal({
                 updated_at: new Date().toISOString(),
               };
 
-              // 1. Пробуем update
+              // 1. Пробуем update по ID
               const { error: updErr, data: updData } = await client
                 .from("profiles")
                 .update(payload)
                 .eq("id", targetId)
                 .select();
 
-              // 2. Если запись еще не существовала, делаем upsert
+              // 2. Если по ID не обновилось, пробуем update по e-mail
               if (updErr || !updData || updData.length === 0) {
-                await client.from("profiles").upsert(payload);
+                if (email.trim()) {
+                  const { error: updEmailErr, data: updEmailData } = await client
+                    .from("profiles")
+                    .update(payload)
+                    .eq("email", email.trim())
+                    .select();
+
+                  if (updEmailErr || !updEmailData || updEmailData.length === 0) {
+                    await client.from("profiles").upsert(payload);
+                  }
+                } else {
+                  await client.from("profiles").upsert(payload);
+                }
               }
             }
 
