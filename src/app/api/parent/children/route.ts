@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { authenticateRequest } from "@/lib/server-auth";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limiter";
+import { db } from "@/lib/db";
+import { parseProfileBio } from "@/lib/profile";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://vvxtprfawnpmmtnpsavq.supabase.co";
 const SUPABASE_ANON_KEY =
@@ -15,6 +17,77 @@ function createServerSupabase() {
       autoRefreshToken: false,
     },
   });
+}
+
+export async function GET(request: Request) {
+  try {
+    const auth = await authenticateRequest(request);
+    const { searchParams } = new URL(request.url);
+    const parentId = searchParams.get("parentId") || auth.user?.id;
+
+    if (!parentId) {
+      return NextResponse.json({ children: [] });
+    }
+
+    const sb = createServerSupabase();
+
+    // 1. Ищем связку родитель-ребёнок в parent_students
+    const { data: relations, error: relErr } = await sb
+      .from("parent_students")
+      .select("student_id")
+      .eq("parent_id", parentId);
+
+    const studentIds = relations?.map((r) => r.student_id).filter(Boolean) || [];
+
+    if (studentIds.length > 0) {
+      const { data: profiles, error: pErr } = await sb
+        .from("profiles")
+        .select("*")
+        .in("id", studentIds);
+
+      if (profiles && profiles.length > 0) {
+        const mapped = profiles.map((p) => {
+          const bioObj = parseProfileBio(p.bio);
+          return {
+            id: p.id,
+            name: p.name,
+            email: p.email,
+            grade: bioObj.grade || "3 класс",
+            avatar: p.avatar_url || "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&h=200&fit=crop&crop=faces",
+            balance: typeof bioObj.balance === "number" ? bioObj.balance : 8,
+            stars: typeof bioObj.stars === "number" ? bioObj.stars : 10,
+            nextLesson: "Расписание формируется",
+            teacher: "Анна Сергеевна Иванова",
+            subject: "Математика и логика",
+          };
+        });
+        return NextResponse.json({ children: mapped });
+      }
+    }
+
+    // 2. Fallback: проверка в локальной db
+    const localChildren = db.getParentChildren(parentId);
+    if (localChildren && localChildren.length > 0) {
+      const mapped = localChildren.map((c) => ({
+        id: c.id,
+        name: c.name,
+        email: c.email,
+        grade: "3 класс",
+        avatar: c.avatar || "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&h=200&fit=crop&crop=faces",
+        balance: 8,
+        stars: 10,
+        nextLesson: "Расписание формируется",
+        teacher: "Анна Сергеевна Иванова",
+        subject: "Математика и логика",
+      }));
+      return NextResponse.json({ children: mapped });
+    }
+
+    return NextResponse.json({ children: [] });
+  } catch (err: any) {
+    console.error("GET parent/children error:", err);
+    return NextResponse.json({ children: [] });
+  }
 }
 
 export async function POST(request: Request) {

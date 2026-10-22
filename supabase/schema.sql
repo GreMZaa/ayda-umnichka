@@ -58,21 +58,66 @@ create table if not exists public.lesson_notes (
   created_at timestamptz default now() not null
 );
 
+-- 6. Межустройственные сообщения чата
+create table if not exists public.chat_messages (
+  id uuid default gen_random_uuid() primary key,
+  chat_id text not null,
+  sender_id uuid references public.profiles(id) on delete cascade not null,
+  sender_name text not null,
+  sender_avatar text,
+  text text not null,
+  type text default 'text' check (type in ('text', 'voice', 'file', 'lesson_invite')),
+  file_url text,
+  file_name text,
+  file_size text,
+  created_at timestamptz default now() not null
+);
+
+-- 7. Сдача и проверка домашних заданий
+create table if not exists public.homework_submissions (
+  id uuid default gen_random_uuid() primary key,
+  lesson_id uuid references public.lessons(id) on delete cascade,
+  student_id uuid references public.profiles(id) on delete cascade not null,
+  student_name text not null,
+  teacher_id uuid references public.profiles(id) on delete cascade,
+  title text not null,
+  subject text not null,
+  student_answer text,
+  file_url text,
+  file_name text,
+  file_size text,
+  status text default 'SUBMITTED' check (status in ('NEW', 'SUBMITTED', 'CHECKED')),
+  grade int check (grade >= 1 and grade <= 5),
+  teacher_feedback text,
+  submitted_at timestamptz default now() not null,
+  reviewed_at timestamptz
+);
+
 -- Индексы для ускорения запросов
 create index if not exists idx_lessons_teacher on public.lessons(teacher_id);
 create index if not exists idx_lessons_student on public.lessons(student_id);
 create index if not exists idx_lessons_start_time on public.lessons(start_time);
 create index if not exists idx_lesson_notes_lesson on public.lesson_notes(lesson_id);
+create index if not exists idx_chat_messages_chat on public.chat_messages(chat_id);
+create index if not exists idx_chat_messages_created on public.chat_messages(created_at);
+create index if not exists idx_hw_student on public.homework_submissions(student_id);
+create index if not exists idx_hw_teacher on public.homework_submissions(teacher_id);
 
 -- Включение Row Level Security (RLS)
 alter table public.profiles enable row level security;
 alter table public.lessons enable row level security;
 alter table public.lesson_notes enable row level security;
+alter table public.chat_messages enable row level security;
+alter table public.homework_submissions enable row level security;
 
--- Базовые политики безопасности (чтение разрешено авторизованным пользователям)
+-- Базовые политики безопасности (чтение и запись)
 create policy "Allow read access to profiles" on public.profiles for select using (true);
 create policy "Allow read access to lessons" on public.lessons for select using (true);
 create policy "Allow read access to lesson notes" on public.lesson_notes for select using (true);
+create policy "Allow read access to chat messages" on public.chat_messages for select using (true);
+create policy "Allow insert chat messages" on public.chat_messages for insert with check (true);
+create policy "Allow read access to homework" on public.homework_submissions for select using (true);
+create policy "Allow write access to homework" on public.homework_submissions for all using (true);
 
 -- Начальные предметы
 insert into public.subjects (name, color) values

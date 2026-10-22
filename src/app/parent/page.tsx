@@ -170,45 +170,34 @@ export default function ParentCabinet() {
 
   const [children, setChildren] = useState<Child[]>(() => {
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("ayda_parent_children");
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            const clean = parsed.filter(
-              (c: any) =>
-                c.id !== "2a62e436-f539-4ec5-b3af-a1afabfa0eec" &&
-                !c.id?.startsWith("00000000-")
-            );
-            if (clean.length > 0) return clean;
+      try {
+        localStorage.removeItem("ayda_parent_children");
+      } catch (e) {}
+
+      const key = authUser?.id ? `ayda_parent_children_${authUser.id}` : null;
+      if (key) {
+        const saved = localStorage.getItem(key);
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              const clean = parsed.filter(
+                (c: any) =>
+                  c.id !== "2a62e436-f539-4ec5-b3af-a1afabfa0eec" &&
+                  !c.id?.startsWith("00000000-")
+              );
+              if (clean.length > 0) return clean;
+            }
+          } catch (e) {
+            console.error(e);
           }
-        } catch (e) {
-          console.error(e);
         }
       }
     }
     return defaultChildren;
   });
 
-  const [selectedChildId, setSelectedChildId] = useState<string>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("ayda_parent_children");
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            const clean = parsed.filter(
-              (c: any) =>
-                c.id !== "2a62e436-f539-4ec5-b3af-a1afabfa0eec" &&
-                !c.id?.startsWith("00000000-")
-            );
-            if (clean.length > 0) return clean[0].id;
-          }
-        } catch (e) {}
-      }
-    }
-    return "";
-  });
+  const [selectedChildId, setSelectedChildId] = useState<string>("");
 
   const [activeTab, setActiveTab] = useState<"reports" | "schedule" | "billing">("reports");
   const [showTopupModal, setShowTopupModal] = useState(false);
@@ -235,61 +224,65 @@ export default function ParentCabinet() {
   } | null>(null);
   const [copiedCredentials, setCopiedCredentials] = useState(false);
 
-  // Сохранение детей в localStorage
+  // Изолированное сохранение детей в localStorage для текущего родителя
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("ayda_parent_children", JSON.stringify(children));
+    if (typeof window !== "undefined" && authUser?.id) {
+      localStorage.setItem(`ayda_parent_children_${authUser.id}`, JSON.stringify(children));
     }
-  }, [children]);
+  }, [children, authUser?.id]);
 
-  // Загрузка реальных учеников из Supabase с балансом и классами
+  // Загрузка изолированных детей текущего родителя через API / Supabase parent_students
   useEffect(() => {
-    const client = getSupabase();
-    if (client) {
-      client
-        .from("profiles")
-        .select("*")
-        .eq("role", "STUDENT")
-        .order("created_at", { ascending: true })
-        .then(({ data }) => {
-          if (data && data.length > 0) {
-            const mapped: Child[] = data.map((d: any, index: number) => {
-              let parsedBio: any = {};
-              try {
-                if (d.bio && d.bio.startsWith("{")) {
-                  parsedBio = JSON.parse(d.bio);
-                } else if (d.bio) {
-                  parsedBio.grade = d.bio;
-                }
-              } catch (e) {}
+    if (!authUser?.id) return;
 
-              const balance = typeof parsedBio.balance === "number" ? parsedBio.balance : 0;
-              const stars = typeof parsedBio.stars === "number" ? parsedBio.stars : 0;
-              const grade = parsedBio.grade || d.bio || "3 класс";
+    let isCancelled = false;
 
-              return {
-                id: d.id,
-                name: d.name,
-                grade: grade,
-                avatar: d.avatar_url || AVATAR_OPTIONS[index % AVATAR_OPTIONS.length],
-                balance: balance,
-                stars: stars,
-                nextLesson: "Расписание формируется",
-                teacher: "Анна Сергеевна Иванова",
-                subject: "Математика и логика",
-              };
-            });
-            setChildren(mapped);
-            if (!mapped.some((c) => c.id === selectedChildId)) {
-              setSelectedChildId(mapped[0]?.id || "");
+    const loadParentChildren = async () => {
+      try {
+        const res = await fetchWithAuth(`/api/parent/children?parentId=${authUser.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (!isCancelled && data?.children && Array.isArray(data.children)) {
+            if (data.children.length > 0) {
+              setChildren(data.children);
+              setSelectedChildId((prev) =>
+                data.children.some((c: any) => c.id === prev) ? prev : data.children[0].id
+              );
+              return;
             }
-          } else {
-            setChildren([]);
-            setSelectedChildId("");
           }
-        });
-    }
-  }, []);
+        }
+      } catch (err) {
+        console.warn("Could not fetch children from API:", err);
+      }
+
+      // Если в базе нет записей, загружаем из изолированного ключа
+      if (typeof window !== "undefined") {
+        try {
+          const saved = localStorage.getItem(`ayda_parent_children_${authUser.id}`);
+          if (saved && !isCancelled) {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setChildren(parsed);
+              setSelectedChildId(parsed[0].id);
+              return;
+            }
+          }
+        } catch (e) {}
+      }
+
+      if (!isCancelled) {
+        setChildren([]);
+        setSelectedChildId("");
+      }
+    };
+
+    loadParentChildren();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [authUser?.id]);
 
   const selectedChild = children.find((c) => c.id === selectedChildId) || children[0] || null;
 

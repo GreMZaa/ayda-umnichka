@@ -55,11 +55,49 @@ export interface ParentStudent {
   studentId: string;
 }
 
+export interface ChatMessage {
+  id: string;
+  chatId: string;
+  senderId: string;
+  senderName: string;
+  senderAvatar?: string;
+  text: string;
+  time: string;
+  date: string;
+  type?: "text" | "voice" | "file" | "lesson_invite";
+  fileUrl?: string;
+  fileName?: string;
+  fileSize?: string;
+  read?: boolean;
+  createdAt: string;
+}
+
+export interface HomeworkSubmission {
+  id: string;
+  lessonId?: string;
+  studentId: string;
+  studentName: string;
+  teacherId?: string;
+  title: string;
+  subject: string;
+  studentAnswer?: string;
+  fileUrl?: string;
+  fileName?: string;
+  fileSize?: string;
+  status: "NEW" | "SUBMITTED" | "CHECKED";
+  grade?: number;
+  teacherFeedback?: string;
+  submittedAt: string;
+  reviewedAt?: string;
+}
+
 interface DatabaseSchema {
   users: User[];
   subjects: Subject[];
   parentStudents: ParentStudent[];
   lessons: Lesson[];
+  messages?: ChatMessage[];
+  homeworkSubmissions?: HomeworkSubmission[];
 }
 
 const DB_FILE = path.join(process.cwd(), "data", "db.json");
@@ -299,5 +337,85 @@ export const db = {
       new Set(data.lessons.filter((l) => l.teacherId === teacherId).map((l) => l.studentId))
     );
     return data.users.filter((u) => studentIds.includes(u.id));
+  },
+
+  getMessages: (chatId: string): ChatMessage[] => {
+    const data = loadDB();
+    if (!data.messages) return [];
+    return data.messages
+      .filter((m) => m.chatId === chatId)
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  },
+
+  saveMessage: (msg: Omit<ChatMessage, "id" | "createdAt"> & { id?: string; createdAt?: string }): ChatMessage => {
+    const data = loadDB();
+    if (!data.messages) data.messages = [];
+    const newMsg: ChatMessage = {
+      ...msg,
+      id: msg.id || "msg-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6),
+      createdAt: msg.createdAt || new Date().toISOString(),
+    };
+    data.messages.push(newMsg);
+    // Keep max 2000 messages in db.json to prevent memory bloat
+    if (data.messages.length > 2000) {
+      data.messages = data.messages.slice(-2000);
+    }
+    saveDB(data);
+    return newMsg;
+  },
+
+  getHomeworkSubmissions: (filters?: { studentId?: string; teacherId?: string; lessonId?: string }): HomeworkSubmission[] => {
+    const data = loadDB();
+    if (!data.homeworkSubmissions) return [];
+    let list = [...data.homeworkSubmissions];
+    if (filters?.studentId) list = list.filter((h) => h.studentId === filters.studentId);
+    if (filters?.teacherId) list = list.filter((h) => h.teacherId === filters.teacherId);
+    if (filters?.lessonId) list = list.filter((h) => h.lessonId === filters.lessonId);
+    return list.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+  },
+
+  saveHomeworkSubmission: (sub: Omit<HomeworkSubmission, "id" | "submittedAt"> & { id?: string }): HomeworkSubmission => {
+    const data = loadDB();
+    if (!data.homeworkSubmissions) data.homeworkSubmissions = [];
+    
+    // Check if existing submission exists for this student & lesson
+    const existingIdx = data.homeworkSubmissions.findIndex(
+      (h) => (sub.id && h.id === sub.id) || (sub.lessonId && h.lessonId === sub.lessonId && h.studentId === sub.studentId)
+    );
+
+    if (existingIdx !== -1) {
+      const existing = data.homeworkSubmissions[existingIdx];
+      const updated: HomeworkSubmission = {
+        ...existing,
+        ...sub,
+        id: existing.id,
+        submittedAt: new Date().toISOString(),
+      };
+      data.homeworkSubmissions[existingIdx] = updated;
+      saveDB(data);
+      return updated;
+    }
+
+    const newSub: HomeworkSubmission = {
+      ...sub,
+      id: sub.id || "hw-" + Date.now(),
+      submittedAt: new Date().toISOString(),
+    };
+    data.homeworkSubmissions.push(newSub);
+    saveDB(data);
+    return newSub;
+  },
+
+  gradeHomeworkSubmission: (id: string, grade: number, teacherFeedback?: string): HomeworkSubmission | null => {
+    const data = loadDB();
+    if (!data.homeworkSubmissions) return null;
+    const item = data.homeworkSubmissions.find((h) => h.id === id);
+    if (!item) return null;
+    item.grade = grade;
+    item.teacherFeedback = teacherFeedback;
+    item.status = "CHECKED";
+    item.reviewedAt = new Date().toISOString();
+    saveDB(data);
+    return item;
   },
 };

@@ -30,6 +30,10 @@ import {
   Users,
   Search,
   MessageCircle,
+  PhoneCall,
+  PhoneIncoming,
+  Download,
+  Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -58,6 +62,7 @@ export interface TeacherProfile {
 
 interface HomeworkItem {
   id: string;
+  lessonId?: string;
   subject: string;
   title: string;
   teacher: string;
@@ -70,6 +75,9 @@ interface HomeworkItem {
   studentAnswer?: string;
   teacherFeedback?: string;
   grade?: number;
+  fileUrl?: string;
+  fileName?: string;
+  fileSize?: string;
 }
 
 const DEFAULT_HOMEWORK: HomeworkItem[] = [];
@@ -115,10 +123,18 @@ export default function StudentCabinet() {
   const [selectedHomework, setSelectedHomework] = useState<HomeworkItem | null>(null);
   const [homeworkModalOpen, setHomeworkModalOpen] = useState(false);
   const [answerText, setAnswerText] = useState("");
+  const [attachedFileUrl, setAttachedFileUrl] = useState("");
   const [attachedFileName, setAttachedFileName] = useState("");
+  const [attachedFileSize, setAttachedFileSize] = useState("");
+  const [isUploadingHwFile, setIsUploadingHwFile] = useState(false);
+  const hwFileInputRef = useRef<HTMLInputElement>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [mounted, setMounted] = useState(false);
   const modalMouseDownRef = useRef<EventTarget | null>(null);
+
+  // Состояние входящего звонка на урок («Входящий звонок» P2.1)
+  const [incomingCallLesson, setIncomingCallLesson] = useState<any | null>(null);
+  const [dismissedCallLessonId, setDismissedCallLessonId] = useState<string | null>(null);
 
   // Список домашних заданий школьного формата с начальными интерактивными заданиями
   const [homeworkList, setHomeworkList] = useState<HomeworkItem[]>(DEFAULT_HOMEWORK);
@@ -602,6 +618,126 @@ export default function StudentCabinet() {
     };
   }, [authUser?.id]);
 
+  // Загрузка и синхронизация домашних заданий из БД /api/homework (P0.2)
+  useEffect(() => {
+    if (!studentId) return;
+
+    let isCancelled = false;
+    const loadHomework = async () => {
+      try {
+        const res = await fetchWithAuth(`/api/homework?studentId=${studentId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const subs: any[] = data?.submissions || [];
+
+        const currentLessons = lessons.length > 0 ? lessons : (isSharonov ? DEFAULT_STUDENT_LESSONS : []);
+        if (currentLessons.length === 0 && subs.length === 0) {
+          if (!isCancelled) setHomeworkList([]);
+          return;
+        }
+
+        const mapped: HomeworkItem[] = currentLessons.map((l, idx) => {
+          const sub = subs.find((s) => s.lessonId === l.id || s.title === `ДЗ: ${l.title}`);
+          const isChecked = sub?.status === "CHECKED";
+          const isSubmitted = sub?.status === "SUBMITTED" || isChecked;
+
+          return {
+            id: sub?.id || `hw-les-${l.id || idx}`,
+            lessonId: l.id,
+            subject: l.subjectName || "Предмет",
+            title: `ДЗ: ${l.title}`,
+            teacher: l.teacherName || "Шаронова Василина Владимировна",
+            deadline: "До следующего урока",
+            status: isChecked ? "CHECKED" : isSubmitted ? "SUBMITTED" : "NEW",
+            statusText: isChecked
+              ? "Проверено преподавателем"
+              : isSubmitted
+              ? "На проверке у учителя"
+              : "Новое задание",
+            badgeColor: isChecked
+              ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+              : isSubmitted
+              ? "bg-blue-100 text-blue-800 border-blue-200"
+              : "bg-amber-100 text-amber-800 border-amber-200",
+            description: `Домашняя работа по теме «${l.title}». Решите задачи и прикрепите фото или файл решения для проверки репетитором.`,
+            tasks: [
+              `Повторить тему «${l.title}»`,
+              "Выполнить практические упражнения в тетради",
+              "Прикрепить фото тетради или документ для проверки репетитором",
+            ],
+            studentAnswer: sub?.studentAnswer,
+            teacherFeedback: sub?.teacherFeedback,
+            grade: sub?.grade,
+            fileUrl: sub?.fileUrl,
+            fileName: sub?.fileName,
+            fileSize: sub?.fileSize,
+          };
+        });
+
+        if (!isCancelled) setHomeworkList(mapped);
+      } catch (err) {
+        console.warn("Could not load homework:", err);
+      }
+    };
+
+    loadHomework();
+    const timer = setInterval(loadHomework, 15000);
+    return () => {
+      isCancelled = true;
+      clearInterval(timer);
+    };
+  }, [studentId, lessons, isSharonov]);
+
+  // Воспроизведение звука входящего вызова через Web Audio API
+  const playIncomingCallChime = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const now = ctx.currentTime;
+
+      // Приятный двухтональный гармоничный аккорд вызова (C5 + E5)
+      const osc1 = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc1.type = "sine";
+      osc2.type = "triangle";
+      osc1.frequency.setValueAtTime(523.25, now);
+      osc2.frequency.setValueAtTime(659.25, now);
+
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.exponentialRampToValueAtTime(0.18, now + 0.08);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
+
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc1.start(now);
+      osc2.start(now);
+      osc1.stop(now + 1.2);
+      osc2.stop(now + 1.2);
+    } catch (e) {}
+  };
+
+  // Отслеживание начала урока для показа модалки входящего звонка (P2.1)
+  useEffect(() => {
+    const liveLesson = lessons.find((l) => l.status === "LIVE");
+    if (liveLesson && liveLesson.id !== dismissedCallLessonId) {
+      setIncomingCallLesson(liveLesson);
+      playIncomingCallChime();
+
+      const chimeInterval = setInterval(() => {
+        playIncomingCallChime();
+      }, 4000);
+
+      return () => clearInterval(chimeInterval);
+    } else if (!liveLesson) {
+      setIncomingCallLesson(null);
+    }
+  }, [lessons, dismissedCallLessonId]);
+
   const liveLesson = lessons.find((l) => l.status === "LIVE");
   const upcomingLessons = lessons
     .filter((l) => l.status === "SCHEDULED")
@@ -676,46 +812,93 @@ export default function StudentCabinet() {
   const handleOpenHomework = (hw: HomeworkItem) => {
     setSelectedHomework(hw);
     setAnswerText(hw.studentAnswer || "");
-    setAttachedFileName("");
+    setAttachedFileUrl(hw.fileUrl || "");
+    setAttachedFileName(hw.fileName || "");
+    setAttachedFileSize(hw.fileSize || "");
     setSubmitSuccess(false);
     setHomeworkModalOpen(true);
   };
 
-  // Отправка задания на проверку учителю
-  const handleSubmitHomework = (e: React.FormEvent) => {
+  // Загрузка реального файла для ДЗ через /api/upload (P2.2)
+  const handleUploadHwFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingHwFile(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok && data.url) {
+        setAttachedFileUrl(data.url);
+        setAttachedFileName(data.fileName || file.name);
+        setAttachedFileSize(data.fileSize || "");
+      } else {
+        alert(data.error || "Ошибка загрузки файла на сервер.");
+      }
+    } catch (err: any) {
+      alert("Не удалось загрузить файл: " + (err?.message || "Ошибка соединения"));
+    } finally {
+      setIsUploadingHwFile(false);
+    }
+  };
+
+  // Отправка задания на проверку учителю с сохранением в БД (P0.2)
+  const handleSubmitHomework = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedHomework) return;
 
+    const currentLesson = lessons.find((l) => l.id === selectedHomework.lessonId) || lessons[0];
+
+    const payload = {
+      lessonId: selectedHomework.lessonId || currentLesson?.id,
+      studentId: studentId,
+      studentName: studentName,
+      teacherId: currentLesson?.teacherId || currentLesson?.teacher_id,
+      title: selectedHomework.title,
+      subject: selectedHomework.subject,
+      studentAnswer: answerText,
+      fileUrl: attachedFileUrl || selectedHomework.fileUrl,
+      fileName: attachedFileName || selectedHomework.fileName,
+      fileSize: attachedFileSize || selectedHomework.fileSize,
+    };
+
+    try {
+      await fetchWithAuth("/api/homework", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } catch (err) {
+      console.warn("API homework submit error:", err);
+    }
+
+    const updatedItem: HomeworkItem = {
+      ...selectedHomework,
+      status: "SUBMITTED",
+      statusText: "На проверке у учителя",
+      badgeColor: "bg-blue-100 text-blue-800 border-blue-200",
+      studentAnswer: answerText,
+      fileUrl: attachedFileUrl || selectedHomework.fileUrl,
+      fileName: attachedFileName || selectedHomework.fileName,
+      fileSize: attachedFileSize || selectedHomework.fileSize,
+    };
+
     const updatedList = homeworkList.map((item) =>
-      item.id === selectedHomework.id
-        ? {
-            ...item,
-            status: "SUBMITTED" as const,
-            statusText: "На проверке у учителя",
-            badgeColor: "bg-blue-100 text-blue-800 border-blue-200",
-            studentAnswer: answerText,
-          }
-        : item
+      item.id === selectedHomework.id ? updatedItem : item
     );
 
     setHomeworkList(updatedList);
     try {
-      localStorage.setItem("ayda_student_hw", JSON.stringify(updatedList));
+      localStorage.setItem(`ayda_student_hw_${studentId}`, JSON.stringify(updatedList));
     } catch (e) {}
 
     // Мгновенно обновляем выбранное задание, чтобы модалка и кнопка синхронизировались
-    setSelectedHomework((prev) =>
-      prev
-        ? {
-            ...prev,
-            status: "SUBMITTED",
-            statusText: "На проверке у учителя",
-            badgeColor: "bg-blue-100 text-blue-800 border-blue-200",
-            studentAnswer: answerText,
-          }
-        : null
-    );
-
+    setSelectedHomework(updatedItem);
     setSubmitSuccess(true);
 
     setTimeout(() => {
@@ -1390,34 +1573,68 @@ export default function StudentCabinet() {
                 />
               </div>
 
-              {/* Прикрепление файла / фото тетради */}
-              {selectedHomework.status !== "CHECKED" && (
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Прикрепить фото тетради или скан:
-                  </label>
+              {/* Прикрепление реального файла / фото тетради (P2.2) */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Прикрепленный файл с решением или скан:
+                </label>
+                {selectedHomework.fileUrl && (
+                  <div className="mb-2 p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <FileText className="w-5 h-5 text-blue-600 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-800 truncate">
+                          {selectedHomework.fileName || "Файл решения"}
+                        </p>
+                        <p className="text-[10px] text-slate-500 font-medium">
+                          {selectedHomework.fileSize || "Загружен на сервер"}
+                        </p>
+                      </div>
+                    </div>
+                    <a
+                      href={selectedHomework.fileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold text-xs flex items-center gap-1 transition"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Открыть</span>
+                    </a>
+                  </div>
+                )}
+
+                {selectedHomework.status !== "CHECKED" && (
                   <div className="flex items-center gap-3">
                     <label className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs cursor-pointer flex items-center gap-2 transition">
-                      <Upload className="w-3.5 h-3.5 text-blue-600" />
-                      <span>{attachedFileName ? "Заменить файл" : "Выбрать файл..."}</span>
+                      {isUploadingHwFile ? (
+                        <Loader2 className="w-3.5 h-3.5 text-blue-600 animate-spin" />
+                      ) : (
+                        <Upload className="w-3.5 h-3.5 text-blue-600" />
+                      )}
+                      <span>
+                        {isUploadingHwFile
+                          ? "Загрузка на сервер..."
+                          : attachedFileName
+                          ? "Заменить файл"
+                          : "Загрузить фото или скан"}
+                      </span>
                       <input
                         type="file"
+                        ref={hwFileInputRef}
+                        disabled={isUploadingHwFile}
                         className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) setAttachedFileName(file.name);
-                        }}
+                        onChange={handleUploadHwFile}
                       />
                     </label>
                     {attachedFileName && (
-                      <span className="text-xs text-emerald-700 font-medium flex items-center gap-1">
-                        <Check className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>{attachedFileName}</span>
+                      <span className="text-xs text-emerald-700 font-bold flex items-center gap-1 truncate max-w-[200px]">
+                        <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span className="truncate">{attachedFileName}</span>
                       </span>
                     )}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
               {submitSuccess && (
                 <div className="p-3 rounded-xl bg-emerald-50 text-emerald-800 text-xs font-bold flex items-center gap-2 animate-in fade-in">
@@ -1445,6 +1662,76 @@ export default function StudentCabinet() {
                 )}
               </div>
             </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* 9. МОДАЛЬНОЕ ОКНО ВХОДЯЩЕГО ЗВОНКА НА УРОК («ВХОДЯЩИЙ ЗВОНОК» P2.1) */}
+      {mounted && incomingCallLesson && createPortal(
+        <div className="fixed inset-0 z-[200] w-screen h-screen bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-300">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 text-center space-y-6 shadow-2xl border border-slate-100 relative overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Анимированный световой ореол */}
+            <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-48 h-48 bg-emerald-400/20 rounded-full blur-3xl pointer-events-none" />
+
+            <div className="space-y-3">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 border border-emerald-300 text-emerald-800 text-xs font-black tracking-wide uppercase">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                <span>Входящий звонок на онлайн-урок</span>
+              </span>
+
+              {/* Аватарка репетитора с пульсацией */}
+              <div className="relative mx-auto w-24 h-24 my-3">
+                <div className="absolute inset-0 rounded-full bg-emerald-500/20 animate-ping" />
+                <div className="absolute -inset-1 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 opacity-75 blur-xs animate-pulse" />
+                <img
+                  src={
+                    incomingCallLesson.teacherAvatar ||
+                    incomingCallLesson.teacher?.avatar_url ||
+                    "https://images.unsplash.com/photo-1544717305-2782549b5136?w=200&h=200&fit=crop&crop=faces"
+                  }
+                  alt={incomingCallLesson.teacherName || "Преподаватель"}
+                  className="relative w-24 h-24 rounded-full object-cover border-4 border-white shadow-xl"
+                />
+              </div>
+
+              <div>
+                <h3 className="text-xl font-extrabold text-slate-900 leading-tight">
+                  {incomingCallLesson.teacherName || "Шаронова Василина Владимировна"}
+                </h3>
+                <p className="text-xs text-slate-500 font-medium mt-1">
+                  Предмет: <strong className="text-blue-600">{incomingCallLesson.subjectName || "Математика и логика"}</strong>
+                </p>
+                <p className="text-sm font-bold text-slate-800 mt-2 bg-slate-50 py-2 px-3 rounded-xl border border-slate-200/80">
+                  «{incomingCallLesson.title || "Онлайн-занятие"}»
+                </p>
+              </div>
+            </div>
+
+            {/* Кнопки ответа и откладывания */}
+            <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+              <Link
+                href={`/room/${incomingCallLesson.id}?role=student`}
+                onClick={() => setIncomingCallLesson(null)}
+                className="w-full sm:flex-1 py-3.5 px-5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 transition active:scale-95 cursor-pointer"
+              >
+                <PhoneCall className="w-5 h-5 animate-bounce" />
+                <span>Войти в класс</span>
+              </Link>
+              <button
+                type="button"
+                onClick={() => {
+                  setDismissedCallLessonId(incomingCallLesson.id);
+                  setIncomingCallLesson(null);
+                  setTimeout(() => {
+                    setDismissedCallLessonId(null);
+                  }, 120000);
+                }}
+                className="w-full sm:w-auto py-3.5 px-4 rounded-2xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+              >
+                Отложить
+              </button>
+            </div>
           </div>
         </div>,
         document.body

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import {
@@ -28,6 +28,8 @@ import {
   AlertCircle,
   Edit3,
   Trash2,
+  Download,
+  Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -155,6 +157,14 @@ export default function TeacherCabinet() {
   const [feedback, setFeedback] = useState("");
   const [savingNote, setSavingNote] = useState(false);
   const [reportSuccessToast, setReportSuccessToast] = useState(false);
+
+  // Состояние проверки домашних заданий учеников (P0.2)
+  const [homeworkSubmissions, setHomeworkSubmissions] = useState<any[]>([]);
+  const [selectedHwForReview, setSelectedHwForReview] = useState<any | null>(null);
+  const [hwReviewModalOpen, setHwReviewModalOpen] = useState(false);
+  const [hwGrade, setHwGrade] = useState<number>(5);
+  const [hwFeedback, setHwFeedback] = useState<string>("");
+  const [savingHwReview, setSavingHwReview] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -931,10 +941,51 @@ export default function TeacherCabinet() {
     const endIso = endDate.toISOString();
     const roomName = lessonRoomName.trim() || `room-${Date.now()}`;
 
+    // 3. ПРОВЕРКА КОЛЛИЗИЙ РАСПИСАНИЯ ПЕРЕД СОЗДАНИЕМ (P1.3)
+    const newStartMs = new Date(startIso).getTime();
+    const newEndMs = new Date(endIso).getTime();
+
+    // Проверяем локальные уроки в стейте учителя
+    const existingConflict = lessons.find((l) => {
+      if (l.status === "CANCELLED") return false;
+      const lStart = new Date(l.startTime).getTime();
+      const lEnd = new Date(l.endTime).getTime();
+      return lStart < newEndMs && lEnd > newStartMs;
+    });
+
+    if (existingConflict) {
+      setCreateError(
+        `Коллизия расписания: на это время уже запланирован урок «${existingConflict.title}». Пожалуйста, выберите другое время.`
+      );
+      setCreatingLesson(false);
+      return;
+    }
+
     // 4. ПРЯМАЯ ЗАПИСЬ УРОКА В SUPABASE
     let savedInSupabase = false;
     if (client) {
       try {
+        // Проверяем коллизии в Supabase
+        const { data: sbConflicts } = await client
+          .from("lessons")
+          .select("id, title, start_time, end_time, teacher_id, student_id")
+          .neq("status", "CANCELLED")
+          .or(`teacher_id.eq.${currentTeacherId},student_id.eq.${finalStudentId}`);
+
+        const sbConflict = sbConflicts?.find((ex: any) => {
+          const exStart = new Date(ex.start_time).getTime();
+          const exEnd = new Date(ex.end_time).getTime();
+          return exStart < newEndMs && exEnd > newStartMs;
+        });
+
+        if (sbConflict) {
+          setCreateError(
+            `Коллизия в базе данных: уже запланирован урок «${sbConflict.title}». Пожалуйста, выберите другое время.`
+          );
+          setCreatingLesson(false);
+          return;
+        }
+
         const { data: insertedLesson, error: insErr } = await client
           .from("lessons")
           .insert({
@@ -1194,9 +1245,72 @@ export default function TeacherCabinet() {
     }
   };
 
+  // Загрузка домашних заданий учеников из /api/homework (P0.2)
+  const loadHomeworkSubmissions = useCallback(async () => {
+    try {
+      const res = await fetchWithAuth("/api/homework");
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.submissions && Array.isArray(data.submissions)) {
+          setHomeworkSubmissions(data.submissions);
+        }
+      }
+    } catch (e) {
+      console.warn("Could not load homework submissions:", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadHomeworkSubmissions();
+    const interval = setInterval(loadHomeworkSubmissions, 15000);
+    return () => clearInterval(interval);
+  }, [loadHomeworkSubmissions]);
+
+  const handleOpenHwReview = (sub: any) => {
+    setSelectedHwForReview(sub);
+    setHwGrade(sub.grade || 5);
+    setHwFeedback(sub.teacherFeedback || "");
+    setHwReviewModalOpen(true);
+  };
+
+  const handleSaveHwReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedHwForReview) return;
+    setSavingHwReview(true);
+    try {
+      const res = await fetchWithAuth("/api/homework", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          submissionId: selectedHwForReview.id,
+          grade: hwGrade,
+          teacherFeedback: hwFeedback.trim(),
+        }),
+      });
+      if (res.ok) {
+        setHomeworkSubmissions((prev) =>
+          prev.map((h) =>
+            h.id === selectedHwForReview.id
+              ? { ...h, grade: hwGrade, teacherFeedback: hwFeedback.trim(), status: "CHECKED" }
+              : h
+          )
+        );
+        setHwReviewModalOpen(false);
+      } else {
+        const data = await res.json();
+        alert(data.error || "Ошибка сохранения оценки.");
+      }
+    } catch (err: any) {
+      alert("Ошибка: " + err?.message);
+    } finally {
+      setSavingHwReview(false);
+    }
+  };
+
   const liveLessons = lessons.filter((l) => l.status === "LIVE");
   const upcomingLessons = lessons.filter((l) => l.status === "SCHEDULED");
   const completedLessons = lessons.filter((l) => l.status === "COMPLETED");
+  const pendingHwCount = homeworkSubmissions.filter((h) => h.status !== "CHECKED").length;
 
   if (authLoading || !isAuthorized) {
     return (
@@ -1543,6 +1657,138 @@ export default function TeacherCabinet() {
                         )}
                       </div>
                     ))}
+                  </div>
+                )}
+              </div>
+            ),
+          },
+          {
+            key: "homework",
+            title: "Проверка ДЗ",
+            icon: BookOpen,
+            badge: pendingHwCount,
+            render: () => (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between px-1">
+                  <div>
+                    <h2 className="text-base font-extrabold text-slate-900">
+                      Сданные домашние работы учеников
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Проверяйте решения, прикреплённые сканы и фото тетрадей, выставляйте оценки и пишите отзывы
+                    </p>
+                  </div>
+                  {pendingHwCount > 0 ? (
+                    <span className="text-xs font-bold text-amber-800 bg-amber-50 px-3 py-1 rounded-xl border border-amber-200">
+                      Требуют проверки: {pendingHwCount}
+                    </span>
+                  ) : (
+                    <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-xl border border-emerald-200">
+                      Все ДЗ проверены ✨
+                    </span>
+                  )}
+                </div>
+
+                {homeworkSubmissions.length === 0 ? (
+                  <div className="bg-white rounded-3xl p-10 border border-slate-200 text-center space-y-2 shadow-xs">
+                    <BookOpen className="w-10 h-10 text-slate-300 mx-auto" />
+                    <p className="text-xs font-bold text-slate-600">Пока нет сданных домашних заданий</p>
+                    <p className="text-[11px] text-slate-400">
+                      Когда ученики отправят решения к урокам, они сразу появятся здесь
+                    </p>
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-3xl divide-y divide-slate-100 border border-slate-200 shadow-xs overflow-hidden">
+                    {homeworkSubmissions.map((sub) => {
+                      const isChecked = sub.status === "CHECKED";
+                      return (
+                        <div key={sub.id} className="p-5 sm:p-6 space-y-3 hover:bg-slate-50/60 transition">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-lg border border-blue-200">
+                                  {sub.subject}
+                                </span>
+                                <span className="text-xs text-slate-400">•</span>
+                                <span className="text-xs text-slate-500 font-medium">
+                                  {sub.submittedAt ? formatTolyatti(sub.submittedAt, "d MMMM, HH:mm") : "Недавно"}
+                                </span>
+                              </div>
+                              <h4 className="font-extrabold text-slate-900 text-base mt-1">{sub.title}</h4>
+                              <p className="text-xs text-slate-600 mt-0.5">
+                                Ученик: <strong>{sub.studentName}</strong>
+                              </p>
+                            </div>
+
+                            <div className="flex items-center gap-2 self-start sm:self-auto">
+                              {isChecked ? (
+                                <span className="px-3 py-1 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold flex items-center gap-1.5">
+                                  <Star className="w-3.5 h-3.5 fill-emerald-500 text-emerald-500" />
+                                  <span>Проверено: {sub.grade} / 5</span>
+                                </span>
+                              ) : (
+                                <span className="px-3 py-1 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 text-xs font-bold flex items-center gap-1.5">
+                                  <Clock className="w-3.5 h-3.5 text-amber-600" />
+                                  <span>Ожидает проверки</span>
+                                </span>
+                              )}
+
+                              <button
+                                onClick={() => handleOpenHwReview(sub)}
+                                className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer shadow-xs ${
+                                  isChecked
+                                    ? "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                                    : "bg-[#2481cc] hover:bg-[#1f70b0] text-white shadow-md shadow-blue-500/20"
+                                }`}
+                              >
+                                {isChecked ? "Изменить оценку" : "Проверить работу"}
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Ответ ученика */}
+                          {sub.studentAnswer && (
+                            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 text-xs text-slate-800 space-y-1">
+                              <span className="font-bold text-slate-600 block">Ответ ученика:</span>
+                              <p className="whitespace-pre-wrap leading-relaxed">{sub.studentAnswer}</p>
+                            </div>
+                          )}
+
+                          {/* Прикрепленный файл */}
+                          {sub.fileUrl && (
+                            <div className="flex items-center justify-between p-3 rounded-2xl bg-blue-50/60 border border-blue-100 max-w-md">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <FileText className="w-5 h-5 text-blue-600 shrink-0" />
+                                <div className="min-w-0">
+                                  <p className="text-xs font-bold text-slate-800 truncate">{sub.fileName || "Файл решения"}</p>
+                                  <p className="text-[10px] text-slate-500">{sub.fileSize || "Документ"}</p>
+                                </div>
+                              </div>
+                              <a
+                                href={sub.fileUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-3 py-1.5 rounded-xl bg-white hover:bg-blue-100 text-[#2481cc] font-bold text-xs border border-blue-200 shadow-xs flex items-center gap-1.5 transition cursor-pointer"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                                <span>Открыть</span>
+                              </a>
+                            </div>
+                          )}
+
+                          {/* Отзыв учителя если проверено */}
+                          {isChecked && sub.teacherFeedback && (
+                            <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-100 text-xs text-emerald-900 space-y-1">
+                              <span className="font-bold flex items-center gap-1 text-emerald-800">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>Ваш отзыв ученику:</span>
+                              </span>
+                              <p className="leading-relaxed">{sub.teacherFeedback}</p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -2499,6 +2745,134 @@ export default function TeacherCabinet() {
                 Готово
               </button>
             </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* МОДАЛЬНОЕ ОКНО ПРОВЕРКИ И ОЦЕНИВАНИЯ ДОМАШНЕГО ЗАДАНИЯ (P0.2) */}
+      {mounted && hwReviewModalOpen && selectedHwForReview && createPortal(
+        <div
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setHwReviewModalOpen(false)}
+        >
+          <div
+            className="bg-white rounded-3xl w-full max-w-lg p-6 sm:p-7 shadow-2xl border border-slate-100 space-y-5 animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between border-b border-slate-100 pb-3">
+              <div>
+                <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-lg border border-blue-200">
+                  {selectedHwForReview.subject}
+                </span>
+                <h3 className="text-base sm:text-lg font-extrabold text-slate-900 mt-1">
+                  Проверка: «{selectedHwForReview.title}»
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Ученик: <strong className="text-slate-800">{selectedHwForReview.studentName}</strong>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setHwReviewModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Ответ ученика */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 block">Ответ и решение ученика:</label>
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto">
+                {selectedHwForReview.studentAnswer || "Ученик не указал текстовый комментарий"}
+              </div>
+            </div>
+
+            {/* Прикрепленный файл */}
+            {selectedHwForReview.fileUrl && (
+              <div className="p-3 rounded-2xl bg-blue-50/70 border border-blue-200 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <FileText className="w-5 h-5 text-blue-600 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-slate-800 truncate">
+                      {selectedHwForReview.fileName || "Файл решения"}
+                    </p>
+                    <p className="text-[10px] text-slate-500">{selectedHwForReview.fileSize || "Документ"}</p>
+                  </div>
+                </div>
+                <a
+                  href={selectedHwForReview.fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Открыть</span>
+                </a>
+              </div>
+            )}
+
+            {/* Форма оценивания */}
+            <form onSubmit={handleSaveHwReview} className="space-y-4 pt-1">
+              {/* Выбор оценки (1-5) */}
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-2">Оценка за работу:</label>
+                <div className="flex items-center gap-2">
+                  {[1, 2, 3, 4, 5].map((num) => (
+                    <button
+                      key={num}
+                      type="button"
+                      onClick={() => setHwGrade(num)}
+                      className={`flex-1 py-2 rounded-xl text-xs sm:text-sm font-extrabold flex items-center justify-center gap-1 transition cursor-pointer border ${
+                        hwGrade === num
+                          ? "bg-amber-400 text-amber-950 border-amber-500 shadow-sm scale-105"
+                          : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                      }`}
+                    >
+                      <Star className={`w-3.5 h-3.5 ${hwGrade >= num ? "fill-current" : "opacity-40"}`} />
+                      <span>{num}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Отзыв преподавателя */}
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Отзыв и рекомендации для ученика:
+                </label>
+                <textarea
+                  rows={3}
+                  value={hwFeedback}
+                  onChange={(e) => setHwFeedback(e.target.value)}
+                  placeholder="Отличная работа! Все примеры решены правильно, в 3-м номере обрати внимание на знак..."
+                  className="w-full p-3 rounded-2xl border border-slate-200 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-[#2481cc] transition"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setHwReviewModalOpen(false)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+                >
+                  Отмена
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingHwReview}
+                  className="px-5 py-2.5 rounded-xl bg-[#2481cc] hover:bg-[#1f70b0] text-white font-bold text-xs shadow-md shadow-blue-500/20 transition cursor-pointer flex items-center gap-1.5 disabled:opacity-60"
+                >
+                  {savingHwReview ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Check className="w-3.5 h-3.5" />
+                  )}
+                  <span>Сохранить оценку</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>,
         document.body

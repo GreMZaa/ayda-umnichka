@@ -18,7 +18,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
 
   if (isCabinet) {
     return (
-      <main className="w-full h-[100dvh] overflow-hidden p-0 m-0 bg-[#eef3f7]">
+      <main className="w-full h-[100dvh] overflow-hidden p-0 m-0 bg-[#eef1f5]">
         {children}
       </main>
     );

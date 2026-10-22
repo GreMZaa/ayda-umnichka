@@ -24,6 +24,7 @@ import {
 import { getSupabase } from "@/lib/supabase";
 import { cleanUsername, formatUsername, resolveProfileUsername } from "@/lib/nickname";
 import { getStoredAuthSession, setAuthCookies } from "@/lib/auth-session";
+import { parseProfileBio, mergeProfileBio } from "@/lib/profile";
 
 export interface ProfileData {
   id?: string;
@@ -405,6 +406,15 @@ export default function EditProfileModal({
             if (targetId) {
               finalProfileData.id = targetId;
 
+              // Безопасно мерджим с существующим bio, чтобы не затереть balance, stars, списки друзей
+              let existingBioRaw = null;
+              try {
+                const { data: curProf } = await client.from("profiles").select("bio").eq("id", targetId).maybeSingle();
+                if (curProf?.bio) existingBioRaw = curProf.bio;
+              } catch (e) {}
+
+              const finalBioString = mergeProfileBio(existingBioRaw, bioObject);
+
               const payload: any = {
                 id: targetId,
                 name: name.trim(),
@@ -412,7 +422,7 @@ export default function EditProfileModal({
                 email: email.trim() || `${targetId}@umnichka.ru`,
                 phone: phone.trim() || null,
                 avatar_url: avatarUrl.trim() || null,
-                bio: JSON.stringify(bioObject),
+                bio: finalBioString,
                 updated_at: new Date().toISOString(),
               };
 

@@ -41,6 +41,7 @@ import {
   X,
   ArrowLeftRight,
   Move,
+  Loader2,
 } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api-client";
 import { getSupabase } from "@/lib/supabase";
@@ -84,32 +85,38 @@ function LessonTimer({ initialSeconds = 15 * 60 + 35 }: { initialSeconds?: numbe
   );
 }
 
+function getIceServers(): RTCIceServer[] {
+  const servers: RTCIceServer[] = [
+    { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302", "stun:stun2.l.google.com:19302", "stun:stun3.l.google.com:19302", "stun:stun4.l.google.com:19302"] },
+    { urls: ["stun:stun.cloudflare.com:3478", "stun:stun.services.mozilla.com"] },
+    {
+      urls: [
+        "turn:openrelay.metered.ca:80",
+        "turn:openrelay.metered.ca:443",
+        "turn:openrelay.metered.ca:443?transport=tcp",
+        "turns:openrelay.metered.ca:443?transport=tcp",
+      ],
+      username: "openrelayproject",
+      credential: "openrelayproject",
+    },
+  ];
+
+  if (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_TURN_URL) {
+    servers.unshift({
+      urls: process.env.NEXT_PUBLIC_TURN_URL,
+      username: process.env.NEXT_PUBLIC_TURN_USERNAME,
+      credential: process.env.NEXT_PUBLIC_TURN_PASSWORD,
+    });
+  }
+
+  return servers;
+}
+
 const RTC_CONFIG: RTCConfiguration = {
-  iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun1.l.google.com:19302" },
-    { urls: "stun:stun2.l.google.com:19302" },
-    { urls: "stun:stun3.l.google.com:19302" },
-    { urls: "stun:stun4.l.google.com:19302" },
-    { urls: "stun:stun.cloudflare.com:3478" },
-    { urls: "stun:stun.services.mozilla.com" },
-    {
-      urls: "turn:openrelay.metered.ca:80",
-      username: "openrelayproject",
-      credential: "openrelayproject",
-    },
-    {
-      urls: "turn:openrelay.metered.ca:443",
-      username: "openrelayproject",
-      credential: "openrelayproject",
-    },
-    {
-      urls: "turn:openrelay.metered.ca:443?transport=tcp",
-      username: "openrelayproject",
-      credential: "openrelayproject",
-    },
-  ],
+  iceServers: getIceServers(),
   iceCandidatePoolSize: 10,
+  iceTransportPolicy: "all",
+  bundlePolicy: "max-bundle",
 };
 
 export default function VideoRoom({
@@ -157,6 +164,7 @@ export default function VideoRoom({
   const [camOn, setCamOn] = useState(false);
   const [screenSharing, setScreenSharing] = useState(false);
   const [raisedHand, setRaisedHand] = useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false);
 
   // Переключение камер местами (Основная / PiP)
   const [isSwapped, setIsSwapped] = useState(false);
@@ -325,6 +333,44 @@ export default function VideoRoom({
             setPartnerCamOn(false);
           }
         };
+      };
+
+      pc.oniceconnectionstatechange = () => {
+        const state = pc.iceConnectionState;
+        if (state === "disconnected" || state === "failed") {
+          setIsReconnecting(true);
+          try {
+            pc.createOffer({ iceRestart: true })
+              .then((offer) => pc.setLocalDescription(offer))
+              .then(() => {
+                if (channelRef.current) {
+                  channelRef.current.send({
+                    type: "broadcast",
+                    event: "webrtc_signal",
+                    payload: {
+                      senderId: myPeerId,
+                      senderRole: userRole,
+                      description: pc.localDescription,
+                    },
+                  });
+                }
+              })
+              .catch((err) => console.warn("ICE restart offer failed:", err));
+          } catch (restartErr) {
+            console.warn("ICE restart error:", restartErr);
+          }
+        } else if (state === "connected" || state === "completed") {
+          setIsReconnecting(false);
+        }
+      };
+
+      pc.onconnectionstatechange = () => {
+        const state = pc.connectionState;
+        if (state === "connected") {
+          setIsReconnecting(false);
+        } else if (state === "failed" || state === "disconnected") {
+          setIsReconnecting(true);
+        }
       };
 
       return pc;
@@ -1689,6 +1735,14 @@ export default function VideoRoom({
           </button>
         </div>
       </header>
+
+      {/* Плашка переподключения WebRTC / TURN (P1.2) */}
+      {isReconnecting && (
+        <div className="bg-amber-500 text-white text-xs font-bold py-1.5 px-4 flex items-center justify-center gap-2 shadow-sm animate-pulse z-20 shrink-0">
+          <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+          <span>Восстановление связи с видеоклассом (повторное подключение)...</span>
+        </div>
+      )}
 
       {/* 2. ОСНОВНАЯ ЗОНА */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative min-h-0">
