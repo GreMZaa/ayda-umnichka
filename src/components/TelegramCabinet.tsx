@@ -95,7 +95,7 @@ export interface TelegramMessage {
   text: string;
   time: string;
   date: string;
-  type?: "text" | "voice" | "file" | "lesson_invite" | "homework_card";
+  type?: "text" | "voice" | "file" | "lesson_invite";
   voiceDuration?: string;
   fileUrl?: string;
   fileName?: string;
@@ -206,24 +206,25 @@ export default function TelegramCabinet({
   }, []);
 
   // Навигация и активный экран:
-  // "chat" (Conceptzilla hub) или ключ из extraCabinetSections (e.g. "schedule", "students", "children", "homework")
-  const [activeScreen, setActiveScreen] = useState<string>("chat");
+  // По умолчанию открываем реальный раздел кабинета (например, расписание "schedule" или детей "children"), а не заглушку чата
+  const [activeScreen, setActiveScreen] = useState<string>(
+    extraCabinetSections[0]?.key || "schedule"
+  );
   const [editProfileOpen, setEditProfileOpen] = useState<boolean>(false);
 
-  // Inspector / Right contextual sidebar
-  const [inspectorOpen, setInspectorOpen] = useState<boolean>(true);
-  const [inspectorTab, setInspectorTab] = useState<"info" | "pins" | "files" | "links">("info");
+  // Inspector / Правая контекстная панель (закрыта по умолчанию, чтобы не загромождать рабочее место)
+  const [inspectorOpen, setInspectorOpen] = useState<boolean>(false);
+  const [inspectorTab, setInspectorTab] = useState<"info" | "files" | "links">("info");
 
-  // Умный поиск по каналам, чатам и темам
+  // Поиск по разделам и чатам
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeChatId, setActiveChatId] = useState<string>("channel-math");
+  const [activeChatId, setActiveChatId] = useState<string>("chat-support");
 
   // Мобильное меню
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   // Меню упоминаний (@) и эмодзи
   const [showMentions, setShowMentions] = useState(false);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   // Сообщения
   const [messages, setMessages] = useState<TelegramMessage[]>([]);
@@ -232,17 +233,13 @@ export default function TelegramCabinet({
   const [isUploading, setIsUploading] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  // Реакции на сообщения (messageId -> { emoji: count })
-  const [messageReactions, setMessageReactions] = useState<{ [msgId: string]: { [emoji: string]: number } }>({
-    "msg-welcome": { "👍": 2, "❤️": 1 },
-    "msg-lesson-invite": { "🚀": 3, "👍": 2 },
-  });
+  const [messageReactions, setMessageReactions] = useState<{ [msgId: string]: { [emoji: string]: number } }>({});
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 1. Построение каналов и чатов (в концепции Conceptzilla)
+  // 1. Построение реальных чатов из базы данных
   const buildChats = useCallback((): TelegramChat[] => {
     const list: TelegramChat[] = [];
 
@@ -255,30 +252,12 @@ export default function TelegramCabinet({
       avatar: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&h=150&fit=crop",
       online: true,
       statusText: "онлайн 24/7",
-      lastMessage: "Привет! Я могу разобрать задачу по математике, проверить правило или объяснить тему.",
+      lastMessage: "Задайте любой вопрос по школьной программе или домашнему заданию.",
       lastMessageTime: "Сейчас",
       unreadCount: 0,
     });
 
-    // Основной учебный канал по предмету (Conceptzilla Channel)
-    list.push({
-      id: "channel-math",
-      name: "Математика и логика • 3 класс",
-      role: "teacher",
-      roleLabel: "Основной канал • v3.0",
-      avatar: TEACHER_VASILINA_AVATAR,
-      online: true,
-      statusText: "в сети",
-      lastMessage: "Готовимся к разбору темы «Обыкновенные дроби и доли». Прикрепила материалы.",
-      lastMessageTime: "12:40",
-      unreadCount: 4,
-      lessonId: "c9a16950-2e61-4c9a-9dca-493c8b5ccb2f",
-      lessonTitle: "Математика: Обыкновенные дроби и доли",
-      lessonTime: "Сегодня в 16:00 (Тольятти)",
-      lessonSubject: "Математика",
-    });
-
-    // Диалоги на основе уроков
+    // Диалоги на основе реальных уроков
     if (currentRole === "STUDENT") {
       const studentLessons = Array.isArray(lessons) ? lessons : [];
       studentLessons.forEach((l) => {
@@ -294,9 +273,9 @@ export default function TelegramCabinet({
             avatar: l.teacherAvatar || l.teacher?.avatar_url || TEACHER_VASILINA_AVATAR,
             online: true,
             statusText: "в сети",
-            lastMessage: l.title ? `Запланирован урок: «${l.title}»` : "Здравствуйте! Жду вас на уроке.",
+            lastMessage: l.title ? `Урок: «${l.title}»` : "Диалог с преподавателем",
             lastMessageTime: l.startTime ? formatTolyatti(l.startTime, "d MMM, HH:mm") : "Недавно",
-            unreadCount: 1,
+            unreadCount: 0,
             lessonId: l.id,
             lessonTitle: l.title,
             lessonTime: l.startTime ? formatTolyatti(l.startTime, "d MMMM (EE) в HH:mm") : undefined,
@@ -304,6 +283,27 @@ export default function TelegramCabinet({
           });
         }
       });
+
+      // Добавленные преподаватели
+      if (Array.isArray(friendTeachers)) {
+        friendTeachers.forEach((t) => {
+          const chatId = `teacher-${t.id}`;
+          if (!list.some((c) => c.id === chatId)) {
+            list.push({
+              id: chatId,
+              name: t.name,
+              role: "teacher",
+              roleLabel: t.subjects ? `Преподаватель • ${t.subjects}` : "Преподаватель",
+              avatar: t.avatarUrl || TEACHER_VASILINA_AVATAR,
+              online: true,
+              statusText: "в сети",
+              lastMessage: "Преподаватель добавлен в контакты.",
+              lastMessageTime: "Сегодня",
+              unreadCount: 0,
+            });
+          }
+        });
+      }
     } else if (currentRole === "TEACHER") {
       if (Array.isArray(lessons) && lessons.length > 0) {
         lessons.forEach((l) => {
@@ -322,7 +322,7 @@ export default function TelegramCabinet({
                 "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&h=150&fit=crop&crop=faces",
               online: true,
               statusText: "в сети",
-              lastMessage: l.title ? `Заказ на урок: «${l.title}»` : "Диалог открыт",
+              lastMessage: l.title ? `Урок: «${l.title}»` : "Диалог открыт",
               lastMessageTime: l.startTime ? formatTolyatti(l.startTime, "d MMM, HH:mm") : "Недавно",
               unreadCount: 0,
               lessonId: l.id,
@@ -349,7 +349,7 @@ export default function TelegramCabinet({
                 "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&h=150&fit=crop&crop=faces",
               online: true,
               statusText: "в сети",
-              lastMessage: "Ученик добавлен в друзья.",
+              lastMessage: "Ученик в списке контактов.",
               lastMessageTime: "Сегодня",
               unreadCount: 0,
             });
@@ -358,7 +358,7 @@ export default function TelegramCabinet({
       }
     }
 
-    // Служба заботы и поддержки
+    // Служба заботы и поддержки школы
     list.push({
       id: "chat-support",
       name: "Служба заботы «АйДаУмничка»",
@@ -367,13 +367,13 @@ export default function TelegramCabinet({
       avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&h=150&fit=crop&crop=faces",
       online: true,
       statusText: "онлайн",
-      lastMessage: "Здравствуйте! Мы на связи, если у вас возникнут любые вопросы по урокам или платформе.",
+      lastMessage: "Здравствуйте! Мы на связи, если у вас возникнут вопросы.",
       lastMessageTime: "Сегодня",
       unreadCount: 0,
     });
 
     return list;
-  }, [lessons, currentRole, friendTeachers, friendStudents, currentUser]);
+  }, [lessons, currentRole, friendTeachers, friendStudents]);
 
   const [chats, setChats] = useState<TelegramChat[]>(() => buildChats());
 
@@ -386,7 +386,6 @@ export default function TelegramCabinet({
     (chatId: string) => {
       if (chatId === "chat-support") return `tg_support_${currentUser.id || "guest"}`;
       if (chatId === "chat-ai-assistant") return `tg_ai_${currentUser.id || "guest"}`;
-      if (chatId.startsWith("channel-")) return `tg_${chatId}`;
       const myId = currentUser.id || "guest";
       const partnerId = chatId.replace(/^(student|teacher)-/, "");
       const sorted = [myId, partnerId].sort();
@@ -427,52 +426,8 @@ export default function TelegramCabinet({
             senderName: "Ассистент «Умничка AI»",
             senderAvatar: partnerAvatar,
             isMe: false,
-            text: `Привет, ${currentUser?.name?.split(" ")[0] || "друг"}! 👋 Я твой умный помощник по учебе. Спроси меня о чем угодно: помогу решить сложную задачу, объясню правило русского языка или составлю план подготовки к уроку.`,
+            text: `Здравствуйте, ${currentUser?.name?.split(" ")[0] || "друг"}! Я ваш персональный помощник по учебе. Могу помочь с решением примеров, разбором правил или ответом на вопросы.`,
             time: "10:00",
-            date: "Сегодня",
-            read: true,
-          },
-        ]);
-      } else if (activeChatId === "channel-math") {
-        setMessages([
-          {
-            id: "msg-channel-1",
-            senderId: "vasilina-sharonova",
-            senderName: "Василина Владимировна",
-            senderAvatar: TEACHER_VASILINA_AVATAR,
-            isMe: false,
-            text: "Всем привет! Мы начинаем новый модуль «Обыкновенные дроби и логика». Обязательно посмотрите интерактивный урок и подготовьте тетради к 16:00. @Ученик @Родитель",
-            time: "10:15",
-            date: "Сегодня",
-            read: true,
-          },
-          {
-            id: "msg-channel-lesson",
-            senderId: "vasilina-sharonova",
-            senderName: "Василина Владимировна",
-            senderAvatar: TEACHER_VASILINA_AVATAR,
-            isMe: false,
-            text: "Интерактивная комната урока готова. Подключайтесь по кнопке ниже:",
-            time: "10:16",
-            date: "Сегодня",
-            type: "lesson_invite",
-            lessonData: {
-              id: "c9a16950-2e61-4c9a-9dca-493c8b5ccb2f",
-              title: "Математика: Обыкновенные дроби и доли (v3.0)",
-              time: "Сегодня в 16:00 (Тольятти)",
-              subject: "Математика и логика",
-              roomName: "room-math-fractions",
-            },
-            read: true,
-          },
-          {
-            id: "msg-channel-2",
-            senderId: "student-sharonov",
-            senderName: "Сергей Шаронов",
-            senderAvatar: SHARONOV_AVATAR,
-            isMe: currentRole === "STUDENT",
-            text: "Здравствуйте! Домашнюю работу №3 уже решил, прикрепил фото решения в тетради.",
-            time: "11:30",
             date: "Сегодня",
             read: true,
           },
@@ -485,7 +440,7 @@ export default function TelegramCabinet({
             senderName: partnerName,
             senderAvatar: partnerAvatar,
             isMe: false,
-            text: `Здравствуйте! Вам назначен онлайн-урок в «АйДаУмничка»:`,
+            text: `Здравствуйте! Запланирован онлайн-урок:`,
             time: "10:00",
             date: "Сегодня",
             type: "lesson_invite",
@@ -528,7 +483,7 @@ export default function TelegramCabinet({
         }
       })
       .catch(() => {});
-  }, [activeChatId, getNormalizedRoomId, currentUser.id, currentRole]);
+  }, [activeChatId, getNormalizedRoomId, currentUser.id, activeChat]);
 
   // Автопрокрутка
   useEffect(() => {
@@ -575,42 +530,26 @@ export default function TelegramCabinet({
     setInputText("");
     setShowMentions(false);
 
-    // Обновляем превью в чатах
-    setChats((prev) =>
-      prev.map((c) =>
-        c.id === activeChatId
-          ? { ...c, lastMessage: clean, lastMessageTime: timeStr, unreadCount: 0 }
-          : c
-      )
-    );
-
     // AI Ассистент авто-ответ
     if (activeChatId === "chat-ai-assistant") {
       setIsTyping(true);
       setTimeout(() => {
         setIsTyping(false);
-        const aiReplies = [
-          "Отличный вопрос! Чтобы сложить две дроби с одинаковыми знаменателями, складываем их числители, а знаменатель оставляем прежним. Например: 1/4 + 2/4 = 3/4.",
-          "Замечательно сформулировано! В русском языке в приставках на -з / -с перед звонкими согласными пишется 'з', а перед глухими — 'с'. Например: разбег, но распил.",
-          "Принято! Я добавил эту тему в список повторения перед следующим уроком с преподавателем.",
-        ];
-        const randomReply = aiReplies[Math.floor(Math.random() * aiReplies.length)];
         const replyTime = formatTolyatti(nowInTolyatti(), "HH:mm");
-
         const aiMsg: TelegramMessage = {
           id: `ai-reply-${Date.now()}`,
           senderId: "chat-ai-assistant",
           senderName: "Ассистент «Умничка AI»",
           senderAvatar: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&h=150&fit=crop",
           isMe: false,
-          text: randomReply,
+          text: "Спасибо за вопрос! Запрос принят. Могу подсказать пошаговый алгоритм решения или пояснить нужное правило.",
           time: replyTime,
           date: "Сегодня",
           read: true,
         };
         const withAi = [...updated, aiMsg];
         saveMessages(withAi);
-      }, 1100);
+      }, 1000);
     }
 
     // Сохранение в API
@@ -628,20 +567,6 @@ export default function TelegramCabinet({
         }),
       });
     } catch (e) {}
-  };
-
-  // Переключение реакции
-  const toggleReaction = (msgId: string, emoji: string) => {
-    setMessageReactions((prev) => {
-      const msgReactions = { ...(prev[msgId] || {}) };
-      const current = msgReactions[emoji] || 0;
-      if (current > 0) {
-        msgReactions[emoji] = current + 1;
-      } else {
-        msgReactions[emoji] = 1;
-      }
-      return { ...prev, [msgId]: msgReactions };
-    });
   };
 
   // Загрузка файла
@@ -672,12 +597,12 @@ export default function TelegramCabinet({
         senderName: currentUser.name || "Я",
         senderAvatar: currentUser.avatar,
         isMe: true,
-        text: `Прикреплён учебный файл: ${data.fileName || file.name}`,
+        text: `Прикреплён файл: ${data.fileName || file.name}`,
         time: timeStr,
         date: "Сегодня",
         type: "file",
         fileName: data.fileName || file.name,
-        fileSize: data.fileSize || "1.2 MB",
+        fileSize: data.fileSize || "Документ",
         fileUrl: data.url,
         read: true,
       };
@@ -699,157 +624,121 @@ export default function TelegramCabinet({
     await performLogout();
   };
 
-  // Список участников для автокомплита (@)
-  const mentionCandidates = [
-    { name: "Василина Владимировна", role: "Преподаватель", avatar: TEACHER_VASILINA_AVATAR },
-    { name: "Сергей Шаронов", role: "Ученик", avatar: SHARONOV_AVATAR },
-    { name: "Анна Николаевна", role: "Родитель", avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop" },
-    { name: "Умничка AI", role: "Ассистент", avatar: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&h=100&fit=crop" },
-  ];
+  // Фильтрация чатов по строке поиска
+  const filteredChats = useMemo(() => {
+    if (!searchQuery.trim()) return chats;
+    const q = searchQuery.toLowerCase();
+    return chats.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        c.roleLabel.toLowerCase().includes(q) ||
+        c.lastMessage.toLowerCase().includes(q)
+    );
+  }, [chats, searchQuery]);
+
+  const activeSectionObj = extraCabinetSections.find((s) => s.key === activeScreen);
 
   return (
     <div className="flex h-[100dvh] w-full bg-[#eef1f5] p-0 md:p-3 select-none relative font-sans text-slate-800 antialiased overflow-hidden">
-      {/* Главный контейнер приложения в стиле Conceptzilla / Mac OS window */}
-      <div className="flex flex-1 w-full h-full bg-white md:rounded-3xl border border-slate-200/90 shadow-2xl overflow-hidden relative">
+      {/* Главный контейнер приложения */}
+      <div className="flex flex-1 w-full h-full bg-white md:rounded-3xl border border-slate-200 shadow-xl overflow-hidden relative">
 
         {/* =========================================================================
-            КОЛОНКА 0: УЗКИЙ ЛЕГКИЙ ДОК (APP DOCK BAR - 68px)
+            КОЛОНКА 0: УЗКИЙ ДОК ПРИЛОЖЕНИЙ (APP DOCK - 64px)
            ========================================================================= */}
-        <aside className="w-[68px] bg-[#111317] flex flex-col items-center py-4 justify-between shrink-0 z-30 border-r border-[#1e222b]">
-          <div className="flex flex-col items-center gap-5 w-full">
-            {/* Логотип школы / Monogram */}
+        <aside className="w-16 bg-[#111317] flex flex-col items-center py-3.5 justify-between shrink-0 z-30 border-r border-[#1e222b]">
+          <div className="flex flex-col items-center gap-4 w-full">
+            {/* Логотип школы */}
             <Link
               href="/"
-              className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 text-white flex items-center justify-center font-black text-lg shadow-lg shadow-blue-500/30 hover:scale-105 transition"
-              title="На главную страницу школы"
+              className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 text-white flex items-center justify-center font-black text-lg shadow-md shadow-blue-500/25 hover:scale-105 transition"
+              title="На главную"
             >
               У
             </Link>
 
-            <div className="w-8 h-[1px] bg-white/10" />
+            <div className="w-7 h-[1px] bg-white/10" />
 
-            {/* Иконки переключения основных приложений рабочей среды */}
-            <div className="flex flex-col items-center gap-2.5 w-full px-2">
-              {/* Чат / Хаб */}
+            {/* Быстрые кнопки разделов кабинета */}
+            <div className="flex flex-col items-center gap-2 w-full px-2">
+              {extraCabinetSections.map((sec) => {
+                const Icon = sec.icon;
+                const isSel = activeScreen === sec.key;
+                return (
+                  <button
+                    key={sec.key}
+                    type="button"
+                    onClick={() => {
+                      setActiveScreen(sec.key);
+                      setMobileSidebarOpen(false);
+                    }}
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center transition relative group cursor-pointer ${
+                      isSel
+                        ? "bg-white text-slate-900 shadow-md font-bold"
+                        : "text-slate-400 hover:text-white hover:bg-white/10"
+                    }`}
+                    title={sec.title}
+                  >
+                    <Icon className="w-4 h-4" />
+                    {isSel && (
+                      <span className="absolute -left-2 top-2.5 bottom-2.5 w-1 bg-blue-500 rounded-r-full" />
+                    )}
+                    <span className="absolute left-14 bg-slate-900 text-white text-xs px-2.5 py-1 rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition whitespace-nowrap z-50 shadow-lg border border-slate-700">
+                      {sec.title}
+                    </span>
+                  </button>
+                );
+              })}
+
+              {/* Чат / Сообщения */}
               <button
                 type="button"
                 onClick={() => {
                   setActiveScreen("chat");
                   setMobileSidebarOpen(false);
                 }}
-                className={`w-11 h-11 rounded-2xl flex items-center justify-center transition relative group ${
+                className={`w-10 h-10 rounded-xl flex items-center justify-center transition relative group cursor-pointer ${
                   activeScreen === "chat"
                     ? "bg-white text-slate-900 shadow-md font-bold"
                     : "text-slate-400 hover:text-white hover:bg-white/10"
                 }`}
-                title="Учебный чат и хаб (Conceptzilla Workspace)"
+                title="Сообщения и чат"
               >
-                <MessageSquare className="w-5 h-5" />
+                <MessageSquare className="w-4 h-4" />
                 {activeScreen === "chat" && (
-                  <span className="absolute -left-2 top-3 bottom-3 w-1 bg-blue-500 rounded-r-full" />
+                  <span className="absolute -left-2 top-2.5 bottom-2.5 w-1 bg-blue-500 rounded-r-full" />
                 )}
-                {/* Тултип */}
                 <span className="absolute left-14 bg-slate-900 text-white text-xs px-2.5 py-1 rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition whitespace-nowrap z-50 shadow-lg border border-slate-700">
-                  Учебный хаб
+                  Сообщения
                 </span>
               </button>
 
-              {/* Расписание / Календарь */}
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveScreen("schedule");
-                  setMobileSidebarOpen(false);
-                }}
-                className={`w-11 h-11 rounded-2xl flex items-center justify-center transition relative group ${
-                  activeScreen === "schedule"
-                    ? "bg-white text-slate-900 shadow-md font-bold"
-                    : "text-slate-400 hover:text-white hover:bg-white/10"
-                }`}
-                title="Расписание занятий"
-              >
-                <Calendar className="w-5 h-5" />
-                {activeScreen === "schedule" && (
-                  <span className="absolute -left-2 top-3 bottom-3 w-1 bg-blue-500 rounded-r-full" />
-                )}
-                <span className="absolute left-14 bg-slate-900 text-white text-xs px-2.5 py-1 rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition whitespace-nowrap z-50 shadow-lg border border-slate-700">
-                  Расписание
-                </span>
-              </button>
-
-              {/* Ученики / CRM (Alloy view) */}
-              {(currentRole === "TEACHER" || currentRole === "ADMIN" || currentRole === "PARENT") && (
+              {/* Создать урок */}
+              {currentRole === "TEACHER" && (
                 <button
                   type="button"
                   onClick={() => {
-                    const target = currentRole === "PARENT" ? "children" : "students";
-                    setActiveScreen(target);
-                    setMobileSidebarOpen(false);
+                    const ev = new CustomEvent("ayda:open-create-lesson");
+                    window.dispatchEvent(ev);
                   }}
-                  className={`w-11 h-11 rounded-2xl flex items-center justify-center transition relative group ${
-                    activeScreen === "students" || activeScreen === "children"
-                      ? "bg-white text-slate-900 shadow-md font-bold"
-                      : "text-slate-400 hover:text-white hover:bg-white/10"
-                  }`}
-                  title={currentRole === "PARENT" ? "Мои дети" : "Ученики и CRM (Alloy dossier)"}
+                  className="w-10 h-10 rounded-xl bg-blue-600/30 hover:bg-blue-600 text-blue-300 hover:text-white flex items-center justify-center transition cursor-pointer mt-1"
+                  title="Назначить новый урок"
                 >
-                  <Users className="w-5 h-5" />
-                  {(activeScreen === "students" || activeScreen === "children") && (
-                    <span className="absolute -left-2 top-3 bottom-3 w-1 bg-blue-500 rounded-r-full" />
-                  )}
-                  <span className="absolute left-14 bg-slate-900 text-white text-xs px-2.5 py-1 rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition whitespace-nowrap z-50 shadow-lg border border-slate-700">
-                    {currentRole === "PARENT" ? "Дети" : "Досье учеников"}
-                  </span>
+                  <Plus className="w-4 h-4" />
                 </button>
               )}
-
-              {/* Домашние задания */}
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveScreen("homework");
-                  setMobileSidebarOpen(false);
-                }}
-                className={`w-11 h-11 rounded-2xl flex items-center justify-center transition relative group ${
-                  activeScreen === "homework"
-                    ? "bg-white text-slate-900 shadow-md font-bold"
-                    : "text-slate-400 hover:text-white hover:bg-white/10"
-                }`}
-                title="Домашние задания"
-              >
-                <CheckSquare className="w-5 h-5" />
-                {activeScreen === "homework" && (
-                  <span className="absolute -left-2 top-3 bottom-3 w-1 bg-blue-500 rounded-r-full" />
-                )}
-                <span className="absolute left-14 bg-slate-900 text-white text-xs px-2.5 py-1 rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition whitespace-nowrap z-50 shadow-lg border border-slate-700">
-                  Домашние задания
-                </span>
-              </button>
-
-              {/* Быстрое действие (+) */}
-              <button
-                type="button"
-                onClick={() => {
-                  const ev = new CustomEvent("ayda:open-create-lesson");
-                  window.dispatchEvent(ev);
-                }}
-                className="w-11 h-11 rounded-2xl bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center transition cursor-pointer mt-2"
-                title="Назначить новый урок"
-              >
-                <Plus className="w-5 h-5" />
-              </button>
             </div>
           </div>
 
           {/* Низ левого дока: Профиль и Выход */}
-          <div className="flex flex-col items-center gap-3 w-full">
+          <div className="flex flex-col items-center gap-2.5 w-full">
             <button
               type="button"
               onClick={() => setEditProfileOpen(true)}
               className="relative group cursor-pointer"
               title="Настройки профиля"
             >
-              <div className="w-10 h-10 rounded-full border-2 border-slate-700 overflow-hidden group-hover:border-blue-400 transition">
+              <div className="w-9 h-9 rounded-full border border-slate-700 overflow-hidden group-hover:border-blue-400 transition">
                 <img
                   src={
                     currentUser.avatar ||
@@ -859,14 +748,14 @@ export default function TelegramCabinet({
                   className="w-full h-full object-cover"
                 />
               </div>
-              <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-[#111317] rounded-full" />
+              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border border-[#111317] rounded-full" />
             </button>
 
             <button
               type="button"
               onClick={handleLogout}
-              className="p-2.5 rounded-xl text-slate-500 hover:text-rose-400 hover:bg-white/5 transition cursor-pointer"
-              title="Выйти из аккаунта"
+              className="p-2 rounded-xl text-slate-500 hover:text-rose-400 hover:bg-white/5 transition cursor-pointer"
+              title="Выйти из системы"
             >
               <LogOut className="w-4 h-4" />
             </button>
@@ -874,324 +763,153 @@ export default function TelegramCabinet({
         </aside>
 
         {/* =========================================================================
-            КОЛОНКА 1: ДЕРЕВО ПРЕДМЕТОВ, КАНАЛОВ И НАВИГАЦИИ (SIDEBAR - 270px)
+            КОЛОНКА 1: БОКОВАЯ ПАНЕЛЬ РАЗДЕЛОВ И ЧАТОВ (260px)
            ========================================================================= */}
         <aside
-          className={`w-72 bg-[#fafbfc] border-r border-slate-200/80 flex flex-col shrink-0 h-full select-none z-20 ${
+          className={`w-64 bg-[#fafbfc] border-r border-slate-200 flex flex-col shrink-0 h-full select-none z-20 ${
             mobileSidebarOpen ? "fixed inset-0 z-40 bg-white" : "hidden lg:flex"
           }`}
         >
-          {/* Шапка рабочего пространства (Conceptzilla header) */}
-          <div className="p-4 border-b border-slate-200/70 flex items-center justify-between gap-2 bg-white/50">
+          {/* Шапка рабочего пространства */}
+          <div className="p-3.5 border-b border-slate-200/80 flex items-center justify-between gap-2 bg-white/70">
             <div className="flex items-center gap-2 min-w-0">
-              <span className="font-extrabold text-sm text-slate-900 tracking-tight truncate">
+              <span className="font-extrabold text-xs text-slate-900 tracking-tight truncate">
                 АйДаУмничка
               </span>
-              <ChevronDown className="w-4 h-4 text-slate-400 shrink-0 cursor-pointer" />
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 shrink-0">
+                {currentRole === "TEACHER"
+                  ? "Учитель"
+                  : currentRole === "STUDENT"
+                  ? "Ученик"
+                  : currentRole === "PARENT"
+                  ? "Родитель"
+                  : "Админ"}
+              </span>
             </div>
 
-            <div className="flex items-center gap-1.5">
+            {mobileSidebarOpen && (
               <button
                 type="button"
-                onClick={() => chatInputRef.current?.focus()}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
-                title="Поиск"
+                onClick={() => setMobileSidebarOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition lg:hidden"
               >
-                <Search className="w-4 h-4" />
+                <X className="w-4 h-4" />
               </button>
-              {mobileSidebarOpen && (
-                <button
-                  type="button"
-                  onClick={() => setMobileSidebarOpen(false)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition lg:hidden"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              )}
-            </div>
+            )}
           </div>
 
-          {/* Быстрая строка поиска */}
+          {/* Строка поиска */}
           <div className="px-3 py-2">
             <div className="relative">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
+              <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Поиск по урокам..."
-                className="w-full bg-slate-100/80 border border-transparent focus:border-slate-300 focus:bg-white rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 outline-none transition"
+                placeholder="Поиск..."
+                className="w-full bg-slate-100 border border-transparent focus:border-slate-300 focus:bg-white rounded-xl pl-7 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 outline-none transition"
               />
             </div>
           </div>
 
-          {/* Основные разделы навигации */}
-          <div className="flex-1 overflow-y-auto px-3 py-2 space-y-4">
-            {/* Ассистент Умничка AI (NEW badge) */}
-            <div className="space-y-1">
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveScreen("chat");
-                  setActiveChatId("chat-ai-assistant");
-                  setMobileSidebarOpen(false);
-                }}
-                className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-semibold transition cursor-pointer ${
-                  activeChatId === "chat-ai-assistant" && activeScreen === "chat"
-                    ? "bg-purple-100 text-purple-900 font-bold"
-                    : "text-purple-700 hover:bg-purple-50"
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-purple-600" />
-                  <span>Ассистент Умничка</span>
-                </div>
-                <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded-md bg-purple-200/80 text-purple-800">
-                  NEW
-                </span>
-              </button>
-
-              {/* Разделы рабочего стола */}
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveScreen("chat");
-                  setActiveChatId("channel-math");
-                  setMobileSidebarOpen(false);
-                }}
-                className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer ${
-                  activeChatId === "channel-math" && activeScreen === "chat"
-                    ? "bg-slate-200/80 text-slate-900 font-bold"
-                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                }`}
-              >
-                <Folder className="w-3.5 h-3.5 text-slate-400" />
-                <span>Черновики и заметки</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveScreen("chat");
-                  setActiveChatId("channel-math");
-                  setMobileSidebarOpen(false);
-                }}
-                className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition cursor-pointer"
-              >
-                <div className="flex items-center gap-2">
-                  <Inbox className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Входящие</span>
-                </div>
-                <span className="text-[11px] font-bold text-slate-500 bg-slate-200 px-1.5 rounded-full">
-                  8
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveScreen("chat");
-                  setActiveChatId("chat-support");
-                  setMobileSidebarOpen(false);
-                }}
-                className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition cursor-pointer"
-              >
-                <div className="flex items-center gap-2">
-                  <MessageSquare className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Личные сообщения</span>
-                </div>
-                <span className="text-[11px] font-bold text-blue-600 bg-blue-100 px-1.5 rounded-full">
-                  1
-                </span>
-              </button>
-            </div>
-
-            {/* Секция: Избранное (Favorites) */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between px-2 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                <span>Избранное</span>
-                <ChevronDown className="w-3 h-3" />
+          {/* Основные рабочие разделы кабинета */}
+          <div className="flex-1 overflow-y-auto px-2 py-1 space-y-4">
+            <div className="space-y-0.5">
+              <div className="px-2 pb-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                Разделы
               </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveScreen("chat");
-                  setActiveChatId(chats.find((c) => c.role === "teacher")?.id || "channel-math");
-                  setMobileSidebarOpen(false);
-                }}
-                className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs font-medium text-slate-700 hover:bg-slate-100 transition cursor-pointer"
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <img
-                    src={TEACHER_VASILINA_AVATAR}
-                    alt="Василина Владимировна"
-                    className="w-4 h-4 rounded-full object-cover"
-                  />
-                  <span className="truncate">Василина Владимировна</span>
-                </div>
-                <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-md">
-                  2
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveScreen("chat");
-                  setActiveChatId("channel-math");
-                  setMobileSidebarOpen(false);
-                }}
-                className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs font-medium text-slate-700 hover:bg-slate-100 transition cursor-pointer"
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <Hash className="w-3.5 h-3.5 text-slate-400" />
-                  <span className="truncate">Математика 3 класс</span>
-                </div>
-                <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-md">
-                  4
-                </span>
-              </button>
-            </div>
-
-            {/* Секция: Каналы предметов (Channels) */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between px-2 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                <span>Каналы предметов</span>
-                <Plus className="w-3.5 h-3.5 cursor-pointer hover:text-slate-600" />
-              </div>
-
-              <div className="space-y-0.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveScreen("chat");
-                    setActiveChatId("channel-math");
-                    setMobileSidebarOpen(false);
-                  }}
-                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs transition cursor-pointer ${
-                    activeChatId === "channel-math" && activeScreen === "chat"
-                      ? "bg-slate-200/80 text-slate-900 font-bold"
-                      : "text-slate-600 hover:bg-slate-100"
-                  }`}
-                >
-                  <Hash className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Общий чат класса</span>
-                </button>
-
-                {/* Вложенная структура по предмету (как в Conceptzilla) */}
-                <div className="pl-3 border-l border-slate-200 space-y-1 ml-3 mt-1">
-                  <div className="text-[11px] font-bold text-slate-500 py-0.5 flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                    <span>Математика • v3.0</span>
-                  </div>
-
+              {extraCabinetSections.map((sec) => {
+                const Icon = sec.icon;
+                const isSel = activeScreen === sec.key;
+                return (
                   <button
+                    key={sec.key}
+                    type="button"
+                    onClick={() => {
+                      setActiveScreen(sec.key);
+                      setMobileSidebarOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-semibold transition cursor-pointer ${
+                      isSel
+                        ? "bg-blue-50 text-blue-700 font-bold shadow-2xs"
+                        : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <Icon className="w-4 h-4 shrink-0" />
+                      <span className="truncate">{sec.title}</span>
+                    </div>
+                    {sec.badge !== undefined && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-700 shrink-0">
+                        {sec.badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Сообщения и диалоги */}
+            <div className="space-y-0.5 pt-2 border-t border-slate-200">
+              <div className="flex items-center justify-between px-2 pb-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                <span>Сообщения</span>
+                <span className="text-slate-500">{filteredChats.length}</span>
+              </div>
+
+              {filteredChats.map((chat) => {
+                const isChatActive = activeScreen === "chat" && activeChatId === chat.id;
+                return (
+                  <button
+                    key={chat.id}
                     type="button"
                     onClick={() => {
                       setActiveScreen("chat");
-                      setActiveChatId("channel-math");
+                      setActiveChatId(chat.id);
                       setMobileSidebarOpen(false);
                     }}
-                    className={`w-full flex items-center gap-2 px-2 py-1 rounded-lg text-xs transition cursor-pointer ${
-                      activeChatId === "channel-math" && activeScreen === "chat"
-                        ? "bg-slate-200 font-bold text-slate-900"
-                        : "text-slate-600 hover:bg-slate-100"
+                    className={`w-full flex items-center gap-2.5 p-2 rounded-xl text-xs transition cursor-pointer text-left ${
+                      isChatActive
+                        ? "bg-slate-200/90 text-slate-900 font-bold"
+                        : "text-slate-700 hover:bg-slate-100"
                     }`}
                   >
-                    <span className="text-slate-400">↳</span>
-                    <span className="truncate">Урок: Обыкновенные дроби</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveScreen("homework");
-                      setMobileSidebarOpen(false);
-                    }}
-                    className="w-full flex items-center gap-2 px-2 py-1 rounded-lg text-xs text-slate-600 hover:bg-slate-100 transition cursor-pointer"
-                  >
-                    <span className="text-slate-400">↳</span>
-                    <span>Домашние задания</span>
-                  </button>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveScreen("chat");
-                    setActiveChatId("channel-math");
-                    setMobileSidebarOpen(false);
-                  }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs text-slate-600 hover:bg-slate-100 transition cursor-pointer"
-                >
-                  <Hash className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Русский язык и каллиграфия</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveScreen("chat");
-                    setActiveChatId("channel-math");
-                    setMobileSidebarOpen(false);
-                  }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs text-slate-600 hover:bg-slate-100 transition cursor-pointer"
-                >
-                  <Hash className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Английский язык</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Секция: Дополнительные разделы кабинета */}
-            {extraCabinetSections.length > 0 && (
-              <div className="space-y-1 pt-2 border-t border-slate-200/80">
-                <div className="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                  Разделы кабинета
-                </div>
-                {extraCabinetSections.map((sec) => {
-                  const Icon = sec.icon;
-                  const isSel = activeScreen === sec.key;
-                  return (
-                    <button
-                      key={sec.key}
-                      type="button"
-                      onClick={() => {
-                        setActiveScreen(sec.key);
-                        setMobileSidebarOpen(false);
-                      }}
-                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer ${
-                        isSel
-                          ? "bg-blue-50 text-blue-700 font-bold"
-                          : "text-slate-600 hover:bg-slate-100"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <Icon className="w-3.5 h-3.5" />
-                        <span>{sec.title}</span>
-                      </div>
-                      {sec.badge !== undefined && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-200 text-slate-700">
-                          {sec.badge}
-                        </span>
+                    <div className="relative shrink-0">
+                      <img
+                        src={chat.avatar}
+                        alt={chat.name}
+                        className="w-8 h-8 rounded-full object-cover border border-slate-200"
+                      />
+                      {chat.online && (
+                        <span className="absolute bottom-0 right-0 w-2 h-2 bg-emerald-500 rounded-full border border-white" />
                       )}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold truncate text-slate-900 text-xs">
+                          {chat.name}
+                        </span>
+                        <span className="text-[10px] text-slate-400 shrink-0">
+                          {chat.lastMessageTime}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 truncate">
+                        {chat.lastMessage}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </aside>
 
         {/* =========================================================================
-            КОЛОНКА 2: ЦЕНТРАЛЬНАЯ РАБОЧАЯ ОБЛАСТЬ (CONCEPTZILLA CHAT / WORKSPACE)
+            КОЛОНКА 2: ГЛАВНЫЙ ЭКРАН (РАСПИСАНИЕ / УЧЕНИКИ / ДОМАШКА / ЧАТ)
            ========================================================================= */}
         <main className="flex-1 flex flex-col h-full bg-white overflow-hidden min-w-0 relative">
-          {/* Верхняя панель в стиле Mac OS Window / Conceptzilla */}
-          <header className="h-14 border-b border-slate-200/80 px-4 flex items-center justify-between shrink-0 bg-white">
+          {/* Верхняя шапка */}
+          <header className="h-14 border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between shrink-0 bg-white">
             <div className="flex items-center gap-3 min-w-0">
-              {/* Мобильная кнопка меню */}
               <button
                 type="button"
                 onClick={() => setMobileSidebarOpen(true)}
@@ -1200,111 +918,123 @@ export default function TelegramCabinet({
                 <Menu className="w-5 h-5" />
               </button>
 
-              {/* Хлебные крошки Conceptzilla */}
-              <div className="flex items-center gap-1.5 text-xs text-slate-600 font-medium truncate">
-                <Hash className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                <span className="text-slate-900 font-bold">
-                  {activeScreen === "chat" ? activeChat?.name : extraCabinetSections.find((s) => s.key === activeScreen)?.title || "Раздел"}
+              <div className="flex items-center gap-2 text-xs text-slate-600 font-semibold truncate">
+                <span className="text-slate-900 font-extrabold text-sm sm:text-base">
+                  {activeScreen === "chat" ? activeChat?.name : activeSectionObj?.title || "Раздел"}
                 </span>
-                <span className="text-slate-300">•</span>
-                <span className="text-slate-400 hidden sm:inline">v3.0 / Онлайн-урок</span>
-                <Bookmark className="w-3.5 h-3.5 text-slate-400 hover:text-blue-500 cursor-pointer hidden sm:inline" />
+                {activeScreen === "chat" && activeChat?.roleLabel && (
+                  <span className="hidden sm:inline px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-600">
+                    {activeChat.roleLabel}
+                  </span>
+                )}
               </div>
             </div>
 
-            {/* Правые действия шапки */}
+            {/* Действия в шапке */}
             <div className="flex items-center gap-2">
-              {/* Кнопка быстрого входа на видеоурок */}
-              <Link
-                href={`/room/${activeChat?.lessonId || "room-fractions-3"}`}
-                target="_blank"
-                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition cursor-pointer"
-              >
-                <Video className="w-3.5 h-3.5" />
-                <span>Войти на урок</span>
-              </Link>
+              {activeScreen === "chat" && activeChat?.lessonId && (
+                <Link
+                  href={`/room/${activeChat.lessonId}`}
+                  target="_blank"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition cursor-pointer"
+                >
+                  <Video className="w-3.5 h-3.5" />
+                  <span>Войти на урок</span>
+                </Link>
+              )}
 
-              {/* Кнопка Ассистента */}
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveScreen("chat");
-                  setActiveChatId("chat-ai-assistant");
-                }}
-                className="p-2 rounded-xl text-purple-600 hover:bg-purple-50 transition cursor-pointer"
-                title="Спросить Умничку AI"
-              >
-                <Sparkles className="w-4 h-4" />
-              </button>
+              {currentRole === "TEACHER" && activeScreen !== "chat" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const ev = new CustomEvent("ayda:open-create-lesson");
+                    window.dispatchEvent(ev);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Назначить урок</span>
+                </button>
+              )}
 
-              {/* Переключатель правой контекстной панели (i) */}
-              <button
-                type="button"
-                onClick={() => setInspectorOpen(!inspectorOpen)}
-                className={`p-2 rounded-xl transition cursor-pointer ${
-                  inspectorOpen
-                    ? "bg-slate-100 text-slate-900 font-bold"
-                    : "text-slate-400 hover:text-slate-700 hover:bg-slate-100"
-                }`}
-                title="Информация об уроке и участниках"
-              >
-                <InfoIcon className="w-4 h-4" />
-              </button>
+              {activeScreen === "chat" && (
+                <button
+                  type="button"
+                  onClick={() => setInspectorOpen(!inspectorOpen)}
+                  className={`p-2 rounded-xl transition cursor-pointer ${
+                    inspectorOpen
+                      ? "bg-slate-100 text-slate-900 font-bold"
+                      : "text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                  }`}
+                  title="Информация о собеседнике"
+                >
+                  <InfoIcon className="w-4 h-4" />
+                </button>
+              )}
             </div>
           </header>
 
-          {/* Контент: если выбран режим чата */}
+          {/* КОНТЕНТ: если выбран ЧАТ */}
           {activeScreen === "chat" ? (
             <div className="flex-1 flex flex-col h-[calc(100%-56px)] overflow-hidden">
-              {/* Лента сообщений (Conceptzilla Feed) */}
-              <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 space-y-6">
-                {messages.map((msg) => {
-                  const reactions = messageReactions[msg.id] || {};
-                  return (
-                    <div key={msg.id} className="flex items-start gap-3.5 group max-w-4xl">
-                      {/* Аватар автора */}
+              {/* Лента реальных сообщений */}
+              <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-4">
+                {messages.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-center text-slate-400 space-y-2">
+                    <MessageSquare className="w-8 h-8 text-slate-300" />
+                    <p className="text-xs">В этом диалоге пока нет сообщений. Напишите первое!</p>
+                  </div>
+                ) : (
+                  messages.map((msg) => (
+                    <div
+                      key={msg.id}
+                      className={`flex items-start gap-3 max-w-2xl ${
+                        msg.isMe ? "ml-auto flex-row-reverse" : ""
+                      }`}
+                    >
                       <img
                         src={
                           msg.senderAvatar ||
                           (msg.isMe
                             ? currentUser.avatar || SHARONOV_AVATAR
-                            : TEACHER_VASILINA_AVATAR)
+                            : activeChat?.avatar || TEACHER_VASILINA_AVATAR)
                         }
                         alt={msg.senderName}
-                        className="w-10 h-10 rounded-2xl object-cover shrink-0 border border-slate-100 shadow-2xs mt-0.5"
+                        className="w-8 h-8 rounded-full object-cover shrink-0 border border-slate-100 shadow-2xs mt-1"
                       />
 
-                      <div className="flex-1 space-y-1.5 min-w-0">
-                        {/* Имя и время */}
+                      <div className={`space-y-1 ${msg.isMe ? "items-end text-right" : ""}`}>
                         <div className="flex items-baseline gap-2">
-                          <span className="font-extrabold text-sm text-slate-900">
+                          <span className="font-bold text-xs text-slate-900">
                             {msg.senderName}
                           </span>
-                          <span className="text-[11px] text-slate-400 font-medium">
-                            {msg.time}
-                          </span>
+                          <span className="text-[10px] text-slate-400">{msg.time}</span>
                         </div>
 
-                        {/* Текст сообщения */}
-                        <div className="text-sm text-slate-800 leading-relaxed break-words">
+                        {/* Текст реплики */}
+                        <div
+                          className={`text-xs sm:text-sm p-3 rounded-2xl break-words leading-relaxed ${
+                            msg.isMe
+                              ? "bg-blue-600 text-white rounded-tr-xs shadow-xs"
+                              : "bg-slate-100 text-slate-800 rounded-tl-xs"
+                          }`}
+                        >
                           {msg.text}
                         </div>
 
-                        {/* Интерактивная карточка урока (Conceptzilla Figma-style Card) */}
+                        {/* Карточка онлайн-урока */}
                         {msg.type === "lesson_invite" && msg.lessonData && (
-                          <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs hover:border-blue-400 transition flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mt-2">
-                            <div className="flex items-center gap-3 min-w-0">
-                              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-blue-500/20">
-                                <Video className="w-5 h-5" />
+                          <div className="bg-white rounded-2xl border border-blue-200 p-3 shadow-xs flex items-center justify-between gap-3 text-left mt-2">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0">
+                                <Video className="w-4 h-4" />
                               </div>
                               <div className="min-w-0">
-                                <h4 className="font-bold text-sm text-slate-900 truncate">
+                                <h5 className="font-bold text-xs text-slate-900 truncate">
                                   {msg.lessonData.title}
-                                </h4>
-                                <div className="text-xs text-slate-500 flex items-center gap-2">
-                                  <span>meet.jit.si</span>
-                                  <span>•</span>
-                                  <span>{msg.lessonData.time}</span>
+                                </h5>
+                                <div className="text-[11px] text-slate-500">
+                                  {msg.lessonData.time}
                                 </div>
                               </div>
                             </div>
@@ -1312,152 +1042,70 @@ export default function TelegramCabinet({
                             <Link
                               href={`/room/${msg.lessonData.roomName || msg.lessonData.id}`}
                               target="_blank"
-                              className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition shadow-xs flex items-center gap-1.5 cursor-pointer shrink-0"
+                              className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition shrink-0"
                             >
-                              <span>Подключиться (Quick view)</span>
-                              <ArrowRight className="w-3.5 h-3.5" />
+                              Войти
                             </Link>
                           </div>
                         )}
 
                         {/* Прикрепленный файл */}
                         {msg.type === "file" && msg.fileUrl && (
-                          <div className="inline-flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-2xl p-3 text-xs mt-2">
-                            <FileText className="w-6 h-6 text-blue-600 shrink-0" />
+                          <div className="inline-flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-left mt-1">
+                            <FileText className="w-5 h-5 text-blue-600 shrink-0" />
                             <div className="min-w-0">
                               <div className="font-bold text-slate-800 truncate">
-                                {msg.fileName || "Учебный файл"}
+                                {msg.fileName || "Файл"}
                               </div>
-                              <div className="text-[11px] text-slate-400">
-                                {msg.fileSize || "1.2 MB"}
-                              </div>
+                              <div className="text-[10px] text-slate-400">{msg.fileSize}</div>
                             </div>
                             <a
                               href={msg.fileUrl}
                               download
                               target="_blank"
                               rel="noreferrer"
-                              className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-blue-600 hover:border-blue-300 transition"
+                              className="p-1 rounded-lg hover:bg-slate-200 text-slate-600"
                             >
                               <Download className="w-3.5 h-3.5" />
                             </a>
                           </div>
                         )}
-
-                        {/* Эмодзи реакции под сообщением (как в Conceptzilla) */}
-                        <div className="flex items-center gap-1.5 pt-1">
-                          {Object.entries(reactions).map(([emoji, count]) => (
-                            <button
-                              key={emoji}
-                              type="button"
-                              onClick={() => toggleReaction(msg.id, emoji)}
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-medium text-slate-700 transition cursor-pointer border border-slate-200/60"
-                            >
-                              <span>{emoji}</span>
-                              <span className="text-[10px] font-bold text-slate-500">{count}</span>
-                            </button>
-                          ))}
-                          <button
-                            type="button"
-                            onClick={() => toggleReaction(msg.id, "👍")}
-                            className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition cursor-pointer"
-                            title="Поставить реакцию"
-                          >
-                            <Smile className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
                       </div>
                     </div>
-                  );
-                })}
-
-                {/* Индикатор набора текста */}
+                  ))
+                )}
                 {isTyping && (
                   <div className="flex items-center gap-2 text-xs text-slate-400 italic">
-                    <span className="w-2 h-2 rounded-full bg-slate-400 animate-bounce" />
-                    <span>Умничка печатает ответ...</span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" />
+                    <span>Собеседник печатает...</span>
                   </div>
                 )}
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Поле ввода сообщения в стиле Conceptzilla (Floating rounded card) */}
-              <div className="p-4 bg-white border-t border-slate-100">
+              {/* Поле ввода */}
+              <div className="p-3 bg-white border-t border-slate-200">
                 <form
                   onSubmit={handleSendMessage}
-                  className="rounded-2xl border border-slate-200 bg-white p-3 shadow-xs focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 transition space-y-2 relative"
+                  className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-2xs focus-within:border-blue-500 transition space-y-2 relative"
                 >
-                  {/* Автокомплит упоминаний @ */}
-                  {showMentions && (
-                    <div className="absolute -top-36 left-4 bg-white border border-slate-200 rounded-2xl shadow-xl p-2 w-64 z-50 animate-in fade-in slide-in-from-bottom-2">
-                      <div className="text-[11px] font-bold text-slate-400 uppercase px-2 py-1">
-                        Участники
-                      </div>
-                      {mentionCandidates.map((c) => (
-                        <div
-                          key={c.name}
-                          onClick={() => {
-                            setInputText((prev) => prev + c.name + " ");
-                            setShowMentions(false);
-                            chatInputRef.current?.focus();
-                          }}
-                          className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-slate-100 cursor-pointer transition"
-                        >
-                          <img src={c.avatar} alt={c.name} className="w-6 h-6 rounded-full object-cover" />
-                          <div className="min-w-0">
-                            <div className="text-xs font-bold text-slate-800 truncate">{c.name}</div>
-                            <div className="text-[10px] text-slate-400">{c.role}</div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Текстовая область */}
                   <textarea
                     ref={chatInputRef}
                     rows={2}
                     value={inputText}
-                    onChange={(e) => {
-                      setInputText(e.target.value);
-                      if (e.target.value.endsWith("@")) {
-                        setShowMentions(true);
-                      }
-                    }}
+                    onChange={(e) => setInputText(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && !e.shiftKey) {
                         e.preventDefault();
                         handleSendMessage();
                       }
                     }}
-                    placeholder="Напишите сообщение, вопрос или упомяните через @..."
-                    className="w-full text-sm text-slate-800 placeholder-slate-400 outline-none resize-none bg-transparent"
+                    placeholder="Напишите сообщение..."
+                    className="w-full text-xs sm:text-sm text-slate-800 placeholder-slate-400 outline-none resize-none bg-transparent"
                   />
 
-                  {/* Нижняя полоса действий ввода */}
-                  <div className="flex items-center justify-between pt-1 border-t border-slate-100/80">
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-100">
                     <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setInputText((prev) => prev + "✨ ");
-                          chatInputRef.current?.focus();
-                        }}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-purple-600 hover:bg-purple-50 transition cursor-pointer"
-                        title="AI ассистент"
-                      >
-                        <Sparkles className="w-4 h-4" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setShowMentions(!showMentions)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition cursor-pointer"
-                        title="Упомянуть @..."
-                      >
-                        <AtSign className="w-4 h-4" />
-                      </button>
-
                       <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
@@ -1486,300 +1134,70 @@ export default function TelegramCabinet({
                       </button>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setInputText("")}
-                        className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-500 hover:bg-slate-100 transition cursor-pointer"
-                      >
-                        Отмена
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={!inputText.trim() || isUploading}
-                        className="px-4 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white font-bold text-xs transition cursor-pointer shadow-xs flex items-center gap-1.5"
-                      >
-                        <span>Отправить</span>
-                        <Send className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                    <button
+                      type="submit"
+                      disabled={!inputText.trim() || isUploading}
+                      className="px-4 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white font-bold text-xs transition cursor-pointer flex items-center gap-1.5"
+                    >
+                      <span>Отправить</span>
+                      <Send className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </form>
               </div>
             </div>
           ) : (
-            /* Контент выбранного раздела кабинета (Расписание, Ученики, Домашка) */
+            /* КОНТЕНТ: Выбранный раздел кабинета (Расписание, Ученики, Домашка) */
             <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-[#f8fafc]">
-              <div className="max-w-6xl mx-auto space-y-6">
-                {extraCabinetSections.find((s) => s.key === activeScreen)?.render()}
+              <div className="max-w-6xl mx-auto">
+                {activeSectionObj?.render()}
               </div>
             </div>
           )}
         </main>
 
         {/* =========================================================================
-            КОЛОНКА 3: ПРАВАЯ ПАНЕЛЬ КОНТЕКСТА УРОКА (INSPECTOR - 310px)
+            КОЛОНКА 3: ИНСПЕКТОР (ПОКАЗЫВАЕТСЯ ТОЛЬКО ПО КЛИКУ НА (i) В ЧАТЕ)
            ========================================================================= */}
-        {inspectorOpen && (
-          <aside className="w-80 bg-white border-l border-slate-200/80 flex flex-col shrink-0 h-full select-none z-20">
-            {/* Вкладки: Инфо | Закрепы | Файлы | Ссылки */}
-            <div className="p-3 border-b border-slate-100 flex items-center gap-1 bg-slate-50/60 text-xs font-bold text-slate-600">
+        {inspectorOpen && activeScreen === "chat" && (
+          <aside className="w-72 bg-white border-l border-slate-200 flex flex-col shrink-0 h-full select-none z-20">
+            <div className="p-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+              <span className="font-extrabold text-xs text-slate-800">Информация</span>
               <button
                 type="button"
-                onClick={() => setInspectorTab("info")}
-                className={`flex-1 py-1.5 rounded-lg transition text-center cursor-pointer ${
-                  inspectorTab === "info"
-                    ? "bg-white text-slate-900 shadow-2xs font-extrabold"
-                    : "hover:bg-slate-100"
-                }`}
+                onClick={() => setInspectorOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/50 cursor-pointer"
               >
-                Инфо
-              </button>
-              <button
-                type="button"
-                onClick={() => setInspectorTab("pins")}
-                className={`flex-1 py-1.5 rounded-lg transition text-center cursor-pointer ${
-                  inspectorTab === "pins"
-                    ? "bg-white text-slate-900 shadow-2xs font-extrabold"
-                    : "hover:bg-slate-100"
-                }`}
-              >
-                Закрепы
-              </button>
-              <button
-                type="button"
-                onClick={() => setInspectorTab("files")}
-                className={`flex-1 py-1.5 rounded-lg transition text-center cursor-pointer ${
-                  inspectorTab === "files"
-                    ? "bg-white text-slate-900 shadow-2xs font-extrabold"
-                    : "hover:bg-slate-100"
-                }`}
-              >
-                Файлы
-              </button>
-              <button
-                type="button"
-                onClick={() => setInspectorTab("links")}
-                className={`flex-1 py-1.5 rounded-lg transition text-center cursor-pointer ${
-                  inspectorTab === "links"
-                    ? "bg-white text-slate-900 shadow-2xs font-extrabold"
-                    : "hover:bg-slate-100"
-                }`}
-              >
-                Ссылки
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Контент инспектора */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-6 text-xs">
-              {inspectorTab === "info" && (
-                <>
-                  {/* Основная информация (Main info) */}
-                  <div className="space-y-3">
-                    <h4 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider text-slate-400">
-                      Основная информация
-                    </h4>
-                    <div className="space-y-2.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-500">Преподаватель</span>
-                        <div className="flex items-center gap-1.5 font-bold text-slate-800">
-                          <img
-                            src={TEACHER_VASILINA_AVATAR}
-                            alt="Василина"
-                            className="w-4 h-4 rounded-full object-cover"
-                          />
-                          <span>Василина Ш.</span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-500">Дата урока</span>
-                        <span className="font-bold text-slate-800">Сегодня, 16:00</span>
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-500">Статус</span>
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold text-[10px] border border-emerald-200">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                          <span>Активен</span>
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-500">Теги</span>
-                        <span className="font-bold text-slate-800 hover:text-blue-600 cursor-pointer">
-                          Математика 3 класс &gt;
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-500">Домашнее задание</span>
-                        <span className="font-bold text-slate-800 hover:text-blue-600 cursor-pointer">
-                          4 задачи &gt;
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Связанные уроки (Linked threads) */}
-                  <div className="space-y-2 pt-3 border-t border-slate-100">
-                    <h4 className="font-extrabold text-xs uppercase tracking-wider text-slate-400">
-                      Связанные темы
-                    </h4>
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 hover:bg-slate-100 cursor-pointer transition">
-                        <div className="flex items-center gap-1.5">
-                          <Hash className="w-3.5 h-3.5 text-slate-400" />
-                          <span className="font-semibold text-slate-700">Дроби и доли</span>
-                        </div>
-                        <span className="text-[10px] font-bold text-slate-400">4</span>
-                      </div>
-                      <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 hover:bg-slate-100 cursor-pointer transition">
-                        <div className="flex items-center gap-1.5">
-                          <Hash className="w-3.5 h-3.5 text-slate-400" />
-                          <span className="font-semibold text-slate-700">Подготовка к ВПР</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Активность ученика (Conceptzilla Activity Heatmap) */}
-                  <div className="space-y-2 pt-3 border-t border-slate-100">
-                    <h4 className="font-extrabold text-xs uppercase tracking-wider text-slate-400">
-                      Посещаемость и активность
-                    </h4>
-                    <div className="flex items-center gap-1">
-                      {Array.from({ length: 20 }).map((_, i) => (
-                        <span
-                          key={i}
-                          className={`w-2.5 h-2.5 rounded-xs ${
-                            i % 5 === 0
-                              ? "bg-slate-200"
-                              : i % 3 === 0
-                              ? "bg-emerald-300"
-                              : "bg-emerald-500"
-                          }`}
-                          title={`Неделя ${i + 1}`}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Участники урока (Members с бейджами ролей) */}
-                  <div className="space-y-3 pt-3 border-t border-slate-100">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-extrabold text-xs uppercase tracking-wider text-slate-400">
-                        Участники (3)
-                      </h4>
-                      <Plus className="w-3.5 h-3.5 text-slate-400 hover:text-slate-600 cursor-pointer" />
-                    </div>
-
-                    <div className="space-y-2">
-                      {/* Преподаватель */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <img
-                            src={TEACHER_VASILINA_AVATAR}
-                            alt="Василина"
-                            className="w-7 h-7 rounded-full object-cover"
-                          />
-                          <div className="min-w-0">
-                            <div className="font-bold text-slate-900 truncate">Василина Владимировна</div>
-                            <div className="text-[10px] text-slate-400">Стаж 12 лет</div>
-                          </div>
-                        </div>
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                          Учитель
-                        </span>
-                      </div>
-
-                      {/* Ученик */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <img
-                            src={SHARONOV_AVATAR}
-                            alt="Сергей"
-                            className="w-7 h-7 rounded-full object-cover"
-                          />
-                          <div className="min-w-0">
-                            <div className="font-bold text-slate-900 truncate">Сергей Шаронов</div>
-                            <div className="text-[10px] text-slate-400">3 класс</div>
-                          </div>
-                        </div>
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                          Ученик
-                        </span>
-                      </div>
-
-                      {/* Родитель */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 font-bold text-xs flex items-center justify-center">
-                            А
-                          </div>
-                          <div className="min-w-0">
-                            <div className="font-bold text-slate-900 truncate">Анна (Мама)</div>
-                            <div className="text-[10px] text-slate-400">+7 (900) 123-45-67</div>
-                          </div>
-                        </div>
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
-                          Родитель
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {inspectorTab === "pins" && (
-                <div className="space-y-3">
-                  <h4 className="font-extrabold text-xs uppercase tracking-wider text-slate-400">
-                    Закрепленные материалы
-                  </h4>
-                  <div className="p-3 rounded-2xl border border-slate-200 bg-slate-50 space-y-1.5">
-                    <div className="flex items-center gap-1.5 font-bold text-slate-800">
-                      <Pin className="w-3.5 h-3.5 text-blue-600" />
-                      <span>Правило сложения дробей</span>
-                    </div>
-                    <p className="text-slate-600 leading-relaxed text-[11px]">
-                      При сложении дробей с одинаковыми знаменателями числители складывают, а знаменатель оставляют тот же.
-                    </p>
-                  </div>
+            <div className="p-4 space-y-4 text-xs overflow-y-auto flex-1">
+              <div className="text-center space-y-2">
+                <img
+                  src={activeChat?.avatar}
+                  alt={activeChat?.name}
+                  className="w-16 h-16 rounded-full object-cover mx-auto border-2 border-slate-100 shadow-sm"
+                />
+                <div>
+                  <h4 className="font-bold text-sm text-slate-900">{activeChat?.name}</h4>
+                  <p className="text-slate-500 text-xs">{activeChat?.roleLabel}</p>
                 </div>
-              )}
+              </div>
 
-              {inspectorTab === "files" && (
-                <div className="space-y-3">
-                  <h4 className="font-extrabold text-xs uppercase tracking-wider text-slate-400">
-                    Файлы и рабочие тетради
-                  </h4>
-                  <div className="p-3 rounded-2xl border border-slate-200 bg-slate-50 flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <FileText className="w-4 h-4 text-blue-600" />
-                      <span className="font-bold text-slate-800 truncate">Учебник_Математика_3кл.pdf</span>
-                    </div>
-                    <Download className="w-3.5 h-3.5 text-slate-400 hover:text-slate-700 cursor-pointer" />
-                  </div>
-                </div>
-              )}
-
-              {inspectorTab === "links" && (
-                <div className="space-y-3">
-                  <h4 className="font-extrabold text-xs uppercase tracking-wider text-slate-400">
-                    Полезные ссылки
-                  </h4>
-                  <a
-                    href="https://meet.jit.si"
+              {activeChat?.lessonId && (
+                <div className="p-3 rounded-2xl bg-blue-50 border border-blue-200 space-y-1.5">
+                  <span className="font-bold text-blue-900 block">Назначенный урок:</span>
+                  <p className="text-slate-700 font-medium">{activeChat.lessonTitle}</p>
+                  <p className="text-slate-500">{activeChat.lessonTime}</p>
+                  <Link
+                    href={`/room/${activeChat.lessonId}`}
                     target="_blank"
-                    rel="noreferrer"
-                    className="block p-3 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 transition"
+                    className="inline-flex items-center gap-1 font-bold text-blue-600 hover:underline pt-1"
                   >
-                    <div className="flex items-center gap-1.5 font-bold text-blue-600">
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      <span>Видеокомната Jitsi Meet</span>
-                    </div>
-                    <div className="text-[11px] text-slate-400">meet.jit.si</div>
-                  </a>
+                    <span>Перейти в видеокомнату</span>
+                    <ArrowRight className="w-3 h-3" />
+                  </Link>
                 </div>
               )}
             </div>
