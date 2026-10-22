@@ -243,20 +243,6 @@ export default function TelegramCabinet({
   const buildChats = useCallback((): TelegramChat[] => {
     const list: TelegramChat[] = [];
 
-    // Ассистент Умничка AI
-    list.push({
-      id: "chat-ai-assistant",
-      name: "Ассистент «Умничка AI»",
-      role: "assistant",
-      roleLabel: "Умный помощник по урокам",
-      avatar: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&h=150&fit=crop",
-      online: true,
-      statusText: "онлайн 24/7",
-      lastMessage: "Задайте любой вопрос по школьной программе или домашнему заданию.",
-      lastMessageTime: "Сейчас",
-      unreadCount: 0,
-    });
-
     // Диалоги на основе реальных уроков
     if (currentRole === "STUDENT") {
       const studentLessons = Array.isArray(lessons) ? lessons : [];
@@ -644,126 +630,7 @@ export default function TelegramCabinet({
       <div className="flex flex-1 w-full h-full bg-white md:rounded-3xl border border-slate-200 shadow-xl overflow-hidden relative">
 
         {/* =========================================================================
-            КОЛОНКА 0: УЗКИЙ ДОК ПРИЛОЖЕНИЙ (APP DOCK - 64px)
-           ========================================================================= */}
-        <aside className="w-16 bg-[#111317] flex flex-col items-center py-3.5 justify-between shrink-0 z-30 border-r border-[#1e222b]">
-          <div className="flex flex-col items-center gap-4 w-full">
-            {/* Логотип школы */}
-            <Link
-              href="/"
-              className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 text-white flex items-center justify-center font-black text-lg shadow-md shadow-blue-500/25 hover:scale-105 transition"
-              title="На главную"
-            >
-              У
-            </Link>
-
-            <div className="w-7 h-[1px] bg-white/10" />
-
-            {/* Быстрые кнопки разделов кабинета */}
-            <div className="flex flex-col items-center gap-2 w-full px-2">
-              {extraCabinetSections.map((sec) => {
-                const Icon = sec.icon;
-                const isSel = activeScreen === sec.key;
-                return (
-                  <button
-                    key={sec.key}
-                    type="button"
-                    onClick={() => {
-                      setActiveScreen(sec.key);
-                      setMobileSidebarOpen(false);
-                    }}
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center transition relative group cursor-pointer ${
-                      isSel
-                        ? "bg-white text-slate-900 shadow-md font-bold"
-                        : "text-slate-400 hover:text-white hover:bg-white/10"
-                    }`}
-                    title={sec.title}
-                  >
-                    <Icon className="w-4 h-4" />
-                    {isSel && (
-                      <span className="absolute -left-2 top-2.5 bottom-2.5 w-1 bg-blue-500 rounded-r-full" />
-                    )}
-                    <span className="absolute left-14 bg-slate-900 text-white text-xs px-2.5 py-1 rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition whitespace-nowrap z-50 shadow-lg border border-slate-700">
-                      {sec.title}
-                    </span>
-                  </button>
-                );
-              })}
-
-              {/* Чат / Сообщения */}
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveScreen("chat");
-                  setMobileSidebarOpen(false);
-                }}
-                className={`w-10 h-10 rounded-xl flex items-center justify-center transition relative group cursor-pointer ${
-                  activeScreen === "chat"
-                    ? "bg-white text-slate-900 shadow-md font-bold"
-                    : "text-slate-400 hover:text-white hover:bg-white/10"
-                }`}
-                title="Сообщения и чат"
-              >
-                <MessageSquare className="w-4 h-4" />
-                {activeScreen === "chat" && (
-                  <span className="absolute -left-2 top-2.5 bottom-2.5 w-1 bg-blue-500 rounded-r-full" />
-                )}
-                <span className="absolute left-14 bg-slate-900 text-white text-xs px-2.5 py-1 rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition whitespace-nowrap z-50 shadow-lg border border-slate-700">
-                  Сообщения
-                </span>
-              </button>
-
-              {/* Создать урок */}
-              {currentRole === "TEACHER" && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const ev = new CustomEvent("ayda:open-create-lesson");
-                    window.dispatchEvent(ev);
-                  }}
-                  className="w-10 h-10 rounded-xl bg-blue-600/30 hover:bg-blue-600 text-blue-300 hover:text-white flex items-center justify-center transition cursor-pointer mt-1"
-                  title="Назначить новый урок"
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Низ левого дока: Профиль и Выход */}
-          <div className="flex flex-col items-center gap-2.5 w-full">
-            <button
-              type="button"
-              onClick={() => setEditProfileOpen(true)}
-              className="relative group cursor-pointer"
-              title="Настройки профиля"
-            >
-              <div className="w-9 h-9 rounded-full border border-slate-700 overflow-hidden group-hover:border-blue-400 transition">
-                <img
-                  src={
-                    currentUser.avatar ||
-                    (currentRole === "STUDENT" ? SHARONOV_AVATAR : TEACHER_VASILINA_AVATAR)
-                  }
-                  alt={currentUser.name}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border border-[#111317] rounded-full" />
-            </button>
-
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="p-2 rounded-xl text-slate-500 hover:text-rose-400 hover:bg-white/5 transition cursor-pointer"
-              title="Выйти из системы"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
-        </aside>
-
-        {/* =========================================================================
-            КОЛОНКА 1: БОКОВАЯ ПАНЕЛЬ РАЗДЕЛОВ И ЧАТОВ (260px)
+            БОКОВАЯ ПАНЕЛЬ РАЗДЕЛОВ И ЧАТОВ (260px)
            ========================================================================= */}
         <aside
           className={`w-64 bg-[#fafbfc] border-r border-slate-200 flex flex-col shrink-0 h-full select-none z-20 ${
@@ -772,19 +639,24 @@ export default function TelegramCabinet({
         >
           {/* Шапка рабочего пространства */}
           <div className="p-3.5 border-b border-slate-200/80 flex items-center justify-between gap-2 bg-white/70">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="font-extrabold text-xs text-slate-900 tracking-tight truncate">
-                АйДаУмничка
-              </span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 shrink-0">
-                {currentRole === "TEACHER"
-                  ? "Учитель"
-                  : currentRole === "STUDENT"
-                  ? "Ученик"
-                  : currentRole === "PARENT"
-                  ? "Родитель"
-                  : "Админ"}
-              </span>
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 text-white flex items-center justify-center font-black text-sm shadow-xs shrink-0">
+                У
+              </div>
+              <div className="min-w-0">
+                <span className="font-extrabold text-xs text-slate-900 tracking-tight block truncate">
+                  АйДаУмничка
+                </span>
+                <span className="text-[10px] text-slate-400 font-medium">
+                  {currentRole === "TEACHER"
+                    ? "Кабинет учителя"
+                    : currentRole === "STUDENT"
+                    ? "Кабинет ученика"
+                    : currentRole === "PARENT"
+                    ? "Кабинет родителя"
+                    : "Администратор"}
+                </span>
+              </div>
             </div>
 
             {mobileSidebarOpen && (
@@ -798,22 +670,8 @@ export default function TelegramCabinet({
             )}
           </div>
 
-          {/* Строка поиска */}
-          <div className="px-3 py-2">
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Поиск..."
-                className="w-full bg-slate-100 border border-transparent focus:border-slate-300 focus:bg-white rounded-xl pl-7 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 outline-none transition"
-              />
-            </div>
-          </div>
-
           {/* Основные рабочие разделы кабинета */}
-          <div className="flex-1 overflow-y-auto px-2 py-1 space-y-4">
+          <div className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
             <div className="space-y-0.5">
               <div className="px-2 pb-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
                 Разделы
@@ -904,7 +762,7 @@ export default function TelegramCabinet({
         </aside>
 
         {/* =========================================================================
-            КОЛОНКА 2: ГЛАВНЫЙ ЭКРАН (РАСПИСАНИЕ / УЧЕНИКИ / ДОМАШКА / ЧАТ)
+            ГЛАВНЫЙ ЭКРАН (РАСПИСАНИЕ / УЧЕНИКИ / ДОМАШКА / ЧАТ)
            ========================================================================= */}
         <main className="flex-1 flex flex-col h-full bg-white overflow-hidden min-w-0 relative">
           {/* Верхняя шапка */}
@@ -930,19 +788,8 @@ export default function TelegramCabinet({
               </div>
             </div>
 
-            {/* Действия в шапке */}
-            <div className="flex items-center gap-2">
-              {activeScreen === "chat" && activeChat?.lessonId && (
-                <Link
-                  href={`/room/${activeChat.lessonId}`}
-                  target="_blank"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition cursor-pointer"
-                >
-                  <Video className="w-3.5 h-3.5" />
-                  <span>Войти на урок</span>
-                </Link>
-              )}
-
+            {/* Действия в шапке (включая аккаунт и выход правее) */}
+            <div className="flex items-center gap-2 sm:gap-3">
               {currentRole === "TEACHER" && activeScreen !== "chat" && (
                 <button
                   type="button"
@@ -955,6 +802,17 @@ export default function TelegramCabinet({
                   <Plus className="w-3.5 h-3.5" />
                   <span>Назначить урок</span>
                 </button>
+              )}
+
+              {activeScreen === "chat" && activeChat?.lessonId && (
+                <Link
+                  href={`/room/${activeChat.lessonId}`}
+                  target="_blank"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition cursor-pointer"
+                >
+                  <Video className="w-3.5 h-3.5" />
+                  <span>Войти на урок</span>
+                </Link>
               )}
 
               {activeScreen === "chat" && (
@@ -971,6 +829,44 @@ export default function TelegramCabinet({
                   <InfoIcon className="w-4 h-4" />
                 </button>
               )}
+
+              {/* Разделитель */}
+              <div className="h-6 w-[1px] bg-slate-200 hidden sm:block" />
+
+              {/* Аккаунт пользователя (клик открывает редактирование профиля) */}
+              <button
+                type="button"
+                onClick={() => setEditProfileOpen(true)}
+                className="flex items-center gap-2 p-1 pl-1.5 pr-2.5 rounded-xl hover:bg-slate-100 transition cursor-pointer border border-transparent hover:border-slate-200"
+                title="Настройки профиля"
+              >
+                <div className="relative shrink-0">
+                  <img
+                    src={currentUser.avatar || (currentRole === "STUDENT" ? SHARONOV_AVATAR : TEACHER_VASILINA_AVATAR)}
+                    alt={currentUser.name}
+                    className="w-8 h-8 rounded-full object-cover border border-slate-200"
+                  />
+                  <span className="absolute bottom-0 right-0 w-2 h-2 bg-emerald-500 rounded-full border border-white" />
+                </div>
+                <div className="text-left hidden sm:block">
+                  <div className="text-xs font-bold text-slate-800 leading-tight truncate max-w-[140px]">
+                    {currentUser.name}
+                  </div>
+                  <div className="text-[10px] text-slate-400 font-medium leading-none">
+                    {currentRole === "TEACHER" ? "Преподаватель" : currentRole === "STUDENT" ? "Ученик" : "Родитель"}
+                  </div>
+                </div>
+              </button>
+
+              {/* Кнопка выхода */}
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                title="Выйти из системы"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
             </div>
           </header>
 

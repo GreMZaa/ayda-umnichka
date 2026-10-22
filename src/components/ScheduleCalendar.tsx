@@ -96,7 +96,8 @@ export default function ScheduleCalendar({
 }: ScheduleCalendarProps) {
   const [calendarDate, setCalendarDate] = useState<Date>(() => nowInTolyatti());
   const [selectedMobileDay, setSelectedMobileDay] = useState<Date>(() => nowInTolyatti());
-  const [calendarViewMode, setCalendarViewMode] = useState<"calendar" | "list">("calendar");
+  const [calendarViewMode, setCalendarViewMode] = useState<"calendar" | "list">("list");
+  const [selectedStudentFilter, setSelectedStudentFilter] = useState<string>("all");
 
   // Состояния фильтра («Настройки»)
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -133,6 +134,18 @@ export default function ScheduleCalendar({
       if (l.subjectName) set.add(l.subjectName);
     });
     return Array.from(set);
+  }, [lessons]);
+
+  // Список уникальных учеников (детей) из уроков
+  const availableStudents = useMemo(() => {
+    const map = new Map<string, { id: string; name: string }>();
+    lessons.forEach((l) => {
+      const sId = l.studentId || l.studentName;
+      if (sId && l.studentName) {
+        map.set(sId, { id: sId, name: l.studentName });
+      }
+    });
+    return Array.from(map.values());
   }, [lessons]);
 
   // Проверка активности фильтров
@@ -175,6 +188,14 @@ export default function ScheduleCalendar({
   const listLessons = useMemo(() => {
     return filteredLessons
       .filter((lesson) => {
+        // Фильтр по ученику (ребенку)
+        if (selectedStudentFilter !== "all") {
+          const sKey = lesson.studentId || lesson.studentName;
+          if (sKey !== selectedStudentFilter && lesson.studentName !== selectedStudentFilter) {
+            return false;
+          }
+        }
+
         // Фильтр по статусу
         if (listFilter === "SCHEDULED" && lesson.status !== "SCHEDULED") return false;
         if (listFilter === "COMPLETED" && lesson.status !== "COMPLETED") return false;
@@ -202,7 +223,7 @@ export default function ScheduleCalendar({
         return true;
       })
       .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-  }, [filteredLessons, listFilter, listScope, weekStart, weekEnd, listSearchQuery]);
+  }, [filteredLessons, selectedStudentFilter, listFilter, listScope, weekStart, weekEnd, listSearchQuery]);
 
   const countScheduled = useMemo(
     () => filteredLessons.filter((l) => l.status === "SCHEDULED").length,
@@ -920,6 +941,55 @@ export default function ScheduleCalendar({
             </div>
           </div>
 
+          {/* Фильтр по детям / ученикам (понятно для кого урок) */}
+          {availableStudents.length > 0 && (
+            <div className="bg-white p-3 rounded-2xl border border-slate-200 flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold text-slate-500 mr-1 flex items-center gap-1.5">
+                <User className="w-3.5 h-3.5 text-blue-600" />
+                <span>Фильтр по детям:</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedStudentFilter("all")}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  selectedStudentFilter === "all"
+                    ? "bg-blue-600 text-white shadow-2xs"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                Все дети ({lessons.length})
+              </button>
+              {availableStudents.map((st) => {
+                const count = lessons.filter(
+                  (l) => (l.studentId || l.studentName) === st.id || l.studentName === st.name
+                ).length;
+                const isSelected =
+                  selectedStudentFilter === st.id || selectedStudentFilter === st.name;
+                return (
+                  <button
+                    key={st.id}
+                    type="button"
+                    onClick={() => setSelectedStudentFilter(st.id)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                      isSelected
+                        ? "bg-blue-600 text-white shadow-2xs"
+                        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    }`}
+                  >
+                    <span>{st.name}</span>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                        isSelected ? "bg-white/20 text-white" : "bg-slate-200 text-slate-700"
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {/* Список карточек уроков */}
           {listLessons.length === 0 ? (
             <div className="bg-white rounded-3xl p-10 border border-slate-200 text-center space-y-3">
@@ -996,22 +1066,32 @@ export default function ScheduleCalendar({
                         {lesson.title}
                       </h4>
 
-                      <div className="mt-2.5 space-y-1 text-xs text-slate-600">
-                        <div className="flex items-center gap-2">
-                          <Clock className="w-3.5 h-3.5 text-slate-400" />
-                          <span>
-                            {formatTolyatti(lesson.startTime, "d MMMM (EE), HH:mm")} – {formatTolyatti(lesson.endTime, "HH:mm")}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <User className="w-3.5 h-3.5 text-slate-400" />
-                          <span>
-                            {role === "teacher" ? "Ученик: " : "Преподаватель: "}
-                            <strong className="text-slate-800">
+                      {/* Дата и время */}
+                      <div className="mt-2.5 flex items-center gap-2 text-xs text-slate-600">
+                        <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span>
+                          {formatTolyatti(lesson.startTime, "d MMMM (EE), HH:mm")} – {formatTolyatti(lesson.endTime, "HH:mm")}
+                        </span>
+                      </div>
+
+                      {/* Карточка ученика / ребенка (понятно для кого) */}
+                      <div className="mt-3 p-2.5 rounded-2xl bg-blue-50/70 border border-blue-200/80 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-extrabold text-xs flex items-center justify-center shrink-0 shadow-2xs">
+                            {(lesson.studentName || "У").charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-[10px] uppercase font-bold text-blue-700 tracking-wider leading-none">
+                              {role === "teacher" ? "Ученик" : "Преподаватель"}
+                            </div>
+                            <div className="text-xs sm:text-sm font-extrabold text-slate-900 truncate mt-0.5">
                               {role === "teacher" ? (lesson.studentName || "Ученик") : (lesson.teacherName || "Репетитор")}
-                            </strong>
-                          </span>
+                            </div>
+                          </div>
                         </div>
+                        <span className="px-2 py-0.5 rounded-md bg-white text-blue-800 text-[10px] font-bold border border-blue-200 shadow-2xs shrink-0">
+                          Индивидуально
+                        </span>
                       </div>
                     </div>
 
