@@ -790,20 +790,6 @@ export default function TelegramCabinet({
 
             {/* Действия в шапке (включая аккаунт и выход правее) */}
             <div className="flex items-center gap-2 sm:gap-3">
-              {currentRole === "TEACHER" && activeScreen !== "chat" && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const ev = new CustomEvent("ayda:open-create-lesson");
-                    window.dispatchEvent(ev);
-                  }}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Назначить урок</span>
-                </button>
-              )}
-
               {activeScreen === "chat" && activeChat?.lessonId && (
                 <Link
                   href={`/room/${activeChat.lessonId}`}

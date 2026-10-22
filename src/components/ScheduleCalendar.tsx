@@ -292,8 +292,9 @@ export default function ScheduleCalendar({
 
   return (
     <div className="space-y-4">
-      {/* 1. ПАНЕЛЬ УПРАВЛЕНИЯ КАЛЕНДАРЁМ (КАК В ФОКСФОРДЕ) */}
-      <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs flex flex-col md:flex-row items-center justify-between gap-3">
+      {/* 1. ПАНЕЛЬ УПРАВЛЕНИЯ КАЛЕНДАРЁМ (ДЛЯ УЧИТЕЛЯ СКРЫТА, ТАК КАК ОТОБРАЖАЕТСЯ ЧИСТЫЙ СПИСОК УРОКОВ) */}
+      {role !== "teacher" && (
+        <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs flex flex-col md:flex-row items-center justify-between gap-3">
         {/* Кнопка настроек и переключатель вида */}
         <div className="flex items-center gap-2 w-full md:w-auto justify-between md:justify-start">
           <button
@@ -394,19 +395,11 @@ export default function ScheduleCalendar({
               <Clock className="w-3 h-3 text-[#2481cc]" />
               <span>Тольятти (UTC+4)</span>
             </div>
-            {role === "teacher" && onCreateLesson && (
-              <button
-                type="button"
-                onClick={onCreateLesson}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Создать урок</span>
-              </button>
-            )}
+
           </div>
         )}
       </div>
+      )}
 
       {/* 2. РЕЖИМ 1: КАЛЕНДАРЬ */}
       {calendarViewMode === "calendar" && (
