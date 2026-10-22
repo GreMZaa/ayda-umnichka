@@ -112,6 +112,15 @@ export default function TeacherCabinet() {
   const [friendStudentIds, setFriendStudentIds] = useState<string[]>([]);
   const [addFriendModalOpen, setAddFriendModalOpen] = useState(false);
   const [searchFriendQuery, setSearchFriendQuery] = useState("");
+  const [addStudentTab, setAddStudentTab] = useState<"create" | "search">("create");
+  const [newStudentName, setNewStudentName] = useState("");
+  const [newStudentGrade, setNewStudentGrade] = useState("1 класс");
+  const [newStudentPhone, setNewStudentPhone] = useState("");
+  const [newStudentUsername, setNewStudentUsername] = useState("");
+  const [usernameTouched, setUsernameTouched] = useState(false);
+  const [creatingStudent, setCreatingStudent] = useState(false);
+  const [createStudentError, setCreateStudentError] = useState<string | null>(null);
+  const [studentCreatedToast, setStudentCreatedToast] = useState<string | null>(null);
   const [colleagues, setColleagues] = useState<ColleagueProfile[]>([]);
   const [friendTeacherIds, setFriendTeacherIds] = useState<string[]>([]);
   const [addColleagueModalOpen, setAddColleagueModalOpen] = useState(false);
@@ -645,6 +654,139 @@ export default function TeacherCabinet() {
       window.dispatchEvent(
         new CustomEvent("ayda:teacher-friends-updated", { detail: { friends: updated } })
       );
+    }
+  };
+
+  // Создание нового ученика и прикрепление к учителю
+  const handleCreateStudent = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const trimmedName = newStudentName.trim();
+    if (!trimmedName) {
+      setCreateStudentError("Пожалуйста, введите имя и фамилию ученика");
+      return;
+    }
+
+    setCreatingStudent(true);
+    setCreateStudentError(null);
+
+    try {
+      const studentId =
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `st-${Date.now()}`;
+
+      const generatedUsername =
+        cleanUsername(newStudentUsername) ||
+        resolveProfileUsername({ id: studentId, name: trimmedName });
+
+      const bioData = {
+        grade: newStudentGrade || "1 класс",
+        school: "АйДаУмничка",
+        username: generatedUsername,
+        parentPhone: newStudentPhone.trim() || undefined,
+        teacherId: teacherId || authUser?.id,
+      };
+
+      const newStudentProfile: StudentProfile = {
+        id: studentId,
+        name: trimmedName,
+        username: generatedUsername,
+        grade: newStudentGrade || "1 класс",
+        school: "АйДаУмничка",
+      };
+
+      const client = getSupabase();
+      if (client) {
+        try {
+          const { error } = await client.from("profiles").insert({
+            id: studentId,
+            name: trimmedName,
+            role: "STUDENT",
+            bio: JSON.stringify(bioData),
+          });
+          if (error) {
+            console.warn("Supabase insert student warning:", error);
+          }
+        } catch (dbErr) {
+          console.warn("DB insert exception:", dbErr);
+        }
+      }
+
+      // Добавляем в локальный список учеников
+      setStudents((prev) => {
+        if (prev.some((s) => s.id === studentId)) return prev;
+        return [newStudentProfile, ...prev];
+      });
+
+      // Прикрепляем к учителю
+      const currentTeacherId = teacherId || authUser?.id;
+      const updatedFriends = friendStudentIds.includes(studentId)
+        ? friendStudentIds
+        : [...friendStudentIds, studentId];
+
+      setFriendStudentIds(updatedFriends);
+
+      if (currentTeacherId) {
+        try {
+          localStorage.setItem(
+            `ayda_teacher_friends_${currentTeacherId}`,
+            JSON.stringify(updatedFriends)
+          );
+        } catch (e) {}
+
+        if (client) {
+          try {
+            const { data: p } = await client
+              .from("profiles")
+              .select("bio")
+              .eq("id", currentTeacherId)
+              .maybeSingle();
+
+            let parsedBio: any = {};
+            try {
+              if (p?.bio && p.bio.startsWith("{")) parsedBio = JSON.parse(p.bio);
+              else if (p?.bio) parsedBio.bio = p.bio;
+            } catch {}
+
+            parsedBio.friendStudentIds = updatedFriends;
+            if (teacherUsername) parsedBio.username = teacherUsername;
+
+            await client
+              .from("profiles")
+              .update({ bio: JSON.stringify(parsedBio) })
+              .eq("id", currentTeacherId);
+          } catch (err) {
+            console.error("Error updating teacher friends in Supabase:", err);
+          }
+        }
+      }
+
+      // Сразу выбираем нового ученика для формы создания урока
+      setSelectedStudentId(studentId);
+
+      // Сбрасываем поля формы создания
+      setNewStudentName("");
+      setNewStudentPhone("");
+      setNewStudentUsername("");
+      setUsernameTouched(false);
+      setNewStudentGrade("1 класс");
+      setAddFriendModalOpen(false);
+
+      // Оповещаем другие компоненты
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("ayda:teacher-friends-updated", { detail: { friends: updatedFriends } })
+        );
+        window.dispatchEvent(new CustomEvent("ayda:students-updated"));
+      }
+
+      setStudentCreatedToast(`Ученик «${trimmedName}» успешно добавлен и прикреплён!`);
+      setTimeout(() => setStudentCreatedToast(null), 4000);
+    } catch (err: any) {
+      console.error("Failed to create student:", err);
+      setCreateStudentError(err?.message || "Не удалось создать ученика. Попробуйте еще раз.");
+    } finally {
+      setCreatingStudent(false);
     }
   };
 
@@ -1423,27 +1565,28 @@ export default function TeacherCabinet() {
                   <div>
                     <div className="flex items-center gap-2">
                       <h2 className="text-base font-extrabold text-slate-900">
-                        Мои ученики (в друзьях)
+                        Мои ученики
                       </h2>
                       <span className="text-xs font-bold text-[#2481cc] bg-blue-50 px-2.5 py-0.5 rounded-lg border border-blue-200">
                         {friends.length}
                       </span>
                     </div>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      Уроки можно создавать только для учеников, добавленных в друзья
+                      Список прикреплённых учеников для проведения онлайн-уроков
                     </p>
                   </div>
 
                   <button
                     type="button"
                     onClick={() => {
+                      setAddStudentTab("create");
                       setSearchFriendQuery("");
                       setAddFriendModalOpen(true);
                     }}
                     className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#2481cc] text-white font-bold text-xs hover:bg-[#1f70b0] transition cursor-pointer shadow-xs self-start sm:self-auto"
                   >
                     <UserPlus className="w-4 h-4" />
-                    <span>Добавить ученика по никнейму</span>
+                    <span>+ Добавить ученика</span>
                   </button>
                 </div>
 
@@ -1454,23 +1597,23 @@ export default function TeacherCabinet() {
                     </div>
                     <div className="max-w-md mx-auto space-y-1">
                       <h3 className="font-extrabold text-slate-900 text-base">
-                        У вас пока нет учеников в друзьях
+                        У вас пока нет прикреплённых учеников
                       </h3>
                       <p className="text-xs text-slate-500 leading-relaxed">
-                        Чтобы назначать уроки и вести занятия, найдите и добавьте ученика по его никнейму (например,{" "}
-                        <span className="font-mono text-blue-600 font-semibold">@ivan_smirnov</span>) или имени.
+                        Чтобы назначать уроки и вести занятия, создайте нового ученика или найдите его по имени/никнейму.
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={() => {
+                        setAddStudentTab("create");
                         setSearchFriendQuery("");
                         setAddFriendModalOpen(true);
                       }}
                       className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-[#2481cc] text-white font-bold text-xs hover:bg-[#1f70b0] transition shadow-md shadow-blue-500/20 cursor-pointer"
                     >
                       <UserPlus className="w-4 h-4" />
-                      <span>Найти ученика по никнейму</span>
+                      <span>+ Добавить ученика</span>
                     </button>
                   </div>
                 ) : (
@@ -2079,40 +2222,42 @@ export default function TeacherCabinet() {
                 )}
               </div>
 
-              {/* Выбор ученика (ТОЛЬКО ИЗ СПИСКА ДРУЗЕЙ) */}
+              {/* Выбор ученика */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-xs font-bold text-slate-700">
-                    Ученик (из списка друзей):
+                    Ученик:
                   </label>
                   <button
                     type="button"
                     onClick={() => {
+                      setAddStudentTab("create");
                       setSearchFriendQuery("");
                       setAddFriendModalOpen(true);
                     }}
                     className="text-[11px] text-[#2481cc] font-bold hover:underline transition inline-flex items-center gap-1 cursor-pointer"
                   >
                     <UserPlus className="w-3.5 h-3.5" />
-                    <span>+ Добавить по никнейму</span>
+                    <span>+ Добавить ученика</span>
                   </button>
                 </div>
 
                 {friends.length === 0 ? (
                   <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-2">
                     <p className="font-semibold leading-relaxed">
-                      ⚠️ Вы можете создавать уроки только для учеников из вашего списка друзей. Сейчас у вас нет добавленных друзей.
+                      💡 У вас пока нет прикреплённых учеников. Добавьте ученика, чтобы назначить занятие.
                     </p>
                     <button
                       type="button"
                       onClick={() => {
+                        setAddStudentTab("create");
                         setSearchFriendQuery("");
                         setAddFriendModalOpen(true);
                       }}
                       className="px-3.5 py-2 rounded-xl bg-[#2481cc] hover:bg-[#1f70b0] text-white font-bold text-xs transition inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
                     >
                       <UserPlus className="w-3.5 h-3.5" />
-                      <span>Найти и добавить ученика по никнейму</span>
+                      <span>+ Добавить ученика</span>
                     </button>
                   </div>
                 ) : (
@@ -2457,7 +2602,19 @@ export default function TeacherCabinet() {
         document.body
       )}
 
-      {/* 10. МОДАЛЬНОЕ ОКНО «ДОБАВИТЬ УЧЕНИКА В ДРУЗЬЯ ПО НИКНЕЙМУ» */}
+      {/* Тост подтверждения добавления ученика */}
+      {studentCreatedToast && mounted && createPortal(
+        <div className="fixed bottom-6 right-6 z-[120] bg-emerald-600 text-white px-5 py-3.5 rounded-2xl shadow-xl flex items-center gap-3 animate-in slide-in-from-bottom-5 duration-200">
+          <CheckCircle2 className="w-5 h-5 text-emerald-200 shrink-0" />
+          <div className="text-xs">
+            <p className="font-bold text-sm">{studentCreatedToast}</p>
+            <p className="text-emerald-100 mt-0.5">Ученик теперь доступен в списке и для назначения уроков</p>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* 10. МОДАЛЬНОЕ ОКНО «ДОБАВИТЬ УЧЕНИКА» */}
       {addFriendModalOpen && mounted && createPortal(
         <div
           onMouseDown={(e) => {
@@ -2474,7 +2631,7 @@ export default function TeacherCabinet() {
           <div
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 space-y-5 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto relative animate-in fade-in zoom-in-95 duration-150"
+            className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 space-y-5 shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto relative animate-in fade-in zoom-in-95 duration-150"
           >
             {/* Заголовок */}
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
@@ -2484,10 +2641,12 @@ export default function TeacherCabinet() {
                 </div>
                 <div>
                   <h3 className="font-extrabold text-slate-900 text-base sm:text-lg">
-                    Добавить ученика в друзья
+                    Добавить ученика
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Поиск по никнейму (@username) или имени
+                    {addStudentTab === "create"
+                      ? "Заполните данные для создания карточки нового ученика"
+                      : "Найдите зарегистрированного ученика по никнейму или имени"}
                   </p>
                 </div>
               </div>
@@ -2495,106 +2654,279 @@ export default function TeacherCabinet() {
               <button
                 type="button"
                 onClick={() => setAddFriendModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Поисковая строка с иконкой @ и лупой */}
-            <div className="relative">
-              <div className="absolute left-3.5 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[#2481cc] pointer-events-none">
+            {/* Вкладки: Создать нового / Найти в базе */}
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl">
+              <button
+                type="button"
+                onClick={() => setAddStudentTab("create")}
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  addStudentTab === "create"
+                    ? "bg-white text-[#2481cc] shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <Plus className="w-4 h-4 stroke-[2.5]" />
+                <span>+ Создать нового</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAddStudentTab("search")}
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  addStudentTab === "search"
+                    ? "bg-white text-[#2481cc] shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
                 <Search className="w-4 h-4" />
-                <span className="font-mono font-bold text-sm">@</span>
-              </div>
-              <input
-                type="text"
-                autoFocus
-                placeholder="Введите никнейм (например, ivan_smirnov) или имя..."
-                value={searchFriendQuery}
-                onChange={(e) => setSearchFriendQuery(e.target.value)}
-                className="w-full pl-12 pr-10 py-3 rounded-2xl border-2 border-slate-200 focus:border-[#2481cc] bg-[#f8fafc] text-xs sm:text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none transition shadow-2xs"
-              />
-              {searchFriendQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchFriendQuery("")}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
+                <span>Найти в базе</span>
+              </button>
             </div>
 
-            {/* Список найденных учеников */}
-            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-              {filteredSearchStudents.length === 0 ? (
-                <div className="py-8 text-center text-slate-400 text-xs space-y-1">
-                  <Users className="w-8 h-8 mx-auto text-slate-300 stroke-[1.5]" />
-                  <p className="font-semibold text-slate-600">
-                    {searchFriendQuery ? "Никого не найдено по этому запросу" : "Начните вводить никнейм или имя ученика"}
-                  </p>
-                  <p className="text-[11px] text-slate-400">
-                    Например: @ivan, @masha или имя ученика
-                  </p>
+            {/* Вкладка 1: Создание нового ученика */}
+            {addStudentTab === "create" ? (
+              <form onSubmit={handleCreateStudent} className="space-y-4">
+                {createStudentError && (
+                  <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{createStudentError}</span>
+                  </div>
+                )}
+
+                {/* Имя и фамилия */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Имя и фамилия ученика <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    autoFocus
+                    required
+                    placeholder="Например: Артём Смирнов"
+                    value={newStudentName}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setNewStudentName(val);
+                      if (!usernameTouched) {
+                        setNewStudentUsername(resolveProfileUsername({ name: val }));
+                      }
+                    }}
+                    className="w-full px-3.5 py-2.5 rounded-2xl border-2 border-slate-200 focus:border-[#2481cc] text-xs sm:text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none transition bg-[#f8fafc]"
+                  />
                 </div>
-              ) : (
-                filteredSearchStudents.map((st) => {
-                  const isFriend = friendStudentIds.includes(st.id);
-                  return (
-                    <div
-                      key={st.id}
-                      className="flex items-center justify-between gap-3 p-3 rounded-2xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50/30 transition"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        {st.avatarUrl ? (
-                          <img
-                            src={st.avatarUrl}
-                            alt={st.name}
-                            className="w-10 h-10 rounded-xl object-cover shrink-0 border border-slate-100"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#2481cc] to-indigo-600 text-white font-bold text-sm flex items-center justify-center shrink-0 shadow-xs">
-                            {st.name.charAt(0).toUpperCase()}
-                          </div>
-                        )}
-                        <div className="min-w-0">
-                          <h4 className="font-bold text-slate-900 text-xs sm:text-sm truncate">
-                            {st.name}
-                          </h4>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="font-mono text-[11px] font-bold text-blue-600">
-                              {formatUsername(st.username)}
-                            </span>
-                            <span className="text-[10px] text-slate-400">• {st.grade}</span>
-                          </div>
-                        </div>
-                      </div>
 
-                      {isFriend ? (
-                        <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 font-bold text-xs border border-emerald-200 shrink-0">
-                          <Check className="w-3.5 h-3.5 stroke-[3]" />
-                          <span>В друзьях</span>
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleAddFriend(st.id)}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#2481cc] hover:bg-[#1f70b0] text-white font-bold text-xs shadow-xs transition transform active:scale-95 cursor-pointer shrink-0"
-                        >
-                          <Plus className="w-3.5 h-3.5 stroke-[3]" />
-                          <span>Добавить</span>
-                        </button>
-                      )}
+                {/* Класс / возраст */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Класс / возраст:
+                  </label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      "Дошкольник",
+                      "1 класс",
+                      "2 класс",
+                      "3 класс",
+                      "4 класс",
+                      "5 класс",
+                      "6-9 класс",
+                      "10-11 класс",
+                    ].map((gr) => (
+                      <button
+                        key={gr}
+                        type="button"
+                        onClick={() => setNewStudentGrade(gr)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                          newStudentGrade === gr
+                            ? "bg-[#2481cc] text-white shadow-xs"
+                            : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        }`}
+                      >
+                        {gr}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Никнейм / логин (@username) */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-slate-700">
+                      Никнейм ученика:
+                    </label>
+                    <span className="text-[10px] text-slate-400">для входа в платформу</span>
+                  </div>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono font-bold text-sm text-[#2481cc] pointer-events-none">
+                      @
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="artem_smirnov"
+                      value={newStudentUsername}
+                      onChange={(e) => {
+                        setUsernameTouched(true);
+                        setNewStudentUsername(cleanUsername(e.target.value));
+                      }}
+                      className="w-full pl-8 pr-3.5 py-2.5 rounded-2xl border-2 border-slate-200 focus:border-[#2481cc] text-xs sm:text-sm font-mono font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none transition bg-[#f8fafc]"
+                    />
+                  </div>
+                </div>
+
+                {/* Телефон / контакт родителя */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Телефон или контакт родителя <span className="text-slate-400 font-normal">(необязательно)</span>:
+                  </label>
+                  <input
+                    type="tel"
+                    placeholder="+7 (999) 000-00-00"
+                    value={newStudentPhone}
+                    onChange={(e) => setNewStudentPhone(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-2xl border-2 border-slate-200 focus:border-[#2481cc] text-xs sm:text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none transition bg-[#f8fafc]"
+                  />
+                </div>
+
+                {/* Кнопка сохранения */}
+                <button
+                  type="submit"
+                  disabled={creatingStudent || !newStudentName.trim()}
+                  className="w-full py-3.5 px-4 rounded-2xl bg-[#2481cc] hover:bg-[#1f70b0] disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold text-sm shadow-md shadow-blue-500/20 transition flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed transform active:scale-[0.99]"
+                >
+                  {creatingStudent ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Создание ученика...</span>
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="w-4 h-4" />
+                      <span>Добавить ученика</span>
+                    </>
+                  )}
+                </button>
+              </form>
+            ) : (
+              /* Вкладка 2: Поиск существующего ученика */
+              <div className="space-y-4">
+                {/* Поисковая строка с иконкой @ и лупой */}
+                <div className="relative">
+                  <div className="absolute left-3.5 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[#2481cc] pointer-events-none">
+                    <Search className="w-4 h-4" />
+                    <span className="font-mono font-bold text-sm">@</span>
+                  </div>
+                  <input
+                    type="text"
+                    autoFocus
+                    placeholder="Введите никнейм (например, ivan_smirnov) или имя..."
+                    value={searchFriendQuery}
+                    onChange={(e) => setSearchFriendQuery(e.target.value)}
+                    className="w-full pl-12 pr-10 py-3 rounded-2xl border-2 border-slate-200 focus:border-[#2481cc] bg-[#f8fafc] text-xs sm:text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none transition shadow-2xs"
+                  />
+                  {searchFriendQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchFriendQuery("")}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Список найденных учеников */}
+                <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                  {filteredSearchStudents.length === 0 ? (
+                    <div className="py-6 px-4 rounded-2xl bg-slate-50 border border-slate-200 text-center space-y-3">
+                      <Users className="w-8 h-8 mx-auto text-slate-400 stroke-[1.5]" />
+                      <div className="space-y-1">
+                        <p className="font-bold text-slate-700 text-xs sm:text-sm">
+                          {searchFriendQuery
+                            ? `Ученик «${searchFriendQuery}» не найден`
+                            : "Начните вводить никнейм или имя"}
+                        </p>
+                        <p className="text-[11px] text-slate-500">
+                          Вы можете создать профиль ученика прямо сейчас
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (searchFriendQuery) {
+                            setNewStudentName(searchFriendQuery);
+                            setNewStudentUsername(cleanUsername(searchFriendQuery));
+                          }
+                          setAddStudentTab("create");
+                        }}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#2481cc] hover:bg-[#1f70b0] text-white font-bold text-xs shadow-xs transition cursor-pointer"
+                      >
+                        <UserPlus className="w-4 h-4" />
+                        <span>+ Создать ученика {searchFriendQuery ? `«${searchFriendQuery}»` : ""}</span>
+                      </button>
                     </div>
-                  );
-                })
-              )}
-            </div>
+                  ) : (
+                    filteredSearchStudents.map((st) => {
+                      const isFriend = friendStudentIds.includes(st.id);
+                      return (
+                        <div
+                          key={st.id}
+                          className="flex items-center justify-between gap-3 p-3 rounded-2xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50/30 transition"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            {st.avatarUrl ? (
+                              <img
+                                src={st.avatarUrl}
+                                alt={st.name}
+                                className="w-10 h-10 rounded-xl object-cover shrink-0 border border-slate-100"
+                              />
+                            ) : (
+                              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#2481cc] to-indigo-600 text-white font-bold text-sm flex items-center justify-center shrink-0 shadow-xs">
+                                {st.name.charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <h4 className="font-bold text-slate-900 text-xs sm:text-sm truncate">
+                                {st.name}
+                              </h4>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="font-mono text-[11px] font-bold text-blue-600">
+                                  {formatUsername(st.username)}
+                                </span>
+                                <span className="text-[10px] text-slate-400">• {st.grade}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {isFriend ? (
+                            <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 font-bold text-xs border border-emerald-200 shrink-0">
+                              <Check className="w-3.5 h-3.5 stroke-[3]" />
+                              <span>Прикреплён</span>
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleAddFriend(st.id)}
+                              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#2481cc] hover:bg-[#1f70b0] text-white font-bold text-xs shadow-xs transition transform active:scale-95 cursor-pointer shrink-0"
+                            >
+                              <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                              <span>Прикрепить</span>
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Подсказка в футере модалки */}
             <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-              <span>💡 У каждого ученика есть уникальный никнейм (@username)</span>
+              <span>💡 Добавленные ученики сразу появляются в расписании</span>
               <button
                 type="button"
                 onClick={() => setAddFriendModalOpen(false)}
