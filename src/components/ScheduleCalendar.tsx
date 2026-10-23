@@ -339,8 +339,8 @@ export default function ScheduleCalendar({
 
   return (
     <div className="space-y-4">
-      {/* 1. ПАНЕЛЬ УПРАВЛЕНИЯ КАЛЕНДАРЁМ (ДЛЯ УЧИТЕЛЯ СКРЫТА, ТАК КАК ОТОБРАЖАЕТСЯ ЧИСТЫЙ СПИСОК УРОКОВ) */}
-      {role !== "teacher" && (
+      {/* 1. ПАНЕЛЬ УПРАВЛЕНИЯ КАЛЕНДАРЁМ (ДЛЯ УЧИТЕЛЯ И УЧЕНИКА СКРЫТА, ТАК КАК ОТОБРАЖАЕТСЯ ЧИСТЫЙ СПИСОК УРОКОВ) */}
+      {role !== "teacher" && role !== "student" && (
         <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs flex flex-col md:flex-row items-center justify-between gap-3">
         {/* Кнопка настроек и переключатель вида */}
         <div className="flex items-center gap-2 w-full md:w-auto justify-between md:justify-start">
@@ -1048,8 +1048,8 @@ export default function ScheduleCalendar({
               </div>
             </div>
 
-            {/* Фильтр по детям / ученикам (встроен в ту же панель без отдельного блока) */}
-            {availableStudents.length > 0 && (
+            {/* Фильтр по детям / ученикам (только если их несколько и не в кабинете ученика) */}
+            {role !== "student" && availableStudents.length > 1 && (
               <div className="pt-2.5 border-t border-slate-100 flex flex-wrap items-center gap-1.5 text-xs">
                 <span className="text-slate-400 font-semibold mr-1 text-[11px] flex items-center gap-1">
                   <User className="w-3 h-3 text-blue-600" />

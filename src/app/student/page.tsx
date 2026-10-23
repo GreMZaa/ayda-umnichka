@@ -1080,12 +1080,17 @@ export default function StudentCabinet() {
         lessons={lessons}
         friendTeachers={friendTeachers}
         onRefreshData={() => window.location.reload()}
+        onProfileUpdated={(upd) => {
+          if (upd.avatarUrl) setAvatarUrl(upd.avatarUrl);
+          if (upd.name) setStudentName(upd.name);
+          if (upd.username) setStudentUsername(upd.username);
+        }}
         extraCabinetSections={[
           {
             key: "schedule",
             title: "Расписание и уроки",
             icon: Calendar,
-            badge: lessons.length,
+            badge: upcomingLessons.length > 0 ? upcomingLessons.length : undefined,
             render: () => (
               <div className="space-y-6">
                 {liveLesson && (
@@ -1116,66 +1121,10 @@ export default function StudentCabinet() {
                   </div>
                 )}
 
-                {!liveLesson && upcomingLessons.length > 0 && (
-                  <div className="bg-white rounded-3xl p-5 sm:p-6 border border-blue-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in duration-300 bg-gradient-to-r from-blue-50/70 via-white to-white">
-                    <div className="space-y-1.5">
-                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-[#2481cc] text-xs font-bold">
-                        <Clock className="w-3.5 h-3.5" />
-                        <span>Ближайший запланированный урок</span>
-                      </div>
-                      <h3 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight">
-                        {upcomingLessons[0].title}
-                      </h3>
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
-                        <span className="font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
-                          {upcomingLessons[0].subjectName}
-                        </span>
-                        <span>•</span>
-                        <span>Преподаватель: <strong className="text-slate-800">{upcomingLessons[0].teacherName}</strong></span>
-                        <span>•</span>
-                        <span className="font-extrabold text-[#2481cc]">
-                          {formatTolyatti(upcomingLessons[0].startTime, "d MMMM (EE) в HH:mm")}
-                        </span>
-                      </div>
-                    </div>
-
-                    <Link
-                      href={`/room/${upcomingLessons[0].id || upcomingLessons[0].roomName}?role=student`}
-                      className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-[#2481cc] hover:bg-[#1f70b0] text-white font-bold text-xs sm:text-sm shadow-md shadow-blue-500/20 transition transform hover:scale-105 active:scale-95 shrink-0 w-full sm:w-auto cursor-pointer"
-                    >
-                      <Video className="w-4 h-4 text-white" />
-                      <span>Ссылка на видеокласс</span>
-                    </Link>
-                  </div>
-                )}
-
                 <ScheduleCalendar
                   role="student"
                   lessons={lessons}
                 />
-
-                {schoolSubjects.length > 0 && (
-                  <div className="space-y-3 pt-2">
-                    <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-600 px-1">
-                      Доступные дисциплины школы «АйДаУмничка»:
-                    </h3>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-                      {schoolSubjects.map((sub) => (
-                        <div
-                          key={sub.id}
-                          className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-1.5"
-                        >
-                          <div
-                            className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: sub.color || "#2481cc" }}
-                          />
-                          <div className="font-extrabold text-xs text-slate-900">{sub.name}</div>
-                          <div className="text-[10px] text-slate-500">Индивидуальная программа</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
             ),
           },
@@ -1344,7 +1293,6 @@ export default function StudentCabinet() {
             key: "teachers",
             title: "Преподаватели",
             icon: Users,
-            badge: friendTeachers.length,
             render: () => (
               <div className="space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1">
