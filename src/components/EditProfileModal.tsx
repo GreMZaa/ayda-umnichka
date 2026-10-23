@@ -20,6 +20,7 @@ import {
   Link as LinkIcon,
   Image as ImageIcon,
   AtSign,
+  Lock,
 } from "lucide-react";
 import { getSupabase } from "@/lib/supabase";
 import { cleanUsername, formatUsername, resolveProfileUsername } from "@/lib/nickname";
@@ -161,7 +162,10 @@ export default function EditProfileModal({
   // Основные данные формы
   const [profileId, setProfileId] = useState(init?.id || "");
   const [name, setName] = useState(init?.name || "");
-  const [username, setUsername] = useState(init?.username ? cleanUsername(init.username) : "");
+  const initUnameClean = init?.username ? cleanUsername(init.username) : "";
+  const [username, setUsername] = useState(initUnameClean);
+  const [isUsernameLocked, setIsUsernameLocked] = useState(Boolean(initUnameClean));
+  const [lockedUsernameValue, setLockedUsernameValue] = useState(initUnameClean);
   const [role, setRole] = useState(init?.role || effectiveDefaultRole);
   const [email, setEmail] = useState(init?.email || "");
   const [phone, setPhone] = useState(init?.phone || "");
@@ -212,7 +216,14 @@ export default function EditProfileModal({
     if (init) {
       if (init.id) setProfileId(init.id);
       if (init.name) setName(init.name);
-      if (init.username) setUsername(cleanUsername(init.username));
+      if (init.username) {
+        const u = cleanUsername(init.username);
+        setUsername(u);
+        if (u) {
+          setIsUsernameLocked(true);
+          setLockedUsernameValue(u);
+        }
+      }
       if (init.role) setRole(init.role);
       if (init.email) setEmail(init.email);
       if (init.phone) setPhone(init.phone);
@@ -238,7 +249,14 @@ export default function EditProfileModal({
           const p = JSON.parse(saved);
           if (p.id) setProfileId(p.id);
           if (p.name) setName(p.name);
-          if (p.username) setUsername(cleanUsername(p.username));
+          if (p.username) {
+            const u = cleanUsername(p.username);
+            setUsername(u);
+            if (u) {
+              setIsUsernameLocked(true);
+              setLockedUsernameValue(u);
+            }
+          }
           if (p.avatarUrl) setAvatarUrl(p.avatarUrl);
           if (p.phone) setPhone(p.phone);
           if (p.email) setEmail(p.email);
@@ -279,8 +297,14 @@ export default function EditProfileModal({
                   else if (p.bio) parsed.bio = p.bio;
                 } catch (e) {}
 
-                if (parsed.username) setUsername(cleanUsername(parsed.username));
-                else if (!username) setUsername(resolveProfileUsername(p));
+                const foundUname = cleanUsername(parsed.username || p.username || "");
+                if (foundUname) {
+                  setUsername(foundUname);
+                  setIsUsernameLocked(true);
+                  setLockedUsernameValue(foundUname);
+                } else if (!username) {
+                  setUsername(resolveProfileUsername(p));
+                }
 
                 if (parsed.grade && !grade) setGrade(parsed.grade);
                 if (parsed.school && !school) setSchool(parsed.school);
@@ -362,8 +386,10 @@ export default function EditProfileModal({
 
     const roleNormalized = role.toUpperCase();
     const finalUsername =
-      cleanUsername(username) ||
-      resolveProfileUsername({ id: profileId, name: name.trim(), email: email.trim() });
+      isUsernameLocked && lockedUsernameValue
+        ? lockedUsernameValue
+        : cleanUsername(username) ||
+          resolveProfileUsername({ id: profileId, name: name.trim(), email: email.trim() });
 
     // Собираем расширенные параметры в JSON объект био
     const bioObject = {
@@ -523,6 +549,10 @@ export default function EditProfileModal({
         );
       } catch (e) {}
 
+      if (finalUsername) {
+        setIsUsernameLocked(true);
+        setLockedUsernameValue(finalUsername);
+      }
       setSaving(false);
       setSuccess(true);
 
@@ -698,11 +728,19 @@ export default function EditProfileModal({
               </div>
             </div>
 
-            {/* Никнейм (@username) */}
+            {/* Никнейм (@username) - задаётся 1 раз */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Никнейм (@username):
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-slate-700">
+                  Никнейм (@username):
+                </label>
+                {isUsernameLocked && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
+                    <Lock className="w-3 h-3 text-slate-400" />
+                    Зафиксирован
+                  </span>
+                )}
+              </div>
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-mono font-bold text-xs select-none">
                   @
@@ -710,13 +748,34 @@ export default function EditProfileModal({
                 <input
                   type="text"
                   value={username}
-                  onChange={(e) => setUsername(cleanUsername(e.target.value))}
+                  disabled={isUsernameLocked}
+                  readOnly={isUsernameLocked}
+                  onChange={(e) => {
+                    if (!isUsernameLocked) {
+                      setUsername(cleanUsername(e.target.value));
+                    }
+                  }}
                   placeholder="sharonov"
-                  className="w-full pl-8 pr-3 py-2.5 rounded-2xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-mono font-bold focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition"
+                  className={`w-full pl-8 pr-10 py-2.5 rounded-2xl border text-xs sm:text-sm font-mono font-bold transition ${
+                    isUsernameLocked
+                      ? "bg-slate-100 text-slate-600 border-slate-200 cursor-not-allowed select-none"
+                      : "bg-white text-slate-900 border-slate-200 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                  }`}
                 />
+                {isUsernameLocked && (
+                  <Lock className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
+                )}
               </div>
-              <p className="text-[10px] text-slate-400 mt-1">
-                Уникальный никнейм для поиска и добавления в друзья.
+              <p className="text-[10px] mt-1">
+                {isUsernameLocked ? (
+                  <span className="text-slate-400 font-medium">
+                    Никнейм задаётся один раз и не подлежит дальнейшему изменению.
+                  </span>
+                ) : (
+                  <span className="text-amber-700 font-medium">
+                    ⚠️ Внимание: никнейм можно задать только один раз. После сохранения изменить его будет нельзя.
+                  </span>
+                )}
               </p>
             </div>
 
