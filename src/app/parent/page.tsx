@@ -959,6 +959,7 @@ export default function ParentCabinet() {
                       <input
                         type={showChildPassword ? "text" : "password"}
                         required
+                        autoComplete="new-password"
                         value={childFormPassword}
                         onChange={(e) => setChildFormPassword(e.target.value)}
                         placeholder="Минимум 6 символов"

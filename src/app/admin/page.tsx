@@ -969,7 +969,7 @@ export default function AdminPage() {
               </div>
             )}
 
-            <form onSubmit={handleAdminLogin} className="space-y-4">
+            <form onSubmit={handleAdminLogin} className="space-y-4" autoComplete="on">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
                   Email администратора (Supabase):
@@ -979,6 +979,9 @@ export default function AdminPage() {
                   <input
                     type="email"
                     required
+                    name="username"
+                    id="admin_email"
+                    autoComplete="username"
                     value={adminEmail}
                     onChange={(e) => setAdminEmail(e.target.value)}
                     placeholder="Введите email администратора"
@@ -996,6 +999,9 @@ export default function AdminPage() {
                   <input
                     type={showPassword ? "text" : "password"}
                     required
+                    name="password"
+                    id="admin_password"
+                    autoComplete="current-password"
                     value={adminPassword}
                     onChange={(e) => setAdminPassword(e.target.value)}
                     placeholder="Введите пароль"

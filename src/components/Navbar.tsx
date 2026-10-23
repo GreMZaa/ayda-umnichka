@@ -685,21 +685,22 @@ export default function Navbar() {
             )}
 
             {/* Форма ввода Email и Пароля */}
-            <form onSubmit={handleModalLogin} className="space-y-3.5" autoComplete="off">
+            <form onSubmit={handleModalLogin} className="space-y-3.5" autoComplete="on">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Электронная почта (Email):
+                  Электронная почта (Email) или логин:
                 </label>
                 <div className="relative">
                   <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                   <input
-                    type="email"
+                    type="text"
                     required
-                    name="modal_email"
-                    autoComplete="off"
+                    name="username"
+                    id="nav_modal_username"
+                    autoComplete="username"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Например: ivan@mail.ru"
+                    placeholder="ivan@mail.ru или логин"
                     className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:border-blue-600 transition"
                   />
                 </div>
@@ -723,11 +724,12 @@ export default function Navbar() {
                   <input
                     type={showPassword ? "text" : "password"}
                     required
-                    name="modal_password"
-                    autoComplete="new-password"
+                    name="password"
+                    id="nav_modal_password"
+                    autoComplete="current-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Не менее 6 символов"
+                    placeholder="Введите ваш пароль"
                     className="w-full pl-9 pr-9 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:border-blue-600 transition"
                   />
                   <button

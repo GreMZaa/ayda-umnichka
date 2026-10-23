@@ -457,7 +457,7 @@ function LoginForm() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
+            <form key={mode} onSubmit={handleSubmit} className="space-y-4" autoComplete="on">
               {/* РЕГИСТРАЦИЯ: ВЫБОР РОЛИ В СТИЛЕ ФОКСФОРДА (3 КАРТОЧКИ) */}
               {mode === "signup" && (
                 <div className="space-y-3 mb-4">
@@ -553,8 +553,11 @@ function LoginForm() {
                     <div className="relative">
                       <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                       <input
+                        id="signup_fullname"
+                        name="name"
                         type="text"
                         required
+                        autoComplete="name"
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
                         placeholder="Например: Анна Смирнова"
@@ -570,7 +573,10 @@ function LoginForm() {
                     <div className="relative">
                       <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                       <input
+                        id="signup_phone"
+                        name="tel"
                         type="tel"
+                        autoComplete="tel"
                         value={phone}
                         onChange={handlePhoneChange}
                         onBlur={handlePhoneBlur}
@@ -615,10 +621,11 @@ function LoginForm() {
                 <div className="relative">
                   <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                   <input
+                    id={mode === "signin" ? "signin_username" : "signup_email"}
                     type={mode === "signin" ? "text" : "email"}
                     required
-                    name="user_email"
-                    autoComplete="username"
+                    name={mode === "signin" ? "username" : "email"}
+                    autoComplete={mode === "signin" ? "username" : "email"}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder={mode === "signin" ? "sharonov или name@mail.ru" : "name@mail.ru"}
@@ -641,13 +648,14 @@ function LoginForm() {
                 <div className="relative">
                   <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                   <input
+                    id={mode === "signin" ? "signin_password" : "signup_password"}
                     type={showPassword ? "text" : "password"}
                     required
-                    name="user_password"
-                    autoComplete="new-password"
+                    name={mode === "signin" ? "password" : "new-password"}
+                    autoComplete={mode === "signin" ? "current-password" : "new-password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Минимум 6 символов"
+                    placeholder={mode === "signin" ? "Ваш пароль" : "Придумайте пароль (от 6 символов)"}
                     className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition"
                   />
                   <button
