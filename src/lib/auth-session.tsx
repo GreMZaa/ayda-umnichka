@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { getSupabase } from "@/lib/supabase";
-import { GraduationCap, ShieldCheck, User, Users } from "lucide-react";
+import { GraduationCap, ShieldCheck, User, Users, Calendar, BookOpen, Award, Bell, Video, ArrowRight } from "lucide-react";
 
 export type AllowedRole = "student" | "teacher" | "parent" | "admin";
 
@@ -407,6 +407,10 @@ export function useAuthGuard(requiredRole: AllowedRole, options: { allowAdmin?: 
 /**
  * Красивый полноэкранный экран проверки прав доступа с аварийным выходом
  */
+/**
+ * Красивый полноэкранный скелетон-экран кабинета:
+ * Мгновенно показывает структуру кабинета с мерцающими карточками и плавным индикатором загрузки
+ */
 export function AuthLoadingScreen({
   roleTitle,
   onBypass,
@@ -436,39 +440,161 @@ export function AuthLoadingScreen({
     window.location.href = "/login?logout=1";
   };
 
-  return (
-    <div className="min-h-[60vh] flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-200">
-      <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-lg shadow-blue-500/25 animate-pulse mb-4">
-        <GraduationCap className="w-8 h-8" />
-      </div>
-      <h3 className="text-base sm:text-lg font-extrabold text-slate-900 tracking-tight">
-        Проверка учётной записи...
-      </h3>
-      <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-sm">
-        {roleTitle ? `Проверяем доступ к разделу: ${roleTitle}` : "Загрузка персонального кабинета и проверка прав доступа..."}
-      </p>
-      <div className="mt-4 flex items-center gap-1.5 text-xs text-blue-600 font-semibold">
-        <span className="w-2 h-2 rounded-full bg-blue-600 animate-ping" />
-        <span>Безопасное соединение</span>
-      </div>
+  const titleText = roleTitle || "Личный кабинет";
 
-      {/* Если загрузка длится дольше 2.5 секунд, даём пользователю прямое управление */}
-      {showRescue && (
-        <div className="mt-6 flex flex-col sm:flex-row items-center gap-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <button
-            onClick={handleForceEnter}
-            className="px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white shadow-md hover:bg-blue-700 transition active:scale-95 cursor-pointer"
-          >
-            Войти в кабинет прямо сейчас
-          </button>
-          <button
-            onClick={handleResetLogin}
-            className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition cursor-pointer"
-          >
-            Войти заново
-          </button>
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col animate-in fade-in duration-150">
+      {/* Шапка кабинета */}
+      <header className="bg-white border-b border-slate-200/80 px-4 sm:px-6 py-3 sticky top-0 z-30">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
+              <GraduationCap className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-extrabold text-sm sm:text-base tracking-tight text-slate-900">
+                  АйДаУмничка
+                </span>
+                <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                  {titleText}
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-400 font-medium">Онлайн-уроки и репетиторы</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400">
+              <Bell className="w-4 h-4" />
+            </div>
+            <div className="flex items-center gap-2.5 pl-2 border-l border-slate-200">
+              <div className="w-8 h-8 rounded-full bg-slate-200 animate-pulse" />
+              <div className="hidden sm:block space-y-1">
+                <div className="w-24 h-3 bg-slate-200 rounded animate-pulse" />
+                <div className="w-16 h-2 bg-slate-100 rounded animate-pulse" />
+              </div>
+            </div>
+          </div>
         </div>
-      )}
+      </header>
+
+      {/* Основной контейнер со скелетоном сайдбара и контента */}
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex gap-6">
+        {/* Сайдбар */}
+        <aside className="w-64 hidden lg:flex flex-col gap-4 shrink-0">
+          {/* Карточка профиля */}
+          <div className="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-xs space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-slate-200 animate-pulse shrink-0" />
+              <div className="space-y-1.5 flex-1 min-w-0">
+                <div className="h-3.5 w-28 bg-slate-200 rounded animate-pulse" />
+                <div className="h-2.5 w-16 bg-slate-100 rounded animate-pulse" />
+              </div>
+            </div>
+          </div>
+
+          {/* Меню навигации */}
+          <div className="bg-white rounded-3xl p-3 border border-slate-200/80 shadow-xs space-y-1.5">
+            <div className="h-10 rounded-2xl bg-blue-50/80 border border-blue-100/80 flex items-center px-3.5 gap-3">
+              <Calendar className="w-4 h-4 text-blue-600" />
+              <div className="h-3 w-28 bg-blue-200/70 rounded animate-pulse" />
+            </div>
+            <div className="h-10 rounded-2xl bg-slate-50 flex items-center px-3.5 gap-3">
+              <BookOpen className="w-4 h-4 text-slate-300" />
+              <div className="h-3 w-24 bg-slate-200 rounded animate-pulse" />
+            </div>
+            <div className="h-10 rounded-2xl bg-slate-50 flex items-center px-3.5 gap-3">
+              <Award className="w-4 h-4 text-slate-300" />
+              <div className="h-3 w-20 bg-slate-200 rounded animate-pulse" />
+            </div>
+            <div className="h-10 rounded-2xl bg-slate-50 flex items-center px-3.5 gap-3">
+              <Users className="w-4 h-4 text-slate-300" />
+              <div className="h-3 w-24 bg-slate-200 rounded animate-pulse" />
+            </div>
+          </div>
+
+          {/* Баннер поддержки */}
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50/60 rounded-3xl p-4 border border-blue-100 space-y-2 mt-auto">
+            <div className="h-3 w-28 bg-blue-200 rounded animate-pulse" />
+            <div className="h-2.5 w-36 bg-blue-100 rounded animate-pulse" />
+          </div>
+        </aside>
+
+        {/* Рабочая область */}
+        <section className="flex-1 space-y-6 min-w-0">
+          {/* Приветствие */}
+          <div className="space-y-2">
+            <div className="h-7 w-64 bg-slate-200 rounded-xl animate-pulse" />
+            <div className="h-3.5 w-80 bg-slate-100 rounded-lg animate-pulse" />
+          </div>
+
+          {/* Карточка онлайн-урока (скелетон) */}
+          <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-xs space-y-4">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-ping" />
+              <div className="h-3 w-32 bg-blue-100 rounded animate-pulse" />
+            </div>
+            <div className="h-6 w-3/4 max-w-md bg-slate-200 rounded-xl animate-pulse" />
+            <div className="flex items-center gap-3">
+              <div className="h-3.5 w-40 bg-slate-100 rounded animate-pulse" />
+              <div className="h-3.5 w-24 bg-slate-100 rounded animate-pulse" />
+            </div>
+            <div className="pt-2">
+              <div className="h-11 w-44 rounded-xl bg-blue-600/20 animate-pulse" />
+            </div>
+          </div>
+
+          {/* Сетка предстоящих занятий */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs space-y-3">
+              <div className="h-3.5 w-24 bg-slate-200 rounded animate-pulse" />
+              <div className="h-5 w-48 bg-slate-200 rounded-lg animate-pulse" />
+              <div className="h-3 w-32 bg-slate-100 rounded animate-pulse" />
+              <div className="pt-2 flex justify-between items-center">
+                <div className="h-8 w-24 bg-slate-100 rounded-lg animate-pulse" />
+                <div className="h-8 w-28 bg-slate-200 rounded-xl animate-pulse" />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs space-y-3">
+              <div className="h-3.5 w-24 bg-slate-200 rounded animate-pulse" />
+              <div className="h-5 w-48 bg-slate-200 rounded-lg animate-pulse" />
+              <div className="h-3 w-32 bg-slate-100 rounded animate-pulse" />
+              <div className="pt-2 flex justify-between items-center">
+                <div className="h-8 w-24 bg-slate-100 rounded-lg animate-pulse" />
+                <div className="h-8 w-28 bg-slate-200 rounded-xl animate-pulse" />
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      {/* Плавающая плашка со статусом загрузки */}
+      <aside aria-label="Статус загрузки" className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-white/95 backdrop-blur-md px-5 py-3 rounded-full shadow-2xl border border-slate-200/90 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-3 duration-200">
+        <span className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin shrink-0" />
+        <span className="text-xs font-bold text-slate-800">
+          Загрузка {titleText.toLowerCase()}...
+        </span>
+        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+
+        {showRescue && (
+          <div className="flex items-center gap-2 pl-3 ml-1 border-l border-slate-200">
+            <button
+              onClick={handleForceEnter}
+              className="text-xs font-bold text-blue-600 hover:text-blue-700 underline underline-offset-2 cursor-pointer whitespace-nowrap"
+            >
+              Войти прямо сейчас
+            </button>
+            <button
+              onClick={handleResetLogin}
+              className="text-xs text-slate-400 hover:text-slate-600 cursor-pointer ml-1"
+            >
+              Сброс
+            </button>
+          </div>
+        )}
+      </aside>
     </div>
   );
 }

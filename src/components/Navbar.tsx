@@ -240,10 +240,15 @@ export default function Navbar() {
         const confirmedRole = normalizeRole(role || "student");
         if (data.user) {
           setAuthCookies(confirmedRole, data.user.id, data.session?.access_token);
+          try {
+            localStorage.setItem("ayda_session", "true");
+            localStorage.setItem("ayda_role", confirmedRole);
+            localStorage.setItem("ayda_user_id", data.user.id);
+          } catch {}
         }
 
         setShowLoginModal(false);
-        router.push(`/${confirmedRole}`);
+        window.location.replace(`/${confirmedRole}`);
         return;
       } catch (err: any) {
         setErrorMsg(err?.message || "Ошибка подключения к серверу авторизации.");

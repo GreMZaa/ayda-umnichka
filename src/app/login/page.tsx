@@ -90,6 +90,14 @@ function LoginForm() {
   }, [searchParams]);
 
   useEffect(() => {
+    try {
+      router.prefetch("/student");
+      router.prefetch("/teacher");
+      router.prefetch("/parent");
+    } catch {}
+  }, [router]);
+
+  useEffect(() => {
     setPassword("");
     setEmail("");
     setFullName("");
@@ -244,16 +252,17 @@ function LoginForm() {
         }
         const normalized = normalizeRole(userRole);
         setAuthCookies(normalized, data.user.id, data.session?.access_token);
+        try {
+          localStorage.setItem("ayda_session", "true");
+          localStorage.setItem("ayda_role", normalized);
+          localStorage.setItem("ayda_user_id", data.user.id);
+        } catch {}
 
-        setMessage({
-          type: "success",
-          text: "Вход выполнен успешно! Перенаправляем в личный кабинет...",
-        });
         const redirectParam = searchParams.get("redirect");
         const target = redirectParam && redirectParam.startsWith(`/${normalized}`) ? redirectParam : `/${normalized}`;
-        setTimeout(() => {
-          router.push(target);
-        }, 300);
+        // Мгновенный красивый переход в кабинет — страница открывается сразу, где и происходит загрузка
+        window.location.replace(target);
+        return;
       } catch (err: any) {
         setMessage({
           type: "error",
@@ -687,10 +696,13 @@ function LoginForm() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full mt-2 py-3.5 px-6 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm shadow-lg shadow-blue-500/25 transition flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer active:scale-98"
+                className="w-full mt-2 py-3.5 px-6 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm shadow-lg shadow-blue-500/25 transition flex items-center justify-center gap-2 disabled:opacity-80 cursor-pointer active:scale-98"
               >
                 {loading ? (
-                  <span>Выполняется запрос...</span>
+                  <div className="flex items-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
+                    <span>Вход в кабинет...</span>
+                  </div>
                 ) : mode === "signin" ? (
                   <>
                     <LogIn className="w-4 h-4" />
