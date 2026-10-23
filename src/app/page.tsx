@@ -258,9 +258,13 @@ export default function HomePage() {
                 <ArrowRight className="w-3.5 h-3.5 ml-0.5 text-slate-400" />
               </Link>
             )}
-            <span className="text-[11px] text-slate-400 font-medium">
-              Бесплатная линия: <a href="tel:88003020412" className="text-slate-600 font-bold hover:text-blue-600 transition">8 800 302-04-12</a>
-            </span>
+            <a
+              href="tel:+79954854667"
+              className="inline-flex items-center gap-1.5 text-xs sm:text-sm text-slate-700 font-bold hover:text-blue-600 transition"
+            >
+              <Phone className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+              <span>8 995 485 46 67</span>
+            </a>
           </div>
         </div>
 
