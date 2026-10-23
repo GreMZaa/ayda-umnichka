@@ -106,6 +106,15 @@ export function middleware(request: NextRequest) {
         return NextResponse.redirect(url);
       }
     }
+
+    // Ж) Если пользователь зашёл на домен личного кабинета (lk-* или lk.*) и путь "/", сразу направляем на страницу входа
+    const host = request.headers.get("host") || "";
+    const isLkHost = host.startsWith("lk-") || host.startsWith("lk.");
+    if (isLkHost && pathname === "/") {
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      return NextResponse.redirect(url);
+    }
   }
 
   const response = NextResponse.next();

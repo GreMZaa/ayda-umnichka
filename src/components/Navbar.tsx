@@ -31,6 +31,7 @@ import {
 import { getSupabase } from "@/lib/supabase";
 import { setAuthCookies, clearAuthCookies, performLogout, normalizeRole } from "@/lib/auth-session";
 import EditProfileModal from "@/components/EditProfileModal";
+import { getLkUrl } from "@/lib/config";
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -334,9 +335,9 @@ export default function Navbar() {
                   <Link href="/#trial" className="hover:text-blue-600 transition">
                     Пробный урок
                   </Link>
-                  <Link href="/login" className="hover:text-blue-600 transition">
+                  <a href={getLkUrl("/login")} className="hover:text-blue-600 transition">
                     Вход в кабинет
-                  </Link>
+                  </a>
                 </nav>
               ) : (
                 <div className="hidden sm:flex items-center gap-2 pl-4 border-l border-slate-200">
@@ -503,22 +504,22 @@ export default function Navbar() {
               ) : (
                 /* Для гостя: яркая кнопка Войти (в дизайне регистрации) + стильная кнопка регистрации */
                 <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-                  <button
-                    onClick={() => setShowLoginModal(true)}
+                  <a
+                    href={getLkUrl("/login")}
                     className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/25 transition active:scale-95 cursor-pointer whitespace-nowrap"
                     id="btn-login-header"
                   >
                     <LogIn className="w-3.5 h-3.5 text-white" />
                     <span>Войти</span>
-                  </button>
+                  </a>
 
-                  <Link
-                    href="/login?mode=signup"
+                  <a
+                    href={getLkUrl("/login?mode=signup")}
                     className="hidden sm:inline-flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 shadow-2xs transition active:scale-95 cursor-pointer whitespace-nowrap"
                   >
                     <Sparkles className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                     <span>Регистрация</span>
-                  </Link>
+                  </a>
                 </div>
               )}
 
@@ -543,25 +544,22 @@ export default function Navbar() {
             {/* Блок авторизации для мобильных гостей */}
             {!authProfile && (
               <div className="grid grid-cols-2 gap-2 pb-2 border-b border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    setShowLoginModal(true);
-                  }}
+                <a
+                  href={getLkUrl("/login")}
+                  onClick={() => setMobileMenuOpen(false)}
                   className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/25 transition cursor-pointer"
                 >
                   <LogIn className="w-3.5 h-3.5 text-white" />
                   <span>Войти</span>
-                </button>
-                <Link
-                  href="/login?mode=signup"
+                </a>
+                <a
+                  href={getLkUrl("/login?mode=signup")}
                   onClick={() => setMobileMenuOpen(false)}
                   className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs transition border border-blue-200 text-center"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-blue-600" />
                   <span>Регистрация</span>
-                </Link>
+                </a>
               </div>
             )}
 
@@ -579,8 +577,8 @@ export default function Navbar() {
                 <span className="text-blue-600 font-bold">→</span>
               </Link>
 
-              <Link
-                href="/login"
+              <a
+                href={getLkUrl("/login")}
                 onClick={() => setMobileMenuOpen(false)}
                 className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 hover:bg-slate-100 transition"
               >
@@ -589,7 +587,7 @@ export default function Navbar() {
                   <span>Личный кабинет (Вход)</span>
                 </div>
                 <span className="text-slate-400">→</span>
-              </Link>
+              </a>
             </div>
 
             {/* Контакты центра */}

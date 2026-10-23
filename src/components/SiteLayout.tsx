@@ -25,29 +25,25 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
   }
 
   // Для публичных страниц и страницы входа сохраняем стандартную шапку и подвал
-  const isHome = pathname === "/";
-
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
       <Navbar />
-      <main
-        className={`flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 ${
-          isHome ? "py-1 sm:py-6 flex flex-col justify-center" : "py-6"
-        }`}
-      >
+      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
         {children}
       </main>
-      <footer className="border-t border-slate-200/80 bg-white py-2 sm:py-3.5 text-center text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 flex items-center justify-between gap-2 text-center sm:text-left">
-          <div className="flex items-center gap-1.5 text-[11px] sm:text-xs">
+      <footer className="border-t border-slate-200 bg-white py-6 sm:py-8 text-xs sm:text-sm text-slate-500">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+          <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2">
             <span className="font-bold text-blue-600">АйДаУмничка</span>
-            <span className="text-slate-300">•</span>
-            <span>© {new Date().getFullYear()} Все права защищены.</span>
+            <span className="hidden sm:inline text-slate-300">•</span>
+            <span>© {new Date().getFullYear()} Образовательный центр. Все права защищены.</span>
           </div>
-          <div className="text-[11px] text-slate-400">
-            <a href="tel:+79954854667" className="hover:text-blue-600 font-semibold transition">
+          <div className="flex items-center gap-3 text-xs text-slate-500">
+            <a href="tel:+79954854667" className="font-bold text-slate-700 hover:text-blue-600 transition">
               8 995 485 46 67
             </a>
+            <span className="text-slate-300">•</span>
+            <span className="text-slate-400">Онлайн-уроки по всей России</span>
           </div>
         </div>
       </footer>

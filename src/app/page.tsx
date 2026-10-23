@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { getSupabase } from "@/lib/supabase";
 import { normalizeRole, setAuthCookies } from "@/lib/auth-session";
+import { getLkUrl } from "@/lib/config";
 
 export default function HomePage() {
   const router = useRouter();
@@ -248,15 +249,15 @@ export default function HomePage() {
                 <ArrowRight className="w-3.5 h-3.5 ml-0.5" />
               </Link>
             ) : (
-              <Link
-                href="/login"
+              <a
+                href={getLkUrl("/login")}
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs sm:text-sm border border-slate-200 shadow-xs transition active:scale-98"
                 id="hero-btn-login"
               >
                 <LogIn className="w-4 h-4 text-slate-600" />
                 <span>Уже занимаетесь? Войти в кабинет</span>
                 <ArrowRight className="w-3.5 h-3.5 ml-0.5 text-slate-400" />
-              </Link>
+              </a>
             )}
             <a
               href="tel:+79954854667"
