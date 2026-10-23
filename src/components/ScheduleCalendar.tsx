@@ -221,8 +221,8 @@ export default function ScheduleCalendar({
     const endMs = new Date(lesson.endTime).getTime();
     if (isNaN(endMs)) return false;
     // Сравниваем физическое время Date.now() (UTC ms) с реальным временем окончания урока.
-    // Даём буфер 2 часа после окончания, чтобы комната не закрывалась преждевременно
-    return Date.now() > endMs + 2 * 60 * 60 * 1000;
+    // Даём буфер 4 часа после окончания, чтобы комната и карточка не закрывались преждевременно
+    return Date.now() > endMs + 4 * 60 * 60 * 1000;
   };
 
   const countActive = useMemo(
