@@ -70,6 +70,7 @@ import { formatUsername } from "@/lib/nickname";
 import { formatTolyatti, nowInTolyatti } from "@/lib/tolyatti-time";
 import { SHARONOV_AVATAR, TEACHER_VASILINA_AVATAR } from "@/lib/default-avatar";
 import { fetchWithAuth } from "@/lib/api-client";
+import BrandLogo from "@/components/BrandLogo";
 
 export interface TelegramChat {
   id: string;
@@ -827,6 +828,20 @@ export default function TelegramCabinet({
             mobileSidebarOpen ? "fixed inset-0 z-40 bg-white" : "hidden lg:flex"
           }`}
         >
+          {/* Фирменный логотип школы */}
+          <div className="px-3.5 py-2.5 border-b border-slate-200/80 bg-slate-50/50 flex items-center justify-between">
+            <BrandLogo size="xs" href="/" />
+            {mobileSidebarOpen && (
+              <button
+                type="button"
+                onClick={() => setMobileSidebarOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition lg:hidden"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
           {/* Шапка рабочего пространства */}
           <div className="p-3.5 border-b border-slate-200/80 flex items-center justify-between gap-2 bg-white/70">
             <div className="flex items-center gap-2.5 min-w-0">
@@ -858,16 +873,6 @@ export default function TelegramCabinet({
                 </div>
               </div>
             </div>
-
-            {mobileSidebarOpen && (
-              <button
-                type="button"
-                onClick={() => setMobileSidebarOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition lg:hidden"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
           </div>
 
           {/* Поисковая строка платформы: поиск учителей, учеников и диалогов */}
@@ -1149,7 +1154,7 @@ export default function TelegramCabinet({
         <main className="flex-1 flex flex-col h-full bg-white overflow-hidden min-w-0 relative">
           {/* Верхняя шапка */}
           <header className="h-14 border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between shrink-0 bg-white">
-            <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
               <button
                 type="button"
                 onClick={() => setMobileSidebarOpen(true)}
@@ -1157,6 +1162,10 @@ export default function TelegramCabinet({
               >
                 <Menu className="w-5 h-5" />
               </button>
+
+              <div className="lg:hidden shrink-0">
+                <BrandLogo variant="icon" size="xs" href="/" />
+              </div>
 
               <div className="flex items-center gap-2 text-xs text-slate-600 font-semibold truncate">
                 <span className="text-slate-900 font-extrabold text-sm sm:text-base">

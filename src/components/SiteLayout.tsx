@@ -3,6 +3,8 @@
 import React from "react";
 import { usePathname } from "next/navigation";
 import Navbar from "@/components/Navbar";
+import BrandLogo from "@/components/BrandLogo";
+import { getMainSiteUrl } from "@/lib/config";
 
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -24,7 +26,20 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
     );
   }
 
-  // Для публичных страниц и страницы входа сохраняем стандартную шапку и подвал
+  // Страница входа — ровно 1 экран без прокрутки
+  const isLoginPage = pathname === "/login";
+  if (isLoginPage) {
+    return (
+      <div className="h-[100dvh] max-h-[100dvh] flex flex-col bg-slate-50 text-slate-900 overflow-hidden">
+        <Navbar />
+        <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-center min-h-0 overflow-y-auto lg:overflow-hidden py-1 sm:py-2">
+          {children}
+        </main>
+      </div>
+    );
+  }
+
+  // Для публичных страниц сохраняем стандартную шапку и подвал
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
       <Navbar />
@@ -33,10 +48,10 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
       </main>
       <footer className="border-t border-slate-200 bg-white py-6 sm:py-8 text-xs sm:text-sm text-slate-500">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
-          <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2">
-            <span className="font-bold text-blue-600">АйДаУмничка</span>
+          <div className="flex flex-col sm:flex-row items-center gap-2">
+            <BrandLogo variant="compact" size="xs" href={getMainSiteUrl("/?guest=1")} />
             <span className="hidden sm:inline text-slate-300">•</span>
-            <span>© {new Date().getFullYear()} Образовательный центр. Все права защищены.</span>
+            <span>© {new Date().getFullYear()} Все права защищены.</span>
           </div>
           <div className="flex items-center gap-3 text-xs text-slate-500">
             <a href="tel:+79954854667" className="font-bold text-slate-700 hover:text-blue-600 transition">

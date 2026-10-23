@@ -31,11 +31,17 @@ import {
 import { getSupabase } from "@/lib/supabase";
 import { setAuthCookies, clearAuthCookies, performLogout, normalizeRole } from "@/lib/auth-session";
 import EditProfileModal from "@/components/EditProfileModal";
-import { getLkUrl } from "@/lib/config";
+import { getLkUrl, getMainSiteUrl } from "@/lib/config";
+import BrandLogo from "@/components/BrandLogo";
 
 export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
+  const [mainSiteUrl, setMainSiteUrl] = useState("/?guest=1");
+
+  useEffect(() => {
+    setMainSiteUrl(getMainSiteUrl("/?guest=1"));
+  }, []);
 
   // Состояние модальных окон и выпадающих меню
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -309,25 +315,25 @@ export default function Navbar() {
       {/* 2. ОСНОВНАЯ ШАПКА В СТИЛЕ FOXFORD */}
       <header className="sticky top-0 z-40 bg-white border-b border-slate-200/90 shadow-xs">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-14 sm:h-16 lg:h-[70px]">
+          <div className={`flex items-center justify-between ${isLoginPage ? "h-14 sm:h-16" : "h-14 sm:h-16 lg:h-[70px]"}`}>
             {/* Левая группа: Логотип и Навигация */}
             <div className="flex items-center gap-3 sm:gap-8 min-w-0 shrink">
-              {/* Логотип Фоксфорд-стиль */}
-              <Link href="/" className="flex items-center gap-2 group shrink-0 min-w-0">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/25 group-hover:scale-105 transition transform shrink-0">
-                  <GraduationCap className="w-4 h-4 sm:w-5 sm:h-5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-sm sm:text-xl font-extrabold tracking-tight text-slate-900 group-hover:text-blue-600 transition truncate">
-                      АйДаУмничка
-                    </span>
-                  </div>
-                  <span className="hidden sm:block text-[11px] font-medium text-slate-500 leading-none">
-                    Онлайн-уроки и репетиторы
-                  </span>
-                </div>
-              </Link>
+              {/* Новый фирменный логотип АйДаУмничка */}
+              <BrandLogo
+                size="md"
+                href={isInsideCabinet ? undefined : mainSiteUrl}
+                onClick={
+                  isInsideCabinet
+                    ? undefined
+                    : (e) => {
+                        const target = getMainSiteUrl("/?guest=1");
+                        if (target.startsWith("http://") || target.startsWith("https://")) {
+                          e?.preventDefault?.();
+                          window.location.href = target;
+                        }
+                      }
+                }
+              />
 
               {/* Навигационные ссылки (десктоп, только на публичных страницах) */}
               {!isInsideCabinet ? (
@@ -360,12 +366,19 @@ export default function Navbar() {
                   Выйти из урока
                 </Link>
               ) : isLoginPage ? (
-                <Link
-                  href="/"
-                  className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition border border-slate-200"
+                <a
+                  href={mainSiteUrl}
+                  onClick={(e) => {
+                    const target = getMainSiteUrl("/?guest=1");
+                    if (target.startsWith("http://") || target.startsWith("https://")) {
+                      e.preventDefault();
+                      window.location.href = target;
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition border border-slate-200 cursor-pointer"
                 >
                   <span>← Главная</span>
-                </Link>
+                </a>
               ) : isInsideCabinet && currentUser ? (
                 /* Пользователь ВНУТРИ личного кабинета: аватар, имя и кнопка выхода */
                 <div className="flex items-center gap-1.5 sm:gap-3">

@@ -94,7 +94,16 @@ export function middleware(request: NextRequest) {
       }
     }
 
-    // Е) Главная страница: если пользователь уже авторизован, автоматически направляем в его личный кабинет
+    // Е) Если пользователь зашёл на домен личного кабинета (lk-* или lk.*) и путь "/",
+    // всегда перенаправляем на основной сайт (лендинг)
+    const host = request.headers.get("host") || "";
+    const isLkHost = host.startsWith("lk-") || host.startsWith("lk.");
+    if (isLkHost && pathname === "/") {
+      return NextResponse.redirect("https://ayda-umnichka.vercel.app/?guest=1");
+    }
+
+    // Ж) Главная страница на основном домене: если пользователь уже авторизован,
+    // автоматически направляем в его личный кабинет (если не указан ?guest=1 или ?logout=1)
     if (pathname === "/" && aydaSession && aydaRole) {
       const mode = searchParams.get("mode");
       const logout = searchParams.get("logout");
@@ -105,15 +114,6 @@ export function middleware(request: NextRequest) {
         url.pathname = `/${targetRole}`;
         return NextResponse.redirect(url);
       }
-    }
-
-    // Ж) Если пользователь зашёл на домен личного кабинета (lk-* или lk.*) и путь "/", сразу направляем на страницу входа
-    const host = request.headers.get("host") || "";
-    const isLkHost = host.startsWith("lk-") || host.startsWith("lk.");
-    if (isLkHost && pathname === "/") {
-      const url = request.nextUrl.clone();
-      url.pathname = "/login";
-      return NextResponse.redirect(url);
     }
   }
 

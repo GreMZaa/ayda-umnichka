@@ -366,16 +366,16 @@ function LoginForm() {
   ];
 
   return (
-    <div className="min-h-[calc(100vh-140px)] flex items-center justify-center py-8 px-4 sm:px-6">
-      <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+    <div className="w-full flex items-center justify-center py-2 sm:py-4">
+      <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-center">
         {/* ЛЕВАЯ КОЛОНКА: Лаконичное приветствие */}
-        <div className="lg:col-span-5 space-y-4 hidden lg:block pr-6">
+        <div className="lg:col-span-5 space-y-3 hidden lg:block pr-4">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-bold border border-blue-100">
             <Sparkles className="w-3.5 h-3.5 text-blue-600" />
             <span>Личный кабинет</span>
           </div>
 
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-snug">
+          <h2 className="text-2xl lg:text-3xl font-extrabold text-slate-900 tracking-tight leading-snug">
             Вход в систему обучения
           </h2>
 
@@ -383,17 +383,17 @@ function LoginForm() {
             Онлайн-уроки, домашние задания и видеосвязь с преподавателем.
           </p>
 
-          <div className="pt-2 space-y-2.5">
+          <div className="pt-1 space-y-2">
             <div className="flex items-center gap-2.5 text-xs font-semibold text-slate-700">
-              <span className="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold shrink-0">✓</span>
+              <span className="w-5 h-5 rounded-md bg-blue-100 text-blue-700 flex items-center justify-center text-[11px] font-bold shrink-0">✓</span>
               <span>Интерактивный видеокласс</span>
             </div>
             <div className="flex items-center gap-2.5 text-xs font-semibold text-slate-700">
-              <span className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold shrink-0">✓</span>
+              <span className="w-5 h-5 rounded-md bg-emerald-100 text-emerald-700 flex items-center justify-center text-[11px] font-bold shrink-0">✓</span>
               <span>Отчёты для родителей</span>
             </div>
             <div className="flex items-center gap-2.5 text-xs font-semibold text-slate-700">
-              <span className="w-6 h-6 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center text-xs font-bold shrink-0">✓</span>
+              <span className="w-5 h-5 rounded-md bg-amber-100 text-amber-700 flex items-center justify-center text-[11px] font-bold shrink-0">✓</span>
               <span>Домашние задания и баллы</span>
             </div>
           </div>
@@ -401,13 +401,13 @@ function LoginForm() {
 
         {/* ПРАВАЯ КОЛОНКА: Фоксфорд форма авторизации и регистрации */}
         <div className="lg:col-span-7">
-          <div className="bg-white rounded-3xl p-6 sm:p-9 shadow-xl border border-slate-200/90 max-w-lg mx-auto">
+          <div className="bg-white rounded-3xl p-5 sm:p-7 shadow-xl border border-slate-200/90 max-w-md lg:max-w-lg mx-auto">
             {/* Переключатель Вход / Регистрация в стиле Foxford */}
-            <div className="flex p-1.5 bg-slate-100 rounded-2xl gap-1 mb-6">
+            <div className="flex p-1 bg-slate-100 rounded-2xl gap-1 mb-4">
               <button
                 type="button"
                 onClick={() => setMode("signin")}
-                className={`flex-1 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer flex items-center justify-center gap-2 ${
+                className={`flex-1 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer flex items-center justify-center gap-2 ${
                   mode === "signin"
                     ? "bg-white text-slate-900 shadow-xs"
                     : "text-slate-600 hover:text-slate-900"
@@ -419,7 +419,7 @@ function LoginForm() {
               <button
                 type="button"
                 onClick={() => setMode("signup")}
-                className={`flex-1 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer flex items-center justify-center gap-2 ${
+                className={`flex-1 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer flex items-center justify-center gap-2 ${
                   mode === "signup"
                     ? "bg-white text-slate-900 shadow-xs"
                     : "text-slate-600 hover:text-slate-900"
@@ -433,7 +433,7 @@ function LoginForm() {
             {/* Сообщения об ошибках / успехах */}
             {message && (
               <div
-                className={`mb-5 p-3.5 rounded-xl text-xs flex items-center gap-2.5 ${
+                className={`mb-3.5 p-3 rounded-xl text-xs flex items-center gap-2.5 ${
                   message.type === "success"
                     ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
                     : "bg-rose-50 text-rose-800 border border-rose-200"
@@ -448,10 +448,10 @@ function LoginForm() {
               </div>
             )}
 
-            <form key={mode} onSubmit={handleSubmit} className="space-y-4" autoComplete="on">
+            <form key={mode} onSubmit={handleSubmit} className="space-y-3" autoComplete="on">
               {/* РЕГИСТРАЦИЯ: ВЫБОР РОЛИ В СТИЛЕ ФОКСФОРДА (3 КАРТОЧКИ) */}
               {mode === "signup" && (
-                <div className="space-y-3 mb-4">
+                <div className="space-y-2 mb-2">
                   <label className="block text-xs font-bold text-slate-700">
                     Кто будет пользоваться аккаунтом?
                   </label>
@@ -486,24 +486,24 @@ function LoginForm() {
                           key={role.id}
                           type="button"
                           onClick={() => setSelectedRole(role.id)}
-                          className={`p-3 rounded-2xl border text-center transition cursor-pointer flex flex-col items-center justify-between min-h-[90px] ${
+                          className={`p-2 sm:p-2.5 rounded-xl border text-center transition cursor-pointer flex flex-col items-center justify-between min-h-[74px] ${
                             isSelected
                               ? "border-blue-600 bg-blue-50/60 ring-2 ring-blue-600/20 shadow-xs"
                               : "border-slate-200 bg-slate-50/60 hover:bg-slate-50 text-slate-600"
                           }`}
                         >
                           <div
-                            className={`w-8 h-8 rounded-xl flex items-center justify-center mb-1.5 ${
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center mb-1 ${
                               isSelected ? "bg-blue-600 text-white" : "bg-white text-slate-600 border border-slate-200"
                             }`}
                           >
-                            <Icon className="w-4 h-4" />
+                            <Icon className="w-3.5 h-3.5" />
                           </div>
                           <div>
-                            <div className="font-bold text-xs text-slate-900 leading-tight">
+                            <div className="font-bold text-[11px] sm:text-xs text-slate-900 leading-tight">
                               {role.title}
                             </div>
-                            <div className="text-[10px] text-slate-500 mt-0.5 leading-tight">
+                            <div className="text-[9px] sm:text-[10px] text-slate-500 mt-0.5 leading-tight">
                               {role.desc}
                             </div>
                           </div>
@@ -514,14 +514,14 @@ function LoginForm() {
 
                   {/* Если выбран ученик: выбор класса как в Фоксфорде */}
                   {selectedRole === "student" && (
-                    <div className="pt-2 animate-in fade-in duration-150">
-                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    <div className="pt-1 animate-in fade-in duration-150">
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
                         В каком классе учится ребёнок:
                       </label>
                       <select
                         value={selectedGrade}
                         onChange={(e) => setSelectedGrade(e.target.value)}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 focus:bg-white text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition cursor-pointer"
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 focus:bg-white text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition cursor-pointer"
                       >
                         {gradesList.map((g, idx) => (
                           <option key={idx} value={g}>
@@ -538,11 +538,11 @@ function LoginForm() {
               {mode === "signup" && (
                 <>
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                    <label className="block text-xs font-bold text-slate-700 mb-0.5">
                       {selectedRole === "parent" ? "Ваше имя (родитель):" : "Ваше имя и фамилия:"}
                     </label>
                     <div className="relative">
-                      <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                      <User className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                       <input
                         id="signup_fullname"
                         name="name"
@@ -552,17 +552,17 @@ function LoginForm() {
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
                         placeholder="Например: Анна Смирнова"
-                        className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition"
+                        className="w-full pl-9 pr-3.5 py-2 sm:py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                    <label className="block text-xs font-bold text-slate-700 mb-0.5">
                       Номер телефона:
                     </label>
                     <div className="relative">
-                      <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                      <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                       <input
                         id="signup_phone"
                         name="tel"
@@ -572,7 +572,7 @@ function LoginForm() {
                         onChange={handlePhoneChange}
                         onBlur={handlePhoneBlur}
                         placeholder="+7 (999) 000-00-00"
-                        className={`w-full pl-10 pr-3.5 py-2.5 rounded-xl border text-xs sm:text-sm font-medium focus:outline-none transition placeholder:text-slate-400 ${
+                        className={`w-full pl-9 pr-3.5 py-2 sm:py-2.5 rounded-xl border text-xs sm:text-sm font-medium focus:outline-none transition placeholder:text-slate-400 ${
                           phoneError
                             ? "border-rose-400 bg-rose-50/30 text-rose-900 focus:border-rose-600 focus:ring-1 focus:ring-rose-600"
                             : "border-slate-200 bg-white text-slate-900 focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
@@ -591,11 +591,11 @@ function LoginForm() {
 
               {/* ПОЛЯ: Логин/Email и Пароль */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label className="block text-xs font-bold text-slate-700 mb-0.5">
                   {mode === "signin" ? "Логин или Email:" : "Электронная почта (Email):"}
                 </label>
                 <div className="relative">
-                  <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                  <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                   <input
                     id={mode === "signin" ? "signin_username" : "signup_email"}
                     type={mode === "signin" ? "text" : "email"}
@@ -605,13 +605,13 @@ function LoginForm() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="name@mail.ru"
-                    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition"
+                    className="w-full pl-9 pr-3.5 py-2 sm:py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition"
                   />
                 </div>
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center justify-between mb-0.5">
                   <label className="text-xs font-bold text-slate-700">
                     Пароль:
                   </label>
@@ -622,7 +622,7 @@ function LoginForm() {
                   )}
                 </div>
                 <div className="relative">
-                  <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                  <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                   <input
                     id={mode === "signin" ? "signin_password" : "signup_password"}
                     type={showPassword ? "text" : "password"}
@@ -632,12 +632,12 @@ function LoginForm() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder={mode === "signin" ? "Ваш пароль" : "Придумайте пароль (от 6 символов)"}
-                    className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition"
+                    className="w-full pl-9 pr-9 py-2 sm:py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                    className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -646,17 +646,17 @@ function LoginForm() {
 
               {/* Чекбоксы согласия и запомнить меня */}
               {mode === "signup" ? (
-                <div className="pt-1">
-                  <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                <div className="pt-0.5">
+                  <label className="flex items-start gap-2 cursor-pointer select-none">
                     <input
                       type="checkbox"
                       checked={agreeTerms}
                       onChange={(e) => setAgreeTerms(e.target.checked)}
-                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4 mt-0.5 shrink-0"
+                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 mt-0.5 shrink-0"
                     />
-                    <span className="text-xs text-slate-500 leading-snug">
+                    <span className="text-[11px] text-slate-500 leading-snug">
                       Я согласен с{" "}
-                      <span className="text-blue-600 underline">условиями оферты</span> и даю согласие на обработку персональных данных
+                      <span className="text-blue-600 underline">условиями оферты</span> и даю согласие на обработку данных
                     </span>
                   </label>
                 </div>
@@ -667,7 +667,7 @@ function LoginForm() {
                       type="checkbox"
                       checked={rememberMe}
                       onChange={(e) => setRememberMe(e.target.checked)}
-                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
+                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5"
                     />
                     <span className="text-xs text-slate-600">Запомнить меня на этом устройстве</span>
                   </label>
@@ -678,7 +678,7 @@ function LoginForm() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full mt-2 py-3.5 px-6 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm shadow-lg shadow-blue-500/25 transition flex items-center justify-center gap-2 disabled:opacity-80 cursor-pointer active:scale-98"
+                className="w-full mt-2 py-3 px-6 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm shadow-md shadow-blue-500/20 transition flex items-center justify-center gap-2 disabled:opacity-80 cursor-pointer active:scale-98"
               >
                 {loading ? (
                   <div className="flex items-center gap-2">
@@ -702,7 +702,7 @@ function LoginForm() {
             </form>
 
             {/* Быстрое переключение */}
-            <div className="mt-6 pt-5 border-t border-slate-100 text-center text-xs text-slate-500 space-y-3">
+            <div className="mt-4 pt-3 border-t border-slate-100 text-center text-xs text-slate-500 space-y-2">
               {mode === "signin" ? (
                 <div>
                   Ещё нет аккаунта?{" "}
@@ -727,7 +727,7 @@ function LoginForm() {
                 </div>
               )}
 
-              <div className="pt-2 border-t border-slate-100 flex items-center justify-center gap-1.5 text-xs text-slate-500">
+              <div className="pt-1.5 border-t border-slate-100 flex items-center justify-center gap-1.5 text-xs text-slate-500">
                 <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
                 <span>Управление школой:</span>
                 <Link
