@@ -31,6 +31,26 @@ export function resolveProfileUsername(profile: {
   email?: string;
   bio?: any;
 }): string {
+  // Специальный случай: канонический никнейм для демонстрационного / основного ученика
+  if (
+    profile.id === "53df3c76-9d23-49aa-ba0c-6f40d7a56657" ||
+    (profile.email && (profile.email.toLowerCase().includes("lev-drakon") || profile.email.toLowerCase().includes("sharonov"))) ||
+    (profile.name && (profile.name.toLowerCase().includes("шаронов") || profile.name.toLowerCase().includes("сергей дмитриевич")))
+  ) {
+    if (profile.bio) {
+      try {
+        const parsed =
+          typeof profile.bio === "string" && profile.bio.startsWith("{")
+            ? JSON.parse(profile.bio)
+            : typeof profile.bio === "object"
+            ? profile.bio
+            : null;
+        if (parsed?.username) return cleanUsername(parsed.username);
+      } catch {}
+    }
+    return "sharonov";
+  }
+
   // 1. Проверяем bio на наличие сохранённого username
   if (profile.bio) {
     try {

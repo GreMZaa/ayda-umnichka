@@ -122,6 +122,7 @@ interface TelegramCabinetProps {
     email?: string;
     phone?: string;
     avatar?: string;
+    avatarUrl?: string;
     grade?: string;
     bio?: string;
     balance?: number;
@@ -829,22 +830,32 @@ export default function TelegramCabinet({
           {/* Шапка рабочего пространства */}
           <div className="p-3.5 border-b border-slate-200/80 flex items-center justify-between gap-2 bg-white/70">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 text-white flex items-center justify-center font-black text-sm shadow-xs shrink-0">
-                У
+              <div className="relative w-9 h-9 rounded-xl overflow-hidden shadow-xs shrink-0 border border-slate-200 bg-gradient-to-tr from-blue-600 to-indigo-500 text-white flex items-center justify-center font-black text-sm">
+                {(currentUser.avatar || currentUser.avatarUrl) ? (
+                  <img src={currentUser.avatar || currentUser.avatarUrl} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <span>{currentUser.name ? currentUser.name.charAt(0).toUpperCase() : "У"}</span>
+                )}
               </div>
               <div className="min-w-0">
                 <span className="font-extrabold text-xs text-slate-900 tracking-tight block truncate">
-                  АйДаУмничка
+                  {currentUser.name || "АйДаУмничка"}
                 </span>
-                <span className="text-[10px] text-slate-400 font-medium">
-                  {currentRole === "TEACHER"
-                    ? "Кабинет учителя"
-                    : currentRole === "STUDENT"
-                    ? "Кабинет ученика"
-                    : currentRole === "PARENT"
-                    ? "Кабинет родителя"
-                    : "Администратор"}
-                </span>
+                <div className="flex items-center gap-1.5 text-[10px] leading-tight">
+                  <span className="font-mono text-blue-600 font-bold truncate">
+                    @{currentUser.username || (currentRole === "STUDENT" ? "sharonov" : "user")}
+                  </span>
+                  <span className="text-slate-300">•</span>
+                  <span className="text-slate-400 font-medium shrink-0">
+                    {currentRole === "TEACHER"
+                      ? "Учитель"
+                      : currentRole === "STUDENT"
+                      ? "Ученик"
+                      : currentRole === "PARENT"
+                      ? "Родитель"
+                      : "Админ"}
+                  </span>
+                </div>
               </div>
             </div>
 

@@ -110,7 +110,7 @@ export default function StudentCabinet() {
   const [balance, setBalance] = useState(8);
   const [stars, setStars] = useState(isSharonov ? 28 : 0);
   const [editProfileModalOpen, setEditProfileModalOpen] = useState(false);
-  const [lessons, setLessons] = useState<any[]>(isSharonov ? DEFAULT_STUDENT_LESSONS : []);
+  const [lessons, setLessons] = useState<any[]>([]);
   const [schoolSubjects, setSchoolSubjects] = useState<any[]>([]);
   const [teachers, setTeachers] = useState<TeacherProfile[]>([]);
   const [friendTeacherIds, setFriendTeacherIds] = useState<string[]>([]);
@@ -452,9 +452,14 @@ export default function StudentCabinet() {
         if (authUser?.id && isUuid(authUser.id)) uid = authUser.id;
       }
 
-      const userIsSharonov = isSharonovUser(uid, authUser?.email);
+      const userIsSharonov =
+        isSharonovUser(uid, authUser?.email) ||
+        isSharonov ||
+        studentUsername === "sharonov" ||
+        studentId === "53df3c76-9d23-49aa-ba0c-6f40d7a56657" ||
+        Boolean(authUser?.email && authUser.email.toLowerCase().includes("lev-drakon"));
 
-      // Запрашиваем уроки ТОЛЬКО текущего ученика! (Для Шаронова добавляем его демонстрационный ID)
+      // Запрашиваем уроки текущего ученика
       const studentIdsToQuery = Array.from(
         new Set(
           [
@@ -467,7 +472,7 @@ export default function StudentCabinet() {
       );
 
       if (studentIdsToQuery.length === 0) {
-        setLessons(userIsSharonov ? DEFAULT_STUDENT_LESSONS : []);
+        setLessons([]);
         setLoading(false);
         return;
       }
@@ -548,7 +553,7 @@ export default function StudentCabinet() {
               setLoading(false);
               return;
             } else {
-              setLessons(userIsSharonov ? DEFAULT_STUDENT_LESSONS : []);
+              setLessons([]);
               setLoading(false);
               return;
             }
@@ -588,7 +593,7 @@ export default function StudentCabinet() {
         }
       } catch (e) {}
 
-      setLessons(userIsSharonov ? DEFAULT_STUDENT_LESSONS : []);
+      setLessons([]);
       setLoading(false);
     };
 
@@ -636,7 +641,7 @@ export default function StudentCabinet() {
         client.removeChannel(realtimeChannel);
       }
     };
-  }, [authUser?.id]);
+  }, [authUser?.id, studentId]);
 
   // Загрузка и синхронизация домашних заданий из БД /api/homework (P0.2)
   useEffect(() => {
@@ -760,7 +765,11 @@ export default function StudentCabinet() {
 
   const liveLesson = lessons.find((l) => l.status === "LIVE");
   const upcomingLessons = lessons
-    .filter((l) => l.status === "SCHEDULED")
+    .filter((l) => {
+      if (l.status !== "SCHEDULED") return false;
+      const endMs = new Date(l.endTime || l.startTime).getTime();
+      return isNaN(endMs) || endMs > Date.now();
+    })
     .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
   const completedLessons = lessons.filter((l) => l.status === "COMPLETED");
 
