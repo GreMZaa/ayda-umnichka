@@ -25,10 +25,10 @@ export async function GET(
   // 2. Аутентификация
   const auth = await authenticateRequest(request);
   const user = auth.user || {
-    id: "d22f670c-3a38-41cd-95aa-80afdb94eab5",
-    email: "teacher.test@umnichka.ru",
+    id: "882042e2-d020-426c-9826-9fba5b23ad2e",
+    email: "skokova_97@inbox.ru",
     role: "teacher",
-    name: "Анна Сергеевна Иванова",
+    name: "Шаронова Василина Владимировна",
   };
 
   // Поиск в Supabase
@@ -95,8 +95,8 @@ export async function GET(
       subjectId: "fd8c024a-ff45-40e1-99ea-9afa55e1bf3d",
       subjectName: "Математика и логика",
       subjectColor: "#2563eb",
-      teacherId: "d22f670c-3a38-41cd-95aa-80afdb94eab5",
-      teacherName: "Анна Сергеевна Иванова",
+      teacherId: "882042e2-d020-426c-9826-9fba5b23ad2e",
+      teacherName: "Шаронова Василина Владимировна",
       teacherAvatar: "https://images.unsplash.com/photo-1544717305-2782549b5136?w=240&h=240&fit=crop&crop=faces",
       studentId: "student-demo-room",
       studentName: "Ученик",
@@ -133,10 +133,10 @@ export async function PATCH(
   // 2. Аутентификация
   const auth = await authenticateRequest(request);
   const user = auth.user || {
-    id: "d22f670c-3a38-41cd-95aa-80afdb94eab5",
-    email: "teacher.test@umnichka.ru",
+    id: "882042e2-d020-426c-9826-9fba5b23ad2e",
+    email: "skokova_97@inbox.ru",
     role: "teacher",
-    name: "Анна Сергеевна Иванова",
+    name: "Шаронова Василина Владимировна",
   };
 
   try {

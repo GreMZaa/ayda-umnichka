@@ -24,10 +24,10 @@ export async function GET(request: Request) {
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
   
   const user = auth.user || {
-    id: "d22f670c-3a38-41cd-95aa-80afdb94eab5",
-    email: "teacher@ayda-umnichka.ru",
+    id: "882042e2-d020-426c-9826-9fba5b23ad2e",
+    email: "skokova_97@inbox.ru",
     role: (searchParams.get("role") as any) || "teacher",
-    name: "Анна Сергеевна Иванова",
+    name: "Шаронова Василина Владимировна",
   };
 
   // 3. Запрос уроков из Supabase (продакшн БД)
@@ -172,10 +172,10 @@ export async function POST(request: Request) {
   // 2. Серверная аутентификация с поддержкой демо-режима
   const auth = await authenticateRequest(request);
   const user = auth.user || {
-    id: "d22f670c-3a38-41cd-95aa-80afdb94eab5",
-    email: "teacher@ayda-umnichka.ru",
+    id: "882042e2-d020-426c-9826-9fba5b23ad2e",
+    email: "skokova_97@inbox.ru",
     role: "teacher",
-    name: "Анна Сергеевна Иванова",
+    name: "Шаронова Василина Владимировна",
   };
 
   // 3. Проверка прав: создавать уроки могут преподаватели и администраторы
@@ -216,7 +216,7 @@ export async function POST(request: Request) {
         let teacherIdToSave = isUuid(lessonData.teacherId) ? lessonData.teacherId : null;
         if (!teacherIdToSave) {
           const { data: tProf } = await client.from("profiles").select("id").eq("role", "TEACHER").limit(1).maybeSingle();
-          teacherIdToSave = tProf?.id || "d22f670c-3a38-41cd-95aa-80afdb94eab5";
+          teacherIdToSave = tProf?.id || "882042e2-d020-426c-9826-9fba5b23ad2e";
         }
 
         // Разрешение или автоматическое создание профиля ученика в Supabase

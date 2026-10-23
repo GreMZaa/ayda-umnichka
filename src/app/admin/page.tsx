@@ -2157,7 +2157,7 @@ export default function AdminPage() {
                   type="email"
                   value={studentEmail}
                   onChange={(e) => setStudentEmail(e.target.value)}
-                  placeholder="student@umnichka.ru"
+                  placeholder="name@example.ru"
                   className="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
                 />
               </div>
@@ -2246,7 +2246,7 @@ export default function AdminPage() {
                     type="email"
                     value={teacherEmail}
                     onChange={(e) => setTeacherEmail(e.target.value)}
-                    placeholder="teacher@umnichka.ru"
+                    placeholder="name@example.ru"
                     className="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
                   />
                 </div>

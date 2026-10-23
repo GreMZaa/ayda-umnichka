@@ -112,48 +112,8 @@ function getInitialData(): DatabaseSchema {
     { id: "sub-4", name: "Подготовка к школе", color: "#d97706" },
   ];
 
-  const users: User[] = [
-    {
-      id: "u-teacher-1",
-      email: "teacher@umnichka.ru",
-      name: "Анна Сергеевна Иванова",
-      phone: "+7 (999) 111-22-33",
-      role: "TEACHER",
-      bio: "Преподаватель высшей категории, стаж 12 лет. Математика и развитие логического мышления.",
-      avatar: "https://images.unsplash.com/photo-1544717305-2782549b5136?w=200&h=200&fit=crop&crop=faces",
-    },
-    {
-      id: "u-student-1",
-      email: "student@umnichka.ru",
-      name: "Ученик",
-      phone: "+7 (999) 333-44-55",
-      role: "STUDENT",
-      bio: "3 класс. Занимается математикой и логикой.",
-      avatar: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&h=200&fit=crop&crop=faces",
-    },
-    {
-      id: "u-parent-1",
-      email: "parent@umnichka.ru",
-      name: "Родитель",
-      phone: "+7 (999) 555-66-77",
-      role: "PARENT",
-      bio: "Родитель ученика центра.",
-      avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&h=200&fit=crop&crop=faces",
-    },
-    {
-      id: "u-admin-1",
-      email: "admin@umnichka.ru",
-      name: "Администратор центра",
-      phone: "+7 (999) 777-88-99",
-      role: "ADMIN",
-      bio: "Руководитель репетиторского центра «АйДаУмничка».",
-      avatar: "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=200&h=200&fit=crop&crop=faces",
-    },
-  ];
-
-  const parentStudents: ParentStudent[] = [
-    { parentId: "u-parent-1", studentId: "u-student-1" },
-  ];
+  const users: User[] = [];
+  const parentStudents: ParentStudent[] = [];
 
   const lessons: Lesson[] = [];
 
@@ -241,10 +201,10 @@ export const db = {
         subjectId: "sub-1",
         subjectName: "Предмет",
         subjectColor: "#2563eb",
-        teacherId: "u-teacher-1",
-        teacherName: "Анна Сергеевна Иванова",
-        studentId: "u-student-1",
-        studentName: "Ученик",
+        teacherId: "882042e2-d020-426c-9826-9fba5b23ad2e",
+        teacherName: "Шаронова Василина Владимировна",
+        studentId: "53df3c76-9d23-49aa-ba0c-6f40d7a56657",
+        studentName: "Сергей Дмитриевич",
         startTime: new Date().toISOString(),
         endTime: new Date().toISOString(),
         status,
@@ -288,10 +248,10 @@ export const db = {
         subjectId: "sub-1",
         subjectName: "Предмет",
         subjectColor: "#2563eb",
-        teacherId: authorId,
-        teacherName: authorName || "Анна Сергеевна Иванова",
-        studentId: "u-student-1",
-        studentName: "Ученик",
+        teacherId: authorId || "882042e2-d020-426c-9826-9fba5b23ad2e",
+        teacherName: authorName || "Шаронова Василина Владимировна",
+        studentId: "53df3c76-9d23-49aa-ba0c-6f40d7a56657",
+        studentName: "Сергей Дмитриевич",
         startTime: new Date().toISOString(),
         endTime: new Date().toISOString(),
         status: "COMPLETED",
@@ -304,12 +264,12 @@ export const db = {
     if (!lesson.notes) lesson.notes = [];
 
     const author = data.users.find((u) => u.id === authorId);
-    const resolvedAuthorName = authorName || author?.name || "Анна Сергеевна Иванова";
+    const resolvedAuthorName = authorName || author?.name || "Шаронова Василина Владимировна";
 
     const note: LessonNote = {
       id: "note-" + Date.now(),
       lessonId: lesson.id,
-      authorId: authorId || "u-teacher-1",
+      authorId: authorId || "882042e2-d020-426c-9826-9fba5b23ad2e",
       authorName: resolvedAuthorName,
       content,
       grade,

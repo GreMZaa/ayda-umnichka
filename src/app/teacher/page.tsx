@@ -1120,12 +1120,12 @@ export default function TeacherCabinet() {
             .eq("role", "TEACHER")
             .limit(1)
             .maybeSingle();
-          currentTeacherId = tProf?.id || "d22f670c-3a38-41cd-95aa-80afdb94eab5";
+          currentTeacherId = tProf?.id || "882042e2-d020-426c-9826-9fba5b23ad2e";
         } catch {
-          currentTeacherId = "d22f670c-3a38-41cd-95aa-80afdb94eab5";
+          currentTeacherId = "882042e2-d020-426c-9826-9fba5b23ad2e";
         }
       } else {
-        currentTeacherId = "d22f670c-3a38-41cd-95aa-80afdb94eab5";
+        currentTeacherId = "882042e2-d020-426c-9826-9fba5b23ad2e";
       }
     }
 
@@ -1395,7 +1395,7 @@ export default function TeacherCabinet() {
     const newNote = {
       id: "note-" + Date.now(),
       lessonId: targetLessonId,
-      authorId: teacherId || "d22f670c-3a38-41cd-95aa-80afdb94eab5",
+      authorId: teacherId || "882042e2-d020-426c-9826-9fba5b23ad2e",
       authorName: teacherName,
       content: noteContent.trim(),
       grade,

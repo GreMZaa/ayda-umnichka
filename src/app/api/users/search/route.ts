@@ -20,6 +20,24 @@ export interface CleanUserResult {
   bio?: string;
 }
 
+function isTestAccount(email?: string, id?: string): boolean {
+  const e = (email || "").trim().toLowerCase();
+  const i = (id || "").trim().toLowerCase();
+  if (i.startsWith("u-") || i.startsWith("00000000-")) return true;
+  if (
+    e.includes("test@") ||
+    e.includes(".test@") ||
+    e === "parent@umnichka.ru" ||
+    e === "student@umnichka.ru" ||
+    e === "teacher@umnichka.ru" ||
+    e === "teacher.test@umnichka.ru" ||
+    e === "parent.test@umnichka.ru"
+  ) {
+    return true;
+  }
+  return false;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -45,6 +63,7 @@ export async function GET(req: NextRequest) {
 
       if (!error && Array.isArray(data)) {
         for (const p of data) {
+          if (isTestAccount(p.email, p.id)) continue;
           let parsedBio: any = {};
           try {
             if (p.bio && p.bio.startsWith("{")) {
@@ -116,6 +135,7 @@ export async function GET(req: NextRequest) {
       const localUsers: LocalUser[] = db.getUsers();
       for (const u of localUsers) {
         if (seenIds.has(u.id)) continue;
+        if (isTestAccount(u.email, u.id)) continue;
         if (roleParam && u.role !== roleParam) continue;
 
         let parsedBio: any = {};
