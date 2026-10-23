@@ -1006,23 +1006,38 @@ export default function ScheduleCalendar({
                 </div>
               </div>
 
-              {/* Строка поиска */}
-              <div className="relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                <input
-                  type="text"
-                  value={listSearchQuery}
-                  onChange={(e) => setListSearchQuery(e.target.value)}
-                  placeholder="Поиск по уроку, имени..."
-                  className="w-full sm:w-64 pl-9 pr-7 py-1.5 rounded-xl border border-slate-200 text-xs font-medium focus:outline-none focus:border-blue-600"
-                />
-                {listSearchQuery && (
+              {/* Строка поиска и кнопка создания урока */}
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <div className="relative flex-1 sm:w-60">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={listSearchQuery}
+                    onChange={(e) => setListSearchQuery(e.target.value)}
+                    placeholder="Поиск по уроку, имени..."
+                    className="w-full pl-9 pr-7 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:outline-none focus:border-blue-600"
+                  />
+                  {listSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setListSearchQuery("")}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {role === "teacher" && onCreateLesson && (
                   <button
                     type="button"
-                    onClick={() => setListSearchQuery("")}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    onClick={onCreateLesson}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#2481cc] hover:bg-[#1f70b0] active:scale-95 text-white font-bold text-xs transition cursor-pointer shadow-xs shrink-0"
+                    title="Создать новое учебное занятие"
                   >
-                    <X className="w-3.5 h-3.5" />
+                    <Plus className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Создать урок</span>
+                    <span className="sm:hidden">Создать</span>
                   </button>
                 )}
               </div>

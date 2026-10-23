@@ -1604,17 +1604,6 @@ export default function TeacherCabinet() {
                   </div>
                 )}
 
-                <div className="flex items-center justify-end px-1">
-                  <button
-                    type="button"
-                    onClick={() => handleOpenCreateModal()}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#2481cc] text-white font-bold text-xs hover:bg-[#1f70b0] transition cursor-pointer shadow-xs"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Создать урок</span>
-                  </button>
-                </div>
-
                 <ScheduleCalendar
                   role="teacher"
                   lessons={lessons}
