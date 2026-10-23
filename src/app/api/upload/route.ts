@@ -72,15 +72,25 @@ export async function POST(request: Request) {
       // Игнорируем и сохраняем локально
     }
 
-    // 5. Если бакет недоступен — сохраняем локально в public/uploads
+    // 5. Попытка сохранить локально в public/uploads (если файловая система доступна для записи)
     if (!publicUrl) {
-      const uploadsDir = path.join(process.cwd(), "public", "uploads");
-      if (!fs.existsSync(uploadsDir)) {
-        fs.mkdirSync(uploadsDir, { recursive: true });
+      try {
+        const uploadsDir = path.join(process.cwd(), "public", "uploads");
+        if (!fs.existsSync(uploadsDir)) {
+          fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+        const filePath = path.join(uploadsDir, fileName);
+        await fs.promises.writeFile(filePath, buffer);
+        publicUrl = `/uploads/${fileName}`;
+      } catch (fsErr: any) {
+        console.warn(
+          "Файловая система доступна только для чтения (Vercel serverless / read-only). Используем Data URL fallback:",
+          fsErr?.message
+        );
+        // 6. Гарантированный надёжный фоллбэк для Vercel: кодируем в Base64 Data URL
+        const mimeType = file.type || "application/octet-stream";
+        publicUrl = `data:${mimeType};base64,${buffer.toString("base64")}`;
       }
-      const filePath = path.join(uploadsDir, fileName);
-      await fs.promises.writeFile(filePath, buffer);
-      publicUrl = `/uploads/${fileName}`;
     }
 
     // Форматирование размера для отображения

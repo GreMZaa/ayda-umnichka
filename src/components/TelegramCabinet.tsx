@@ -1302,25 +1302,38 @@ export default function TelegramCabinet({
                           </div>
                         )}
 
-                        {/* Прикрепленный файл */}
+                        {/* Прикрепленный файл или изображение */}
                         {msg.type === "file" && msg.fileUrl && (
-                          <div className="inline-flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-left mt-1">
-                            <FileText className="w-5 h-5 text-blue-600 shrink-0" />
-                            <div className="min-w-0">
-                              <div className="font-bold text-slate-800 truncate">
-                                {msg.fileName || "Файл"}
+                          <div className="space-y-1 mt-1 text-left">
+                            {(msg.fileUrl.startsWith("data:image") ||
+                              /\.(png|jpe?g|webp|gif|svg)$/i.test(msg.fileName || msg.fileUrl)) && (
+                              <div className="rounded-xl overflow-hidden max-w-xs border border-slate-200 shadow-2xs">
+                                <img
+                                  src={msg.fileUrl}
+                                  alt={msg.fileName || "Изображение"}
+                                  className="w-full max-h-60 object-cover cursor-pointer hover:opacity-95 transition"
+                                  onClick={() => window.open(msg.fileUrl, "_blank")}
+                                />
                               </div>
-                              <div className="text-[10px] text-slate-400">{msg.fileSize}</div>
+                            )}
+                            <div className="inline-flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-left">
+                              <FileText className="w-5 h-5 text-blue-600 shrink-0" />
+                              <div className="min-w-0">
+                                <div className="font-bold text-slate-800 truncate">
+                                  {msg.fileName || "Файл"}
+                                </div>
+                                <div className="text-[10px] text-slate-400">{msg.fileSize}</div>
+                              </div>
+                              <a
+                                href={msg.fileUrl}
+                                download={msg.fileName || "attachment"}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-1 rounded-lg hover:bg-slate-200 text-slate-600"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                              </a>
                             </div>
-                            <a
-                              href={msg.fileUrl}
-                              download
-                              target="_blank"
-                              rel="noreferrer"
-                              className="p-1 rounded-lg hover:bg-slate-200 text-slate-600"
-                            >
-                              <Download className="w-3.5 h-3.5" />
-                            </a>
                           </div>
                         )}
                       </div>
