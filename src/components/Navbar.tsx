@@ -645,7 +645,7 @@ export default function Navbar() {
                     autoComplete="username"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="ivan@mail.ru или логин"
+                    placeholder="name@mail.ru"
                     className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:border-blue-600 transition"
                   />
                 </div>

@@ -600,24 +600,9 @@ function LoginForm() {
 
               {/* ПОЛЯ: Логин/Email и Пароль */}
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-bold text-slate-700">
-                    {mode === "signin" ? "Логин или Email:" : "Электронная почта (Email):"}
-                  </label>
-                  {mode === "signin" && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEmail("sharonov");
-                        setPassword("123456");
-                      }}
-                      className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-md transition cursor-pointer"
-                      title="Автоматически заполнить данные ученика"
-                    >
-                      Вход для ученика (Сергей)
-                    </button>
-                  )}
-                </div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  {mode === "signin" ? "Логин или Email:" : "Электронная почта (Email):"}
+                </label>
                 <div className="relative">
                   <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                   <input
@@ -628,7 +613,7 @@ function LoginForm() {
                     autoComplete={mode === "signin" ? "username" : "email"}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder={mode === "signin" ? "sharonov или name@mail.ru" : "name@mail.ru"}
+                    placeholder="name@mail.ru"
                     className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition"
                   />
                 </div>
