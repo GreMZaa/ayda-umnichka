@@ -606,7 +606,7 @@ export default function StudentCabinet() {
       const targetQueryId = paramId || studentIdsToQuery[0] || (userIsSharonov ? "53df3c76-9d23-49aa-ba0c-6f40d7a56657" : "");
       if (targetQueryId) {
         try {
-          const res = await fetch(`/api/lessons?studentId=${targetQueryId}`, { cache: "no-store" });
+          const res = await fetchWithAuth(`/api/lessons?studentId=${targetQueryId}`);
           if (res.ok) {
             const data = await res.json();
             if (Array.isArray(data) && data.length > 0) {

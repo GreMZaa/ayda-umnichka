@@ -22,11 +22,16 @@ export async function GET(request: Request) {
   const statusFilter = (searchParams.get("status") as any) || undefined;
   const isUuid = (str: string) =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+
+  // Определяем роль: если передан studentId — значит запрос для ученика
+  const studentIdParam = searchParams.get("studentId");
+  const teacherIdParam = searchParams.get("teacherId");
+  const inferredRole = studentIdParam ? "student" : teacherIdParam ? "teacher" : (searchParams.get("role") as any) || "teacher";
   
   const user = auth.user || {
-    id: "882042e2-d020-426c-9826-9fba5b23ad2e",
+    id: studentIdParam || "882042e2-d020-426c-9826-9fba5b23ad2e",
     email: "skokova_97@inbox.ru",
-    role: (searchParams.get("role") as any) || "teacher",
+    role: inferredRole,
     name: "Шаронова Василина Владимировна",
   };
 
