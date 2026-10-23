@@ -103,7 +103,7 @@ export async function GET(request: Request) {
       }
 
       // Если уроков по конкретному фильтру все еще 0, но это запрос от ученика —
-      // возвращаем актуальные уроки школы/преподавателя Василины, чтобы ученик никогда не остался без урока
+      // возвращаем актуальные уроки школы, чтобы ученик никогда не остался без урока
       if ((!sbLessons || sbLessons.length === 0) && (auth.user?.role === "student" || studentIdParam)) {
         const { data: generalLessons } = await client
           .from("lessons")
@@ -121,7 +121,6 @@ export async function GET(request: Request) {
             teacher:teacher_id (name, avatar_url),
             student:student_id (name, avatar_url)
           `)
-          .eq("teacher_id", "882042e2-d020-426c-9826-9fba5b23ad2e")
           .neq("status", "CANCELLED")
           .order("start_time", { ascending: false })
           .limit(10);

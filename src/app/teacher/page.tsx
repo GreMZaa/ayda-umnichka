@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import {
@@ -45,6 +45,11 @@ import {
   getTolyattiTomorrowDateStr,
   tolyattiToIso,
   formatTolyatti,
+  getTolyattiNowTimeString,
+  getTolyattiSuggestedTime,
+  formatLocalEquivalent,
+  getLocalToTolyattiHourDifference,
+  getLocalTimezoneName,
 } from "@/lib/tolyatti-time";
 import { DEFAULT_STUDENT_LESSONS } from "@/lib/default-lessons";
 import { TEACHER_VASILINA_AVATAR } from "@/lib/default-avatar";
@@ -165,9 +170,19 @@ export default function TeacherCabinet() {
   const [customStudentName, setCustomStudentName] = useState("");
 
   const [lessonDate, setLessonDate] = useState(() => getTolyattiTodayDateStr());
-  const [lessonTime, setLessonTime] = useState("16:00");
+  const [lessonTime, setLessonTime] = useState(() => getTolyattiSuggestedTime(15));
   const [lessonDurationMinutes, setLessonDurationMinutes] = useState(45);
   const [lessonRoomName, setLessonRoomName] = useState(() => `room-${Math.random().toString(36).substring(2, 8)}`);
+
+  // Синхронизация часового пояса Тольятти (UTC+4) с местным поясом учителя
+  const localEq = useMemo(() => formatLocalEquivalent(lessonTime, lessonDate), [lessonTime, lessonDate]);
+  const localTzDiffHours = useMemo(() => getLocalToTolyattiHourDifference(), []);
+  const localTzName = useMemo(() => getLocalTimezoneName(), []);
+  const [tltNowClock, setTltNowClock] = useState(() => getTolyattiNowTimeString());
+  useEffect(() => {
+    const t = setInterval(() => setTltNowClock(getTolyattiNowTimeString()), 10000);
+    return () => clearInterval(t);
+  }, []);
 
   // Состояние отчёта по уроку
   const [selectedLessonForNote, setSelectedLessonForNote] = useState<any | null>(null);
@@ -1027,8 +1042,8 @@ export default function TeacherCabinet() {
     );
   });
 
-  // Открытие модалки создания урока (с возможностью предвыбора ученика из списка друзей)
-  const handleOpenCreateModal = (studentId?: string) => {
+  // Открытие модалки создания урока (с возможностью предвыбора ученика, даты и времени из календаря)
+  const handleOpenCreateModal = (studentId?: string, preselectedDate?: string, preselectedTime?: string) => {
     if (studentId && friendStudentIds.includes(studentId)) {
       setSelectedStudentId(studentId);
     } else if (friends.length > 0) {
@@ -1040,7 +1055,8 @@ export default function TeacherCabinet() {
     setIsCustomSubject(false);
     setCustomSubjectName("");
     setLessonRoomName(`room-${Math.random().toString(36).substring(2, 8)}`);
-    setLessonDate(getTolyattiTodayDateStr());
+    setLessonDate(preselectedDate || getTolyattiTodayDateStr());
+    setLessonTime(preselectedTime || getTolyattiSuggestedTime(15));
     setCreateError(null);
     setCreateSuccess(false);
     setCreateModalOpen(true);
@@ -1631,7 +1647,7 @@ export default function TeacherCabinet() {
                   lessons={lessons}
                   onUpdateStatus={handleUpdateStatus}
                   onOpenReportModal={handleOpenReportModal}
-                  onCreateLesson={() => handleOpenCreateModal()}
+                  onCreateLesson={(date, time) => handleOpenCreateModal(undefined, date, time)}
                   onExtendLesson={handleExtendLesson}
                 />
               </div>
@@ -2360,32 +2376,110 @@ export default function TeacherCabinet() {
                 )}
               </div>
 
-              {/* 4. Дата и время */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Дата занятия:
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={lessonDate}
-                    onChange={(e) => setLessonDate(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 bg-white"
-                  />
+              {/* 4. Дата и время с защитой от часовых поясов */}
+              <div className="space-y-2.5">
+                {/* Плашка контроля единого школьного времени */}
+                <div className="p-3 rounded-2xl bg-sky-50/90 border border-sky-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-[#2481cc] shrink-0" />
+                    <div>
+                      <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5 flex-wrap">
+                        <span>Время школы (Тольятти):</span>
+                        <span className="font-mono font-black text-blue-700 bg-white px-2 py-0.5 rounded-lg border border-blue-200">
+                          {tltNowClock}
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-500">UTC+4</span>
+                      </div>
+                      {localTzDiffHours !== 0 && (
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          На вашем устройстве ({localTzName}): <strong className="text-slate-800">{localEq.localTime}</strong> (разница {localEq.diffLabel})
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <span className="self-start sm:self-center text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 shrink-0">
+                    ТЛТ (UTC+4)
+                  </span>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Время начала:
-                  </label>
-                  <input
-                    type="time"
-                    required
-                    value={lessonTime}
-                    onChange={(e) => setLessonTime(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 bg-white"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Дата занятия (по Тольятти):
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={lessonDate}
+                      onChange={(e) => setLessonDate(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                      <span>Время начала:</span>
+                      <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.2 rounded border border-blue-100">
+                        по Тольятти (UTC+4)
+                      </span>
+                    </label>
+                    <input
+                      type="time"
+                      required
+                      value={lessonTime}
+                      onChange={(e) => setLessonTime(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 bg-white font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* Быстрые пресеты времени */}
+                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                  <span className="text-[11px] font-semibold text-slate-400">Быстрый выбор:</span>
+                  <button
+                    type="button"
+                    onClick={() => setLessonTime(getTolyattiSuggestedTime(0))}
+                    className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition"
+                  >
+                    Сейчас ({getTolyattiSuggestedTime(0)})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLessonTime(getTolyattiSuggestedTime(15))}
+                    className="px-2 py-0.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold transition border border-blue-200"
+                  >
+                    +15 мин ({getTolyattiSuggestedTime(15)})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLessonTime(getTolyattiSuggestedTime(30))}
+                    className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition"
+                  >
+                    +30 мин ({getTolyattiSuggestedTime(30)})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLessonTime(getTolyattiSuggestedTime(60))}
+                    className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition"
+                  >
+                    +1 час ({getTolyattiSuggestedTime(60)})
+                  </button>
+                </div>
+
+                {/* Информационный бейдж синхронизации */}
+                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span>⏰ Урок начнётся:</span>
+                    <strong className="text-slate-900">{lessonTime} по Тольятти</strong>
+                    {localTzDiffHours !== 0 && (
+                      <span className="text-slate-500">
+                        (у вас: <strong className="text-blue-700">{localEq.localTime}</strong>)
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[11px] text-emerald-600 font-bold flex items-center gap-1">
+                    <span>✓</span> Ученик видит время Тольятти
+                  </span>
                 </div>
               </div>
 

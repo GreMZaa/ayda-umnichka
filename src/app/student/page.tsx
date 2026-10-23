@@ -44,7 +44,11 @@ import ScheduleCalendar from "@/components/ScheduleCalendar";
 import EditProfileModal from "@/components/EditProfileModal";
 import TelegramCabinet from "@/components/TelegramCabinet";
 import { cleanUsername, formatUsername, resolveProfileUsername } from "@/lib/nickname";
-import { formatTolyatti } from "@/lib/tolyatti-time";
+import {
+  formatTolyatti,
+  isTodayOrFutureInTolyatti,
+  isTodayInTolyatti,
+} from "@/lib/tolyatti-time";
 import { SHARONOV_AVATAR, TEACHER_VASILINA_AVATAR } from "@/lib/default-avatar";
 import { DEFAULT_STUDENT_LESSONS } from "@/lib/default-lessons";
 
@@ -550,9 +554,9 @@ export default function StudentCabinet() {
           }
 
           // 3. ЖЕЛЕЗНЫЙ ФОЛЛБЕК: если уроков по конкретному ID не найдено,
-          // проверяем уроки преподавателя школы (Шароновой Василины), назначенные для учеников
+          // проверяем актуальные уроки школы, назначенные преподавателями для учеников
           if (sbLessons.length === 0) {
-            const { data: teacherLessons } = await client
+            const { data: schoolLessons } = await client
               .from("lessons")
               .select(`
                 id,
@@ -568,13 +572,12 @@ export default function StudentCabinet() {
                 teacher:teacher_id (name, avatar_url),
                 student:student_id (name, avatar_url)
               `)
-              .eq("teacher_id", "882042e2-d020-426c-9826-9fba5b23ad2e")
               .neq("status", "CANCELLED")
               .order("start_time", { ascending: false })
-              .limit(5);
+              .limit(10);
 
-            if (teacherLessons && teacherLessons.length > 0) {
-              sbLessons = teacherLessons;
+            if (schoolLessons && schoolLessons.length > 0) {
+              sbLessons = schoolLessons;
             }
           }
 
@@ -812,9 +815,12 @@ export default function StudentCabinet() {
     liveLesson ||
     lessons.find((l) => {
       if (l.status === "COMPLETED" || l.status === "CANCELLED") return false;
+      // Если урок назначен на сегодня или будущее по Тольятти - он 100% активен для ученика!
+      if (l.startTime && isTodayOrFutureInTolyatti(l.startTime)) return true;
       const endMs = new Date(l.endTime || l.startTime).getTime();
       return isNaN(endMs) || endMs + 4 * 3600 * 1000 > Date.now();
     }) ||
+    lessons.find((l) => l.status !== "CANCELLED") ||
     lessons[0];
 
   const upcomingLessons = lessons

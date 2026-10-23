@@ -67,7 +67,13 @@ import { clearAuthCookies, performLogout } from "@/lib/auth-session";
 import EditProfileModal from "@/components/EditProfileModal";
 import ScheduleCalendar from "@/components/ScheduleCalendar";
 import { formatUsername } from "@/lib/nickname";
-import { formatTolyatti, nowInTolyatti } from "@/lib/tolyatti-time";
+import {
+  formatTolyatti,
+  nowInTolyatti,
+  getTolyattiNowTimeString,
+  getLocalToTolyattiHourDifference,
+  getLocalTimezoneName,
+} from "@/lib/tolyatti-time";
 import { SHARONOV_AVATAR, TEACHER_VASILINA_AVATAR } from "@/lib/default-avatar";
 import { fetchWithAuth } from "@/lib/api-client";
 import BrandLogo from "@/components/BrandLogo";
@@ -228,6 +234,15 @@ export default function TelegramCabinet({
 
   // Мобильное меню
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  // Живые школьные часы (Тольятти, UTC+4)
+  const [tltTime, setTltTime] = useState<string>(() => getTolyattiNowTimeString());
+  useEffect(() => {
+    const timer = setInterval(() => setTltTime(getTolyattiNowTimeString()), 10000);
+    return () => clearInterval(timer);
+  }, []);
+  const localDiff = useMemo(() => getLocalToTolyattiHourDifference(), []);
+  const localTzName = useMemo(() => getLocalTimezoneName(), []);
 
   // Меню упоминаний (@) и эмодзи
   const [showMentions, setShowMentions] = useState(false);
@@ -1206,6 +1221,25 @@ export default function TelegramCabinet({
                   <InfoIcon className="w-4 h-4" />
                 </button>
               )}
+
+              {/* Индикатор единого времени школы (Тольятти, UTC+4) */}
+              <div
+                className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold transition"
+                title={`Единое расписание школы по времени Тольятти (UTC+4). ${
+                  localDiff !== 0
+                    ? `На вашем устройстве: ${localTzName} (разница ${localDiff > 0 ? `+${localDiff}` : localDiff} ч)`
+                    : "Ваш часовой пояс совпадает со школьным"
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5 text-[#2481cc]" />
+                <span className="font-mono font-bold text-slate-900">{tltTime}</span>
+                <span className="text-[10px] text-slate-500 font-medium">ТЛТ (UTC+4)</span>
+                {localDiff !== 0 && (
+                  <span className="text-[10px] text-blue-700 bg-blue-50 px-1.5 py-0.2 rounded font-bold border border-blue-200">
+                    {localDiff > 0 ? `+${localDiff}ч` : `${localDiff}ч`}
+                  </span>
+                )}
+              </div>
 
               {/* Разделитель */}
               <div className="h-6 w-[1px] bg-slate-200 hidden sm:block" />

@@ -40,6 +40,9 @@ import {
   nowInTolyatti,
   formatTolyatti,
   TOLYATTI_TZ_LABEL,
+  isTodayOrFutureInTolyatti,
+  isTodayInTolyatti,
+  getLocalToTolyattiHourDifference,
 } from "@/lib/tolyatti-time";
 
 export interface LessonItem {
@@ -67,7 +70,7 @@ interface ScheduleCalendarProps {
   title?: string;
   onUpdateStatus?: (lessonId: string, status: string) => Promise<void> | void;
   onOpenReportModal?: (lesson: LessonItem) => void;
-  onCreateLesson?: () => void;
+  onCreateLesson?: (date?: string, time?: string) => void;
   onExtendLesson?: (lessonId: string, minutes: number) => Promise<void> | void;
 }
 
@@ -217,6 +220,13 @@ export default function ScheduleCalendar({
   const isLessonArchived = (lesson: LessonItem) => {
     if (lesson.status === "COMPLETED") return true;
     if (lesson.status === "LIVE") return false; // Идущий сейчас урок никогда не закрыт и не в архиве
+    
+    // Если урок назначен на сегодня по Тольятти или на будущее — он ВСЕГДА АКТИВЕН!
+    // Ни учитель, ни ученик не должны терять урок в течение дня из-за сдвига поясов
+    if (lesson.startTime && isTodayOrFutureInTolyatti(lesson.startTime)) {
+      return false;
+    }
+
     if (!lesson.endTime) return false;
     const endMs = new Date(lesson.endTime).getTime();
     if (isNaN(endMs)) return false;
@@ -771,10 +781,29 @@ export default function ScheduleCalendar({
                         return (
                           <div
                             key={dayIdx}
-                            className={`p-1.5 border-r border-slate-100 last:border-r-0 relative transition hover:bg-slate-50/50 flex flex-col gap-1.5 ${
+                            onClick={() => {
+                              if (dayLessons.length === 0 && role === "teacher" && onCreateLesson) {
+                                onCreateLesson(formatTolyatti(day, "yyyy-MM-dd"), timeStr);
+                              }
+                            }}
+                            className={`p-1.5 border-r border-slate-100 last:border-r-0 relative transition flex flex-col gap-1.5 ${
                               isToday ? "bg-blue-50/30 ring-1 ring-inset ring-blue-100/70" : ""
+                            } ${
+                              dayLessons.length === 0 && role === "teacher" && onCreateLesson
+                                ? "hover:bg-blue-50/50 cursor-pointer group"
+                                : "hover:bg-slate-50/50"
                             }`}
+                            title={
+                              dayLessons.length === 0 && role === "teacher" && onCreateLesson
+                                ? `Нажмите, чтобы создать урок на ${formatTolyatti(day, "d MMMM")} в ${timeStr} (по Тольятти)`
+                                : undefined
+                            }
                           >
+                            {dayLessons.length === 0 && role === "teacher" && onCreateLesson && (
+                              <div className="hidden group-hover:flex items-center justify-center h-full min-h-[44px] text-[11px] text-[#2481cc] font-extrabold opacity-75 select-none">
+                                + {timeStr}
+                              </div>
+                            )}
                             {dayLessons.map((l) => {
                               const isLive = l.status === "LIVE";
                               const isCompleted = l.status === "COMPLETED";
@@ -957,11 +986,12 @@ export default function ScheduleCalendar({
           {/* Единая лаконичная панель фильтрации */}
           <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs space-y-3">
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-              {/* Статусные табы: Все уроки (актуальные) vs Архив уроков (прошедшие) */}
+              {/* Статусные табы: Актуальные (сегодня и впереди) vs Все уроки vs Архив (прошедшие) */}
               <div className="flex flex-wrap items-center gap-1.5">
                 {[
-                  { id: "ACTIVE" as const, label: "Все уроки", count: countActive },
-                  { id: "ARCHIVE" as const, label: "Архив уроков", count: countArchived, icon: Archive },
+                  { id: "ACTIVE" as const, label: "Актуальные", count: countActive },
+                  { id: "ALL" as const, label: "Все уроки", count: filteredLessons.length },
+                  { id: "ARCHIVE" as const, label: "Архив", count: countArchived, icon: Archive },
                 ].map((f) => {
                   const Icon = f.icon;
                   return (
@@ -1036,7 +1066,7 @@ export default function ScheduleCalendar({
                 {role === "teacher" && onCreateLesson && (
                   <button
                     type="button"
-                    onClick={onCreateLesson}
+                    onClick={() => onCreateLesson()}
                     className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#2481cc] hover:bg-[#1f70b0] active:scale-95 text-white font-bold text-xs transition cursor-pointer shadow-xs shrink-0"
                     title="Создать новое учебное занятие"
                   >
@@ -1125,7 +1155,7 @@ export default function ScheduleCalendar({
               ) : role === "teacher" && onCreateLesson ? (
                 <button
                   type="button"
-                  onClick={onCreateLesson}
+                  onClick={() => onCreateLesson()}
                   className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition shadow-xs cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
