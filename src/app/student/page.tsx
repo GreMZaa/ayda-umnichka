@@ -108,12 +108,22 @@ const getInitialUrlId = (): string | null => {
   }
 };
 
+const KNOWN_NON_STUDENT_IDS = new Set([
+  "882042e2-d020-426c-9826-9fba5b23ad2e", // Шаронова Василина (преподаватель)
+  "72e4bb2c-112c-4ab3-bed1-346eb3a15a64", // Юлия Павловна (преподаватель)
+  "dd6c1ab1-f5ae-4ede-b193-584b0518bdf2", // Администратор
+]);
+
 export default function StudentCabinet() {
   const { loading: authLoading, isAuthorized, user: authUser } = useAuthGuard("student");
 
   // Читаем ID напрямую из URL браузера (?id=... или ?studentId=...)
-  const [urlId, setUrlId] = useState<string | null>(getInitialUrlId);
-  const effectiveId = urlId || authUser?.id || "53df3c76-9d23-49aa-ba0c-6f40d7a56657";
+  const [urlId, setUrlId] = useState<string | null>(() => {
+    const init = getInitialUrlId();
+    return init && !KNOWN_NON_STUDENT_IDS.has(init) ? init : null;
+  });
+  const validAuthId = authUser?.id && !KNOWN_NON_STUDENT_IDS.has(authUser.id) ? authUser.id : null;
+  const effectiveId = urlId || validAuthId || "53df3c76-9d23-49aa-ba0c-6f40d7a56657";
   const isSharonov = isSharonovUser(effectiveId, authUser?.email);
 
   const [studentId, setStudentId] = useState(effectiveId);
@@ -203,26 +213,34 @@ export default function StudentCabinet() {
 
   // Загрузка данных ученика, предметов школы и уроков из Supabase
   useEffect(() => {
-    let currentUserId = getInitialUrlId() || authUser?.id;
+    let currentUserId = getInitialUrlId();
+    if (currentUserId && KNOWN_NON_STUDENT_IDS.has(currentUserId)) {
+      currentUserId = null;
+    }
+    if (!currentUserId && authUser?.id && !KNOWN_NON_STUDENT_IDS.has(authUser.id)) {
+      currentUserId = authUser.id;
+    }
     if (!currentUserId && typeof document !== "undefined") {
       const match = document.cookie.match(/ayda_user_id=([^;]+)/);
-      if (match && isUuid(match[1].trim())) currentUserId = match[1].trim();
+      if (match && isUuid(match[1].trim()) && !KNOWN_NON_STUDENT_IDS.has(match[1].trim())) {
+        currentUserId = match[1].trim();
+      }
     }
-    if (!currentUserId || !isUuid(currentUserId)) {
+    if (!currentUserId || !isUuid(currentUserId) || KNOWN_NON_STUDENT_IDS.has(currentUserId)) {
       try {
         const saved =
           localStorage.getItem("ayda_profile_student") ||
           localStorage.getItem("ayda_current_user_profile");
         if (saved) {
           const p = JSON.parse(saved);
-          if (p.id && isUuid(p.id) && (!authUser?.id || p.id === authUser.id)) {
+          if (p.id && isUuid(p.id) && !KNOWN_NON_STUDENT_IDS.has(p.id)) {
             currentUserId = p.id;
           }
         }
       } catch (e) {}
     }
     // Если пользователь Шаронов или demo без сессии
-    if (!currentUserId || !isUuid(currentUserId)) {
+    if (!currentUserId || !isUuid(currentUserId) || KNOWN_NON_STUDENT_IDS.has(currentUserId)) {
       currentUserId = "53df3c76-9d23-49aa-ba0c-6f40d7a56657";
     }
     if (currentUserId) {
@@ -493,8 +511,9 @@ export default function StudentCabinet() {
 
     // 3. Загрузка уроков ТОЛЬКО текущего ученика с надежными фоллбеками
     const loadStudentLessons = async () => {
-      const paramId = getInitialUrlId();
-      let uid = paramId || currentUserId || studentId;
+      const rawParamId = getInitialUrlId();
+      const paramId = rawParamId && !KNOWN_NON_STUDENT_IDS.has(rawParamId) ? rawParamId : null;
+      let uid = paramId || (currentUserId && !KNOWN_NON_STUDENT_IDS.has(currentUserId) ? currentUserId : null) || (studentId && !KNOWN_NON_STUDENT_IDS.has(studentId) ? studentId : null) || "53df3c76-9d23-49aa-ba0c-6f40d7a56657";
       const client = getSupabase();
 
       // 0. Запрашиваем актуальную сессию напрямую из Supabase Auth
@@ -505,39 +524,53 @@ export default function StudentCabinet() {
           if (sData?.session?.user) {
             const sUser = sData.session.user;
             sessionEmail = sUser.email || null;
-            if (!uid || !isUuid(uid)) uid = sUser.id;
+            if ((!uid || !isUuid(uid)) && !KNOWN_NON_STUDENT_IDS.has(sUser.id)) {
+              uid = sUser.id;
+            }
           }
         } catch {}
       }
 
       // Проверяем cookie
-      if (!uid || !isUuid(uid)) {
+      if (!uid || !isUuid(uid) || KNOWN_NON_STUDENT_IDS.has(uid)) {
         if (typeof document !== "undefined") {
           const match = document.cookie.match(/ayda_user_id=([^;]+)/);
-          if (match && isUuid(match[1].trim())) uid = match[1].trim();
+          if (match && isUuid(match[1].trim()) && !KNOWN_NON_STUDENT_IDS.has(match[1].trim())) {
+            uid = match[1].trim();
+          }
         }
       }
 
       // Проверяем localStorage
-      if (!uid || !isUuid(uid)) {
+      if (!uid || !isUuid(uid) || KNOWN_NON_STUDENT_IDS.has(uid)) {
         try {
           const localUid = localStorage.getItem("ayda_user_id");
-          if (localUid && isUuid(localUid)) uid = localUid;
+          if (localUid && isUuid(localUid) && !KNOWN_NON_STUDENT_IDS.has(localUid)) {
+            uid = localUid;
+          }
         } catch {}
       }
-      if (!uid || !isUuid(uid)) {
+      if (!uid || !isUuid(uid) || KNOWN_NON_STUDENT_IDS.has(uid)) {
         try {
           const saved = localStorage.getItem("ayda_profile_student") || localStorage.getItem("ayda_current_user_profile");
           if (saved) {
             const p = JSON.parse(saved);
-            if (p.id && isUuid(p.id)) uid = p.id;
+            if (p.id && isUuid(p.id) && !KNOWN_NON_STUDENT_IDS.has(p.id)) {
+              uid = p.id;
+            }
             if (p.email && !sessionEmail) sessionEmail = p.email;
           }
         } catch {}
       }
 
-      if (!uid || !isUuid(uid)) {
-        if (authUser?.id && isUuid(authUser.id)) uid = authUser.id;
+      if (!uid || !isUuid(uid) || KNOWN_NON_STUDENT_IDS.has(uid)) {
+        if (authUser?.id && isUuid(authUser.id) && !KNOWN_NON_STUDENT_IDS.has(authUser.id)) {
+          uid = authUser.id;
+        }
+      }
+
+      if (!uid || !isUuid(uid) || KNOWN_NON_STUDENT_IDS.has(uid)) {
+        uid = "53df3c76-9d23-49aa-ba0c-6f40d7a56657";
       }
 
       // Если в стейте еще нет профиля, пытаемся оперативно узнать его из Supabase profiles
@@ -572,14 +605,16 @@ export default function StudentCabinet() {
         studentUsername === "sharonov" ||
         studentId === "53df3c76-9d23-49aa-ba0c-6f40d7a56657" ||
         effectiveEmail.includes("lev-drakon") ||
-        effectiveEmail.includes("sharonov");
+        effectiveEmail.includes("sharonov") ||
+        !paramId ||
+        paramId === "53df3c76-9d23-49aa-ba0c-6f40d7a56657";
 
       const userIsEmlin =
         uid === "0c5da41e-bd5b-4af4-bf92-b4184bcd7e15" ||
         studentId === "0c5da41e-bd5b-4af4-bf92-b4184bcd7e15" ||
         effectiveEmail.includes("jak987357");
 
-      // Формируем все возможные ID текущего ученика
+      // Формируем все возможные ID текущего ученика (ИСКЛЮЧАЯ преподавателей)
       const studentIdsToQuery = Array.from(
         new Set(
           [
@@ -591,7 +626,7 @@ export default function StudentCabinet() {
             authUser?.id,
             ...(userIsSharonov ? ["53df3c76-9d23-49aa-ba0c-6f40d7a56657"] : []),
             ...(userIsEmlin ? ["0c5da41e-bd5b-4af4-bf92-b4184bcd7e15"] : []),
-          ].filter((x): x is string => Boolean(x && isUuid(x)))
+          ].filter((x): x is string => Boolean(x && isUuid(x) && !KNOWN_NON_STUDENT_IDS.has(x)))
         )
       );
 
@@ -603,10 +638,12 @@ export default function StudentCabinet() {
       }
 
       // 1. ПРИОРИТЕТ: Серверный эндпоинт /api/lessons (100% надежен, не зависит от локальных токенов Supabase)
-      const targetQueryId = paramId || studentIdsToQuery[0] || (userIsSharonov ? "53df3c76-9d23-49aa-ba0c-6f40d7a56657" : "");
+      const targetQueryId = paramId || studentIdsToQuery[0] || "53df3c76-9d23-49aa-ba0c-6f40d7a56657";
       if (targetQueryId) {
         try {
-          const res = await fetchWithAuth(`/api/lessons?studentId=${targetQueryId}`);
+          const res = await fetchWithAuth(`/api/lessons?studentId=${targetQueryId}&_t=${Date.now()}`, {
+            cache: "no-store",
+          });
           if (res.ok) {
             const data = await res.json();
             if (Array.isArray(data) && data.length > 0) {
@@ -665,7 +702,7 @@ export default function StudentCabinet() {
           }
 
           // 3. Прямой поиск для Шаронова (lev-drakon2011@mail.ru)
-          if (sbLessons.length === 0 && (userIsSharonov || effectiveEmail.includes("lev-drakon") || studentIdsToQuery.includes("53df3c76-9d23-49aa-ba0c-6f40d7a56657"))) {
+          if (sbLessons.length === 0) {
             const { data: sharonovLessons } = await client
               .from("lessons")
               .select(`
@@ -721,10 +758,12 @@ export default function StudentCabinet() {
       // 4. API запрос (серверная авторизация через Supabase)
       try {
         const queryId = paramId || studentIdsToQuery[0] || "53df3c76-9d23-49aa-ba0c-6f40d7a56657";
-        const res = await fetchWithAuth(`/api/lessons?studentId=${queryId}`);
+        const res = await fetchWithAuth(`/api/lessons?studentId=${queryId}&_t=${Date.now()}`, {
+          cache: "no-store",
+        });
         if (res.ok) {
           const data = await res.json();
-          if (Array.isArray(data)) {
+          if (Array.isArray(data) && data.length > 0) {
             setLessons(data);
             setLoading(false);
             return;
@@ -733,6 +772,26 @@ export default function StudentCabinet() {
       } catch (err) {
         console.error(err);
       }
+
+      // 5. Локальный мост: если урок был создан только что на этом устройстве
+      try {
+        const local = localStorage.getItem("ayda_latest_lessons");
+        if (local) {
+          const parsed = JSON.parse(local);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const forThisStudent = parsed.filter(
+              (l: any) =>
+                studentIdsToQuery.includes(l.studentId) ||
+                l.studentId === "53df3c76-9d23-49aa-ba0c-6f40d7a56657"
+            );
+            if (forThisStudent.length > 0) {
+              setLessons(forThisStudent);
+              setLoading(false);
+              return;
+            }
+          }
+        }
+      } catch {}
 
       // Если в базе Supabase уроков нет (или они были удалены), список пуст
       setLessons([]);

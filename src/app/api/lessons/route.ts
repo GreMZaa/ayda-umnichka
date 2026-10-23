@@ -23,9 +23,21 @@ export async function GET(request: Request) {
   const isUuid = (str: string) =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 
+  const KNOWN_NON_STUDENT_IDS = new Set([
+    "882042e2-d020-426c-9826-9fba5b23ad2e", // Шаронова Василина (преподаватель)
+    "72e4bb2c-112c-4ab3-bed1-346eb3a15a64", // Юлия Павловна (преподаватель)
+    "dd6c1ab1-f5ae-4ede-b193-584b0518bdf2", // Администратор
+  ]);
+
   // Определяем роль: если передан studentId — значит запрос для ученика
-  const studentIdParam = searchParams.get("studentId");
+  const rawStudentId = searchParams.get("studentId");
   const teacherIdParam = searchParams.get("teacherId");
+  
+  let studentIdParam = rawStudentId && isUuid(rawStudentId) ? rawStudentId : null;
+  if (studentIdParam && KNOWN_NON_STUDENT_IDS.has(studentIdParam)) {
+    studentIdParam = "53df3c76-9d23-49aa-ba0c-6f40d7a56657";
+  }
+
   const inferredRole = studentIdParam ? "student" : teacherIdParam ? "teacher" : (searchParams.get("role") as any) || "teacher";
   
   const user = auth.user || {
@@ -57,15 +69,12 @@ export async function GET(request: Request) {
         `)
         .order("start_time", { ascending: false });
 
-      const studentIdParam = searchParams.get("studentId");
-      const teacherIdParam = searchParams.get("teacherId");
-
       if (statusFilter) {
         query = query.eq("status", statusFilter);
       }
-      if (studentIdParam && isUuid(studentIdParam)) {
+      if (studentIdParam) {
         query = query.eq("student_id", studentIdParam);
-      } else if (auth.user && auth.user.role === "student" && isUuid(auth.user.id)) {
+      } else if (auth.user && auth.user.role === "student" && isUuid(auth.user.id) && !KNOWN_NON_STUDENT_IDS.has(auth.user.id)) {
         query = query.eq("student_id", auth.user.id);
       }
 
@@ -85,9 +94,9 @@ export async function GET(request: Request) {
           .order("start_time", { ascending: false });
 
         if (statusFilter) fallbackQuery = fallbackQuery.eq("status", statusFilter);
-        const targetStudentId = (studentIdParam && isUuid(studentIdParam))
+        const targetStudentId = studentIdParam
           ? studentIdParam
-          : (auth.user && auth.user.role === "student" && isUuid(auth.user.id))
+          : (auth.user && auth.user.role === "student" && isUuid(auth.user.id) && !KNOWN_NON_STUDENT_IDS.has(auth.user.id))
           ? auth.user.id
           : null;
 
@@ -109,7 +118,13 @@ export async function GET(request: Request) {
 
       if (!sbError && sbLessons) {
         if (sbLessons.length === 0) {
-          return NextResponse.json([]);
+          return NextResponse.json([], {
+            headers: {
+              "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+              "Pragma": "no-cache",
+              "Expires": "0",
+            },
+          });
         }
         const mappedLessons = sbLessons.map((l: any) => {
           const notes = db.getLessonNotes(l.id);
@@ -122,7 +137,7 @@ export async function GET(request: Request) {
             subjectName: l.subjects?.name || "Предмет",
             subjectColor: l.subjects?.color || "#2563eb",
             teacherId: l.teacher_id,
-            teacherName: l.teacher?.name || "Преподаватель",
+            teacherName: l.teacher?.name || "Шаронова Василина Владимировна",
             teacherAvatar: l.teacher?.avatar_url,
             studentId: l.student_id,
             studentName: l.student?.name || "Ученик",
@@ -134,7 +149,13 @@ export async function GET(request: Request) {
             notes,
           };
         });
-        return NextResponse.json(mappedLessons);
+        return NextResponse.json(mappedLessons, {
+          headers: {
+            "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+          },
+        });
       }
     } catch (err) {
       console.error("Supabase lessons query error:", err);
