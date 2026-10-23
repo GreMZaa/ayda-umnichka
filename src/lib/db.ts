@@ -28,6 +28,8 @@ export interface LessonNote {
   content: string;
   grade?: number;
   feedback?: string;
+  award?: string;
+  awardIcon?: string;
   createdAt: string;
 }
 
@@ -237,7 +239,9 @@ export const db = {
     content: string,
     grade?: number,
     feedback?: string,
-    authorName?: string
+    authorName?: string,
+    award?: string,
+    awardIcon?: string
   ): LessonNote => {
     const data = loadDB();
     let lesson = data.lessons.find((l) => l.id === lessonId || l.roomName === lessonId);
@@ -274,6 +278,8 @@ export const db = {
       content,
       grade,
       feedback,
+      award,
+      awardIcon,
       createdAt: new Date().toISOString(),
     };
 

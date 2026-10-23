@@ -92,6 +92,16 @@ export interface ColleagueProfile {
 const isUuid = (str: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 
+const AVAILABLE_TEACHER_AWARDS = [
+  { id: "five", title: "Первая пятёрка", icon: "⭐", desc: "Высший балл и отличная работа на уроке" },
+  { id: "math", title: "Знаток математики", icon: "📐", desc: "Успешно решил блок сложных задач и уравнений" },
+  { id: "lang", title: "Грамотей", icon: "✍️", desc: "Безупречная грамотность и аккуратность" },
+  { id: "eng", title: "English Speaker", icon: "🇬🇧", desc: "Уверенный диалог на английском языке" },
+  { id: "effort", title: "Супер-старание", icon: "🚀", desc: "Высокая активность и настойчивость в учёбе" },
+  { id: "curious", title: "Пытливый ум", icon: "💡", desc: "Интересные вопросы и глубокое понимание темы" },
+  { id: "punctual", title: "100% пунктуальность", icon: "⏱️", desc: "Вовремя на уроке и полная собранность" },
+];
+
 export default function TeacherCabinet() {
   const { loading: authLoading, isAuthorized, user: authUser } = useAuthGuard("teacher");
   const [teacherId, setTeacherId] = useState("882042e2-d020-426c-9826-9fba5b23ad2e");
@@ -163,6 +173,7 @@ export default function TeacherCabinet() {
   const [selectedLessonForNote, setSelectedLessonForNote] = useState<any | null>(null);
   const [noteContent, setNoteContent] = useState("");
   const [grade, setGrade] = useState<number>(5);
+  const [selectedAward, setSelectedAward] = useState<string>("");
   const [feedback, setFeedback] = useState("");
   const [savingNote, setSavingNote] = useState(false);
   const [reportSuccessToast, setReportSuccessToast] = useState(false);
@@ -1362,6 +1373,7 @@ export default function TeacherCabinet() {
       setNoteContent(lastNote.content || "");
       setGrade(lastNote.grade || 5);
       setFeedback(lastNote.feedback || "");
+      setSelectedAward(lastNote.award || "");
     } else {
       let savedLocal: any = null;
       try {
@@ -1378,10 +1390,12 @@ export default function TeacherCabinet() {
         setNoteContent(savedLocal.content || "");
         setGrade(savedLocal.grade || 5);
         setFeedback(savedLocal.feedback || "");
+        setSelectedAward(savedLocal.award || "");
       } else {
         setNoteContent("");
         setGrade(5);
         setFeedback("");
+        setSelectedAward("");
       }
     }
   };
@@ -1392,6 +1406,7 @@ export default function TeacherCabinet() {
     setSavingNote(true);
 
     const targetLessonId = selectedLessonForNote.id;
+    const foundAward = AVAILABLE_TEACHER_AWARDS.find((a) => a.title === selectedAward);
     const newNote = {
       id: "note-" + Date.now(),
       lessonId: targetLessonId,
@@ -1400,6 +1415,8 @@ export default function TeacherCabinet() {
       content: noteContent.trim(),
       grade,
       feedback: feedback.trim(),
+      award: foundAward?.title || undefined,
+      awardIcon: foundAward?.icon || undefined,
       createdAt: new Date().toISOString(),
     };
 
@@ -1437,12 +1454,15 @@ export default function TeacherCabinet() {
           content: noteContent.trim(),
           grade,
           feedback: feedback.trim(),
+          award: foundAward?.title || undefined,
+          awardIcon: foundAward?.icon || undefined,
         }),
       });
 
       setSelectedLessonForNote(null);
       setNoteContent("");
       setFeedback("");
+      setSelectedAward("");
       setReportSuccessToast(true);
       setTimeout(() => setReportSuccessToast(false), 3500);
       fetchLessons();
@@ -1846,12 +1866,20 @@ export default function TeacherCabinet() {
                               <div key={note.id || nIdx} className="space-y-1.5">
                                 <div className="flex items-center justify-between">
                                   <span className="font-bold text-slate-800">{note.authorName || "Преподаватель"}</span>
-                                  {note.grade && (
-                                    <span className="inline-flex items-center gap-1 font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
-                                      <Star className="w-3 h-3 fill-amber-400 text-amber-500" />
-                                      Оценка: {note.grade} / 5
-                                    </span>
-                                  )}
+                                  <div className="flex items-center gap-2">
+                                    {note.award && (
+                                      <span className="inline-flex items-center gap-1 font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md text-[11px]">
+                                        <span>{note.awardIcon || "⭐"}</span>
+                                        <span>{note.award}</span>
+                                      </span>
+                                    )}
+                                    {note.grade && (
+                                      <span className="inline-flex items-center gap-1 font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+                                        <Star className="w-3 h-3 fill-amber-400 text-amber-500" />
+                                        Оценка: {note.grade} / 5
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                                 <p className="text-slate-700 leading-relaxed">{note.content}</p>
                                 {note.feedback && (
@@ -2588,6 +2616,46 @@ export default function TeacherCabinet() {
                       {g} ★
                     </button>
                   ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Награда ученику за урок (необязательно):
+                  </label>
+                  {selectedAward && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedAward("")}
+                      className="text-[11px] text-slate-400 hover:text-rose-600 font-semibold cursor-pointer transition"
+                    >
+                      Снять награду ✕
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {AVAILABLE_TEACHER_AWARDS.map((aw) => {
+                    const isSelected = selectedAward === aw.title;
+                    return (
+                      <button
+                        type="button"
+                        key={aw.id}
+                        onClick={() => setSelectedAward(isSelected ? "" : aw.title)}
+                        className={`p-2.5 rounded-2xl border text-left transition cursor-pointer flex items-center gap-2.5 ${
+                          isSelected
+                            ? "bg-amber-50 border-amber-300 ring-2 ring-amber-400/40 shadow-xs"
+                            : "bg-slate-50/70 border-slate-200 hover:bg-slate-100 text-slate-700"
+                        }`}
+                      >
+                        <span className="text-xl shrink-0">{aw.icon}</span>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-900 truncate">{aw.title}</p>
+                          <p className="text-[10px] text-slate-500 line-clamp-1">{aw.desc}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 

@@ -704,6 +704,12 @@ export default function ParentCabinet() {
                           </div>
 
                           <div className="flex items-center gap-3">
+                            {note?.award && (
+                              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 font-extrabold text-xs">
+                                <span>{note.awardIcon || "⭐"}</span>
+                                <span>{note.award}</span>
+                              </div>
+                            )}
                             {note?.grade ? (
                               <div className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 font-extrabold text-xs">
                                 <Star className="w-4 h-4 fill-amber-400 text-amber-500" />

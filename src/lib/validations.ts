@@ -49,4 +49,6 @@ export const AddLessonNoteSchema = z.object({
     .max(1000, "Рекомендация не должна превышать 1000 символов")
     .trim()
     .optional(),
+  award: z.string().max(100).optional(),
+  awardIcon: z.string().max(20).optional(),
 });

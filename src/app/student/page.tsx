@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import {
@@ -108,7 +108,8 @@ export default function StudentCabinet() {
   const [school, setSchool] = useState("Онлайн-школа «АйДаУмничка»");
   const [bio, setBio] = useState("");
   const [balance, setBalance] = useState(8);
-  const [stars, setStars] = useState(isSharonov ? 28 : 0);
+  const [stars, setStars] = useState(0);
+  const [studentAwards, setStudentAwards] = useState<any[]>([]);
   const [editProfileModalOpen, setEditProfileModalOpen] = useState(false);
   const [lessons, setLessons] = useState<any[]>([]);
   const [schoolSubjects, setSchoolSubjects] = useState<any[]>([]);
@@ -275,7 +276,9 @@ export default function StudentCabinet() {
           if (typeof parsedBio.balance === "number") setBalance(parsedBio.balance);
           else setBalance(8);
           if (typeof parsedBio.stars === "number") setStars(parsedBio.stars);
-          else setStars(userIsSharonov ? 28 : 0);
+          else setStars(0);
+          if (Array.isArray(parsedBio.awards)) setStudentAwards(parsedBio.awards);
+          else setStudentAwards([]);
 
           // Обновляем локальный кэш свежими данными из БД
           try {
@@ -305,10 +308,9 @@ export default function StudentCabinet() {
           setStudentUsername(defUname);
           if (userIsSharonov) {
             setAvatarUrl(SHARONOV_AVATAR);
-            setStars(28);
-          } else {
-            setStars(0);
           }
+          setStars(0);
+          setStudentAwards([]);
           if (currentUserId && isUuid(currentUserId)) {
             client.from("profiles").upsert({
               id: currentUserId,
@@ -321,7 +323,8 @@ export default function StudentCabinet() {
                 grade: defGrade,
                 school: "Онлайн-школа «АйДаУмничка»",
                 balance: 8,
-                stars: userIsSharonov ? 28 : 0,
+                stars: 0,
+                awards: [],
               }),
             }).then(() => {});
           }
@@ -775,67 +778,61 @@ export default function StudentCabinet() {
 
   const initial = studentName.charAt(0).toUpperCase();
 
-  // Настоящие школьные академические достижения
-  const academicAwards = [
-    {
-      title: "Первая пятёрка",
-      desc: "Получил высший балл «5» за активную работу на онлайн-уроке",
-      icon: "⭐",
-      unlocked: stars >= 5 || completedLessons.length > 0,
-      criteria: "Оценка 5/5 от репетитора",
-    },
-    {
-      title: "Отличник четверти",
-      desc: "Выполнил 10 домашних заданий подряд на высший балл",
-      icon: "📚",
-      unlocked: stars >= 50,
-      criteria: "10 проверенных ДЗ",
-    },
-    {
-      title: "Знаток математики",
-      desc: "Успешно решил блок олимпиадных логических задач и уравнений",
-      icon: "📐",
-      unlocked: stars >= 15,
-      criteria: "Раздел логики освоен",
-    },
-    {
-      title: "Грамотей",
-      desc: "Безупречное знание правил правописания и словарных слов",
-      icon: "✍️",
-      unlocked: stars >= 20,
-      criteria: "0 ошибок в диктанте",
-    },
-    {
-      title: "English Speaker",
-      desc: "Уверенно поддержал диалог на английском языке с преподавателем",
-      icon: "🇬🇧",
-      unlocked: stars >= 25,
-      criteria: "Разговорный клуб 1-го уровня",
-    },
-    {
-      title: "100% пунктуальность",
-      desc: "5 уроков подряд вовремя без единого опоздания и пропусков",
-      icon: "⏱️",
-      unlocked: completedLessons.length >= 5,
-      criteria: "Посещаемость 100%",
-    },
-    {
-      title: "Пытливый ум",
-      desc: "Задал преподавателю глубокий вопрос по теме урока",
-      icon: "💡",
-      unlocked: false,
-      criteria: "3 из 5 вопросов задано",
-    },
-    {
-      title: "Опережая программу",
-      desc: "Самостоятельно изучил дополнительный материал урока",
-      icon: "🚀",
-      unlocked: false,
-      criteria: "1 из 2 тем изучена",
-    },
-  ];
+  // Награды, выставленные преподавателем после проведённых уроков
+  const unlockedAwards = useMemo(() => {
+    const list: any[] = [];
+    const seen = new Set<string>();
 
-  const unlockedAwards = academicAwards.filter((ach) => ach.unlocked);
+    // 1. Награды из профиля ученика (выданные через API/Supabase)
+    if (Array.isArray(studentAwards)) {
+      studentAwards.forEach((aw: any) => {
+        const key = aw.title || aw.id;
+        if (key && !seen.has(key)) {
+          seen.add(key);
+          list.push({
+            id: aw.id || key,
+            title: aw.title,
+            desc: aw.desc || "Награда за успехи на онлайн-уроке",
+            icon: aw.icon || "⭐",
+            teacherName: aw.teacherName,
+            lessonTitle: aw.lessonTitle,
+            date: aw.date,
+            unlocked: true,
+          });
+        }
+      });
+    }
+
+    // 2. Награды из завершённых уроков (из отчётов учителей)
+    completedLessons.forEach((l: any) => {
+      let notes = l.notes || [];
+      if (!notes || notes.length === 0) {
+        try {
+          const raw = localStorage.getItem(`ayda_lesson_notes_${l.id}`);
+          if (raw) notes = JSON.parse(raw);
+        } catch {}
+      }
+      if (Array.isArray(notes)) {
+        notes.forEach((n: any) => {
+          if (n?.award && !seen.has(n.award)) {
+            seen.add(n.award);
+            list.push({
+              id: n.id || n.award,
+              title: n.award,
+              desc: n.feedback || n.content || "Награда за успехи на онлайн-уроке",
+              icon: n.awardIcon || "⭐",
+              teacherName: n.authorName || l.teacherName || "Преподаватель",
+              lessonTitle: l.title || "Урок",
+              date: n.createdAt || l.startTime,
+              unlocked: true,
+            });
+          }
+        });
+      }
+    });
+
+    return list;
+  }, [studentAwards, completedLessons]);
 
   // Открытие модального окна задания
   const handleOpenHomework = (hw: HomeworkItem) => {
@@ -1259,14 +1256,14 @@ export default function StudentCabinet() {
                     </div>
                     <h3 className="text-base font-extrabold text-slate-800">Наград пока нет</h3>
                     <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1 leading-relaxed">
-                      Здесь будут появляться школьные награды и звёзды за проведённые онлайн-уроки и успехи в учёбе.
+                      Здесь будут появляться школьные награды и звёзды, которые преподаватель начисляет в отчёте после проведённых уроков.
                     </p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {unlockedAwards.map((ach, i) => (
                       <div
-                        key={i}
+                        key={ach.id || i}
                         className="rounded-3xl p-5 border text-center space-y-2.5 transition flex flex-col justify-between bg-white border-amber-200/90 shadow-xs ring-1 ring-amber-100"
                       >
                         <div>
@@ -1275,6 +1272,16 @@ export default function StudentCabinet() {
                           </div>
                           <h3 className="font-extrabold text-sm text-slate-900 mt-2.5">{ach.title}</h3>
                           <p className="text-xs text-slate-500 leading-tight mt-1">{ach.desc}</p>
+                          {ach.teacherName && (
+                            <p className="text-[11px] text-slate-400 mt-2 pt-2 border-t border-slate-100">
+                              От: <strong className="text-slate-600 font-bold">{ach.teacherName}</strong>
+                            </p>
+                          )}
+                          {ach.lessonTitle && (
+                            <p className="text-[10px] text-blue-600 font-medium truncate">
+                              Урок «{ach.lessonTitle}»
+                            </p>
+                          )}
                         </div>
 
                         <div className="pt-2 border-t border-slate-100">

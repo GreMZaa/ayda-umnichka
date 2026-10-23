@@ -230,16 +230,56 @@ export async function PATCH(
         );
       }
 
-      // 1. Обновляем статус урока на COMPLETED в Supabase
+      // 1. Обновляем статус урока на COMPLETED в Supabase и начисляем звёзды/награды ученику
       const client = getSupabase();
       if (client) {
         try {
-          if (isUuid(params.id)) {
-            await client.from("lessons").update({ status: "COMPLETED" }).eq("id", params.id);
-          } else {
-            await client.from("lessons").update({ status: "COMPLETED" }).eq("room_name", params.id);
+          const matchCol = isUuid(params.id) ? "id" : "room_name";
+          const { data: lessonRow } = await client
+            .from("lessons")
+            .select("id, title, student_id")
+            .eq(matchCol, params.id)
+            .maybeSingle();
+
+          await client.from("lessons").update({ status: "COMPLETED" }).eq(matchCol, params.id);
+
+          if (lessonRow?.student_id) {
+            const { data: stProf } = await client
+              .from("profiles")
+              .select("bio")
+              .eq("id", lessonRow.student_id)
+              .maybeSingle();
+
+            if (stProf) {
+              let parsedBio: any = {};
+              try { parsedBio = JSON.parse(stProf.bio || "{}"); } catch {}
+              const currentStars = typeof parsedBio.stars === "number" ? parsedBio.stars : 0;
+              const addedStars = parsed.data.grade || 5;
+              parsedBio.stars = currentStars + addedStars;
+
+              if (parsed.data.award) {
+                const currentAwards = Array.isArray(parsedBio.awards) ? parsedBio.awards : [];
+                currentAwards.push({
+                  id: "aw-" + Date.now(),
+                  title: parsed.data.award,
+                  icon: parsed.data.awardIcon || "⭐",
+                  desc: parsed.data.feedback || parsed.data.content || "Награда за успехи на онлайн-уроке",
+                  teacherName: user.name || "Преподаватель",
+                  lessonTitle: lessonRow.title || "Урок",
+                  date: new Date().toISOString(),
+                });
+                parsedBio.awards = currentAwards;
+              }
+
+              await client
+                .from("profiles")
+                .update({ bio: JSON.stringify(parsedBio) })
+                .eq("id", lessonRow.student_id);
+            }
           }
-        } catch (e) {}
+        } catch (e) {
+          console.error("Error updating lesson/student in Supabase:", e);
+        }
       }
 
       // 2. Сохраняем заметку и переводим статус урока в COMPLETED в локальной базе данных
@@ -249,7 +289,9 @@ export async function PATCH(
         parsed.data.content,
         parsed.data.grade,
         parsed.data.feedback,
-        user.name
+        user.name,
+        parsed.data.award,
+        parsed.data.awardIcon
       );
 
       db.updateLessonStatus(params.id, "COMPLETED");
