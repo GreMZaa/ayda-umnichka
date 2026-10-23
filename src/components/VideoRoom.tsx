@@ -363,6 +363,13 @@ export default function VideoRoom({
   const [lessonStartTime, setLessonStartTime] = useState<number | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
 
+  // Флаг активного видеопотока собеседника (гарантирует отсутствие черного экрана)
+  const hasRemoteVideo = Boolean(
+    partnerCamOn &&
+    remoteStream &&
+    remoteStream.getVideoTracks().some((t) => t.readyState === "live" && t.enabled)
+  );
+
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoSideRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoMainRef = useRef<HTMLVideoElement | null>(null);
@@ -409,6 +416,8 @@ export default function VideoRoom({
     [remoteVideoRef, remoteVideoSideRef, remoteVideoMainRef, remoteVideoMobileRef].forEach((ref) => {
       const el = ref.current;
       if (el) {
+        el.muted = true;
+        el.playsInline = true;
         if (el.srcObject !== stream) {
           el.srcObject = stream;
         }
@@ -472,15 +481,31 @@ export default function VideoRoom({
             remoteStreamRef.current.addTrack(event.track);
           }
         }
-        setRemoteStream(remoteStreamRef.current);
+        // Создаем свежий объект MediaStream, чтобы React гарантированно перерисовал видео и разблокировал дорожку
+        const freshStream = new MediaStream(remoteStreamRef.current.getTracks());
+        remoteStreamRef.current = freshStream;
+        setRemoteStream(freshStream);
         setIsPartnerInRoom(true);
+
         if (event.track.kind === "video") {
           setPartnerCamOn(true);
         }
         if (event.track.kind === "audio") {
           setPartnerMicOn(true);
         }
-        syncRemoteVideos(remoteStreamRef.current);
+        syncRemoteVideos(freshStream);
+
+        event.track.onunmute = () => {
+          if (remoteStreamRef.current) {
+            const updated = new MediaStream(remoteStreamRef.current.getTracks());
+            remoteStreamRef.current = updated;
+            setRemoteStream(updated);
+            if (event.track.kind === "video") {
+              setPartnerCamOn(true);
+            }
+            syncRemoteVideos(updated);
+          }
+        };
 
         event.track.onended = () => {
           if (remoteStreamRef.current) {
@@ -488,6 +513,10 @@ export default function VideoRoom({
             if (!hasLiveVideo) {
               setPartnerCamOn(false);
             }
+            const updated = new MediaStream(remoteStreamRef.current.getTracks());
+            remoteStreamRef.current = updated;
+            setRemoteStream(updated);
+            syncRemoteVideos(updated);
           }
         };
       };
@@ -685,22 +714,27 @@ export default function VideoRoom({
             video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
             audio: true,
           });
-          if (!isMounted) {
-            stream.getTracks().forEach((t) => t.stop());
-            return;
-          }
-          setCamOn(true);
-          setMicOn(true);
         } catch (videoErr) {
-          console.warn("Камера недоступна, подключаем аудиопоток:", videoErr);
-          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          if (!isMounted) {
-            stream.getTracks().forEach((t) => t.stop());
-            return;
+          try {
+            // Фолбэк без жестких ограничений разрешения и facingMode
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: true,
+              audio: true,
+            });
+          } catch (basicErr) {
+            console.warn("Камера недоступна, подключаем аудиопоток:", basicErr);
+            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
           }
-          setCamOn(false);
-          setMicOn(true);
         }
+
+        if (!isMounted) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+
+        const hasVideo = stream.getVideoTracks().length > 0;
+        setCamOn(hasVideo);
+        setMicOn(true);
 
         localStreamRef.current = stream;
         syncLocalVideos(stream);
@@ -718,6 +752,8 @@ export default function VideoRoom({
               } catch (e) {}
             }
           });
+          // Инициируем вызов или отправку новых дорожек собеседнику
+          initiateCall();
         }
 
         // Оповещаем собеседника о готовности медиапотока
@@ -728,7 +764,7 @@ export default function VideoRoom({
             payload: {
               senderId: myPeerId,
               senderRole: userRole,
-              camOn: stream.getVideoTracks().length > 0,
+              camOn: hasVideo,
               micOn: true,
             },
           });
@@ -743,7 +779,7 @@ export default function VideoRoom({
     return () => {
       isMounted = false;
     };
-  }, [getOrCreatePeerConnection, myPeerId, userRole, syncLocalVideos]);
+  }, [getOrCreatePeerConnection, myPeerId, userRole, syncLocalVideos, initiateCall]);
 
   // 2. Разблокировка звука при первом клике или нажатии (Chrome/Safari Autoplay Policy)
   useEffect(() => {
@@ -2426,14 +2462,15 @@ export default function VideoRoom({
               {/* НА ТЕЛЕФОНЕ: СПЛИТ-ЭКРАН — КАМЕРА УЧИТЕЛЯ СВЕРХУ */}
               {mobileSplitView && (
                 <div className="md:hidden w-full h-44 xs:h-48 shrink-0 bg-slate-950 border-b border-slate-300 relative overflow-hidden group">
-                  {(isTeacher ? camOn : (partnerCamOn && remoteStream)) ? (
+                  {(isTeacher ? camOn : hasRemoteVideo) ? (
                     <video
                       ref={(el) => {
                         const targetRef = isTeacher ? mobileVideoRef : remoteVideoMobileRef;
                         targetRef.current = el;
                         if (el) {
+                          el.muted = true;
+                          el.playsInline = true;
                           if (isTeacher) {
-                            el.muted = true;
                             if (localStreamRef.current && el.srcObject !== localStreamRef.current) {
                               el.srcObject = localStreamRef.current;
                             }
@@ -2446,7 +2483,7 @@ export default function VideoRoom({
                         }
                       }}
                       autoPlay
-                      muted={isTeacher}
+                      muted
                       playsInline
                       {...{ autoPictureInPicture: "true" }}
                       className={`w-full h-full object-cover ${isTeacher ? "transform -scale-x-100" : ""}`}
@@ -2749,14 +2786,15 @@ export default function VideoRoom({
                   {/* НА ТЕЛЕФОНЕ: ПЛАВАЮЩЕЕ ОКНО КАМЕРЫ УЧИТЕЛЯ (PiP поверх доски) */}
                   {!mobileSplitView && mobilePipOpen && (
                     <div className="md:hidden absolute bottom-3 right-3 z-30 w-32 xs:w-36 aspect-video rounded-2xl overflow-hidden bg-slate-950 border-2 border-white shadow-2xl group transition-all">
-                      {(isTeacher ? camOn : (partnerCamOn && remoteStream)) ? (
+                      {(isTeacher ? camOn : hasRemoteVideo) ? (
                         <video
                           ref={(el) => {
                             const targetRef = isTeacher ? mobileVideoRef : remoteVideoMobileRef;
                             targetRef.current = el;
                             if (el) {
+                              el.muted = true;
+                              el.playsInline = true;
                               if (isTeacher) {
-                                el.muted = true;
                                 if (localStreamRef.current && el.srcObject !== localStreamRef.current) {
                                   el.srcObject = localStreamRef.current;
                                 }
@@ -2769,7 +2807,7 @@ export default function VideoRoom({
                             }
                           }}
                           autoPlay
-                          muted={isTeacher}
+                          muted
                           playsInline
                           {...{ autoPictureInPicture: "true" }}
                           className={`w-full h-full object-cover ${isTeacher ? "transform -scale-x-100" : ""}`}
@@ -3114,13 +3152,15 @@ export default function VideoRoom({
                     </div>
                   </div>
                 )
-              ) : partnerCamOn && remoteStream ? (
+              ) : hasRemoteVideo ? (
                 /* В главном окне находится собеседник с видео */
                 <>
                   <video
                     ref={(el) => {
                       remoteVideoMainRef.current = el;
                       if (el) {
+                        el.muted = true;
+                        el.playsInline = true;
                         if (remoteStreamRef.current && el.srcObject !== remoteStreamRef.current) {
                           el.srcObject = remoteStreamRef.current;
                         }
@@ -3128,6 +3168,7 @@ export default function VideoRoom({
                       }
                     }}
                     autoPlay
+                    muted
                     playsInline
                     className="w-full h-full object-cover sm:object-contain"
                   />
@@ -3203,11 +3244,13 @@ export default function VideoRoom({
             {/* Содержимое окна PiP */}
             {isSwapped ? (
               /* В PiP находится собеседник */
-              partnerCamOn && remoteStream ? (
+              hasRemoteVideo ? (
                 <video
                   ref={(el) => {
                     remoteVideoSideRef.current = el;
                     if (el) {
+                      el.muted = true;
+                      el.playsInline = true;
                       if (remoteStreamRef.current && el.srcObject !== remoteStreamRef.current) {
                         el.srcObject = remoteStreamRef.current;
                       }
@@ -3215,6 +3258,7 @@ export default function VideoRoom({
                     }
                   }}
                   autoPlay
+                  muted
                   playsInline
                   {...{ autoPictureInPicture: "true" }}
                   className="w-full h-full object-cover pointer-events-none"
