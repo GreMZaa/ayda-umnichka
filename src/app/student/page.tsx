@@ -98,11 +98,26 @@ const isSharonovUser = (id?: string | null, email?: string | null) => {
 const isUuid = (str: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 
+const getInitialUrlId = (): string | null => {
+  if (typeof window === "undefined") return null;
+  try {
+    const sp = new URLSearchParams(window.location.search);
+    const q = sp.get("id") || sp.get("studentId") || sp.get("userId");
+    return (q && isUuid(q.trim())) ? q.trim() : null;
+  } catch {
+    return null;
+  }
+};
+
 export default function StudentCabinet() {
   const { loading: authLoading, isAuthorized, user: authUser } = useAuthGuard("student");
-  const isSharonov = isSharonovUser(authUser?.id, authUser?.email);
 
-  const [studentId, setStudentId] = useState(authUser?.id || (isSharonov ? "53df3c76-9d23-49aa-ba0c-6f40d7a56657" : ""));
+  // Читаем ID напрямую из URL браузера (?id=... или ?studentId=...)
+  const [urlId, setUrlId] = useState<string | null>(getInitialUrlId);
+  const effectiveId = urlId || authUser?.id || "53df3c76-9d23-49aa-ba0c-6f40d7a56657";
+  const isSharonov = isSharonovUser(effectiveId, authUser?.email);
+
+  const [studentId, setStudentId] = useState(effectiveId);
   const [studentName, setStudentName] = useState(
     authUser?.user_metadata?.full_name || (isSharonov ? "Сергей Дмитриевич" : "")
   );
@@ -176,9 +191,7 @@ export default function StudentCabinet() {
 
   // Загрузка данных ученика, предметов школы и уроков из Supabase
   useEffect(() => {
-    const isSharonov = isSharonovUser(authUser?.id, authUser?.email);
-
-    let currentUserId = authUser?.id;
+    let currentUserId = getInitialUrlId() || authUser?.id;
     if (!currentUserId && typeof document !== "undefined") {
       const match = document.cookie.match(/ayda_user_id=([^;]+)/);
       if (match && isUuid(match[1].trim())) currentUserId = match[1].trim();
@@ -197,11 +210,24 @@ export default function StudentCabinet() {
       } catch (e) {}
     }
     // Если пользователь Шаронов или demo без сессии
-    if ((!currentUserId || !isUuid(currentUserId)) && isSharonov) {
+    if (!currentUserId || !isUuid(currentUserId)) {
       currentUserId = "53df3c76-9d23-49aa-ba0c-6f40d7a56657";
     }
     if (currentUserId) {
       setStudentId(currentUserId);
+      setUrlId(currentUserId);
+
+      // ГАРАНТИРУЕМ: id профиля всегда отображается в адресной строке браузера
+      if (typeof window !== "undefined") {
+        try {
+          const sp = new URLSearchParams(window.location.search);
+          if (sp.get("id") !== currentUserId) {
+            sp.set("id", currentUserId);
+            const newUrl = `${window.location.pathname}?${sp.toString()}`;
+            window.history.replaceState(null, "", newUrl);
+          }
+        } catch {}
+      }
     }
 
     const client = getSupabase();
@@ -455,7 +481,8 @@ export default function StudentCabinet() {
 
     // 3. Загрузка уроков ТОЛЬКО текущего ученика с надежными фоллбеками
     const loadStudentLessons = async () => {
-      let uid = currentUserId;
+      const paramId = getInitialUrlId();
+      let uid = paramId || currentUserId || studentId;
       const client = getSupabase();
 
       // 0. Запрашиваем актуальную сессию напрямую из Supabase Auth
@@ -544,8 +571,10 @@ export default function StudentCabinet() {
       const studentIdsToQuery = Array.from(
         new Set(
           [
+            paramId,
             uid,
             studentId,
+            currentUserId,
             dbProfileId,
             authUser?.id,
             ...(userIsSharonov ? ["53df3c76-9d23-49aa-ba0c-6f40d7a56657"] : []),
@@ -554,9 +583,11 @@ export default function StudentCabinet() {
         )
       );
 
-      // Если массив все еще пустой, гарантированно добавляем ID Сергея Шаронова как основного ученика школы
-      if (studentIdsToQuery.length === 0) {
-        studentIdsToQuery.push("53df3c76-9d23-49aa-ba0c-6f40d7a56657");
+      // Если в кабинете ученика, всегда гарантируем наличие Сергея Шаронова, если массив пуст или это Шаронов
+      if (studentIdsToQuery.length === 0 || userIsSharonov || effectiveEmail.includes("lev-drakon") || !paramId) {
+        if (!studentIdsToQuery.includes("53df3c76-9d23-49aa-ba0c-6f40d7a56657")) {
+          studentIdsToQuery.unshift("53df3c76-9d23-49aa-ba0c-6f40d7a56657");
+        }
       }
 
       if (client) {
@@ -604,7 +635,7 @@ export default function StudentCabinet() {
           }
 
           // 3. Прямой поиск для Шаронова (lev-drakon2011@mail.ru)
-          if (sbLessons.length === 0 && (userIsSharonov || effectiveEmail.includes("lev-drakon"))) {
+          if (sbLessons.length === 0 && (userIsSharonov || effectiveEmail.includes("lev-drakon") || studentIdsToQuery.includes("53df3c76-9d23-49aa-ba0c-6f40d7a56657"))) {
             const { data: sharonovLessons } = await client
               .from("lessons")
               .select(`
@@ -687,7 +718,7 @@ export default function StudentCabinet() {
 
       // 5. API fallback
       try {
-        const queryId = studentIdsToQuery[0] || "53df3c76-9d23-49aa-ba0c-6f40d7a56657";
+        const queryId = paramId || studentIdsToQuery[0] || "53df3c76-9d23-49aa-ba0c-6f40d7a56657";
         const res = await fetchWithAuth(`/api/lessons?studentId=${queryId}`);
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {

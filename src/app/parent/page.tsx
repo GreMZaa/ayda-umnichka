@@ -95,9 +95,40 @@ export default function ParentCabinet() {
   const [editProfileModalOpen, setEditProfileModalOpen] = useState(false);
 
   useEffect(() => {
-    if (!authUser?.id) return;
-    const currentUserId = authUser.id;
+    const getInitialParentId = () => {
+      if (typeof window !== "undefined") {
+        try {
+          const sp = new URLSearchParams(window.location.search);
+          const q = sp.get("id") || sp.get("parentId") || sp.get("userId");
+          if (q && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(q.trim())) {
+            return q.trim();
+          }
+        } catch {}
+      }
+      return null;
+    };
+
+    let currentUserId = getInitialParentId() || authUser?.id;
+    if (!currentUserId && typeof document !== "undefined") {
+      const match = document.cookie.match(/ayda_user_id=([^;]+)/);
+      if (match && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(match[1].trim())) {
+        currentUserId = match[1].trim();
+      }
+    }
+    if (!currentUserId) return;
     setParentId(currentUserId);
+
+    // ГАРАНТИРУЕМ: id профиля всегда отображается в адресной строке браузера
+    if (typeof window !== "undefined") {
+      try {
+        const sp = new URLSearchParams(window.location.search);
+        if (sp.get("id") !== currentUserId) {
+          sp.set("id", currentUserId);
+          const newUrl = `${window.location.pathname}?${sp.toString()}`;
+          window.history.replaceState(null, "", newUrl);
+        }
+      } catch {}
+    }
 
     const client = getSupabase();
     if (client) {

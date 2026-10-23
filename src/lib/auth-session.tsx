@@ -181,8 +181,20 @@ export function getStoredAuthSession(): {
   const roleMatch = cookies.match(/ayda_role=([^;]+)/);
   const userIdMatch = cookies.match(/ayda_user_id=([^;]+)/);
 
+  // Читаем ID напрямую из URL параметров браузера (?id=... или ?studentId=... или ?teacherId=...)
+  let urlUserId: string | null = null;
+  if (typeof window !== "undefined") {
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const qId = sp.get("id") || sp.get("studentId") || sp.get("teacherId") || sp.get("parentId") || sp.get("userId");
+      if (qId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(qId.trim())) {
+        urlUserId = qId.trim();
+      }
+    } catch {}
+  }
+
   const role = roleMatch ? normalizeRole(roleMatch[1].trim()) : null;
-  const userId = userIdMatch ? userIdMatch[1].trim() : null;
+  const userId = urlUserId || (userIdMatch ? userIdMatch[1].trim() : null);
 
   let profile: any = null;
   if (typeof localStorage !== "undefined") {

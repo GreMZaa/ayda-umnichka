@@ -18,6 +18,7 @@ export function middleware(request: NextRequest) {
   if (!isApi && !isStatic) {
     const aydaSession = request.cookies.get("ayda_session")?.value;
     const aydaRole = (request.cookies.get("ayda_role")?.value || "").toLowerCase();
+    const aydaUserId = request.cookies.get("ayda_user_id")?.value;
     const adminSession = request.cookies.get("admin_session")?.value;
 
     const isStudentRoute = pathname === "/student" || pathname.startsWith("/student/");
@@ -90,6 +91,9 @@ export function middleware(request: NextRequest) {
       if (mode !== "signup" && !logout) {
         const url = request.nextUrl.clone();
         url.pathname = `/${aydaRole}`;
+        if (aydaUserId && !url.searchParams.get("id")) {
+          url.searchParams.set("id", aydaUserId);
+        }
         return NextResponse.redirect(url);
       }
     }
@@ -103,6 +107,9 @@ export function middleware(request: NextRequest) {
       if (aydaSession && aydaRole) {
         const targetRole = ["student", "teacher", "parent", "admin"].includes(aydaRole) ? aydaRole : "student";
         url.pathname = `/${targetRole}`;
+        if (aydaUserId && !url.searchParams.get("id")) {
+          url.searchParams.set("id", aydaUserId);
+        }
       } else {
         url.pathname = "/login";
       }
@@ -119,6 +126,9 @@ export function middleware(request: NextRequest) {
         const targetRole = ["student", "teacher", "parent", "admin"].includes(aydaRole) ? aydaRole : "student";
         const url = request.nextUrl.clone();
         url.pathname = `/${targetRole}`;
+        if (aydaUserId && !url.searchParams.get("id")) {
+          url.searchParams.set("id", aydaUserId);
+        }
         return NextResponse.redirect(url);
       }
     }
