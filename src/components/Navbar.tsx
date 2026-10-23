@@ -316,9 +316,6 @@ export default function Navbar() {
                     <span className="text-sm sm:text-xl font-extrabold tracking-tight text-slate-900 group-hover:text-blue-600 transition truncate">
                       АйДаУмничка
                     </span>
-                    <span className="hidden sm:inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">
-                      ШКОЛА
-                    </span>
                   </div>
                   <span className="hidden sm:block text-[11px] font-medium text-slate-500 leading-none">
                     Онлайн-уроки и репетиторы
@@ -332,11 +329,8 @@ export default function Navbar() {
                   <Link href="/#trial" className="hover:text-blue-600 transition">
                     Пробный урок
                   </Link>
-                  <Link href="/#faq" className="hover:text-blue-600 transition">
-                    Вопросы и ответы
-                  </Link>
-                  <Link href="/#cabinets" className="hover:text-blue-600 transition">
-                    Личные кабинеты
+                  <Link href="/login" className="hover:text-blue-600 transition">
+                    Вход в кабинет
                   </Link>
                 </nav>
               ) : (
@@ -567,79 +561,30 @@ export default function Navbar() {
             )}
 
             {/* Быстрые переходы */}
-            <div className="space-y-1">
+            <div className="space-y-2">
               <Link
                 href="/#trial"
                 onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center justify-between p-3 rounded-2xl bg-blue-50/80 border border-blue-200 text-xs font-bold text-blue-900 transition hover:bg-blue-100"
+                className="flex items-center justify-between p-3.5 rounded-2xl bg-blue-50/80 border border-blue-200 text-xs font-bold text-blue-900 transition hover:bg-blue-100"
               >
                 <div className="flex items-center gap-2.5">
                   <Sparkles className="w-4 h-4 text-blue-600" />
                   <span>Записаться на бесплатный пробный урок</span>
                 </div>
-                <span className="text-blue-600">→</span>
+                <span className="text-blue-600 font-bold">→</span>
               </Link>
 
               <Link
-                href="/#cabinets"
+                href="/login"
                 onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center justify-between p-3 rounded-2xl text-xs font-bold text-slate-800 hover:bg-slate-50 transition"
+                className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 hover:bg-slate-100 transition"
               >
                 <div className="flex items-center gap-2.5">
-                  <User className="w-4 h-4 text-slate-500" />
-                  <span>Личные кабинеты (Ученик, Родитель, Учитель)</span>
+                  <User className="w-4 h-4 text-slate-600" />
+                  <span>Личный кабинет (Вход)</span>
                 </div>
                 <span className="text-slate-400">→</span>
               </Link>
-
-              <Link
-                href="/#faq"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center justify-between p-3 rounded-2xl text-xs font-bold text-slate-800 hover:bg-slate-50 transition"
-              >
-                <div className="flex items-center gap-2.5">
-                  <HelpCircle className="w-4 h-4 text-slate-500" />
-                  <span>Частые вопросы и ответы (FAQ)</span>
-                </div>
-                <span className="text-slate-400">→</span>
-              </Link>
-            </div>
-
-            {/* Программы обучения */}
-            <div>
-              <div className="font-bold text-[11px] text-slate-400 uppercase tracking-wider px-1 mb-2">
-                Предметы и направления
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <Link
-                  href="/#subjects"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="p-3 rounded-2xl bg-slate-50 border border-slate-100 text-xs font-bold text-slate-800 hover:bg-slate-100 transition"
-                >
-                  📐 Математика
-                </Link>
-                <Link
-                  href="/#subjects"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="p-3 rounded-2xl bg-slate-50 border border-slate-100 text-xs font-bold text-slate-800 hover:bg-slate-100 transition"
-                >
-                  ✍️ Русский язык
-                </Link>
-                <Link
-                  href="/#subjects"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="p-3 rounded-2xl bg-slate-50 border border-slate-100 text-xs font-bold text-slate-800 hover:bg-slate-100 transition"
-                >
-                  🇬🇧 Английский
-                </Link>
-                <Link
-                  href="/#subjects"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="p-3 rounded-2xl bg-slate-50 border border-slate-100 text-xs font-bold text-slate-800 hover:bg-slate-100 transition"
-                >
-                  🎒 Подготовка к школе
-                </Link>
-              </div>
             </div>
 
             {/* Контакты центра */}
