@@ -21,7 +21,11 @@ import {
   BookOpen,
   Search,
   Plus,
+  Lock,
+  Archive,
+  Loader2,
 } from "lucide-react";
+import { fetchWithAuth } from "@/lib/api-client";
 import {
   startOfWeek,
   addDays,
@@ -64,6 +68,7 @@ interface ScheduleCalendarProps {
   onUpdateStatus?: (lessonId: string, status: string) => Promise<void> | void;
   onOpenReportModal?: (lesson: LessonItem) => void;
   onCreateLesson?: () => void;
+  onExtendLesson?: (lessonId: string, minutes: number) => Promise<void> | void;
 }
 
 const TIME_SLOTS = [
@@ -93,6 +98,7 @@ export default function ScheduleCalendar({
   onUpdateStatus,
   onOpenReportModal,
   onCreateLesson,
+  onExtendLesson,
 }: ScheduleCalendarProps) {
   const [calendarDate, setCalendarDate] = useState<Date>(() => nowInTolyatti());
   const [selectedMobileDay, setSelectedMobileDay] = useState<Date>(() => nowInTolyatti());
@@ -104,17 +110,40 @@ export default function ScheduleCalendar({
   const [filterSubject, setFilterSubject] = useState<string>("all");
   const [showPastLessons, setShowPastLessons] = useState<boolean>(true);
 
-  // Состояния для режима «Списком»
-  const [listFilter, setListFilter] = useState<"ALL" | "SCHEDULED" | "COMPLETED">("ALL");
+  // Состояния для режима «Списком» (ACTIVE = актуальные уроки; прошедшие уроки не высвечиваются здесь и уходят в ARCHIVE)
+  const [listFilter, setListFilter] = useState<"ACTIVE" | "ARCHIVE" | "ALL">("ACTIVE");
   const [listSearchQuery, setListSearchQuery] = useState("");
   const [listScope, setListScope] = useState<"all" | "week">("all");
+  const [extendingLessonId, setExtendingLessonId] = useState<string | null>(null);
 
-  // Текущее время по Тольятти для красной линии
+  // Текущее время по Тольятти для красной линии и закрытия комнат
   const [currentTime, setCurrentTime] = useState<Date>(() => nowInTolyatti());
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(nowInTolyatti()), 60000);
+    const timer = setInterval(() => setCurrentTime(nowInTolyatti()), 30000);
     return () => clearInterval(timer);
   }, []);
+
+  // Продление урока на 30 минут (для учителя)
+  const handleExtend = async (lessonId: string, minutes = 30) => {
+    try {
+      setExtendingLessonId(lessonId);
+      if (onExtendLesson) {
+        await onExtendLesson(lessonId, minutes);
+      } else {
+        await fetchWithAuth(`/api/lessons/${lessonId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ extendMinutes: minutes }),
+        });
+        window.location.reload();
+      }
+    } catch (err) {
+      console.error("Ошибка продления урока:", err);
+      alert("Не удалось продлить урок. Пожалуйста, попробуйте еще раз.");
+    } finally {
+      setExtendingLessonId(null);
+    }
+  };
 
   // Недельный интервал
   const weekStart = useMemo(
@@ -184,6 +213,22 @@ export default function ScheduleCalendar({
     });
   }, [filteredLessons, weekStart, weekEnd]);
 
+  // Проверка: завершён ли урок или истекло ли его запланированное время
+  const isLessonArchived = (lesson: LessonItem) => {
+    if (lesson.status === "COMPLETED") return true;
+    const endMs = new Date(lesson.endTime).getTime();
+    return endMs < currentTime.getTime();
+  };
+
+  const countActive = useMemo(
+    () => filteredLessons.filter((l) => !isLessonArchived(l)).length,
+    [filteredLessons, currentTime]
+  );
+  const countArchived = useMemo(
+    () => filteredLessons.filter((l) => isLessonArchived(l)).length,
+    [filteredLessons, currentTime]
+  );
+
   // Уроки для режима «Списком» с поиском и фильтрами
   const listLessons = useMemo(() => {
     return filteredLessons
@@ -196,9 +241,10 @@ export default function ScheduleCalendar({
           }
         }
 
-        // Фильтр по статусу
-        if (listFilter === "SCHEDULED" && lesson.status !== "SCHEDULED") return false;
-        if (listFilter === "COMPLETED" && lesson.status !== "COMPLETED") return false;
+        // Если урок прошёл, он уходит в архив и не высвечивается в "Все уроки"
+        const isArch = isLessonArchived(lesson);
+        if (listFilter === "ACTIVE" && isArch) return false;
+        if (listFilter === "ARCHIVE" && !isArch) return false;
 
         // Фильтр по диапазону дат
         if (listScope === "week") {
@@ -222,17 +268,13 @@ export default function ScheduleCalendar({
 
         return true;
       })
-      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-  }, [filteredLessons, selectedStudentFilter, listFilter, listScope, weekStart, weekEnd, listSearchQuery]);
-
-  const countScheduled = useMemo(
-    () => filteredLessons.filter((l) => l.status === "SCHEDULED").length,
-    [filteredLessons]
-  );
-  const countCompleted = useMemo(
-    () => filteredLessons.filter((l) => l.status === "COMPLETED").length,
-    [filteredLessons]
-  );
+      .sort((a, b) => {
+        if (listFilter === "ARCHIVE") {
+          return new Date(b.startTime).getTime() - new Date(a.startTime).getTime();
+        }
+        return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
+      });
+  }, [filteredLessons, selectedStudentFilter, listFilter, listScope, weekStart, weekEnd, listSearchQuery, currentTime]);
 
   // Расчёт позиции красной полосы текущего времени по Тольятти
   const isCurrentWeek = isWithinInterval(nowInTolyatti(), {
@@ -559,13 +601,38 @@ export default function ScheduleCalendar({
                         </div>
 
                         <div className="flex flex-wrap items-center gap-2 pt-1">
-                          <Link
-                            href={`/room/${l.id || l.roomName}?role=${role}`}
-                            className="flex-1 min-w-[120px] py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm shadow-blue-500/20 active:scale-95"
-                          >
-                            <Video className="w-3.5 h-3.5" />
-                            <span>Войти в видеокласс</span>
-                          </Link>
+                          {isLessonArchived(l) ? (
+                            <div className="flex items-center gap-2 flex-1 min-w-[120px] flex-wrap">
+                              {role === "teacher" && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleExtend(l.id, 30)}
+                                  disabled={extendingLessonId === l.id}
+                                  className="py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm shadow-amber-500/20 cursor-pointer disabled:opacity-50"
+                                  title="Продлить урок на 30 минут"
+                                >
+                                  {extendingLessonId === l.id ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  ) : (
+                                    <Clock className="w-3.5 h-3.5" />
+                                  )}
+                                  <span>+30 мин</span>
+                                </button>
+                              )}
+                              <div className="py-2.5 px-3 rounded-xl bg-slate-100 text-slate-400 font-bold text-xs flex items-center justify-center gap-1.5 border border-slate-200 cursor-not-allowed">
+                                <Lock className="w-3.5 h-3.5" />
+                                <span>Комната закрыта</span>
+                              </div>
+                            </div>
+                          ) : (
+                            <Link
+                              href={`/room/${l.id || l.roomName}?role=${role}`}
+                              className="flex-1 min-w-[120px] py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm shadow-blue-500/20 active:scale-95"
+                            >
+                              <Video className="w-3.5 h-3.5" />
+                              <span>Войти в видеокласс</span>
+                            </Link>
+                          )}
 
                           {role === "teacher" && onUpdateStatus && (
                             <>
@@ -764,7 +831,28 @@ export default function ScheduleCalendar({
                                     </span>
 
                                     {/* Кнопки действий по роли */}
-                                    {isLive ? (
+                                    {isLessonArchived(l) ? (
+                                      role === "teacher" ? (
+                                        <div className="flex items-center gap-1">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleExtend(l.id, 30)}
+                                            disabled={extendingLessonId === l.id}
+                                            className="px-1.5 py-0.5 rounded bg-amber-500 hover:bg-amber-600 text-white font-bold text-[10px] cursor-pointer"
+                                            title="Продлить урок на 30 мин"
+                                          >
+                                            {extendingLessonId === l.id ? "..." : "+30м"}
+                                          </button>
+                                          <span className="text-slate-400 font-bold text-[10px] flex items-center gap-0.5" title="Комната закрыта">
+                                            <Lock className="w-2.5 h-2.5" /> Закрыт
+                                          </span>
+                                        </div>
+                                      ) : (
+                                        <span className="text-slate-400 font-bold text-[10px] flex items-center gap-0.5" title="Комната закрыта">
+                                          <Lock className="w-2.5 h-2.5" /> Закрыт
+                                        </span>
+                                      )
+                                    ) : isLive ? (
                                       <Link
                                         href={`/room/${l.id || l.roomName}?role=${role}`}
                                         className="px-2 py-0.5 rounded-lg bg-white text-emerald-800 font-extrabold hover:bg-emerald-50 shadow-xs"
@@ -863,31 +951,36 @@ export default function ScheduleCalendar({
         <div className="space-y-4">
           {/* Панель фильтрации и поиска */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200">
-            {/* Статусные табы */}
+            {/* Статусные табы: Все уроки (актуальные) vs Архив уроков (прошедшие) */}
             <div className="flex flex-wrap items-center gap-1.5">
               {[
-                { id: "ALL" as const, label: "Все уроки", count: filteredLessons.length },
-                { id: "SCHEDULED" as const, label: "Запланированные", count: countScheduled },
-                { id: "COMPLETED" as const, label: "Завершённые", count: countCompleted },
-              ].map((f) => (
-                <button
-                  key={f.id}
-                  type="button"
-                  onClick={() => setListFilter(f.id)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                    listFilter === f.id
-                      ? "bg-blue-600 text-white shadow-2xs"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                  }`}
-                >
-                  <span>{f.label}</span>
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                    listFilter === f.id ? "bg-white/20 text-white" : "bg-slate-200 text-slate-700"
-                  }`}>
-                    {f.count}
-                  </span>
-                </button>
-              ))}
+                { id: "ACTIVE" as const, label: "Все уроки", count: countActive },
+                { id: "ARCHIVE" as const, label: "Архив уроков", count: countArchived, icon: Archive },
+              ].map((f) => {
+                const Icon = f.icon;
+                return (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => setListFilter(f.id)}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                      listFilter === f.id
+                        ? "bg-blue-600 text-white shadow-2xs"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    {Icon && <Icon className="w-3.5 h-3.5" />}
+                    <span>{f.label}</span>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                        listFilter === f.id ? "bg-white/20 text-white" : "bg-slate-200 text-slate-700"
+                      }`}
+                    >
+                      {f.count}
+                    </span>
+                  </button>
+                );
+              })}
 
               {/* Переключатель диапазона дат: Все даты vs Выбранная неделя */}
               <div className="flex p-0.5 bg-slate-100 rounded-xl ml-0 sm:ml-2">
@@ -990,11 +1083,17 @@ export default function ScheduleCalendar({
                 <BookOpen className="w-6 h-6" />
               </div>
               <h3 className="font-extrabold text-sm text-slate-800">
-                {listSearchQuery ? "По вашему запросу ничего не найдено" : "Нет занятий по выбранным условиям"}
+                {listSearchQuery
+                  ? "По вашему запросу ничего не найдено"
+                  : listFilter === "ARCHIVE"
+                  ? "В архиве пока нет прошедших занятий"
+                  : "Нет актуальных занятий по выбранным условиям"}
               </h3>
               <p className="text-xs text-slate-500 max-w-sm mx-auto">
                 {listSearchQuery
                   ? "Попробуйте изменить поисковый запрос или сбросить фильтры."
+                  : listFilter === "ARCHIVE"
+                  ? "Все прошедшие и завершённые занятия автоматически сохраняются здесь."
                   : listScope === "week"
                   ? "На выбранной неделе уроков нет. Переключитесь на «Все даты» или выберите другую неделю."
                   : "Запланируйте первое занятие, нажав кнопку «Создать урок»."}
@@ -1136,17 +1235,42 @@ export default function ScheduleCalendar({
                         )}
                       </div>
 
-                      <Link
-                        href={`/room/${lesson.id || lesson.roomName}?role=${role}`}
-                        className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition shadow-2xs ${
-                          isLive
-                            ? "bg-red-600 hover:bg-red-700 text-white"
-                            : "bg-blue-600 hover:bg-blue-700 text-white"
-                        }`}
-                      >
-                        <Video className="w-3.5 h-3.5" />
-                        <span>{role === "parent" ? "Присутствовать" : "Войти в класс"}</span>
-                      </Link>
+                      {isLessonArchived(lesson) ? (
+                        <div className="flex items-center gap-2">
+                          {role === "teacher" && (
+                            <button
+                              type="button"
+                              onClick={() => handleExtend(lesson.id, 30)}
+                              disabled={extendingLessonId === lesson.id}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-xs shadow-xs cursor-pointer disabled:opacity-50"
+                              title="Продлить урок на 30 минут"
+                            >
+                              {extendingLessonId === lesson.id ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <Clock className="w-3.5 h-3.5" />
+                              )}
+                              <span>+30 мин</span>
+                            </button>
+                          )}
+                          <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed">
+                            <Lock className="w-3.5 h-3.5" />
+                            <span>Комната закрыта</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <Link
+                          href={`/room/${lesson.id || lesson.roomName}?role=${role}`}
+                          className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition shadow-2xs ${
+                            isLive
+                              ? "bg-red-600 hover:bg-red-700 text-white"
+                              : "bg-blue-600 hover:bg-blue-700 text-white"
+                          }`}
+                        >
+                          <Video className="w-3.5 h-3.5" />
+                          <span>{role === "parent" ? "Присутствовать" : "Войти в класс"}</span>
+                        </Link>
+                      )}
                     </div>
                   </div>
                 );

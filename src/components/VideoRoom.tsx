@@ -167,6 +167,29 @@ export default function VideoRoom({
   const [raisedHand, setRaisedHand] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
 
+  // Продление урока на 30 минут (для учителя)
+  const [extendingLesson, setExtendingLesson] = useState(false);
+  const [extendSuccess, setExtendSuccess] = useState(false);
+
+  const handleExtendLesson = async (mins = 30) => {
+    if (!lessonId) return;
+    try {
+      setExtendingLesson(true);
+      await fetchWithAuth(`/api/lessons/${lessonId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ extendMinutes: mins }),
+      });
+      setExtendSuccess(true);
+      setTimeout(() => setExtendSuccess(false), 3000);
+    } catch (e) {
+      console.error("Ошибка продления урока:", e);
+      alert("Не удалось продлить урок. Попробуйте ещё раз.");
+    } finally {
+      setExtendingLesson(false);
+    }
+  };
+
   // Переключение камер местами (Основная / PiP)
   const [isSwapped, setIsSwapped] = useState(false);
 
@@ -2018,6 +2041,26 @@ export default function VideoRoom({
         {/* Справа: Таймер + Ссылка + Полный экран + Завершить */}
         <div className="flex items-center gap-1.5 sm:gap-2 text-xs shrink-0">
           <LessonTimer />
+
+          {isTeacher && (
+            <button
+              onClick={() => handleExtendLesson(30)}
+              disabled={extendingLesson}
+              className="px-2.5 py-1 sm:px-3 sm:py-1 rounded-full bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+              title="Продлить урок на 30 минут"
+            >
+              {extendingLesson ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : extendSuccess ? (
+                <Check className="w-3.5 h-3.5" />
+              ) : (
+                <Clock className="w-3.5 h-3.5" />
+              )}
+              <span className="text-[11px] sm:text-xs">
+                {extendSuccess ? "+30 мин ✓" : "+30 мин"}
+              </span>
+            </button>
+          )}
 
           <button
             onClick={copyRoomLink}

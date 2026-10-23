@@ -259,6 +259,18 @@ export const db = {
     return lesson;
   },
 
+  extendLesson: (id: string, extendMinutes = 30): Lesson | null => {
+    const data = loadDB();
+    let lesson = data.lessons.find((l) => l.id === id || l.roomName === id);
+    if (!lesson) return null;
+    const currentEnd = new Date(lesson.endTime).getTime();
+    const baseTime = currentEnd > Date.now() ? currentEnd : Date.now();
+    lesson.endTime = new Date(baseTime + extendMinutes * 60 * 1000).toISOString();
+    lesson.status = "LIVE";
+    saveDB(data);
+    return lesson;
+  },
+
   addLessonNote: (
     lessonId: string,
     authorId: string,

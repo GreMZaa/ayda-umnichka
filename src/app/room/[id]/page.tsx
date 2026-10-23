@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import VideoRoom from "@/components/VideoRoom";
 import { fetchWithAuth } from "@/lib/api-client";
+import { Lock, Clock, ArrowLeft, Loader2 } from "lucide-react";
+import { formatTolyatti } from "@/lib/tolyatti-time";
 
 export default function RoomPage({ params }: { params: { id: string } }) {
   const router = useRouter();
@@ -11,6 +13,8 @@ export default function RoomPage({ params }: { params: { id: string } }) {
   const [loading, setLoading] = useState(true);
   const [currentRole, setCurrentRole] = useState<"TEACHER" | "STUDENT" | "PARENT">("TEACHER");
   const [userName, setUserName] = useState<string>("");
+  const [bypassedExpired, setBypassedExpired] = useState(false);
+  const [extending, setExtending] = useState(false);
 
   useEffect(() => {
     // 1. Определение текущей роли и профиля
@@ -115,6 +119,45 @@ export default function RoomPage({ params }: { params: { id: string } }) {
     }
   };
 
+  const isLessonExpired = () => {
+    if (!lesson) return false;
+    if (lesson.id === "umnichka-test-room" || lesson.id === "test-room") return false;
+    if (lesson.status === "COMPLETED") return true;
+    if (lesson.endTime) {
+      const endMs = new Date(lesson.endTime).getTime();
+      return endMs < Date.now();
+    }
+    return false;
+  };
+
+  const handleExtendAndEnter = async () => {
+    const targetId = lesson?.id || params.id;
+    try {
+      setExtending(true);
+      const res = await fetchWithAuth(`/api/lessons/${targetId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ extendMinutes: 30 }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setLesson((prev: any) => ({
+          ...prev,
+          endTime: data.endTime || new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+          status: "LIVE",
+        }));
+        setBypassedExpired(true);
+      } else {
+        alert("Не удалось продлить урок. Попробуйте еще раз.");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Ошибка при продлении урока.");
+    } finally {
+      setExtending(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="fixed inset-0 z-[100] bg-white flex items-center justify-center p-4">
@@ -130,6 +173,120 @@ export default function RoomPage({ params }: { params: { id: string } }) {
             className="mt-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md transition cursor-pointer"
           >
             Войти прямо сейчас
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Экран закрытой комнаты, если время урока прошло
+  if (isLessonExpired() && !bypassedExpired) {
+    if (currentRole === "TEACHER") {
+      return (
+        <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full text-center space-y-6 shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto border border-amber-200">
+              <Clock className="w-8 h-8" />
+            </div>
+
+            <div className="space-y-2">
+              <span className="px-3 py-1 rounded-full bg-amber-100 text-amber-800 font-extrabold text-xs inline-flex items-center gap-1.5">
+                <Lock className="w-3.5 h-3.5" />
+                Время урока истекло
+              </span>
+              <h2 className="text-xl font-black text-slate-900">
+                Занятие подошло к концу
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
+                Запланированное время урока завершилось. Комната сейчас закрыта для ученика и родителей, но вы можете продлить занятие ещё на 30 минут.
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-left space-y-1">
+              <div className="text-xs font-bold text-slate-800">{lesson?.title}</div>
+              <div className="text-[11px] text-slate-500 flex items-center justify-between">
+                <span>Ученик: <strong>{lesson?.studentName || "Ученик"}</strong></span>
+                {lesson?.endTime && (
+                  <span>Завершился в {formatTolyatti(lesson.endTime, "HH:mm")}</span>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-2">
+              <button
+                type="button"
+                onClick={handleExtendAndEnter}
+                disabled={extending}
+                className="w-full py-3.5 px-5 rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-extrabold text-sm shadow-lg shadow-amber-500/25 transition cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {extending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Clock className="w-4 h-4" />
+                )}
+                <span>Продлить урок на 30 минут</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setBypassedExpired(true)}
+                className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+              >
+                Войти в режиме просмотра
+              </button>
+
+              <button
+                type="button"
+                onClick={() => router.push("/teacher")}
+                className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-800 transition cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Вернуться в кабинет</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // STUDENT or PARENT
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+        <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full text-center space-y-6 shadow-2xl animate-in zoom-in-95 duration-200">
+          <div className="w-16 h-16 rounded-2xl bg-slate-100 text-slate-500 flex items-center justify-center mx-auto border border-slate-200">
+            <Lock className="w-8 h-8 text-slate-400" />
+          </div>
+
+          <div className="space-y-2">
+            <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-600 font-extrabold text-xs inline-flex items-center gap-1.5 border border-slate-200">
+              <Lock className="w-3.5 h-3.5" />
+              Комната закрыта
+            </span>
+            <h2 className="text-xl font-black text-slate-900">
+              Время урока истекло
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
+              Запланированное время занятия завершилось, и вход в онлайн-класс закрыт. Если вам нужно продолжить урок, попросите преподавателя продлить занятие.
+            </p>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-left space-y-1">
+            <div className="text-xs font-bold text-slate-800">{lesson?.title}</div>
+            <div className="text-[11px] text-slate-500 flex items-center justify-between">
+              <span>Преподаватель: <strong>{lesson?.teacherName || "Репетитор"}</strong></span>
+              {lesson?.endTime && (
+                <span>Окончание: {formatTolyatti(lesson.endTime, "HH:mm")}</span>
+              )}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => router.push(currentRole === "PARENT" ? "/parent" : "/student")}
+            className="w-full py-3.5 px-5 rounded-2xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-extrabold text-sm shadow-lg shadow-blue-500/25 transition cursor-pointer flex items-center justify-center gap-2"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Вернуться в личный кабинет</span>
           </button>
         </div>
       </div>

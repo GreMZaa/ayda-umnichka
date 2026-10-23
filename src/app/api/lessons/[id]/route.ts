@@ -142,7 +142,60 @@ export async function PATCH(
   try {
     const rawBody = await request.json();
 
-    // Сценарий 1: Обновление статуса урока
+    // Сценарий 1: Продление урока учителем на N минут (по умолчанию 30 минут)
+    if (rawBody.extendMinutes !== undefined || rawBody.endTime) {
+      const extendMin = typeof rawBody.extendMinutes === "number" ? rawBody.extendMinutes : 30;
+      const client = getSupabase();
+      let newEndTimeIso: string;
+
+      if (rawBody.endTime) {
+        newEndTimeIso = new Date(rawBody.endTime).toISOString();
+      } else {
+        let currentEndMs = Date.now();
+        if (client) {
+          try {
+            const { data: curr } = await client
+              .from("lessons")
+              .select("end_time")
+              .eq(isUuid(params.id) ? "id" : "room_name", params.id)
+              .maybeSingle();
+            if (curr?.end_time) {
+              const ms = new Date(curr.end_time).getTime();
+              if (ms > currentEndMs) currentEndMs = ms;
+            }
+          } catch (e) {}
+        }
+        newEndTimeIso = new Date(currentEndMs + extendMin * 60 * 1000).toISOString();
+      }
+
+      if (client) {
+        try {
+          const matchCol = isUuid(params.id) ? "id" : "room_name";
+          await client
+            .from("lessons")
+            .update({
+              end_time: newEndTimeIso,
+              status: "LIVE",
+              updated_at: new Date().toISOString(),
+            })
+            .eq(matchCol, params.id);
+        } catch (e) {
+          console.error("Supabase extend error:", e);
+        }
+      }
+
+      const updatedLocal = db.extendLesson(params.id, extendMin);
+
+      return NextResponse.json({
+        success: true,
+        id: params.id,
+        endTime: newEndTimeIso,
+        status: "LIVE",
+        lesson: updatedLocal,
+      });
+    }
+
+    // Сценарий 2: Обновление статуса урока
     if (rawBody.status) {
       const parsed = UpdateLessonStatusSchema.safeParse(rawBody);
       if (!parsed.success) {

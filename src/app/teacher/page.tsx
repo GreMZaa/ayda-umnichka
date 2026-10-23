@@ -1282,6 +1282,21 @@ export default function TeacherCabinet() {
     }
   };
 
+  // Продление урока на 30 минут (для учителя)
+  const handleExtendLesson = async (lessonId: string, minutes: number = 30) => {
+    try {
+      await fetchWithAuth(`/api/lessons/${lessonId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ extendMinutes: minutes }),
+      });
+      await fetchLessons();
+    } catch (err) {
+      console.error("Ошибка продления урока:", err);
+      alert("Не удалось продлить урок. Попробуйте еще раз.");
+    }
+  };
+
   // Удаление ученика из базы данных Supabase
   const handleDeleteStudent = async (e: React.MouseEvent, studentId: string, studentName: string) => {
     e.stopPropagation();
@@ -1548,6 +1563,15 @@ export default function TeacherCabinet() {
                     </div>
 
                     <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                      <button
+                        type="button"
+                        onClick={() => handleExtendLesson(liveLessons[0].id, 30)}
+                        className="px-4 py-3.5 rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-xs transition cursor-pointer flex items-center gap-1.5 shadow-sm shadow-amber-500/20"
+                        title="Продлить урок на 30 минут"
+                      >
+                        <Clock className="w-4 h-4" />
+                        <span>+30 мин</span>
+                      </button>
                       <Link
                         href={`/room/${liveLessons[0].id || liveLessons[0].roomName}?role=teacher`}
                         className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-2xl bg-[#2481cc] text-white font-extrabold text-xs sm:text-sm shadow-lg shadow-blue-500/25 hover:bg-[#1f70b0] transition transform hover:scale-105 active:scale-95 cursor-pointer"
@@ -1590,6 +1614,7 @@ export default function TeacherCabinet() {
                   onUpdateStatus={handleUpdateStatus}
                   onOpenReportModal={handleOpenReportModal}
                   onCreateLesson={() => handleOpenCreateModal()}
+                  onExtendLesson={handleExtendLesson}
                 />
               </div>
             ),
