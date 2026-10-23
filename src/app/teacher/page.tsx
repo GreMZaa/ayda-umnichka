@@ -1166,45 +1166,52 @@ export default function TeacherCabinet() {
     const newStartMs = new Date(startIso).getTime();
     const newEndMs = new Date(endIso).getTime();
 
-    // Проверяем локальные уроки в стейте учителя
+    // Проверяем локальные уроки в стейте учителя (игнорируем отмененные, завершенные и уроки в прошлом)
     const existingConflict = lessons.find((l) => {
-      if (l.status === "CANCELLED") return false;
+      if (l.status === "CANCELLED" || l.status === "COMPLETED") return false;
       const lStart = new Date(l.startTime).getTime();
       const lEnd = new Date(l.endTime).getTime();
+      if (lEnd <= Date.now()) return false;
       return lStart < newEndMs && lEnd > newStartMs;
     });
 
     if (existingConflict) {
-      setCreateError(
-        `Коллизия расписания: на это время уже запланирован урок «${existingConflict.title}». Пожалуйста, выберите другое время.`
+      const confirmOverride = typeof window !== "undefined" && window.confirm(
+        `Внимание: на выбранное время уже запланирован урок «${existingConflict.title}». Создать урок всё равно?`
       );
-      setCreatingLesson(false);
-      return;
+      if (!confirmOverride) {
+        setCreatingLesson(false);
+        return;
+      }
     }
 
     // 4. ПРЯМАЯ ЗАПИСЬ УРОКА В SUPABASE
     let savedInSupabase = false;
     if (client) {
       try {
-        // Проверяем коллизии в Supabase
+        // Проверяем коллизии в Supabase (только не отмененные и не завершенные)
         const { data: sbConflicts } = await client
           .from("lessons")
           .select("id, title, start_time, end_time, teacher_id, student_id")
           .neq("status", "CANCELLED")
+          .neq("status", "COMPLETED")
           .or(`teacher_id.eq.${currentTeacherId},student_id.eq.${finalStudentId}`);
 
         const sbConflict = sbConflicts?.find((ex: any) => {
           const exStart = new Date(ex.start_time).getTime();
           const exEnd = new Date(ex.end_time).getTime();
+          if (exEnd <= Date.now()) return false;
           return exStart < newEndMs && exEnd > newStartMs;
         });
 
-        if (sbConflict) {
-          setCreateError(
-            `Коллизия в базе данных: уже запланирован урок «${sbConflict.title}». Пожалуйста, выберите другое время.`
+        if (sbConflict && !existingConflict) {
+          const confirmSbOverride = typeof window !== "undefined" && window.confirm(
+            `Внимание: в расписании на это время уже найден урок «${sbConflict.title}». Создать урок всё равно?`
           );
-          setCreatingLesson(false);
-          return;
+          if (!confirmSbOverride) {
+            setCreatingLesson(false);
+            return;
+          }
         }
 
         const { data: insertedLesson, error: insErr } = await client
@@ -1249,6 +1256,7 @@ export default function TeacherCabinet() {
           endTime: endIso,
           status: "SCHEDULED",
           roomName: roomName,
+          allowOverlap: true,
         }),
       });
     } catch (e) {

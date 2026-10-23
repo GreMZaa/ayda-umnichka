@@ -309,45 +309,50 @@ export async function POST(request: Request) {
         // ПРОВЕРКА КОЛЛИЗИЙ РАСПИСАНИЯ (P1.3)
         const newStartMs = new Date(lessonData.startTime).getTime();
         const newEndMs = new Date(lessonData.endTime).getTime();
+        const allowOverlap = Boolean((lessonData as any).allowOverlap || (lessonData as any).force);
 
-        try {
-          let conflictQuery = client
-            .from("lessons")
-            .select("id, title, start_time, end_time, teacher_id, student_id")
-            .neq("status", "CANCELLED");
+        if (!allowOverlap) {
+          try {
+            let conflictQuery = client
+              .from("lessons")
+              .select("id, title, start_time, end_time, teacher_id, student_id")
+              .neq("status", "CANCELLED")
+              .neq("status", "COMPLETED");
 
-          if (teacherIdToSave && studentIdToSave) {
-            conflictQuery = conflictQuery.or(`teacher_id.eq.${teacherIdToSave},student_id.eq.${studentIdToSave}`);
-          } else if (teacherIdToSave) {
-            conflictQuery = conflictQuery.eq("teacher_id", teacherIdToSave);
-          } else if (studentIdToSave) {
-            conflictQuery = conflictQuery.eq("student_id", studentIdToSave);
-          }
-
-          const { data: existingLessons } = await conflictQuery;
-          if (existingLessons && existingLessons.length > 0) {
-            const conflicting = existingLessons.find((ex) => {
-              const exStart = new Date(ex.start_time).getTime();
-              const exEnd = new Date(ex.end_time).getTime();
-              return exStart < newEndMs && exEnd > newStartMs;
-            });
-
-            if (conflicting) {
-              const isTeacher = conflicting.teacher_id === teacherIdToSave;
-              const who = isTeacher ? "у преподавателя" : "у ученика";
-              const conflictStart = new Date(conflicting.start_time).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
-              const conflictEnd = new Date(conflicting.end_time).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
-              return NextResponse.json(
-                {
-                  error: `Коллизия расписания: ${who} уже запланирован урок «${conflicting.title}» с ${conflictStart} до ${conflictEnd}. Пожалуйста, выберите другое время.`,
-                  conflict: conflicting,
-                },
-                { status: 409 }
-              );
+            if (teacherIdToSave && studentIdToSave) {
+              conflictQuery = conflictQuery.or(`teacher_id.eq.${teacherIdToSave},student_id.eq.${studentIdToSave}`);
+            } else if (teacherIdToSave) {
+              conflictQuery = conflictQuery.eq("teacher_id", teacherIdToSave);
+            } else if (studentIdToSave) {
+              conflictQuery = conflictQuery.eq("student_id", studentIdToSave);
             }
+
+            const { data: existingLessons } = await conflictQuery;
+            if (existingLessons && existingLessons.length > 0) {
+              const conflicting = existingLessons.find((ex) => {
+                const exStart = new Date(ex.start_time).getTime();
+                const exEnd = new Date(ex.end_time).getTime();
+                if (exEnd <= Date.now()) return false;
+                return exStart < newEndMs && exEnd > newStartMs;
+              });
+
+              if (conflicting) {
+                const isTeacher = conflicting.teacher_id === teacherIdToSave;
+                const who = isTeacher ? "у преподавателя" : "у ученика";
+                const conflictStart = new Date(conflicting.start_time).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+                const conflictEnd = new Date(conflicting.end_time).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+                return NextResponse.json(
+                  {
+                    error: `Коллизия расписания: ${who} уже запланирован урок «${conflicting.title}» с ${conflictStart} до ${conflictEnd}. Пожалуйста, выберите другое время.`,
+                    conflict: conflicting,
+                  },
+                  { status: 409 }
+                );
+              }
+            }
+          } catch (collisionErr) {
+            console.warn("Collision check warning in Supabase:", collisionErr);
           }
-        } catch (collisionErr) {
-          console.warn("Collision check warning in Supabase:", collisionErr);
         }
 
         const { data: created, error } = await client
@@ -410,25 +415,30 @@ export async function POST(request: Request) {
     // Локальная проверка коллизий расписания
     const newStartMs = new Date(lessonData.startTime).getTime();
     const newEndMs = new Date(lessonData.endTime).getTime();
-    const localLessons = db.getLessons();
-    const localConflict = localLessons.find((ex) => {
-      if (ex.status === "CANCELLED") return false;
-      if (ex.teacherId !== lessonData.teacherId && ex.studentId !== lessonData.studentId) return false;
-      const exStart = new Date(ex.startTime).getTime();
-      const exEnd = new Date(ex.endTime).getTime();
-      return exStart < newEndMs && exEnd > newStartMs;
-    });
+    const allowOverlap = Boolean((lessonData as any).allowOverlap || (lessonData as any).force);
 
-    if (localConflict) {
-      const isTeacher = localConflict.teacherId === lessonData.teacherId;
-      const who = isTeacher ? "у преподавателя" : "у ученика";
-      return NextResponse.json(
-        {
-          error: `Коллизия расписания: ${who} уже запланирован урок «${localConflict.title}». Пожалуйста, выберите другое время.`,
-          conflict: localConflict,
-        },
-        { status: 409 }
-      );
+    if (!allowOverlap) {
+      const localLessons = db.getLessons();
+      const localConflict = localLessons.find((ex) => {
+        if (ex.status === "CANCELLED" || ex.status === "COMPLETED") return false;
+        const exEnd = new Date(ex.endTime).getTime();
+        if (exEnd <= Date.now()) return false;
+        if (ex.teacherId !== lessonData.teacherId && ex.studentId !== lessonData.studentId) return false;
+        const exStart = new Date(ex.startTime).getTime();
+        return exStart < newEndMs && exEnd > newStartMs;
+      });
+
+      if (localConflict) {
+        const isTeacher = localConflict.teacherId === lessonData.teacherId;
+        const who = isTeacher ? "у преподавателя" : "у ученика";
+        return NextResponse.json(
+          {
+            error: `Коллизия расписания: ${who} уже запланирован урок «${localConflict.title}». Пожалуйста, выберите другое время.`,
+            conflict: localConflict,
+          },
+          { status: 409 }
+        );
+      }
     }
 
     const newLesson = db.createLesson(lessonData as any);
