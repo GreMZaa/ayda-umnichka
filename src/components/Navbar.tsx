@@ -178,8 +178,41 @@ export default function Navbar() {
 
     if (client) {
       try {
+        let effectiveEmail = email.trim();
+
+        // Поддержка входа как по email, так и по короткому логину/нику (например sharonov)
+        if (!effectiveEmail.includes("@")) {
+          const cleanNick = effectiveEmail.replace(/^@/, "").toLowerCase();
+          try {
+            const { data: matchedProfile } = await client
+              .from("profiles")
+              .select("email, bio")
+              .ilike("bio", `%"username":"${cleanNick}"%`)
+              .maybeSingle();
+
+            if (matchedProfile?.email) {
+              effectiveEmail = matchedProfile.email;
+            } else if (cleanNick === "sharonov" || cleanNick === "sergey" || cleanNick === "student") {
+              effectiveEmail = "lev-drakon2011@mail.ru";
+            } else {
+              effectiveEmail = `${cleanNick}@umnichka.ru`;
+            }
+          } catch (e) {
+            if (cleanNick === "sharonov" || cleanNick === "sergey" || cleanNick === "student") {
+              effectiveEmail = "lev-drakon2011@mail.ru";
+            } else {
+              effectiveEmail = `${cleanNick}@umnichka.ru`;
+            }
+          }
+        } else if (
+          effectiveEmail.toLowerCase() === "sharonov@umnichka.ru" ||
+          effectiveEmail.toLowerCase() === "student@umnichka.ru"
+        ) {
+          effectiveEmail = "lev-drakon2011@mail.ru";
+        }
+
         const { data, error } = await client.auth.signInWithPassword({
-          email: email.trim(),
+          email: effectiveEmail,
           password: password,
         });
 
