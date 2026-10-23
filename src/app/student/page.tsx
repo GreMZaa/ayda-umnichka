@@ -155,6 +155,19 @@ export default function StudentCabinet() {
   const hwFileInputRef = useRef<HTMLInputElement>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [enteringRoomId, setEnteringRoomId] = useState<string | null>(null);
+
+  const handleEnterRoom = (targetId: string, e?: React.SyntheticEvent) => {
+    if (e) {
+      try {
+        e.preventDefault();
+        e.stopPropagation();
+      } catch {}
+    }
+    setEnteringRoomId(targetId);
+    const url = `/room/${targetId}?role=student`;
+    window.location.assign(url);
+  };
   const modalMouseDownRef = useRef<EventTarget | null>(null);
 
   // Состояние входящего звонка на урок («Входящий звонок» P2.1)
@@ -1305,14 +1318,25 @@ export default function StudentCabinet() {
                       </div>
                     </div>
 
-                    <Link
+                    <a
                       href={`/room/${todayActiveLesson.id || todayActiveLesson.roomName}?role=student`}
-                      className="inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-2xl bg-[#2481cc] text-white font-black text-sm sm:text-base shadow-lg shadow-blue-500/25 hover:bg-[#1f70b0] transition transform hover:scale-105 active:scale-95 shrink-0 w-full sm:w-auto cursor-pointer"
+                      onClick={(e) => handleEnterRoom(todayActiveLesson.id || todayActiveLesson.roomName, e)}
+                      onTouchEnd={(e) => handleEnterRoom(todayActiveLesson.id || todayActiveLesson.roomName, e)}
+                      className="inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-2xl bg-[#2481cc] text-white font-black text-sm sm:text-base shadow-lg shadow-blue-500/25 hover:bg-[#1f70b0] active:opacity-90 transition shrink-0 w-full sm:w-auto cursor-pointer touch-manipulation relative z-10"
                     >
-                      <Video className="w-5 h-5 text-white" />
-                      <span>Войти в видеокласс</span>
-                      <ArrowRight className="w-4 h-4 ml-1" />
-                    </Link>
+                      {enteringRoomId === (todayActiveLesson.id || todayActiveLesson.roomName) ? (
+                        <>
+                          <Loader2 className="w-5 h-5 text-white animate-spin" />
+                          <span>Входим в видеокласс...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Video className="w-5 h-5 text-white" />
+                          <span>Войти в видеокласс</span>
+                          <ArrowRight className="w-4 h-4 ml-1" />
+                        </>
+                      )}
+                    </a>
                   </div>
                 )}
 
@@ -1892,14 +1916,30 @@ export default function StudentCabinet() {
 
             {/* Кнопки ответа и откладывания */}
             <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
-              <Link
+              <a
                 href={`/room/${incomingCallLesson.id}?role=student`}
-                onClick={() => setIncomingCallLesson(null)}
-                className="w-full sm:flex-1 py-3.5 px-5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 transition active:scale-95 cursor-pointer"
+                onClick={(e) => {
+                  setIncomingCallLesson(null);
+                  handleEnterRoom(incomingCallLesson.id, e);
+                }}
+                onTouchEnd={(e) => {
+                  setIncomingCallLesson(null);
+                  handleEnterRoom(incomingCallLesson.id, e);
+                }}
+                className="w-full sm:flex-1 py-3.5 px-5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 transition active:opacity-90 cursor-pointer touch-manipulation"
               >
-                <PhoneCall className="w-5 h-5 animate-bounce" />
-                <span>Войти в класс</span>
-              </Link>
+                {enteringRoomId === incomingCallLesson.id ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span>Входим...</span>
+                  </>
+                ) : (
+                  <>
+                    <PhoneCall className="w-5 h-5 animate-bounce" />
+                    <span>Войти в класс</span>
+                  </>
+                )}
+              </a>
               <button
                 type="button"
                 onClick={() => {

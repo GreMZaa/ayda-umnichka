@@ -118,6 +118,19 @@ export default function ScheduleCalendar({
   const [listSearchQuery, setListSearchQuery] = useState("");
   const [listScope, setListScope] = useState<"all" | "week">("all");
   const [extendingLessonId, setExtendingLessonId] = useState<string | null>(null);
+  const [enteringRoomId, setEnteringRoomId] = useState<string | null>(null);
+
+  const handleEnterRoom = (targetId: string, e?: React.SyntheticEvent) => {
+    if (e) {
+      try {
+        e.preventDefault();
+        e.stopPropagation();
+      } catch {}
+    }
+    setEnteringRoomId(targetId);
+    const url = `/room/${targetId}?role=${role}`;
+    window.location.assign(url);
+  };
 
   // Текущее время по Тольятти для красной линии и закрытия комнат
   const [currentTime, setCurrentTime] = useState<Date>(() => nowInTolyatti());
@@ -640,13 +653,24 @@ export default function ScheduleCalendar({
                               </div>
                             </div>
                           ) : (
-                            <Link
+                            <a
                               href={`/room/${l.id || l.roomName}?role=${role}`}
-                              className="flex-1 min-w-[120px] py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm shadow-blue-500/20 active:scale-95"
+                              onClick={(e) => handleEnterRoom(l.id || l.roomName, e)}
+                              onTouchEnd={(e) => handleEnterRoom(l.id || l.roomName, e)}
+                              className="flex-1 min-w-[120px] py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 active:opacity-90 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm shadow-blue-500/20 cursor-pointer touch-manipulation"
                             >
-                              <Video className="w-3.5 h-3.5" />
-                              <span>Войти в видеокласс</span>
-                            </Link>
+                              {enteringRoomId === (l.id || l.roomName) ? (
+                                <>
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  <span>Входим...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Video className="w-3.5 h-3.5" />
+                                  <span>Войти в видеокласс</span>
+                                </>
+                              )}
+                            </a>
                           )}
 
                           {role === "teacher" && onUpdateStatus && (
@@ -887,12 +911,7 @@ export default function ScheduleCalendar({
                                         </span>
                                       )
                                     ) : isLive ? (
-                                      <Link
-                                        href={`/room/${l.id || l.roomName}?role=${role}`}
-                                        className="px-2 py-0.5 rounded-lg bg-white text-emerald-800 font-extrabold hover:bg-emerald-50 shadow-xs"
-                                      >
-                                        Войти
-                                      </Link>
+                                      <a href={`/room/${l.id || l.roomName}?role=${role}`} onClick={(e) => handleEnterRoom(l.id || l.roomName, e)} onTouchEnd={(e) => handleEnterRoom(l.id || l.roomName, e)} className="px-2 py-0.5 rounded-lg bg-white text-emerald-800 font-extrabold hover:bg-emerald-50 active:opacity-90 shadow-xs cursor-pointer touch-manipulation">Войти</a>
                                     ) : isCompleted ? (
                                       role === "teacher" && onOpenReportModal ? (
                                         l.notes && l.notes.length > 0 ? (
@@ -930,12 +949,7 @@ export default function ScheduleCalendar({
                                             Старт
                                           </button>
                                         )}
-                                        <Link
-                                          href={`/room/${l.id || l.roomName}?role=${role}`}
-                                          className="px-2 py-0.5 rounded-lg bg-white text-blue-700 font-bold hover:bg-blue-50"
-                                        >
-                                          Класс
-                                        </Link>
+                                        <a href={`/room/${l.id || l.roomName}?role=${role}`} onClick={(e) => handleEnterRoom(l.id || l.roomName, e)} onTouchEnd={(e) => handleEnterRoom(l.id || l.roomName, e)} className="px-2 py-0.5 rounded-lg bg-white text-blue-700 font-bold hover:bg-blue-50 active:opacity-90 cursor-pointer touch-manipulation">Класс</a>
                                       </div>
                                     )}
                                   </div>
@@ -1305,17 +1319,11 @@ export default function ScheduleCalendar({
                           </div>
                         </div>
                       ) : (
-                        <Link
-                          href={`/room/${lesson.id || lesson.roomName}?role=${role}`}
-                          className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition shadow-2xs ${
+                        <a href={`/room/${lesson.id || lesson.roomName}?role=${role}`} onClick={(e) => handleEnterRoom(lesson.id || lesson.roomName, e)} onTouchEnd={(e) => handleEnterRoom(lesson.id || lesson.roomName, e)} className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer touch-manipulation active:opacity-90 ${
                             isLive
                               ? "bg-red-600 hover:bg-red-700 text-white"
                               : "bg-blue-600 hover:bg-blue-700 text-white"
-                          }`}
-                        >
-                          <Video className="w-3.5 h-3.5" />
-                          <span>{role === "parent" ? "Присутствовать" : "Войти в класс"}</span>
-                        </Link>
+                          }`}>{enteringRoomId === (lesson.id || lesson.roomName) ? (<><Loader2 className="w-3.5 h-3.5 animate-spin" /><span>Входим...</span></>) : (<><Video className="w-3.5 h-3.5" /><span>{role === "parent" ? "Присутствовать" : "Войти в класс"}</span></>)}</a>
                       )}
                     </div>
                   </div>

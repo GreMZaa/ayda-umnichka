@@ -1667,13 +1667,21 @@ export default function TeacherCabinet() {
                         <Clock className="w-4 h-4" />
                         <span>+30 мин</span>
                       </button>
-                      <Link
+                      <a
                         href={`/room/${liveLessons[0].id || liveLessons[0].roomName}?role=teacher`}
-                        className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-2xl bg-[#2481cc] text-white font-extrabold text-xs sm:text-sm shadow-lg shadow-blue-500/25 hover:bg-[#1f70b0] transition transform hover:scale-105 active:scale-95 cursor-pointer"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          window.location.assign(`/room/${liveLessons[0].id || liveLessons[0].roomName}?role=teacher`);
+                        }}
+                        onTouchEnd={(e) => {
+                          e.preventDefault();
+                          window.location.assign(`/room/${liveLessons[0].id || liveLessons[0].roomName}?role=teacher`);
+                        }}
+                        className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-2xl bg-[#2481cc] text-white font-extrabold text-xs sm:text-sm shadow-lg shadow-blue-500/25 hover:bg-[#1f70b0] active:opacity-90 transition cursor-pointer touch-manipulation"
                       >
                         <Video className="w-4 h-4 text-white" />
                         <span>Войти в видеокласс</span>
-                      </Link>
+                      </a>
                       <button
                         onClick={() => handleUpdateStatus(liveLessons[0].id, "COMPLETED")}
                         className="px-4 py-3.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer"
