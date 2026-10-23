@@ -307,3 +307,25 @@ export async function PATCH(
     );
   }
 }
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  const auth = await authenticateRequest(request);
+  if (!auth.user) {
+    return NextResponse.json({ error: "Необходима авторизация" }, { status: 401 });
+  }
+
+  const client = getSupabase();
+  if (client) {
+    try {
+      const matchCol = isUuid(params.id) ? "id" : "room_name";
+      await client.from("lessons").delete().eq(matchCol, params.id);
+    } catch (e) {
+      console.error("Error deleting lesson from Supabase:", e);
+    }
+  }
+
+  return NextResponse.json({ success: true });
+}

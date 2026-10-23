@@ -4,7 +4,6 @@ import { authenticateRequest } from "@/lib/server-auth";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limiter";
 import { CreateLessonSchema } from "@/lib/validations";
 import { getSupabase } from "@/lib/supabase";
-import { getSharonovActiveLesson } from "@/lib/default-lessons";
 
 export async function GET(request: Request) {
   // 1. Rate Limiting
@@ -103,40 +102,8 @@ export async function GET(request: Request) {
         }
       }
 
-      // Если уроков по конкретному фильтру все еще 0, но это запрос от ученика —
-      // возвращаем актуальные уроки школы, чтобы ученик никогда не остался без урока
-      if ((!sbLessons || sbLessons.length === 0) && (auth.user?.role === "student" || studentIdParam)) {
-        const { data: generalLessons } = await client
-          .from("lessons")
-          .select(`
-            id,
-            title,
-            start_time,
-            end_time,
-            status,
-            room_name,
-            subject_id,
-            teacher_id,
-            student_id,
-            subjects:subject_id (name, color),
-            teacher:teacher_id (name, avatar_url),
-            student:student_id (name, avatar_url)
-          `)
-          .neq("status", "CANCELLED")
-          .order("start_time", { ascending: false })
-          .limit(10);
-
-        if (generalLessons && generalLessons.length > 0) {
-          sbLessons = generalLessons;
-          sbError = null;
-        }
-      }
-
       if (!sbError && sbLessons) {
         if (sbLessons.length === 0) {
-          if (studentIdParam === "53df3c76-9d23-49aa-ba0c-6f40d7a56657") {
-            return NextResponse.json([getSharonovActiveLesson()]);
-          }
           return NextResponse.json([]);
         }
         const mappedLessons = sbLessons.map((l: any) => {

@@ -51,7 +51,6 @@ import {
   getLocalToTolyattiHourDifference,
   getLocalTimezoneName,
 } from "@/lib/tolyatti-time";
-import { DEFAULT_STUDENT_LESSONS } from "@/lib/default-lessons";
 import { TEACHER_VASILINA_AVATAR } from "@/lib/default-avatar";
 
 interface StudentProfile {
@@ -121,7 +120,7 @@ export default function TeacherCabinet() {
   const [teacherUsername, setTeacherUsername] = useState("");
   const [editProfileModalOpen, setEditProfileModalOpen] = useState(false);
 
-  const [lessons, setLessons] = useState<any[]>(DEFAULT_STUDENT_LESSONS);
+  const [lessons, setLessons] = useState<any[]>([]);
   const [subjects, setSubjects] = useState<SubjectItem[]>(DEFAULT_SUBJECTS);
   const [students, setStudents] = useState<StudentProfile[]>(DEFAULT_STUDENTS);
   const [friendStudentIds, setFriendStudentIds] = useState<string[]>([]);
@@ -226,25 +225,32 @@ export default function TeacherCabinet() {
       const res = await fetchWithAuth(url);
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          const enriched = data.map((l: any) => {
-            let notes = l.notes || [];
-            if (!notes || notes.length === 0) {
-              try {
-                const raw = localStorage.getItem(`ayda_lesson_notes_${l.id}`);
-                if (raw) notes = JSON.parse(raw);
-              } catch (e) {}
-            }
-            const isPast = l.endTime ? new Date(l.endTime).getTime() <= Date.now() : false;
-            return {
-              ...l,
-              status: l.status === "COMPLETED" ? "COMPLETED" : (notes && notes.length > 0 && isPast ? "COMPLETED" : l.status),
-              notes,
-            };
-          });
-          setLessons(enriched);
-          setLoading(false);
-          return;
+        if (Array.isArray(data)) {
+          if (data.length > 0) {
+            const enriched = data.map((l: any) => {
+              let notes = l.notes || [];
+              if (!notes || notes.length === 0) {
+                try {
+                  const raw = localStorage.getItem(`ayda_lesson_notes_${l.id}`);
+                  if (raw) notes = JSON.parse(raw);
+                } catch (e) {}
+              }
+              const isPast = l.endTime ? new Date(l.endTime).getTime() <= Date.now() : false;
+              return {
+                ...l,
+                status: l.status === "COMPLETED" ? "COMPLETED" : (notes && notes.length > 0 && isPast ? "COMPLETED" : l.status),
+                notes,
+              };
+            });
+            setLessons(enriched);
+            setLoading(false);
+            return;
+          } else {
+            // Сервер подтвердил: уроков 0 (например, они были удалены)
+            setLessons([]);
+            setLoading(false);
+            return;
+          }
         }
       }
 
@@ -310,7 +316,7 @@ export default function TeacherCabinet() {
             try {
               localStorage.removeItem("ayda_latest_lessons");
             } catch (e) {}
-            setLessons((prev) => (prev && prev.length > 0 ? prev : DEFAULT_STUDENT_LESSONS));
+            setLessons([]);
             setLoading(false);
             return;
           }
@@ -694,6 +700,32 @@ export default function TeacherCabinet() {
     };
     window.addEventListener("ayda:lessons-updated", handleLessonsUpdate);
 
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        fetchLessons();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("focus", fetchLessons);
+    const pollTimer = setInterval(fetchLessons, 10000);
+
+    let realtimeChannel: any = null;
+    try {
+      const client = getSupabase();
+      if (client) {
+        realtimeChannel = client
+          .channel("teacher-lessons-feed")
+          .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "lessons" },
+            () => {
+              fetchLessons();
+            }
+          )
+          .subscribe();
+      }
+    } catch (e) {}
+
     fetchLessons();
 
     return () => {
@@ -701,6 +733,15 @@ export default function TeacherCabinet() {
       window.removeEventListener("ayda:teacher-friends-updated", handleFriendsUpdate);
       window.removeEventListener("ayda:teacher-colleagues-updated", handleColleaguesUpdate);
       window.removeEventListener("ayda:lessons-updated", handleLessonsUpdate);
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("focus", fetchLessons);
+      clearInterval(pollTimer);
+      if (realtimeChannel) {
+        try {
+          const client = getSupabase();
+          if (client) client.removeChannel(realtimeChannel);
+        } catch (e) {}
+      }
     };
   }, [authUser?.id]);
 

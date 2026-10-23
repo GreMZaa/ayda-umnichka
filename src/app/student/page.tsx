@@ -50,7 +50,6 @@ import {
   isTodayInTolyatti,
 } from "@/lib/tolyatti-time";
 import { SHARONOV_AVATAR, TEACHER_VASILINA_AVATAR } from "@/lib/default-avatar";
-import { DEFAULT_STUDENT_LESSONS, getSharonovActiveLesson } from "@/lib/default-lessons";
 
 export interface TeacherProfile {
   id: string;
@@ -130,12 +129,7 @@ export default function StudentCabinet() {
   const [stars, setStars] = useState(0);
   const [studentAwards, setStudentAwards] = useState<any[]>([]);
   const [editProfileModalOpen, setEditProfileModalOpen] = useState(false);
-  const [lessons, setLessons] = useState<any[]>(() => {
-    if (isSharonov || effectiveId === "53df3c76-9d23-49aa-ba0c-6f40d7a56657") {
-      return [getSharonovActiveLesson()];
-    }
-    return [];
-  });
+  const [lessons, setLessons] = useState<any[]>([]);
   const [schoolSubjects, setSchoolSubjects] = useState<any[]>([]);
   const [teachers, setTeachers] = useState<TeacherProfile[]>([]);
   const [friendTeacherIds, setFriendTeacherIds] = useState<string[]>([]);
@@ -697,34 +691,6 @@ export default function StudentCabinet() {
             }
           }
 
-          // 4. ЖЕЛЕЗНЫЙ ФОЛЛБЕК: если уроков по конкретному ID не найдено,
-          // проверяем актуальные уроки школы, назначенные преподавателями для учеников
-          if (sbLessons.length === 0) {
-            const { data: schoolLessons } = await client
-              .from("lessons")
-              .select(`
-                id,
-                title,
-                start_time,
-                end_time,
-                status,
-                room_name,
-                subject_id,
-                teacher_id,
-                student_id,
-                subjects:subject_id (name, color),
-                teacher:teacher_id (name, avatar_url),
-                student:student_id (name, avatar_url)
-              `)
-              .neq("status", "CANCELLED")
-              .order("start_time", { ascending: false })
-              .limit(10);
-
-            if (schoolLessons && schoolLessons.length > 0) {
-              sbLessons = schoolLessons;
-            }
-          }
-
           if (sbLessons.length > 0) {
             const mapped = sbLessons.map((l: any) => ({
               id: l.id,
@@ -752,43 +718,23 @@ export default function StudentCabinet() {
         }
       }
 
-      // 5. API fallback
+      // 4. API запрос (серверная авторизация через Supabase)
       try {
         const queryId = paramId || studentIdsToQuery[0] || "53df3c76-9d23-49aa-ba0c-6f40d7a56657";
         const res = await fetchWithAuth(`/api/lessons?studentId=${queryId}`);
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          setLessons(data);
-          setLoading(false);
-          return;
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            setLessons(data);
+            setLoading(false);
+            return;
+          }
         }
       } catch (err) {
         console.error(err);
       }
 
-      // 4. Локальное хранилище недавно созданных уроков (только если принадлежат текущему ученику)
-      try {
-        const local = localStorage.getItem("ayda_latest_lessons");
-        if (local) {
-          const parsed = JSON.parse(local);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            const filtered = parsed.filter((l: any) => studentIdsToQuery.includes(l.studentId || l.student_id));
-            if (filtered.length > 0) {
-              setLessons(filtered);
-              setLoading(false);
-              return;
-            }
-          }
-        }
-      } catch (e) {}
-
-      // ЖЕЛЕЗНЫЙ ФОЛЛБЕК ДЛЯ ШАРОНОВА: никогда не оставляем Сергея без урока
-      if (userIsSharonov || targetQueryId === "53df3c76-9d23-49aa-ba0c-6f40d7a56657" || effectiveEmail.includes("lev-drakon") || effectiveEmail.includes("sharonov")) {
-        setLessons([getSharonovActiveLesson()]);
-        setLoading(false);
-        return;
-      }
-
+      // Если в базе Supabase уроков нет (или они были удалены), список пуст
       setLessons([]);
       setLoading(false);
     };
@@ -851,7 +797,7 @@ export default function StudentCabinet() {
         const data = await res.json();
         const subs: any[] = data?.submissions || [];
 
-        const currentLessons = lessons.length > 0 ? lessons : (isSharonov ? [getSharonovActiveLesson()] : []);
+        const currentLessons = lessons;
         if (currentLessons.length === 0 && subs.length === 0) {
           if (!isCancelled) setHomeworkList([]);
           return;
