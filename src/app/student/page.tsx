@@ -339,7 +339,27 @@ export default function StudentCabinet() {
           }
         });
 
-      // 3. Список преподавателей школы из Supabase
+      // 3. Список преподавателей школы из API и Supabase
+      fetch("/api/users/search?role=TEACHER")
+        .then((r) => r.json())
+        .then((resData) => {
+          if (resData?.success && Array.isArray(resData.users) && resData.users.length > 0) {
+            const mappedTeachers: TeacherProfile[] = resData.users.map((t: any) => ({
+              id: t.id,
+              name: t.name || "Преподаватель школы",
+              username: t.username,
+              avatarUrl: t.avatarUrl || (t.id === "882042e2-d020-426c-9826-9fba5b23ad2e" ? TEACHER_VASILINA_AVATAR : undefined),
+              email: t.email,
+              subjects: t.subjects || "Все дисциплины школы",
+              experience: t.experience || "Стаж более 5 лет",
+              education: t.education || "Высшее образование",
+              bio: t.bio || "",
+            }));
+            setTeachers(mappedTeachers);
+          }
+        })
+        .catch(() => {});
+
       client
         .from("profiles")
         .select("id, name, email, bio, avatar_url")

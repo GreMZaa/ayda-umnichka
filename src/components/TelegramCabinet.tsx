@@ -12,6 +12,8 @@ import {
   Search,
   Menu,
   X,
+  UserPlus,
+  Loader2,
   ChevronLeft,
   ChevronDown,
   ChevronRight,
@@ -342,6 +344,91 @@ export default function TelegramCabinet({
           }
         });
       }
+      // Добавленные коллеги-преподаватели
+      if (Array.isArray(friendTeachers)) {
+        friendTeachers.forEach((t) => {
+          const chatId = `teacher-${t.id}`;
+          if (!list.some((c) => c.id === chatId)) {
+            list.push({
+              id: chatId,
+              name: t.name,
+              role: "teacher",
+              roleLabel: t.subjects ? `Коллега • ${t.subjects}` : "Коллега",
+              avatar: t.avatarUrl || TEACHER_VASILINA_AVATAR,
+              online: true,
+              statusText: "в сети",
+              lastMessage: "Коллега добавлен в контакты.",
+              lastMessageTime: "Сегодня",
+              unreadCount: 0,
+            });
+          }
+        });
+      }
+    } else if (currentRole === "PARENT") {
+      const parentLessons = Array.isArray(lessons) ? lessons : [];
+      parentLessons.forEach((l) => {
+        const tId = l.teacherId || l.teacher_id || l.teacher?.id || "vasilina";
+        const tName = l.teacherName || l.teacher?.name || "Шаронова Василина Владимировна";
+        const chatId = `teacher-${tId}`;
+        if (!list.some((c) => c.id === chatId)) {
+          list.push({
+            id: chatId,
+            name: tName,
+            role: "teacher",
+            roleLabel: l.subjectName ? `Преподаватель • ${l.subjectName}` : "Преподаватель",
+            avatar: l.teacherAvatar || l.teacher?.avatar_url || TEACHER_VASILINA_AVATAR,
+            online: true,
+            statusText: "в сети",
+            lastMessage: l.title ? `Урок ребёнка: «${l.title}»` : "Диалог с преподавателем",
+            lastMessageTime: l.startTime ? formatTolyatti(l.startTime, "d MMM, HH:mm") : "Недавно",
+            unreadCount: 0,
+            lessonId: l.id,
+            lessonTitle: l.title,
+            lessonTime: l.startTime ? formatTolyatti(l.startTime, "d MMMM (EE) в HH:mm") : undefined,
+            lessonSubject: l.subjectName || "Занятие",
+          });
+        }
+      });
+
+      if (Array.isArray(friendTeachers)) {
+        friendTeachers.forEach((t) => {
+          const chatId = `teacher-${t.id}`;
+          if (!list.some((c) => c.id === chatId)) {
+            list.push({
+              id: chatId,
+              name: t.name,
+              role: "teacher",
+              roleLabel: t.subjects ? `Преподаватель • ${t.subjects}` : "Преподаватель",
+              avatar: t.avatarUrl || TEACHER_VASILINA_AVATAR,
+              online: true,
+              statusText: "в сети",
+              lastMessage: "Преподаватель в списке контактов.",
+              lastMessageTime: "Сегодня",
+              unreadCount: 0,
+            });
+          }
+        });
+      }
+
+      if (Array.isArray(friendStudents)) {
+        friendStudents.forEach((st) => {
+          const chatId = `student-${st.id}`;
+          if (!list.some((c) => c.id === chatId)) {
+            list.push({
+              id: chatId,
+              name: st.name,
+              role: "student",
+              roleLabel: st.grade ? `Ученик • ${st.grade}` : "Ученик",
+              avatar: st.avatarUrl || SHARONOV_AVATAR,
+              online: true,
+              statusText: "в сети",
+              lastMessage: "Ученик в списке контактов.",
+              lastMessageTime: "Сегодня",
+              unreadCount: 0,
+            });
+          }
+        });
+      }
     }
 
     // Служба заботы и поддержки школы
@@ -366,6 +453,116 @@ export default function TelegramCabinet({
   useEffect(() => {
     setChats(buildChats());
   }, [buildChats]);
+
+  // Глобальный поиск пользователей платформы по всей школе
+  const [globalSearchResults, setGlobalSearchResults] = useState<any[]>([]);
+  const [isSearchingGlobal, setIsSearchingGlobal] = useState(false);
+  const [addedFriendIds, setAddedFriendIds] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const stored = localStorage.getItem(`ayda_friends_${currentUser.id}`);
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Запрос поиска пользователей с дебаунсом 200мс
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (!q) {
+      setGlobalSearchResults([]);
+      setIsSearchingGlobal(false);
+      return;
+    }
+
+    setIsSearchingGlobal(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/users/search?q=${encodeURIComponent(q)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.users)) {
+            // Исключаем самого себя из результатов глобального поиска
+            const filtered = data.users.filter((u: any) => u.id !== currentUser.id);
+            setGlobalSearchResults(filtered);
+          }
+        }
+      } catch (err) {
+        console.warn("Global user search error:", err);
+      } finally {
+        setIsSearchingGlobal(false);
+      }
+    }, 200);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, currentUser.id]);
+
+  // Открытие или создание диалога с найденным пользователем
+  const handleOpenChatWithUser = useCallback((user: any) => {
+    const rolePrefix = (user.role || "student").toLowerCase();
+    const chatId = `${rolePrefix}-${user.id}`;
+
+    setChats((prev) => {
+      if (prev.some((c) => c.id === chatId)) return prev;
+
+      let roleLabel = "Пользователь";
+      if (user.role === "TEACHER") {
+        roleLabel = user.subjects ? `Преподаватель • ${user.subjects}` : "Преподаватель";
+      } else if (user.role === "STUDENT") {
+        roleLabel = user.grade ? `Ученик • ${user.grade}` : "Ученик";
+      } else if (user.role === "PARENT") {
+        roleLabel = "Родитель";
+      } else if (user.role === "ADMIN") {
+        roleLabel = "Администратор";
+      }
+
+      const newChat: TelegramChat = {
+        id: chatId,
+        name: user.name || "Пользователь",
+        role: rolePrefix as any,
+        roleLabel,
+        avatar: user.avatarUrl || TEACHER_VASILINA_AVATAR,
+        online: true,
+        statusText: "в сети",
+        lastMessage: "Диалог открыт",
+        lastMessageTime: "Сейчас",
+        unreadCount: 0,
+      };
+      return [newChat, ...prev];
+    });
+
+    setActiveChatId(chatId);
+    setActiveScreen("chat");
+    setMobileSidebarOpen(false);
+  }, []);
+
+  // Добавление в контакты / друзья
+  const handleToggleFriend = useCallback((user: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setAddedFriendIds((prev) => {
+      const isFriend = prev.includes(user.id);
+      const next = isFriend ? prev.filter((id) => id !== user.id) : [...prev, user.id];
+      try {
+        localStorage.setItem(`ayda_friends_${currentUser.id}`, JSON.stringify(next));
+        if (currentRole === "STUDENT") {
+          localStorage.setItem(`ayda_student_friends_${currentUser.id}`, JSON.stringify(next));
+          window.dispatchEvent(new CustomEvent("ayda:student-friends-updated", { detail: { friends: next } }));
+        } else if (currentRole === "TEACHER") {
+          if (user.role === "STUDENT") {
+            localStorage.setItem(`ayda_teacher_friends_${currentUser.id}`, JSON.stringify(next));
+            window.dispatchEvent(new CustomEvent("ayda:teacher-friends-updated", { detail: { friends: next } }));
+          } else {
+            localStorage.setItem(`ayda_teacher_colleagues_${currentUser.id}`, JSON.stringify(next));
+            window.dispatchEvent(new CustomEvent("ayda:teacher-colleagues-updated", { detail: { friends: next } }));
+          }
+        }
+      } catch {}
+      return next;
+    });
+
+    handleOpenChatWithUser(user);
+  }, [currentUser.id, currentRole, handleOpenChatWithUser]);
 
   // Нормализованный ключ комнаты Realtime
   const getNormalizedRoomId = useCallback(
@@ -670,94 +867,276 @@ export default function TelegramCabinet({
             )}
           </div>
 
+          {/* Поисковая строка платформы: поиск учителей, учеников и диалогов */}
+          <div className="px-2.5 py-2 border-b border-slate-200/80 bg-slate-50/70">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Поиск учителей, учеников (@ник)..."
+                className="w-full pl-8 pr-7 py-1.5 rounded-xl bg-white hover:bg-white focus:bg-white border border-slate-200 focus:border-[#2481cc] text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none transition shadow-2xs"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* Основные рабочие разделы кабинета */}
           <div className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
-            <div className="space-y-0.5">
-              <div className="px-2 pb-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-                Разделы
-              </div>
-              {extraCabinetSections.map((sec) => {
-                const Icon = sec.icon;
-                const isSel = activeScreen === sec.key;
-                return (
-                  <button
-                    key={sec.key}
-                    type="button"
-                    onClick={() => {
-                      setActiveScreen(sec.key);
-                      setMobileSidebarOpen(false);
-                    }}
-                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-semibold transition cursor-pointer ${
-                      isSel
-                        ? "bg-blue-50 text-blue-700 font-bold shadow-2xs"
-                        : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <Icon className="w-4 h-4 shrink-0" />
-                      <span className="truncate">{sec.title}</span>
+            {searchQuery.trim() ? (
+              /* РЕЖИМ ПОИСКА: ДИАЛОГИ И ПОЛЬЗОВАТЕЛИ ПЛАТФОРМЫ */
+              <div className="space-y-4">
+                {/* 1. Найденные существующие диалоги */}
+                {filteredChats.length > 0 && (
+                  <div className="space-y-0.5">
+                    <div className="px-2 pb-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                      <span>Диалоги</span>
+                      <span className="text-slate-500">{filteredChats.length}</span>
                     </div>
-                    {sec.badge !== undefined && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-700 shrink-0">
-                        {sec.badge}
-                      </span>
+                    {filteredChats.map((chat) => {
+                      const isChatActive = activeScreen === "chat" && activeChatId === chat.id;
+                      return (
+                        <button
+                          key={chat.id}
+                          type="button"
+                          onClick={() => {
+                            setActiveScreen("chat");
+                            setActiveChatId(chat.id);
+                            setMobileSidebarOpen(false);
+                          }}
+                          className={`w-full flex items-center gap-2.5 p-2 rounded-xl text-xs transition cursor-pointer text-left ${
+                            isChatActive
+                              ? "bg-slate-200/90 text-slate-900 font-bold"
+                              : "text-slate-700 hover:bg-slate-100"
+                          }`}
+                        >
+                          <div className="relative shrink-0">
+                            <img
+                              src={chat.avatar}
+                              alt={chat.name}
+                              className="w-8 h-8 rounded-full object-cover border border-slate-200"
+                            />
+                            {chat.online && (
+                              <span className="absolute bottom-0 right-0 w-2 h-2 bg-emerald-500 rounded-full border border-white" />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold truncate text-slate-900 text-xs">
+                                {chat.name}
+                              </span>
+                              <span className="text-[10px] text-slate-400 shrink-0">
+                                {chat.lastMessageTime}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-500 truncate">
+                              {chat.lastMessage}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* 2. Глобальный поиск учителей и учеников по всей школе */}
+                <div className="space-y-1 pt-1">
+                  <div className="px-2 pb-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                    <span>Пользователи платформы</span>
+                    {isSearchingGlobal ? (
+                      <Loader2 className="w-3 h-3 animate-spin text-blue-500" />
+                    ) : (
+                      <span className="text-slate-500">{globalSearchResults.length}</span>
                     )}
-                  </button>
-                );
-              })}
-            </div>
+                  </div>
 
-            {/* Сообщения и диалоги */}
-            <div className="space-y-0.5 pt-2 border-t border-slate-200">
-              <div className="flex items-center justify-between px-2 pb-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-                <span>Сообщения</span>
-                <span className="text-slate-500">{filteredChats.length}</span>
+                  {isSearchingGlobal ? (
+                    <div className="p-3 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                      <span>Поиск в базе АйДаУмничка...</span>
+                    </div>
+                  ) : globalSearchResults.length === 0 && filteredChats.length === 0 ? (
+                    <div className="p-4 text-center text-slate-400 text-xs space-y-1">
+                      <Users className="w-6 h-6 mx-auto text-slate-300 stroke-[1.5]" />
+                      <p className="font-semibold text-slate-600">Никого не найдено</p>
+                      <p className="text-[10px] text-slate-400">
+                        Попробуйте ввести имя (@ник) или предмет
+                      </p>
+                    </div>
+                  ) : (
+                    globalSearchResults.map((user) => {
+                      const isFriend = addedFriendIds.includes(user.id);
+                      return (
+                        <div
+                          key={user.id}
+                          onClick={() => handleOpenChatWithUser(user)}
+                          className="w-full flex items-center justify-between gap-2 p-2 rounded-xl text-xs hover:bg-blue-50/50 transition cursor-pointer group border border-transparent hover:border-blue-100"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="relative shrink-0">
+                              <img
+                                src={user.avatarUrl}
+                                alt={user.name}
+                                className="w-8 h-8 rounded-full object-cover border border-slate-200"
+                              />
+                              <span className="absolute bottom-0 right-0 w-2 h-2 bg-emerald-500 rounded-full border border-white" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-bold text-slate-900 text-xs truncate">
+                                  {user.name}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5 text-[10px]">
+                                <span
+                                  className={`px-1.5 py-0.2 rounded font-bold ${
+                                    user.role === "TEACHER"
+                                      ? "bg-amber-100 text-amber-800"
+                                      : user.role === "STUDENT"
+                                      ? "bg-blue-100 text-blue-800"
+                                      : "bg-slate-100 text-slate-700"
+                                  }`}
+                                >
+                                  {user.role === "TEACHER"
+                                    ? "Учитель"
+                                    : user.role === "STUDENT"
+                                    ? "Ученик"
+                                    : user.role === "PARENT"
+                                    ? "Родитель"
+                                    : "Админ"}
+                                </span>
+                                {user.username && (
+                                  <span className="font-mono text-slate-400 truncate">
+                                    @{user.username}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Кнопка добавить в друзья / написать */}
+                          <button
+                            type="button"
+                            title={isFriend ? "Уже в контактах" : "Добавить в контакты"}
+                            onClick={(e) => handleToggleFriend(user, e)}
+                            className={`p-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+                              isFriend
+                                ? "bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
+                                : "bg-blue-50 text-[#2481cc] hover:bg-[#2481cc] hover:text-white"
+                            }`}
+                          >
+                            {isFriend ? (
+                              <Check className="w-3.5 h-3.5" />
+                            ) : (
+                              <UserPlus className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
               </div>
+            ) : (
+              /* ОБЫЧНЫЙ РЕЖИМ: РАЗДЕЛЫ И СООБЩЕНИЯ */
+              <>
+                <div className="space-y-0.5">
+                  <div className="px-2 pb-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                    Разделы
+                  </div>
+                  {extraCabinetSections.map((sec) => {
+                    const Icon = sec.icon;
+                    const isSel = activeScreen === sec.key;
+                    return (
+                      <button
+                        key={sec.key}
+                        type="button"
+                        onClick={() => {
+                          setActiveScreen(sec.key);
+                          setMobileSidebarOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-semibold transition cursor-pointer ${
+                          isSel
+                            ? "bg-blue-50 text-blue-700 font-bold shadow-2xs"
+                            : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <Icon className="w-4 h-4 shrink-0" />
+                          <span className="truncate">{sec.title}</span>
+                        </div>
+                        {sec.badge !== undefined && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-700 shrink-0">
+                            {sec.badge}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
 
-              {filteredChats.map((chat) => {
-                const isChatActive = activeScreen === "chat" && activeChatId === chat.id;
-                return (
-                  <button
-                    key={chat.id}
-                    type="button"
-                    onClick={() => {
-                      setActiveScreen("chat");
-                      setActiveChatId(chat.id);
-                      setMobileSidebarOpen(false);
-                    }}
-                    className={`w-full flex items-center gap-2.5 p-2 rounded-xl text-xs transition cursor-pointer text-left ${
-                      isChatActive
-                        ? "bg-slate-200/90 text-slate-900 font-bold"
-                        : "text-slate-700 hover:bg-slate-100"
-                    }`}
-                  >
-                    <div className="relative shrink-0">
-                      <img
-                        src={chat.avatar}
-                        alt={chat.name}
-                        className="w-8 h-8 rounded-full object-cover border border-slate-200"
-                      />
-                      {chat.online && (
-                        <span className="absolute bottom-0 right-0 w-2 h-2 bg-emerald-500 rounded-full border border-white" />
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold truncate text-slate-900 text-xs">
-                          {chat.name}
-                        </span>
-                        <span className="text-[10px] text-slate-400 shrink-0">
-                          {chat.lastMessageTime}
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-slate-500 truncate">
-                        {chat.lastMessage}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+                {/* Сообщения и диалоги */}
+                <div className="space-y-0.5 pt-2 border-t border-slate-200">
+                  <div className="flex items-center justify-between px-2 pb-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                    <span>Сообщения</span>
+                    <span className="text-slate-500">{filteredChats.length}</span>
+                  </div>
+
+                  {filteredChats.map((chat) => {
+                    const isChatActive = activeScreen === "chat" && activeChatId === chat.id;
+                    return (
+                      <button
+                        key={chat.id}
+                        type="button"
+                        onClick={() => {
+                          setActiveScreen("chat");
+                          setActiveChatId(chat.id);
+                          setMobileSidebarOpen(false);
+                        }}
+                        className={`w-full flex items-center gap-2.5 p-2 rounded-xl text-xs transition cursor-pointer text-left ${
+                          isChatActive
+                            ? "bg-slate-200/90 text-slate-900 font-bold"
+                            : "text-slate-700 hover:bg-slate-100"
+                        }`}
+                      >
+                        <div className="relative shrink-0">
+                          <img
+                            src={chat.avatar}
+                            alt={chat.name}
+                            className="w-8 h-8 rounded-full object-cover border border-slate-200"
+                          />
+                          {chat.online && (
+                            <span className="absolute bottom-0 right-0 w-2 h-2 bg-emerald-500 rounded-full border border-white" />
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold truncate text-slate-900 text-xs">
+                              {chat.name}
+                            </span>
+                            <span className="text-[10px] text-slate-400 shrink-0">
+                              {chat.lastMessageTime}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 truncate">
+                            {chat.lastMessage}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
         </aside>
 

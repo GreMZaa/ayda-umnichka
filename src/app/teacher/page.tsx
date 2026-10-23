@@ -434,7 +434,47 @@ export default function TeacherCabinet() {
           }
         });
 
-      // 3. Список учеников напрямую из Supabase
+      // 3. Список учеников напрямую из API и Supabase
+      fetch("/api/users/search?role=STUDENT")
+        .then((r) => r.json())
+        .then((resData) => {
+          if (resData?.success && Array.isArray(resData.users) && resData.users.length > 0) {
+            const mappedStudents: StudentProfile[] = resData.users.map((s: any) => ({
+              id: s.id,
+              name: s.name || "Ученик",
+              username: s.username,
+              grade: s.grade || "Начальная школа",
+              school: s.school || "АйДаУмничка",
+              avatarUrl: s.avatarUrl,
+              email: s.email,
+            }));
+            setStudents(mappedStudents);
+          }
+        })
+        .catch(() => {});
+
+      fetch("/api/users/search?role=TEACHER")
+        .then((r) => r.json())
+        .then((resData) => {
+          if (resData?.success && Array.isArray(resData.users) && resData.users.length > 0) {
+            const mappedColleagues: ColleagueProfile[] = resData.users
+              .filter((t: any) => t.id !== currentUserId)
+              .map((t: any) => ({
+                id: t.id,
+                name: t.name || "Преподаватель школы",
+                username: t.username,
+                avatarUrl: t.avatarUrl,
+                email: t.email,
+                subjects: t.subjects || "Все дисциплины школы",
+                experience: t.experience || "Стаж более 5 лет",
+                education: t.education || "Высшее образование",
+                bio: t.bio || "",
+              }));
+            setColleagues(mappedColleagues);
+          }
+        })
+        .catch(() => {});
+
       client
         .from("profiles")
         .select("id, name, email, bio, avatar_url")

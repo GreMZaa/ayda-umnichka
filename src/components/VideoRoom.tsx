@@ -233,6 +233,8 @@ export default function VideoRoom({
   const myPeerId = useRef(typeof window !== "undefined" ? Math.random().toString(36).substring(2, 9) : "peer").current;
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const iceCandidateQueueRef = useRef<RTCIceCandidateInit[]>([]);
+  const makingOfferRef = useRef(false);
+  const [audioNeedsUnlock, setAudioNeedsUnlock] = useState(false);
 
   const currentCamOnRef = useRef(camOn);
   currentCamOnRef.current = camOn;
@@ -331,15 +333,28 @@ export default function VideoRoom({
       pc.ontrack = (event) => {
         const [stream] = event.streams;
         const targetStream = stream || new MediaStream([event.track]);
-        remoteStreamRef.current = targetStream;
-        setRemoteStream(targetStream);
-        setPartnerCamOn(true);
-        syncRemoteVideos(targetStream);
+        if (!remoteStreamRef.current) {
+          remoteStreamRef.current = targetStream;
+        } else {
+          if (!remoteStreamRef.current.getTracks().some((t) => t.id === event.track.id)) {
+            remoteStreamRef.current.addTrack(event.track);
+          }
+        }
+        setRemoteStream(remoteStreamRef.current);
+        if (event.track.kind === "video") {
+          setPartnerCamOn(true);
+        }
+        if (event.track.kind === "audio") {
+          setPartnerMicOn(true);
+        }
+        syncRemoteVideos(remoteStreamRef.current);
 
         event.track.onended = () => {
-          const hasLiveVideo = targetStream.getVideoTracks().some((t) => t.readyState === "live");
-          if (!hasLiveVideo) {
-            setPartnerCamOn(false);
+          if (remoteStreamRef.current) {
+            const hasLiveVideo = remoteStreamRef.current.getVideoTracks().some((t) => t.readyState === "live");
+            if (!hasLiveVideo) {
+              setPartnerCamOn(false);
+            }
           }
         };
       };
@@ -395,10 +410,12 @@ export default function VideoRoom({
     if (!pc || !channelRef.current) return;
 
     try {
+      makingOfferRef.current = true;
       const offer = await pc.createOffer({
         offerToReceiveAudio: true,
         offerToReceiveVideo: true,
       });
+      if (pc.signalingState !== "stable") return;
       await pc.setLocalDescription(offer);
 
       channelRef.current.send({
@@ -412,6 +429,8 @@ export default function VideoRoom({
       });
     } catch (err) {
       console.error("WebRTC createOffer error:", err);
+    } finally {
+      makingOfferRef.current = false;
     }
   }, [getOrCreatePeerConnection, myPeerId, userRole]);
 
@@ -420,21 +439,10 @@ export default function VideoRoom({
     if (camOn) {
       if (localStreamRef.current) {
         localStreamRef.current.getVideoTracks().forEach((track) => {
-          track.stop();
-          localStreamRef.current?.removeTrack(track);
+          track.enabled = false;
         });
       }
-      if (peerConnectionRef.current) {
-        const videoSender = peerConnectionRef.current.getSenders().find((s) => s.track && s.track.kind === "video");
-        if (videoSender) {
-          try {
-            peerConnectionRef.current.removeTrack(videoSender);
-          } catch (e) {}
-        }
-      }
       setCamOn(false);
-      syncLocalVideos(localStreamRef.current);
-      initiateCall();
       channelRef.current?.send({
         type: "broadcast",
         event: "webrtc_media_state",
@@ -442,50 +450,39 @@ export default function VideoRoom({
       });
     } else {
       try {
-        let stream: MediaStream;
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
-            audio: micOn,
-          });
-        } catch {
-          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        }
-
-        if (localStreamRef.current) {
-          stream.getTracks().forEach((t) => localStreamRef.current?.addTrack(t));
+        let videoTrack = localStreamRef.current?.getVideoTracks()[0];
+        if (videoTrack) {
+          videoTrack.enabled = true;
         } else {
-          localStreamRef.current = stream;
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
+            audio: false,
+          });
+          videoTrack = stream.getVideoTracks()[0];
+          if (videoTrack) {
+            if (!localStreamRef.current) {
+              localStreamRef.current = new MediaStream();
+            }
+            localStreamRef.current.addTrack(videoTrack);
+            const pc = getOrCreatePeerConnection();
+            if (pc) {
+              const senders = pc.getSenders();
+              const existingVideo = senders.find((s) => s.track?.kind === "video");
+              if (existingVideo) {
+                existingVideo.replaceTrack(videoTrack);
+              } else {
+                try {
+                  pc.addTrack(videoTrack, localStreamRef.current);
+                } catch (e) {}
+              }
+            }
+          }
         }
 
         setCamOn(true);
         syncLocalVideos(localStreamRef.current);
-
-        const pc = getOrCreatePeerConnection();
-        if (pc) {
-          const videoTrack = stream.getVideoTracks()[0];
-          if (videoTrack) {
-            const senders = pc.getSenders();
-            const existingSender = senders.find((s) => s.track?.kind === "video");
-            if (existingSender) {
-              existingSender.replaceTrack(videoTrack);
-            } else {
-              pc.addTrack(videoTrack, localStreamRef.current);
-            }
-          }
-          const audioTrack = stream.getAudioTracks()[0];
-          if (audioTrack) {
-            const senders = pc.getSenders();
-            const existingSender = senders.find((s) => s.track?.kind === "audio");
-            if (existingSender) {
-              existingSender.replaceTrack(audioTrack);
-            } else {
-              pc.addTrack(audioTrack, localStreamRef.current);
-            }
-          }
-        }
-
         initiateCall();
+
         channelRef.current?.send({
           type: "broadcast",
           event: "webrtc_media_state",
@@ -518,7 +515,15 @@ export default function VideoRoom({
           localStreamRef.current.addTrack(audioTrack);
           const pc = getOrCreatePeerConnection();
           if (pc) {
-            pc.addTrack(audioTrack, localStreamRef.current);
+            const senders = pc.getSenders();
+            const existingAudio = senders.find((s) => s.track?.kind === "audio");
+            if (existingAudio) {
+              existingAudio.replaceTrack(audioTrack);
+            } else {
+              try {
+                pc.addTrack(audioTrack, localStreamRef.current);
+              } catch (e) {}
+            }
             initiateCall();
           }
         }
@@ -533,6 +538,100 @@ export default function VideoRoom({
       payload: { senderId: myPeerId, senderRole: userRole, camOn, micOn: nextMicState },
     });
   };
+
+  // 1. Автоматический запуск камеры и микрофона при входе в урок
+  useEffect(() => {
+    let isMounted = true;
+
+    const startMedia = async () => {
+      try {
+        let stream: MediaStream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
+            audio: true,
+          });
+          if (!isMounted) {
+            stream.getTracks().forEach((t) => t.stop());
+            return;
+          }
+          setCamOn(true);
+          setMicOn(true);
+        } catch (videoErr) {
+          console.warn("Камера недоступна, подключаем аудиопоток:", videoErr);
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          if (!isMounted) {
+            stream.getTracks().forEach((t) => t.stop());
+            return;
+          }
+          setCamOn(false);
+          setMicOn(true);
+        }
+
+        localStreamRef.current = stream;
+        syncLocalVideos(stream);
+
+        const pc = getOrCreatePeerConnection();
+        if (pc) {
+          stream.getTracks().forEach((track) => {
+            const senders = pc.getSenders();
+            const existingSender = senders.find((s) => s.track?.kind === track.kind);
+            if (existingSender) {
+              existingSender.replaceTrack(track);
+            } else {
+              try {
+                pc.addTrack(track, stream);
+              } catch (e) {}
+            }
+          });
+        }
+
+        // Оповещаем собеседника о готовности медиапотока
+        if (channelRef.current) {
+          channelRef.current.send({
+            type: "broadcast",
+            event: "webrtc_presence",
+            payload: {
+              senderId: myPeerId,
+              senderRole: userRole,
+              camOn: stream.getVideoTracks().length > 0,
+              micOn: true,
+            },
+          });
+        }
+      } catch (err) {
+        console.warn("Не удалось автоматически получить медиаустройства:", err);
+      }
+    };
+
+    startMedia();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [getOrCreatePeerConnection, myPeerId, userRole, syncLocalVideos]);
+
+  // 2. Разблокировка звука при первом клике или нажатии (Chrome/Safari Autoplay Policy)
+  useEffect(() => {
+    const handleUnlockAudio = () => {
+      if (remoteAudioRef.current && remoteAudioRef.current.srcObject) {
+        remoteAudioRef.current
+          .play()
+          .then(() => setAudioNeedsUnlock(false))
+          .catch(() => {});
+      }
+    };
+
+    window.addEventListener("click", handleUnlockAudio);
+    window.addEventListener("touchstart", handleUnlockAudio);
+    window.addEventListener("keydown", handleUnlockAudio);
+
+    return () => {
+      window.removeEventListener("click", handleUnlockAudio);
+      window.removeEventListener("touchstart", handleUnlockAudio);
+      window.removeEventListener("keydown", handleUnlockAudio);
+    };
+  }, []);
 
   useEffect(() => {
     if (camOn && localStreamRef.current) {
@@ -1176,24 +1275,38 @@ export default function VideoRoom({
 
         try {
           if (payload.description) {
-            try {
-              await pc.setRemoteDescription(payload.description);
-            } catch (e) {
-              console.warn("setRemoteDescription error:", e);
+            const isOffer = payload.description.type === "offer";
+            const isPolite = userRole === "STUDENT" || myPeerId < payload.senderId;
+            const offerCollision = isOffer && (pc.signalingState !== "stable" || makingOfferRef.current);
+
+            if (offerCollision) {
+              if (!isPolite) {
+                // Impolite peer ignores incoming colliding offer
+                return;
+              }
+              // Polite peer yields by rolling back local offer
+              try {
+                await pc.setLocalDescription({ type: "rollback" });
+              } catch (rollbackErr) {
+                console.warn("Rollback failed:", rollbackErr);
+              }
             }
 
+            await pc.setRemoteDescription(new RTCSessionDescription(payload.description));
+
+            // Flush queued ICE candidates
             while (iceCandidateQueueRef.current.length > 0) {
               const c = iceCandidateQueueRef.current.shift();
               if (c) {
                 try {
-                  await pc.addIceCandidate(c);
+                  await pc.addIceCandidate(new RTCIceCandidate(c));
                 } catch (e) {
                   console.warn("Error adding queued candidate:", e);
                 }
               }
             }
 
-            if (payload.description.type === "offer") {
+            if (isOffer) {
               const answer = await pc.createAnswer();
               await pc.setLocalDescription(answer);
               channel.send({
@@ -1209,7 +1322,7 @@ export default function VideoRoom({
           } else if (payload.candidate) {
             if (pc.remoteDescription && pc.remoteDescription.type) {
               try {
-                await pc.addIceCandidate(payload.candidate);
+                await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
               } catch (e) {}
             } else {
               iceCandidateQueueRef.current.push(payload.candidate);
@@ -1230,6 +1343,9 @@ export default function VideoRoom({
       })
       .on("broadcast", { event: "webrtc_presence" }, ({ payload }) => {
         if (!payload || payload.senderId === myPeerId) return;
+        if (typeof payload.camOn === "boolean") setPartnerCamOn(payload.camOn);
+        if (typeof payload.micOn === "boolean") setPartnerMicOn(payload.micOn);
+
         channel.send({
           type: "broadcast",
           event: "webrtc_presence_ack",
@@ -1240,7 +1356,10 @@ export default function VideoRoom({
             micOn: currentMicOnRef.current,
           },
         });
-        if (userRole === "TEACHER" || currentCamOnRef.current) {
+
+        // Initiator creates offer to avoid glare
+        const shouldInitiate = userRole === "TEACHER" || (userRole !== "STUDENT" && myPeerId < payload.senderId);
+        if (shouldInitiate) {
           initiateCall();
         }
       })
@@ -1252,7 +1371,9 @@ export default function VideoRoom({
         if (typeof payload.micOn === "boolean") {
           setPartnerMicOn(payload.micOn);
         }
-        if (userRole === "TEACHER" || currentCamOnRef.current) {
+
+        const shouldInitiate = userRole === "TEACHER" || (userRole !== "STUDENT" && myPeerId < payload.senderId);
+        if (shouldInitiate) {
           initiateCall();
         }
       })
@@ -1934,6 +2055,24 @@ export default function VideoRoom({
         </div>
       )}
 
+      {/* Плашка разблокировки звука при политике автовоспроизведения браузера */}
+      {audioNeedsUnlock && (
+        <div
+          onClick={() => {
+            if (remoteAudioRef.current) {
+              remoteAudioRef.current
+                .play()
+                .then(() => setAudioNeedsUnlock(false))
+                .catch(() => {});
+            }
+          }}
+          className="fixed top-14 left-1/2 -translate-x-1/2 z-[100] px-4 py-2.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-xs shadow-2xl flex items-center gap-2 cursor-pointer border border-white/30 animate-bounce"
+        >
+          <Volume2 className="w-4 h-4 text-amber-300 animate-pulse shrink-0" />
+          <span>Нажмите здесь, чтобы включить звук собеседника 🔊</span>
+        </div>
+      )}
+
       {/* Всплывающее уведомление о Picture-in-Picture */}
       {pipToast && (
         <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[100] bg-slate-900/95 text-white px-4 py-2.5 rounded-2xl shadow-2xl flex items-center gap-2.5 text-xs border border-slate-700 animate-in fade-in slide-in-from-top-3 duration-200 max-w-sm text-center">
@@ -1945,7 +2084,20 @@ export default function VideoRoom({
       {/* 2. ОСНОВНАЯ ЗОНА */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative min-h-0">
         {/* Фоновое воспроизведение звука собеседника (не прерывается при смене вкладок) */}
-        <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
+        <audio
+          ref={(el) => {
+            (remoteAudioRef as any).current = el;
+            if (el && remoteStreamRef.current) {
+              if (el.srcObject !== remoteStreamRef.current) {
+                el.srcObject = remoteStreamRef.current;
+              }
+              el.play().catch(() => setAudioNeedsUnlock(true));
+            }
+          }}
+          autoPlay
+          playsInline
+          className="hidden"
+        />
 
         {/* Системный Picture-in-Picture fallback (для работы поверх всех приложений даже при выключенной камере) */}
         <video
@@ -2731,7 +2883,7 @@ export default function VideoRoom({
               /* В PiP находится собеседник */
               partnerCamOn && remoteStream ? (
                 <video
-                  ref={remoteVideoMainRef}
+                  ref={remoteVideoSideRef}
                   autoPlay
                   playsInline
                   {...{ autoPictureInPicture: "true" }}
@@ -2753,7 +2905,7 @@ export default function VideoRoom({
               /* В PiP находится текущий пользователь */
               camOn ? (
                 <video
-                  ref={localVideoMainRef}
+                  ref={localVideoSideRef}
                   autoPlay
                   muted
                   playsInline
