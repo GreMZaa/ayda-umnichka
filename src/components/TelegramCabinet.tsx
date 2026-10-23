@@ -235,6 +235,19 @@ export default function TelegramCabinet({
   // Мобильное меню
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
+  // Закрытие мобильного меню по нажатию клавиши Escape
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setMobileSidebarOpen(false);
+      }
+    };
+    if (mobileSidebarOpen) {
+      window.addEventListener("keydown", handleKeyDown);
+    }
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [mobileSidebarOpen]);
+
   // Живые школьные часы (Тольятти, UTC+4)
   const [tltTime, setTltTime] = useState<string>(() => getTolyattiNowTimeString());
   useEffect(() => {
@@ -835,12 +848,23 @@ export default function TelegramCabinet({
       {/* Главный контейнер приложения */}
       <div className="flex flex-1 w-full h-full bg-white md:rounded-3xl border border-slate-200 shadow-xl overflow-hidden relative">
 
+        {/* Затемнение фона при открытом бургер-меню на мобильном: клик справа по странице закрывает меню */}
+        {mobileSidebarOpen && (
+          <div
+            className="fixed inset-0 bg-slate-950/50 backdrop-blur-xs z-40 lg:hidden transition-opacity cursor-pointer touch-manipulation"
+            onClick={() => setMobileSidebarOpen(false)}
+            aria-label="Закрыть боковое меню"
+          />
+        )}
+
         {/* =========================================================================
             БОКОВАЯ ПАНЕЛЬ РАЗДЕЛОВ И ЧАТОВ (260px)
            ========================================================================= */}
         <aside
-          className={`w-64 bg-[#fafbfc] border-r border-slate-200 flex flex-col shrink-0 h-full select-none z-20 ${
-            mobileSidebarOpen ? "fixed inset-0 z-40 bg-white" : "hidden lg:flex"
+          className={`w-72 max-w-[82vw] bg-[#fafbfc] border-r border-slate-200 flex flex-col shrink-0 h-full select-none z-50 transition-transform ${
+            mobileSidebarOpen
+              ? "fixed inset-y-0 left-0 bg-white shadow-2xl animate-in slide-in-from-left duration-200"
+              : "hidden lg:flex"
           }`}
         >
           {/* Фирменный логотип школы */}

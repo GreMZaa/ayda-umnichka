@@ -68,15 +68,25 @@ export default function Navbar() {
   const isAdmin = pathname.startsWith("/admin");
   const isInsideCabinet = isParent || isStudent || isTeacher || isAdmin;
 
-  // Закрытие выпадающего меню пользователя по клику снаружи
+  // Закрытие выпадающего меню пользователя и мобильного бургера по клику снаружи или Escape
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
         setUserMenuOpen(false);
       }
     }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setUserMenuOpen(false);
+        setMobileMenuOpen(false);
+      }
+    }
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, []);
 
   // Определение профиля текущего вошедшего пользователя из сессии Supabase или роли
@@ -553,9 +563,18 @@ export default function Navbar() {
           </div>
         </div>
 
+        {/* Затемнение фона при открытом бургер-меню: клик справа по странице закрывает бургер */}
+        {!isInsideCabinet && mobileMenuOpen && (
+          <div
+            className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs z-30 lg:hidden cursor-pointer touch-manipulation"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-label="Закрыть мобильное меню"
+          />
+        )}
+
         {/* Мобильное меню в стиле Фоксфорда (только для публичных страниц) */}
         {!isInsideCabinet && mobileMenuOpen && (
-          <div className="lg:hidden border-t border-slate-200 bg-white px-4 py-4 space-y-4 shadow-xl animate-in slide-in-from-top-2 duration-150">
+          <div className="lg:hidden border-t border-slate-200 bg-white px-4 py-4 space-y-4 shadow-xl animate-in slide-in-from-top-2 duration-150 relative z-40">
             {/* Блок авторизации для мобильных гостей */}
             {!authProfile && (
               <div className="grid grid-cols-2 gap-2 pb-2 border-b border-slate-100">
