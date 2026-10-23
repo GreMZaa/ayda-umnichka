@@ -2158,25 +2158,25 @@ export default function TeacherCabinet() {
             }
             modalMouseDownRef.current = null;
           }}
-          className="fixed inset-0 z-[100] w-screen h-screen min-h-screen bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
+          className="fixed inset-0 z-[100] w-screen h-screen min-h-screen bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-200"
         >
           <div
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 space-y-5 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto relative animate-in fade-in zoom-in-95 duration-150"
+            className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 space-y-5 shadow-2xl border border-slate-100 max-h-[92vh] overflow-y-auto relative animate-in zoom-in-95 duration-150"
           >
             {/* Заголовок модального окна */}
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                  <Plus className="w-5 h-5 stroke-[3]" />
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
+                  <Calendar className="w-5 h-5 stroke-[2.5]" />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-slate-900 text-base sm:text-lg">
-                    Создать новый урок
+                  <h3 className="font-extrabold text-slate-900 text-lg leading-tight">
+                    Новое занятие
                   </h3>
-                  <p className="text-xs text-slate-500">
-                    Урок сразу появится в расписании ученика и родителя
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Урок появится в расписании ученика и родителя
                   </p>
                 </div>
               </div>
@@ -2184,7 +2184,7 @@ export default function TeacherCabinet() {
               <button
                 type="button"
                 onClick={() => setCreateModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                className="text-slate-400 hover:text-slate-700 p-2 rounded-xl hover:bg-slate-100 transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -2200,30 +2200,15 @@ export default function TeacherCabinet() {
             {createSuccess && (
               <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 font-bold flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>Урок успешно создан и записан в Supabase!</span>
+                <span>Урок успешно запланирован!</span>
               </div>
             )}
 
             <form onSubmit={handleCreateLessonSubmit} className="space-y-4">
-              {/* Название урока */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Название урока / тема занятия:
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="Например: Разбор олимпиадных задач и дробей"
-                  className="w-full p-3 rounded-2xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition"
-                />
-              </div>
-
-              {/* Выбор или ввод предмета */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-bold text-slate-700">
+              {/* 1. Выбор предмета */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700">
                     Учебный предмет:
                   </label>
                   <button
@@ -2235,60 +2220,69 @@ export default function TeacherCabinet() {
                         if (cur) setCustomSubjectName(cur.name);
                       }
                     }}
-                    className="text-[11px] text-blue-600 font-bold hover:text-blue-800 transition inline-flex items-center gap-1 cursor-pointer"
+                    className="text-[11px] text-blue-600 font-semibold hover:underline cursor-pointer"
                   >
-                    {isCustomSubject ? "📋 Выбрать из списка" : "✏️ Вписать свой предмет"}
+                    {isCustomSubject ? "Выбрать из списка" : "+ Свой предмет"}
                   </button>
                 </div>
 
                 {isCustomSubject ? (
-                  <div className="space-y-1">
-                    <input
-                      type="text"
-                      required
-                      value={customSubjectName}
-                      onChange={(e) => setCustomSubjectName(e.target.value)}
-                      placeholder="Например: Ментальная арифметика, Шахматы, Немецкий"
-                      list="subjects-datalist"
-                      className="w-full p-3 rounded-2xl border-2 border-blue-500 text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 bg-blue-50/20 shadow-2xs"
-                      autoFocus
-                    />
-                    <datalist id="subjects-datalist">
-                      {subjects.map((sub) => (
-                        <option key={sub.id} value={sub.name} />
-                      ))}
-                    </datalist>
-                    <p className="text-[10px] text-slate-400">
-                      Введите название предмета или выберите подсказку
-                    </p>
-                  </div>
+                  <input
+                    type="text"
+                    required
+                    value={customSubjectName}
+                    onChange={(e) => setCustomSubjectName(e.target.value)}
+                    placeholder="Например: Ментальная арифметика, Шахматы"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-blue-400 text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-blue-50/20"
+                    autoFocus
+                  />
                 ) : (
-                  <select
-                    value={selectedSubjectId}
-                    onChange={(e) => {
-                      if (e.target.value === "__custom__") {
-                        setIsCustomSubject(true);
-                      } else {
-                        setSelectedSubjectId(e.target.value);
-                      }
-                    }}
-                    className="w-full p-3 rounded-2xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 bg-white"
-                  >
-                    {subjects.map((sub) => (
-                      <option key={sub.id} value={sub.id}>
-                        {sub.name}
-                      </option>
-                    ))}
-                    <option value="__custom__">✏️ Вписать свой предмет вручную...</option>
-                  </select>
+                  <div className="flex flex-wrap gap-1.5">
+                    {subjects.map((sub) => {
+                      const isSelected = selectedSubjectId === sub.id;
+                      return (
+                        <button
+                          key={sub.id}
+                          type="button"
+                          onClick={() => setSelectedSubjectId(sub.id)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                            isSelected
+                              ? "bg-blue-600 text-white shadow-xs"
+                              : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                          }`}
+                        >
+                          <span
+                            className="w-2 h-2 rounded-full"
+                            style={{ backgroundColor: isSelected ? "#ffffff" : sub.color || "#2563eb" }}
+                          />
+                          <span>{sub.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
 
-              {/* Выбор ученика */}
+              {/* 2. Название / тема урока */}
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-bold text-slate-700">
-                    Ученик:
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Тема урока: <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  placeholder="Например: Разбор олимпиадных задач и дробей"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-500/10 transition"
+                />
+              </div>
+
+              {/* 3. Ученик */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-bold text-slate-700">
+                    Ученик: <span className="text-rose-500">*</span>
                   </label>
                   <button
                     type="button"
@@ -2297,17 +2291,17 @@ export default function TeacherCabinet() {
                       setSearchFriendQuery("");
                       setAddFriendModalOpen(true);
                     }}
-                    className="text-[11px] text-[#2481cc] font-bold hover:underline transition inline-flex items-center gap-1 cursor-pointer"
+                    className="text-[11px] text-blue-600 font-semibold hover:underline inline-flex items-center gap-1 cursor-pointer"
                   >
                     <UserPlus className="w-3.5 h-3.5" />
-                    <span>+ Добавить ученика</span>
+                    <span>+ Новый ученик</span>
                   </button>
                 </div>
 
                 {friends.length === 0 ? (
-                  <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-2">
-                    <p className="font-semibold leading-relaxed">
-                      💡 У вас пока нет прикреплённых учеников. Добавьте ученика, чтобы назначить занятие.
+                  <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-center justify-between gap-3">
+                    <p className="font-medium leading-snug">
+                      У вас пока нет добавленных учеников. Добавьте ученика для назначения.
                     </p>
                     <button
                       type="button"
@@ -2316,74 +2310,74 @@ export default function TeacherCabinet() {
                         setSearchFriendQuery("");
                         setAddFriendModalOpen(true);
                       }}
-                      className="px-3.5 py-2 rounded-xl bg-[#2481cc] hover:bg-[#1f70b0] text-white font-bold text-xs transition inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition shrink-0"
                     >
-                      <UserPlus className="w-3.5 h-3.5" />
-                      <span>+ Добавить ученика</span>
+                      Добавить
                     </button>
                   </div>
                 ) : (
                   <select
                     value={selectedStudentId}
                     onChange={(e) => setSelectedStudentId(e.target.value)}
-                    className="w-full p-3 rounded-2xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 bg-white"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 bg-white"
                   >
                     {friends.map((st) => (
                       <option key={st.id} value={st.id}>
-                        {st.name} ({formatUsername(st.username)}) — {st.grade}
+                        {st.name} ({formatUsername(st.username)}) — {st.grade || "Ученик"}
                       </option>
                     ))}
                   </select>
                 )}
               </div>
 
-              {/* Дата и время */}
+              {/* 4. Дата и время */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Дата урока:
+                    Дата занятия:
                   </label>
                   <input
                     type="date"
                     required
                     value={lessonDate}
                     onChange={(e) => setLessonDate(e.target.value)}
-                    className="w-full p-3 rounded-2xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 bg-white"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 bg-white"
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Время начала (по Тольятти, UTC+4):
+                    Время начала:
                   </label>
                   <input
                     type="time"
                     required
                     value={lessonTime}
                     onChange={(e) => setLessonTime(e.target.value)}
-                    className="w-full p-3 rounded-2xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 bg-white"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 bg-white"
                   />
                 </div>
               </div>
 
-              {/* Длительность */}
+              {/* 5. Длительность занятия */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Длительность занятия:
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Длительность:
                 </label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   {[
-                    { label: "45 минут (стандарт)", val: 45 },
-                    { label: "60 минут (углублённый)", val: 60 },
+                    { label: "45 мин", val: 45 },
+                    { label: "60 мин", val: 60 },
+                    { label: "90 мин", val: 90 },
                   ].map((dur) => (
                     <button
                       type="button"
                       key={dur.val}
                       onClick={() => setLessonDurationMinutes(dur.val)}
-                      className={`py-2.5 px-3 rounded-xl text-xs font-bold transition border cursor-pointer ${
+                      className={`py-2 px-3 rounded-xl text-xs font-bold transition border cursor-pointer text-center ${
                         lessonDurationMinutes === dur.val
-                          ? "bg-blue-50 border-blue-600 text-blue-700 shadow-2xs"
-                          : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                          ? "bg-blue-600 border-blue-600 text-white shadow-xs"
+                          : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
                       }`}
                     >
                       {dur.label}
@@ -2392,34 +2386,17 @@ export default function TeacherCabinet() {
                 </div>
               </div>
 
-              {/* Комната видеокласса */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-bold text-slate-700">
-                    Комната видеокласса:
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setLessonRoomName(`room-${Math.random().toString(36).substring(2, 8)}`)}
-                    className="text-[11px] text-blue-600 font-bold hover:underline"
-                  >
-                    Сгенерировать случайную
-                  </button>
+              {/* 6. Видеокомната (создаётся автоматически) */}
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs text-slate-600">
+                <div className="flex items-center gap-2">
+                  <Video className="w-4 h-4 text-blue-600 shrink-0" />
+                  <span className="font-medium">Видеокласс с доской и чатом</span>
                 </div>
-                <div className="relative">
-                  <Video className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    required
-                    value={lessonRoomName}
-                    onChange={(e) => setLessonRoomName(e.target.value)}
-                    className="w-full pl-9 pr-3 py-3 rounded-2xl border border-slate-200 text-xs font-mono text-slate-900 focus:outline-none focus:border-blue-600"
-                  />
-                </div>
+                <span className="text-[11px] text-slate-400 font-semibold">Автоматически</span>
               </div>
 
               {/* Кнопки действий */}
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+              <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setCreateModalOpen(false)}
@@ -2430,9 +2407,16 @@ export default function TeacherCabinet() {
                 <button
                   type="submit"
                   disabled={creatingLesson || friends.length === 0}
-                  className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs shadow-md shadow-blue-500/20 transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {creatingLesson ? "Создание..." : "Создать и назначить урок"}
+                  {creatingLesson ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Создание...</span>
+                    </>
+                  ) : (
+                    <span>Запланировать урок</span>
+                  )}
                 </button>
               </div>
             </form>
