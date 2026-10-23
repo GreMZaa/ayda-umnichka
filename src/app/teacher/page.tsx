@@ -302,6 +302,11 @@ export default function TeacherCabinet() {
     // 0. Сначала читаем локально сохраненный профиль в приоритете
     const applyLocalProfile = () => {
       try {
+        const savedAvatar = localStorage.getItem("ayda_avatar_teacher");
+        if (savedAvatar) {
+          setTeacherAvatar(savedAvatar);
+        }
+
         const saved =
           localStorage.getItem("ayda_profile_teacher") ||
           localStorage.getItem("ayda_current_user_profile");
@@ -339,7 +344,12 @@ export default function TeacherCabinet() {
           if (p) {
             setTeacherId(p.id);
             if (p.name) setTeacherName(p.name);
-            if (p.avatar_url) setTeacherAvatar(p.avatar_url);
+            const savedAvatar = localStorage.getItem("ayda_avatar_teacher");
+            if (savedAvatar) {
+              setTeacherAvatar(savedAvatar);
+            } else if (p.avatar_url) {
+              setTeacherAvatar(p.avatar_url);
+            }
             if (p.email) setTeacherEmail(p.email);
             if (p.phone) setTeacherPhone(p.phone);
 
@@ -1535,12 +1545,17 @@ export default function TeacherCabinet() {
         friendStudents={friends}
         friendTeachers={friendColleagues}
         onRefreshData={() => window.location.reload()}
+        onProfileUpdated={(upd) => {
+          if (upd.avatarUrl) setTeacherAvatar(upd.avatarUrl);
+          if (upd.name) setTeacherName(upd.name);
+          if (upd.username) setTeacherUsername(upd.username);
+        }}
         extraCabinetSections={[
           {
             key: "schedule",
             title: "Расписание и уроки",
             icon: Calendar,
-            badge: lessons.length,
+            badge: upcomingLessons.length > 0 ? upcomingLessons.length : undefined,
             render: () => (
               <div className="space-y-6">
                 {liveLessons.length > 0 && (
@@ -1589,15 +1604,7 @@ export default function TeacherCabinet() {
                   </div>
                 )}
 
-                <div className="flex items-center justify-between px-1">
-                  <div>
-                    <h2 className="text-base font-extrabold text-slate-900">
-                      Расписание и учебные занятия
-                    </h2>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Просматривайте занятия по дням недели в сетке или переключайтесь на общий список уроков
-                    </p>
-                  </div>
+                <div className="flex items-center justify-end px-1">
                   <button
                     type="button"
                     onClick={() => handleOpenCreateModal()}
@@ -1623,7 +1630,6 @@ export default function TeacherCabinet() {
             key: "students",
             title: "Мои ученики",
             icon: Users,
-            badge: friends.length,
             render: () => (
               <div className="space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1">
@@ -1776,7 +1782,10 @@ export default function TeacherCabinet() {
             key: "journal",
             title: "Журнал и отчёты",
             icon: FileText,
-            badge: completedLessons.length,
+            badge: (() => {
+              const pendingReportCount = completedLessons.filter((l) => !l.notes || l.notes.length === 0).length;
+              return pendingReportCount > 0 ? pendingReportCount : undefined;
+            })(),
             render: () => (
               <div className="space-y-4">
                 <div className="flex items-center justify-between px-1">
@@ -1874,7 +1883,7 @@ export default function TeacherCabinet() {
             key: "homework",
             title: "Проверка ДЗ",
             icon: BookOpen,
-            badge: pendingHwCount,
+            badge: pendingHwCount > 0 ? pendingHwCount : undefined,
             render: () => (
               <div className="space-y-4">
                 <div className="flex items-center justify-between px-1">
@@ -2006,7 +2015,6 @@ export default function TeacherCabinet() {
             key: "colleagues",
             title: "Коллеги",
             icon: GraduationCap,
-            badge: friendColleagues.length,
             render: () => (
               <div className="space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1">

@@ -312,12 +312,40 @@ export default function EditProfileModal({
     }
 
     try {
+      // 1. Быстрое превью
+      const objectUrl = URL.createObjectURL(file);
+      setAvatarUrl(objectUrl);
+
+      // 2. Загрузка через /api/upload для получения постоянной ссылки
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.url) {
+          setAvatarUrl(data.url);
+          setErrorMsg(null);
+          return;
+        }
+      }
+
+      // Fallback на сжатие в base64
       const compressedDataUrl = await compressImage(file, 240, 0.85);
       setAvatarUrl(compressedDataUrl);
       setErrorMsg(null);
     } catch (err: any) {
       console.error(err);
-      setErrorMsg("Не удалось обработать изображение. Попробуйте другой файл.");
+      try {
+        const compressedDataUrl = await compressImage(file, 240, 0.85);
+        setAvatarUrl(compressedDataUrl);
+        setErrorMsg(null);
+      } catch (e2) {
+        setErrorMsg("Не удалось обработать изображение. Попробуйте другой файл.");
+      }
     }
   };
 
@@ -480,6 +508,9 @@ export default function EditProfileModal({
       try {
         localStorage.setItem(`ayda_profile_${roleNormalized.toLowerCase()}`, JSON.stringify(finalProfileData));
         localStorage.setItem("ayda_current_user_profile", JSON.stringify(finalProfileData));
+        if (avatarUrl && avatarUrl.trim()) {
+          localStorage.setItem(`ayda_avatar_${roleNormalized.toLowerCase()}`, avatarUrl.trim());
+        }
 
         if (finalProfileData.id) {
           setAuthCookies(roleNormalized, finalProfileData.id);
@@ -622,7 +653,7 @@ export default function EditProfileModal({
                 </button>
               </div>
 
-              {/* Кнопка загрузки файла и переключатель вкладок */}
+              {/* Кнопка загрузки файла */}
               <div className="space-y-2 flex-1 min-w-0">
                 <input
                   type="file"
@@ -635,100 +666,17 @@ export default function EditProfileModal({
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-full py-2 px-2.5 rounded-xl bg-white hover:bg-slate-100 active:bg-slate-200 text-slate-800 text-xs font-bold transition border border-slate-200 shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer truncate"
+                  className="w-full py-2.5 px-3 rounded-xl bg-white hover:bg-slate-100 active:bg-slate-200 text-slate-800 text-xs font-bold transition border border-slate-200 shadow-2xs flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <Upload className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                  <span className="truncate">Загрузить с устройства</span>
+                  <Upload className="w-4 h-4 text-blue-600 shrink-0" />
+                  <span>Загрузить фотографию</span>
                 </button>
 
-                <div className="w-full grid grid-cols-2 gap-1 bg-slate-200/70 p-1 rounded-xl text-[11px]">
-                  <button
-                    type="button"
-                    onClick={() => setAvatarTab("presets")}
-                    className={`py-1.5 px-1.5 rounded-lg font-bold text-center truncate transition cursor-pointer ${
-                      avatarTab === "presets"
-                        ? "bg-white text-blue-700 shadow-xs"
-                        : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    Готовые
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAvatarTab("url")}
-                    className={`py-1.5 px-1.5 rounded-lg font-bold text-center truncate transition cursor-pointer ${
-                      avatarTab === "url"
-                        ? "bg-white text-blue-700 shadow-xs"
-                        : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    По ссылке
-                  </button>
-                </div>
+                <p className="text-[11px] text-slate-400">
+                  Поддерживаются форматы JPG, PNG, WebP до 10 МБ
+                </p>
               </div>
             </div>
-
-            {/* Выбор из готовых аватарок */}
-            {avatarTab === "presets" && (
-              <div className="pt-2 border-t border-slate-200/80">
-                <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
-                  {AVATAR_PRESETS.map((preset) => {
-                    const isSelected = avatarUrl === preset.url;
-                    return (
-                      <button
-                        type="button"
-                        key={preset.id}
-                        onClick={() => setAvatarUrl(preset.url)}
-                        className={`relative rounded-xl overflow-hidden aspect-square border-2 transition cursor-pointer ${
-                          isSelected
-                            ? "border-blue-600 ring-2 ring-blue-500/30 scale-105"
-                            : "border-slate-200 hover:border-slate-300 hover:scale-102"
-                        }`}
-                        title={preset.label}
-                      >
-                        <img
-                          src={preset.url}
-                          alt={preset.label}
-                          className="w-full h-full object-cover"
-                        />
-                        {isSelected && (
-                          <div className="absolute inset-0 bg-blue-600/30 flex items-center justify-center text-white">
-                            <Check className="w-3.5 h-3.5 stroke-[3]" />
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Прямая ссылка URL */}
-            {avatarTab === "url" && (
-              <div className="pt-2 border-t border-slate-200/80 space-y-1.5">
-                <div className="flex gap-2">
-                  <input
-                    type="url"
-                    value={customUrlInput}
-                    onChange={(e) => setCustomUrlInput(e.target.value)}
-                    placeholder="https://example.com/avatar.jpg"
-                    className="flex-1 p-2 rounded-xl border border-slate-200 text-xs text-slate-800 bg-white focus:outline-none focus:border-blue-600"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (customUrlInput.trim()) {
-                        setAvatarUrl(customUrlInput.trim());
-                        setCustomUrlInput("");
-                      }
-                    }}
-                    className="px-3 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 transition"
-                  >
-                    Применить
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* 2. ИМЯ И КОНТАКТЫ */}
@@ -748,28 +696,6 @@ export default function EditProfileModal({
                   className="w-full pl-9 pr-3 py-2.5 rounded-2xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition"
                 />
               </div>
-            </div>
-
-            {/* Никнейм пользователя (@username) */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Никнейм (@username):
-              </label>
-              <div className="relative">
-                <span className="w-4 h-4 text-blue-600 font-black absolute left-3 top-1/2 -translate-y-1/2 flex items-center justify-center select-none text-sm">
-                  @
-                </span>
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(cleanUsername(e.target.value))}
-                  placeholder="username (латинские буквы, цифры, _)"
-                  className="w-full pl-8 pr-3 py-2.5 rounded-2xl border border-slate-200 text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition"
-                />
-              </div>
-              <p className="text-[11px] text-slate-400 mt-1">
-                По этому никнейму вас смогут находить и добавлять в друзья для назначения уроков
-              </p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

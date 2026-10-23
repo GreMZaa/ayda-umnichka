@@ -143,6 +143,7 @@ interface TelegramCabinetProps {
     grade?: string;
   }[];
   onRefreshData?: () => void;
+  onProfileUpdated?: (profile: any) => void;
   // Role-specific slots
   extraCabinetSections?: {
     key: string;
@@ -160,6 +161,7 @@ export default function TelegramCabinet({
   friendTeachers = [],
   friendStudents = [],
   onRefreshData,
+  onProfileUpdated,
   extraCabinetSections = [],
 }: TelegramCabinetProps) {
   const router = useRouter();
@@ -220,7 +222,7 @@ export default function TelegramCabinet({
 
   // Поиск по разделам и чатам
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeChatId, setActiveChatId] = useState<string>("chat-support");
+  const [activeChatId, setActiveChatId] = useState<string>("");
 
   // Мобильное меню
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -431,28 +433,18 @@ export default function TelegramCabinet({
       }
     }
 
-    // Служба заботы и поддержки школы
-    list.push({
-      id: "chat-support",
-      name: "Служба заботы «АйДаУмничка»",
-      role: "support",
-      roleLabel: "Поддержка 24/7",
-      avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&h=150&fit=crop&crop=faces",
-      online: true,
-      statusText: "онлайн",
-      lastMessage: "Здравствуйте! Мы на связи, если у вас возникнут вопросы.",
-      lastMessageTime: "Сегодня",
-      unreadCount: 0,
-    });
-
     return list;
   }, [lessons, currentRole, friendTeachers, friendStudents]);
 
   const [chats, setChats] = useState<TelegramChat[]>(() => buildChats());
 
   useEffect(() => {
-    setChats(buildChats());
-  }, [buildChats]);
+    const newChats = buildChats();
+    setChats(newChats);
+    if ((!activeChatId || !newChats.some((c) => c.id === activeChatId)) && newChats.length > 0) {
+      setActiveChatId(newChats[0].id);
+    }
+  }, [buildChats, activeChatId]);
 
   // Глобальный поиск пользователей платформы по всей школе
   const [globalSearchResults, setGlobalSearchResults] = useState<any[]>([]);
@@ -1502,6 +1494,7 @@ export default function TelegramCabinet({
               grade: upd.grade || prev.grade,
               bio: upd.bio || prev.bio,
             }));
+            if (onProfileUpdated) onProfileUpdated(upd);
           }}
           onSave={(upd) => {
             if (upd) {
@@ -1516,6 +1509,7 @@ export default function TelegramCabinet({
                 grade: upd.grade || prev.grade,
                 bio: upd.bio || prev.bio,
               }));
+              if (onProfileUpdated) onProfileUpdated(upd);
             }
             setEditProfileOpen(false);
           }}
