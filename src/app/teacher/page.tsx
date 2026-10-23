@@ -209,9 +209,10 @@ export default function TeacherCabinet() {
                 if (raw) notes = JSON.parse(raw);
               } catch (e) {}
             }
+            const isPast = l.endTime ? new Date(l.endTime).getTime() <= Date.now() : false;
             return {
               ...l,
-              status: notes && notes.length > 0 ? "COMPLETED" : l.status,
+              status: l.status === "COMPLETED" ? "COMPLETED" : (notes && notes.length > 0 && isPast ? "COMPLETED" : l.status),
               notes,
             };
           });
@@ -256,6 +257,7 @@ export default function TeacherCabinet() {
                 const raw = localStorage.getItem(`ayda_lesson_notes_${l.id}`);
                 if (raw) notes = JSON.parse(raw);
               } catch (e) {}
+              const isPast = l.end_time ? new Date(l.end_time).getTime() <= Date.now() : false;
               return {
                 id: l.id,
                 title: l.title,
@@ -270,7 +272,7 @@ export default function TeacherCabinet() {
                 studentAvatar: l.student?.avatar_url,
                 startTime: l.start_time,
                 endTime: l.end_time,
-                status: notes && notes.length > 0 ? "COMPLETED" : l.status,
+                status: l.status === "COMPLETED" ? "COMPLETED" : (notes && notes.length > 0 && isPast ? "COMPLETED" : l.status),
                 roomName: l.room_name,
                 notes,
               };

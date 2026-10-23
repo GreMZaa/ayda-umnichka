@@ -216,8 +216,13 @@ export default function ScheduleCalendar({
   // Проверка: завершён ли урок или истекло ли его запланированное время
   const isLessonArchived = (lesson: LessonItem) => {
     if (lesson.status === "COMPLETED") return true;
+    if (lesson.status === "LIVE") return false; // Идущий сейчас урок никогда не закрыт и не в архиве
+    if (!lesson.endTime) return false;
     const endMs = new Date(lesson.endTime).getTime();
-    return endMs < currentTime.getTime();
+    if (isNaN(endMs)) return false;
+    // Сравниваем физическое время Date.now() (UTC ms) с реальным временем окончания урока.
+    // Даём буфер 2 часа после окончания, чтобы комната не закрывалась преждевременно
+    return Date.now() > endMs + 2 * 60 * 60 * 1000;
   };
 
   const countActive = useMemo(

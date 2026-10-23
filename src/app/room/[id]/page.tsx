@@ -123,9 +123,12 @@ export default function RoomPage({ params }: { params: { id: string } }) {
     if (!lesson) return false;
     if (lesson.id === "umnichka-test-room" || lesson.id === "test-room") return false;
     if (lesson.status === "COMPLETED") return true;
+    if (lesson.status === "LIVE") return false; // Идущий сейчас урок никогда не блокируется
     if (lesson.endTime) {
       const endMs = new Date(lesson.endTime).getTime();
-      return endMs < Date.now();
+      if (isNaN(endMs)) return false;
+      // Даём запас минимум 2 часа после окончания урока, чтобы комната не блокировалась досрочно
+      return Date.now() > endMs + 2 * 60 * 60 * 1000;
     }
     return false;
   };
