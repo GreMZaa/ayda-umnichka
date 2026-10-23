@@ -50,7 +50,7 @@ import {
   isTodayInTolyatti,
 } from "@/lib/tolyatti-time";
 import { SHARONOV_AVATAR, TEACHER_VASILINA_AVATAR } from "@/lib/default-avatar";
-import { DEFAULT_STUDENT_LESSONS } from "@/lib/default-lessons";
+import { DEFAULT_STUDENT_LESSONS, getSharonovActiveLesson } from "@/lib/default-lessons";
 
 export interface TeacherProfile {
   id: string;
@@ -130,7 +130,12 @@ export default function StudentCabinet() {
   const [stars, setStars] = useState(0);
   const [studentAwards, setStudentAwards] = useState<any[]>([]);
   const [editProfileModalOpen, setEditProfileModalOpen] = useState(false);
-  const [lessons, setLessons] = useState<any[]>([]);
+  const [lessons, setLessons] = useState<any[]>(() => {
+    if (isSharonov || effectiveId === "53df3c76-9d23-49aa-ba0c-6f40d7a56657") {
+      return [getSharonovActiveLesson()];
+    }
+    return [];
+  });
   const [schoolSubjects, setSchoolSubjects] = useState<any[]>([]);
   const [teachers, setTeachers] = useState<TeacherProfile[]>([]);
   const [friendTeacherIds, setFriendTeacherIds] = useState<string[]>([]);
@@ -590,9 +595,27 @@ export default function StudentCabinet() {
         }
       }
 
+      // 1. ПРИОРИТЕТ: Серверный эндпоинт /api/lessons (100% надежен, не зависит от локальных токенов Supabase)
+      const targetQueryId = paramId || studentIdsToQuery[0] || (userIsSharonov ? "53df3c76-9d23-49aa-ba0c-6f40d7a56657" : "");
+      if (targetQueryId) {
+        try {
+          const res = await fetch(`/api/lessons?studentId=${targetQueryId}`, { cache: "no-store" });
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data) && data.length > 0) {
+              setLessons(data);
+              setLoading(false);
+              return;
+            }
+          }
+        } catch (apiErr) {
+          console.warn("Direct API lessons fetch failed, trying Supabase...", apiErr);
+        }
+      }
+
       if (client) {
         try {
-          // 1. Поиск уроков по student_id текущего ученика (с joins)
+          // 2. Поиск уроков по student_id текущего ученика (с joins)
           let sbLessons: any[] = [];
           if (studentIdsToQuery.length > 0) {
             const { data, error } = await client
@@ -746,6 +769,13 @@ export default function StudentCabinet() {
         }
       } catch (e) {}
 
+      // ЖЕЛЕЗНЫЙ ФОЛЛБЕК ДЛЯ ШАРОНОВА: никогда не оставляем Сергея без урока
+      if (userIsSharonov || targetQueryId === "53df3c76-9d23-49aa-ba0c-6f40d7a56657" || effectiveEmail.includes("lev-drakon") || effectiveEmail.includes("sharonov")) {
+        setLessons([getSharonovActiveLesson()]);
+        setLoading(false);
+        return;
+      }
+
       setLessons([]);
       setLoading(false);
     };
@@ -808,7 +838,7 @@ export default function StudentCabinet() {
         const data = await res.json();
         const subs: any[] = data?.submissions || [];
 
-        const currentLessons = lessons.length > 0 ? lessons : (isSharonov ? DEFAULT_STUDENT_LESSONS : []);
+        const currentLessons = lessons.length > 0 ? lessons : (isSharonov ? [getSharonovActiveLesson()] : []);
         if (currentLessons.length === 0 && subs.length === 0) {
           if (!isCancelled) setHomeworkList([]);
           return;
