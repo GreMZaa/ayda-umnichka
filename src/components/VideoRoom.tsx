@@ -67,19 +67,56 @@ interface VideoRoomProps {
 type ToolType = "pen" | "highlighter" | "eraser" | "line" | "arrow" | "rect" | "circle" | "text";
 type BoardBgType = "grid" | "lines" | "blank";
 
-function LessonTimer({ initialSeconds = 15 * 60 + 35 }: { initialSeconds?: number }) {
-  const [seconds, setSeconds] = useState(initialSeconds);
+function LessonTimer({
+  isActive,
+  startedAt,
+}: {
+  isActive: boolean;
+  startedAt: number | null;
+}) {
+  const [seconds, setSeconds] = useState(0);
+
   useEffect(() => {
-    const timer = setInterval(() => setSeconds((p) => p + 1), 1000);
+    if (!isActive || !startedAt) {
+      setSeconds(0);
+      return;
+    }
+
+    const updateTimer = () => {
+      const now = Date.now();
+      const diff = Math.max(0, Math.floor((now - startedAt) / 1000));
+      setSeconds(diff);
+    };
+
+    updateTimer();
+    const timer = setInterval(updateTimer, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [isActive, startedAt]);
 
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
   const formatted = `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
 
+  if (!isActive && !startedAt) {
+    return (
+      <div
+        className="flex items-center gap-1.5 font-mono font-bold text-slate-500 bg-slate-100 px-2.5 sm:px-3 py-1 rounded-full border border-slate-200 text-xs shrink-0 shadow-xs cursor-help"
+        title="Отсчёт начнётся с 00:00, когда в урок войдут 2 собеседника"
+      >
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+        <span>00:00</span>
+        <span className="hidden xl:inline text-[10px] text-slate-400 font-normal font-sans">
+          (ждём собеседника)
+        </span>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex items-center gap-1.5 font-mono font-bold text-emerald-700 bg-emerald-50 px-2.5 sm:px-3 py-1 rounded-full border border-emerald-200 text-xs shrink-0 shadow-xs">
+    <div
+      className="flex items-center gap-1.5 font-mono font-bold text-emerald-700 bg-emerald-50 px-2.5 sm:px-3 py-1 rounded-full border border-emerald-200 text-xs shrink-0 shadow-xs"
+      title="Урок в процессе: время отсчёта"
+    >
       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
       <span>{formatted}</span>
     </div>
@@ -234,24 +271,26 @@ export default function VideoRoom({
     window.addEventListener("mouseup", handleMouseUp);
   };
   const localStreamRef = useRef<MediaStream | null>(null);
-  const localVideoRef = useRef<HTMLVideoElement>(null);
-  const localVideoSideRef = useRef<HTMLVideoElement>(null);
-  const localVideoMainRef = useRef<HTMLVideoElement>(null);
-  const mobileVideoRef = useRef<HTMLVideoElement>(null);
+  const localVideoRef = useRef<HTMLVideoElement | null>(null);
+  const localVideoSideRef = useRef<HTMLVideoElement | null>(null);
+  const localVideoMainRef = useRef<HTMLVideoElement | null>(null);
+  const mobileVideoRef = useRef<HTMLVideoElement | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
-  const screenVideoRef = useRef<HTMLVideoElement>(null);
+  const screenVideoRef = useRef<HTMLVideoElement | null>(null);
 
   // WebRTC и удалённый поток собеседника
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [partnerCamOn, setPartnerCamOn] = useState(false);
   const [partnerMicOn, setPartnerMicOn] = useState(true);
+  const [isPartnerInRoom, setIsPartnerInRoom] = useState(false);
+  const [lessonStartTime, setLessonStartTime] = useState<number | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
 
-  const remoteVideoRef = useRef<HTMLVideoElement>(null);
-  const remoteVideoSideRef = useRef<HTMLVideoElement>(null);
-  const remoteVideoMainRef = useRef<HTMLVideoElement>(null);
-  const remoteVideoMobileRef = useRef<HTMLVideoElement>(null);
-  const remoteAudioRef = useRef<HTMLAudioElement>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+  const remoteVideoSideRef = useRef<HTMLVideoElement | null>(null);
+  const remoteVideoMainRef = useRef<HTMLVideoElement | null>(null);
+  const remoteVideoMobileRef = useRef<HTMLVideoElement | null>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const myPeerId = useRef(typeof window !== "undefined" ? Math.random().toString(36).substring(2, 9) : "peer").current;
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
@@ -274,45 +313,38 @@ export default function VideoRoom({
 
   // Синхронизация всех активных video-элементов локальной камеры
   const syncLocalVideos = useCallback((stream: MediaStream | null) => {
-    if (localVideoRef.current && localVideoRef.current.srcObject !== stream) {
-      localVideoRef.current.srcObject = stream;
-      if (stream) localVideoRef.current.play().catch(() => {});
-    }
-    if (localVideoSideRef.current && localVideoSideRef.current.srcObject !== stream) {
-      localVideoSideRef.current.srcObject = stream;
-      if (stream) localVideoSideRef.current.play().catch(() => {});
-    }
-    if (localVideoMainRef.current && localVideoMainRef.current.srcObject !== stream) {
-      localVideoMainRef.current.srcObject = stream;
-      if (stream) localVideoMainRef.current.play().catch(() => {});
-    }
-    if (mobileVideoRef.current && mobileVideoRef.current.srcObject !== stream) {
-      mobileVideoRef.current.srcObject = stream;
-      if (stream) mobileVideoRef.current.play().catch(() => {});
-    }
+    [localVideoRef, localVideoSideRef, localVideoMainRef, mobileVideoRef].forEach((ref) => {
+      const el = ref.current;
+      if (el) {
+        el.muted = true;
+        if (el.srcObject !== stream) {
+          el.srcObject = stream;
+        }
+        if (stream) {
+          el.play().catch(() => {});
+        }
+      }
+    });
   }, []);
 
   // Синхронизация всех активных video/audio-элементов удалённой камеры собеседника
   const syncRemoteVideos = useCallback((stream: MediaStream | null) => {
-    if (remoteVideoRef.current && remoteVideoRef.current.srcObject !== stream) {
-      remoteVideoRef.current.srcObject = stream;
-      if (stream) remoteVideoRef.current.play().catch(() => {});
-    }
-    if (remoteVideoSideRef.current && remoteVideoSideRef.current.srcObject !== stream) {
-      remoteVideoSideRef.current.srcObject = stream;
-      if (stream) remoteVideoSideRef.current.play().catch(() => {});
-    }
-    if (remoteVideoMainRef.current && remoteVideoMainRef.current.srcObject !== stream) {
-      remoteVideoMainRef.current.srcObject = stream;
-      if (stream) remoteVideoMainRef.current.play().catch(() => {});
-    }
-    if (remoteVideoMobileRef.current && remoteVideoMobileRef.current.srcObject !== stream) {
-      remoteVideoMobileRef.current.srcObject = stream;
-      if (stream) remoteVideoMobileRef.current.play().catch(() => {});
-    }
+    [remoteVideoRef, remoteVideoSideRef, remoteVideoMainRef, remoteVideoMobileRef].forEach((ref) => {
+      const el = ref.current;
+      if (el) {
+        if (el.srcObject !== stream) {
+          el.srcObject = stream;
+        }
+        if (stream) {
+          el.play().catch(() => {});
+        }
+      }
+    });
     if (remoteAudioRef.current && remoteAudioRef.current.srcObject !== stream) {
       remoteAudioRef.current.srcObject = stream;
-      if (stream) remoteAudioRef.current.play().catch(() => {});
+      if (stream) {
+        remoteAudioRef.current.play().catch(() => {});
+      }
     }
   }, []);
 
@@ -364,6 +396,7 @@ export default function VideoRoom({
           }
         }
         setRemoteStream(remoteStreamRef.current);
+        setIsPartnerInRoom(true);
         if (event.track.kind === "video") {
           setPartnerCamOn(true);
         }
@@ -415,6 +448,7 @@ export default function VideoRoom({
         const state = pc.connectionState;
         if (state === "connected") {
           setIsReconnecting(false);
+          setIsPartnerInRoom(true);
         } else if (state === "failed" || state === "disconnected") {
           setIsReconnecting(true);
         }
@@ -660,13 +694,13 @@ export default function VideoRoom({
     if (camOn && localStreamRef.current) {
       syncLocalVideos(localStreamRef.current);
     }
-  }, [camOn, chatCollapsed, activeTab, mobileTab, syncLocalVideos]);
+  }, [camOn, chatCollapsed, activeTab, mobileTab, isSwapped, syncLocalVideos]);
 
   useEffect(() => {
     if (remoteStreamRef.current) {
       syncRemoteVideos(remoteStreamRef.current);
     }
-  }, [remoteStream, partnerCamOn, chatCollapsed, activeTab, mobileTab, mobileSplitView, mobilePipOpen, syncRemoteVideos]);
+  }, [remoteStream, partnerCamOn, chatCollapsed, activeTab, mobileTab, mobileSplitView, mobilePipOpen, isSwapped, syncRemoteVideos]);
 
   // Запуск фолбэк-потока для системного Picture-in-Picture при выключенной камере
   const startFallbackPipStream = useCallback(() => {
@@ -1292,6 +1326,7 @@ export default function VideoRoom({
       })
       .on("broadcast", { event: "webrtc_signal" }, async ({ payload }) => {
         if (!payload || payload.senderId === myPeerId) return;
+        setIsPartnerInRoom(true);
 
         const pc = getOrCreatePeerConnection();
         if (!pc) return;
@@ -1357,6 +1392,7 @@ export default function VideoRoom({
       })
       .on("broadcast", { event: "webrtc_media_state" }, ({ payload }) => {
         if (!payload || payload.senderId === myPeerId) return;
+        setIsPartnerInRoom(true);
         if (typeof payload.camOn === "boolean") {
           setPartnerCamOn(payload.camOn);
         }
@@ -1366,6 +1402,7 @@ export default function VideoRoom({
       })
       .on("broadcast", { event: "webrtc_presence" }, ({ payload }) => {
         if (!payload || payload.senderId === myPeerId) return;
+        setIsPartnerInRoom(true);
         if (typeof payload.camOn === "boolean") setPartnerCamOn(payload.camOn);
         if (typeof payload.micOn === "boolean") setPartnerMicOn(payload.micOn);
 
@@ -1388,6 +1425,7 @@ export default function VideoRoom({
       })
       .on("broadcast", { event: "webrtc_presence_ack" }, ({ payload }) => {
         if (!payload || payload.senderId === myPeerId) return;
+        setIsPartnerInRoom(true);
         if (typeof payload.camOn === "boolean") {
           setPartnerCamOn(payload.camOn);
         }
@@ -1398,6 +1436,26 @@ export default function VideoRoom({
         const shouldInitiate = userRole === "TEACHER" || (userRole !== "STUDENT" && myPeerId < payload.senderId);
         if (shouldInitiate) {
           initiateCall();
+        }
+      })
+      .on("broadcast", { event: "lesson_timer_sync" }, ({ payload }) => {
+        if (payload?.startedAt && typeof payload.startedAt === "number") {
+          setIsPartnerInRoom(true);
+          setLessonStartTime((prev) => {
+            if (prev && prev > 0) return Math.min(prev, payload.startedAt);
+            return payload.startedAt;
+          });
+          try {
+            const cleanRoom = (roomName || "room").replace(/[^a-zA-Z0-9_-]/g, "_");
+            localStorage.setItem(`ayda_lesson_timer_start_${cleanRoom}`, String(payload.startedAt));
+          } catch (e) {}
+        }
+      })
+      .on("broadcast", { event: "presence_ping" }, ({ payload }) => {
+        if (!payload || payload.senderId === myPeerId) return;
+        setIsPartnerInRoom(true);
+        if (payload?.startedAt && typeof payload.startedAt === "number") {
+          setLessonStartTime((prev) => (prev && prev > 0 ? Math.min(prev, payload.startedAt) : payload.startedAt));
         }
       })
       .subscribe((status) => {
@@ -1435,6 +1493,63 @@ export default function VideoRoom({
       }
     };
   }, [roomName, userRole, initiateCall, getOrCreatePeerConnection, myPeerId]);
+
+  // Обнаружение присутствия обоих участников в уроке
+  const hasBothParticipants = Boolean(remoteStream || isPartnerInRoom);
+
+  // Запуск и синхронизация отсчёта времени урока (строго с 0 и только когда 2 участника вошли)
+  useEffect(() => {
+    if (!hasBothParticipants) return;
+
+    const cleanRoom = (roomName || "room").replace(/[^a-zA-Z0-9_-]/g, "_");
+    const storageKey = `ayda_lesson_timer_start_${cleanRoom}`;
+    let startTimestamp: number | null = null;
+
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = parseInt(saved, 10);
+        // Считаем актуальным, если урок начался менее 6 часов назад
+        if (!isNaN(parsed) && parsed > 0 && Date.now() - parsed < 6 * 60 * 60 * 1000) {
+          startTimestamp = parsed;
+        }
+      }
+    } catch (e) {}
+
+    if (!startTimestamp) {
+      startTimestamp = Date.now();
+      try {
+        localStorage.setItem(storageKey, String(startTimestamp));
+      } catch (e) {}
+    }
+
+    setLessonStartTime((prev) => (prev && prev > 0 ? Math.min(prev, startTimestamp!) : startTimestamp));
+
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: "broadcast",
+        event: "lesson_timer_sync",
+        payload: {
+          senderId: myPeerId,
+          startedAt: startTimestamp,
+        },
+      });
+    }
+  }, [hasBothParticipants, roomName, myPeerId]);
+
+  // Периодический heartbeat присутствия для синхронизации таймера
+  useEffect(() => {
+    const pingTimer = setInterval(() => {
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: "broadcast",
+          event: "presence_ping",
+          payload: { senderId: myPeerId, senderRole: userRole, startedAt: lessonStartTime },
+        });
+      }
+    }, 4000);
+    return () => clearInterval(pingTimer);
+  }, [myPeerId, userRole, lessonStartTime]);
 
   // Управление правами ученика со стороны преподавателя
   const toggleStudentPermission = () => {
@@ -2040,7 +2155,10 @@ export default function VideoRoom({
 
         {/* Справа: Таймер + Ссылка + Полный экран + Завершить */}
         <div className="flex items-center gap-1.5 sm:gap-2 text-xs shrink-0">
-          <LessonTimer />
+          <LessonTimer
+            isActive={hasBothParticipants || Boolean(lessonStartTime)}
+            startedAt={lessonStartTime}
+          />
 
           {isTeacher && (
             <button
@@ -2198,7 +2316,23 @@ export default function VideoRoom({
                 <div className="md:hidden w-full h-44 xs:h-48 shrink-0 bg-slate-950 border-b border-slate-300 relative overflow-hidden group">
                   {(isTeacher ? camOn : (partnerCamOn && remoteStream)) ? (
                     <video
-                      ref={isTeacher ? mobileVideoRef : remoteVideoMobileRef}
+                      ref={(el) => {
+                        const targetRef = isTeacher ? mobileVideoRef : remoteVideoMobileRef;
+                        targetRef.current = el;
+                        if (el) {
+                          if (isTeacher) {
+                            el.muted = true;
+                            if (localStreamRef.current && el.srcObject !== localStreamRef.current) {
+                              el.srcObject = localStreamRef.current;
+                            }
+                          } else {
+                            if (remoteStreamRef.current && el.srcObject !== remoteStreamRef.current) {
+                              el.srcObject = remoteStreamRef.current;
+                            }
+                          }
+                          el.play().catch(() => {});
+                        }
+                      }}
                       autoPlay
                       muted={isTeacher}
                       playsInline
@@ -2505,7 +2639,23 @@ export default function VideoRoom({
                     <div className="md:hidden absolute bottom-3 right-3 z-30 w-32 xs:w-36 aspect-video rounded-2xl overflow-hidden bg-slate-950 border-2 border-white shadow-2xl group transition-all">
                       {(isTeacher ? camOn : (partnerCamOn && remoteStream)) ? (
                         <video
-                          ref={isTeacher ? mobileVideoRef : remoteVideoMobileRef}
+                          ref={(el) => {
+                            const targetRef = isTeacher ? mobileVideoRef : remoteVideoMobileRef;
+                            targetRef.current = el;
+                            if (el) {
+                              if (isTeacher) {
+                                el.muted = true;
+                                if (localStreamRef.current && el.srcObject !== localStreamRef.current) {
+                                  el.srcObject = localStreamRef.current;
+                                }
+                              } else {
+                                if (remoteStreamRef.current && el.srcObject !== remoteStreamRef.current) {
+                                  el.srcObject = remoteStreamRef.current;
+                                }
+                              }
+                              el.play().catch(() => {});
+                            }
+                          }}
                           autoPlay
                           muted={isTeacher}
                           playsInline
@@ -2809,7 +2959,16 @@ export default function VideoRoom({
                 camOn ? (
                   <>
                     <video
-                      ref={localVideoRef}
+                      ref={(el) => {
+                        localVideoRef.current = el;
+                        if (el) {
+                          el.muted = true;
+                          if (localStreamRef.current && el.srcObject !== localStreamRef.current) {
+                            el.srcObject = localStreamRef.current;
+                          }
+                          el.play().catch(() => {});
+                        }
+                      }}
                       autoPlay
                       muted
                       playsInline
@@ -2847,7 +3006,15 @@ export default function VideoRoom({
                 /* В главном окне находится собеседник с видео */
                 <>
                   <video
-                    ref={remoteVideoMainRef}
+                    ref={(el) => {
+                      remoteVideoMainRef.current = el;
+                      if (el) {
+                        if (remoteStreamRef.current && el.srcObject !== remoteStreamRef.current) {
+                          el.srcObject = remoteStreamRef.current;
+                        }
+                        el.play().catch(() => {});
+                      }
+                    }}
                     autoPlay
                     playsInline
                     className="w-full h-full object-cover sm:object-contain"
@@ -2926,7 +3093,15 @@ export default function VideoRoom({
               /* В PiP находится собеседник */
               partnerCamOn && remoteStream ? (
                 <video
-                  ref={remoteVideoSideRef}
+                  ref={(el) => {
+                    remoteVideoSideRef.current = el;
+                    if (el) {
+                      if (remoteStreamRef.current && el.srcObject !== remoteStreamRef.current) {
+                        el.srcObject = remoteStreamRef.current;
+                      }
+                      el.play().catch(() => {});
+                    }
+                  }}
                   autoPlay
                   playsInline
                   {...{ autoPictureInPicture: "true" }}
@@ -2948,7 +3123,16 @@ export default function VideoRoom({
               /* В PiP находится текущий пользователь */
               camOn ? (
                 <video
-                  ref={localVideoSideRef}
+                  ref={(el) => {
+                    localVideoSideRef.current = el;
+                    if (el) {
+                      el.muted = true;
+                      if (localStreamRef.current && el.srcObject !== localStreamRef.current) {
+                        el.srcObject = localStreamRef.current;
+                      }
+                      el.play().catch(() => {});
+                    }
+                  }}
                   autoPlay
                   muted
                   playsInline
@@ -2998,10 +3182,17 @@ export default function VideoRoom({
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setIsSwapped((prev) => !prev);
+                  setIsSwapped((prev) => {
+                    const next = !prev;
+                    setTimeout(() => {
+                      if (localStreamRef.current) syncLocalVideos(localStreamRef.current);
+                      if (remoteStreamRef.current) syncRemoteVideos(remoteStreamRef.current);
+                    }, 50);
+                    return next;
+                  });
                 }}
                 className="p-1.5 rounded-full bg-black/70 hover:bg-[#2481cc] text-white transition-all shadow-md cursor-pointer hover:scale-110 active:scale-95"
-                title="Поменять камеры местами"
+                title={isSwapped ? "Вернуть собеседника на большой экран" : "Поменять камеры местами (развернуть себя на весь экран)"}
               >
                 <ArrowLeftRight className="w-3.5 h-3.5" />
               </button>
