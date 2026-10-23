@@ -190,77 +190,77 @@ export default function HomePage() {
 
   return (
     <div className="w-full">
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 xl:gap-12 items-center">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-8 xl:gap-12 items-center">
         {/* ЛЕВАЯ КОЛОНКА: Оффер, преимущества, быстрый вход */}
-        <div className="lg:col-span-6 xl:col-span-7 space-y-4 sm:space-y-5 text-left">
+        <div className="lg:col-span-6 xl:col-span-7 space-y-3.5 sm:space-y-5 text-left">
           {/* Бейдж */}
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-200/80 text-blue-700 text-xs font-bold shadow-xs">
+          <div className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 rounded-full bg-blue-50 border border-blue-200/80 text-blue-700 text-[11px] sm:text-xs font-bold shadow-xs">
             <Sparkles className="w-3.5 h-3.5 text-blue-600 shrink-0" />
             <span>Индивидуальные онлайн-уроки с репетитором</span>
           </div>
 
           {/* Заголовок */}
-          <h1 className="text-2xl sm:text-4xl xl:text-5xl font-extrabold tracking-tight text-slate-900 leading-[1.15]">
+          <h1 className="text-[22px] sm:text-3xl lg:text-4xl xl:text-5xl font-extrabold tracking-tight text-slate-900 leading-[1.2]">
             Онлайн-уроки с&nbsp;репетитором, <br className="hidden sm:inline" />
             <span className="text-blue-600">где всё понятно и&nbsp;удобно</span>
           </h1>
 
           {/* Подзаголовок */}
-          <p className="text-xs sm:text-base text-slate-600 leading-relaxed max-w-xl">
-            Встроенная интерактивная видеосвязь прямо в браузере. Удобные личные кабинеты для ученика и родителя. Без установки сторонних программ.
+          <p className="text-xs sm:text-sm lg:text-base text-slate-600 leading-relaxed max-w-xl">
+            Встроенная интерактивная видеосвязь прямо в браузере. Удобные личные кабинеты для ученика и родителя. Без Zoom и установки сторонних программ.
           </p>
 
-          {/* 3 преимущества в ряд */}
-          <div className="grid grid-cols-3 gap-2 sm:gap-3 max-w-lg pt-0.5">
-            <div className="p-2 sm:p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-2">
-              <span className="text-lg sm:text-xl shrink-0">⏱️</span>
+          {/* 3 преимущества: на мобильных - компактные бейджи без обрезки текста, на десктопе - карточки */}
+          <div className="flex flex-wrap items-center gap-1.5 sm:grid sm:grid-cols-3 sm:gap-3 pt-0.5">
+            <div className="px-2.5 py-1.5 sm:p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs flex items-center gap-2">
+              <span className="text-base sm:text-lg shrink-0">⏱️</span>
               <div className="min-w-0">
-                <div className="font-bold text-[11px] sm:text-xs text-slate-900 leading-tight">45 минут</div>
-                <div className="text-[10px] text-slate-500 leading-tight truncate">Урок 1 на 1</div>
+                <div className="font-bold text-xs text-slate-900 leading-tight">45 минут</div>
+                <div className="text-[10px] text-slate-500 leading-tight hidden sm:block truncate">Урок 1 на 1</div>
               </div>
             </div>
-            <div className="p-2 sm:p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-2">
-              <span className="text-lg sm:text-xl shrink-0">🎯</span>
+            <div className="px-2.5 py-1.5 sm:p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs flex items-center gap-2">
+              <span className="text-base sm:text-lg shrink-0">🎯</span>
               <div className="min-w-0">
-                <div className="font-bold text-[11px] sm:text-xs text-slate-900 leading-tight">Диагностика</div>
-                <div className="text-[10px] text-slate-500 leading-tight truncate">Выявим пробелы</div>
+                <div className="font-bold text-xs text-slate-900 leading-tight">Диагностика</div>
+                <div className="text-[10px] text-slate-500 leading-tight hidden sm:block truncate">Выявим пробелы</div>
               </div>
             </div>
-            <div className="p-2 sm:p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-2">
-              <span className="text-lg sm:text-xl shrink-0">💻</span>
+            <div className="px-2.5 py-1.5 sm:p-2.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs flex items-center gap-2">
+              <span className="text-base sm:text-lg shrink-0">💻</span>
               <div className="min-w-0">
-                <div className="font-bold text-[11px] sm:text-xs text-slate-900 leading-tight">В браузере</div>
-                <div className="text-[10px] text-slate-500 leading-tight truncate">Без лишних ПО</div>
+                <div className="font-bold text-xs text-slate-900 leading-tight">В браузере</div>
+                <div className="text-[10px] text-slate-500 leading-tight hidden sm:block truncate">Без лишних ПО</div>
               </div>
             </div>
           </div>
 
-          {/* Действия: вход в личный кабинет */}
-          <div className="pt-1 flex flex-wrap items-center gap-3">
+          {/* Действия: вход в кабинет и телефон в одну аккуратную строку на мобильном */}
+          <div className="pt-0.5 sm:pt-1 flex items-center justify-between sm:justify-start gap-2 sm:gap-4 flex-wrap">
             {currentUserRole ? (
               <Link
                 href={`/${currentUserRole.roleKey}`}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold text-xs sm:text-sm border border-blue-200 shadow-xs transition active:scale-98"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 sm:px-5 sm:py-2.5 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold text-xs sm:text-sm border border-blue-200 shadow-xs transition active:scale-98"
                 id="hero-btn-login"
               >
-                <User className="w-4 h-4 text-blue-600" />
-                <span>Перейти в {currentUserRole.roleTitle}</span>
+                <User className="w-3.5 h-3.5 text-blue-600" />
+                <span>В {currentUserRole.roleTitle}</span>
                 <ArrowRight className="w-3.5 h-3.5 ml-0.5" />
               </Link>
             ) : (
               <Link
                 href="/login"
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs sm:text-sm border border-slate-200 shadow-xs transition active:scale-98"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 sm:px-5 sm:py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs sm:text-sm border border-slate-200 shadow-xs transition active:scale-98"
                 id="hero-btn-login"
               >
-                <LogIn className="w-4 h-4 text-slate-600" />
-                <span>Уже занимаетесь? Войти в кабинет</span>
-                <ArrowRight className="w-3.5 h-3.5 ml-0.5 text-slate-400" />
+                <LogIn className="w-3.5 h-3.5 text-slate-600" />
+                <span>Вход в кабинет</span>
+                <ArrowRight className="w-3 h-3 text-slate-400" />
               </Link>
             )}
             <a
               href="tel:+79954854667"
-              className="inline-flex items-center gap-1.5 text-xs sm:text-sm text-slate-700 font-bold hover:text-blue-600 transition"
+              className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-xs sm:text-sm text-slate-700 font-bold hover:text-blue-600 transition"
             >
               <Phone className="w-3.5 h-3.5 text-blue-600 shrink-0" />
               <span>8 995 485 46 67</span>
@@ -270,11 +270,11 @@ export default function HomePage() {
 
         {/* ПРАВАЯ КОЛОНКА: Компактная форма записи на бесплатный пробный урок */}
         <div className="lg:col-span-6 xl:col-span-5" id="trial">
-          <div className="bg-white rounded-3xl border border-slate-200/90 shadow-xl overflow-hidden relative p-4 sm:p-5 lg:p-6">
+          <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-xl overflow-hidden relative p-3.5 sm:p-5 lg:p-6">
             {/* Декоративная подсветка сверху */}
             <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600" />
 
-            <div className="mb-3.5 space-y-1">
+            <div className="mb-3 space-y-1">
               <div className="flex items-center justify-between gap-2">
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-50 border border-blue-200/60 text-blue-700 text-[11px] font-bold">
                   <Sparkles className="w-3 h-3 text-blue-600" />

@@ -277,9 +277,9 @@ export default function Navbar() {
 
   return (
     <>
-      {/* 1. ВЕРХНИЙ ИНФО-БАР (Только для главной страницы и публичных разделов, скрыт в личных кабинетах) */}
+      {/* 1. ВЕРХНИЙ ИНФО-БАР (Только для десктопа и планшетов, на мобильных скрыт для экономии места) */}
       {!isInsideCabinet && (
-        <div className="bg-white border-b border-slate-100 text-slate-600 text-[11px] sm:text-xs py-1.5">
+        <div className="hidden sm:block bg-white border-b border-slate-100 text-slate-600 text-[11px] sm:text-xs py-1.5">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 truncate">
               <span className="flex items-center gap-1.5 text-emerald-600 font-semibold truncate">
@@ -305,10 +305,10 @@ export default function Navbar() {
         </div>
       )}
 
-      {/* 2. ОСНОВНАЯ ШАПКА В СТИЛЕ FOXFORD (100% непрозрачный плотный белый фон, без полупрозрачности) */}
+      {/* 2. ОСНОВНАЯ ШАПКА В СТИЛЕ FOXFORD */}
       <header className="sticky top-0 z-40 bg-white border-b border-slate-200/90 shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16 sm:h-[70px]">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-14 sm:h-16 lg:h-[70px]">
             {/* Левая группа: Логотип и Навигация */}
             <div className="flex items-center gap-3 sm:gap-8 min-w-0 shrink">
               {/* Логотип Фоксфорд-стиль */}

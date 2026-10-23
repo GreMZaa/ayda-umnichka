@@ -31,8 +31,8 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
       <Navbar />
       <main
-        className={`flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 ${
-          isHome ? "py-3 sm:py-6 flex flex-col justify-center" : "py-6"
+        className={`flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 ${
+          isHome ? "py-2 sm:py-6 flex flex-col justify-center" : "py-6"
         }`}
       >
         {children}
