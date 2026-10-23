@@ -368,52 +368,34 @@ function LoginForm() {
   return (
     <div className="min-h-[calc(100vh-140px)] flex items-center justify-center py-8 px-4 sm:px-6">
       <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-        {/* ЛЕВАЯ КОЛОНКА В СТИЛЕ ФОКСФОРДА: Промо и преимущества */}
-        <div className="lg:col-span-5 space-y-6 hidden lg:block">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-xs font-bold">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Онлайн-школа «АйДаУмничка»</span>
+        {/* ЛЕВАЯ КОЛОНКА: Лаконичное приветствие */}
+        <div className="lg:col-span-5 space-y-4 hidden lg:block pr-6">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-bold border border-blue-100">
+            <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+            <span>Личный кабинет</span>
           </div>
 
-          <h2 className="text-3xl font-extrabold text-slate-900 leading-tight">
-            Учитесь с удовольствием и достигайте высоких результатов
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-snug">
+            Вход в систему обучения
           </h2>
 
-          <p className="text-sm text-slate-600 leading-relaxed">
-            Присоединяйтесь к тысячам учеников и родителей. Индивидуальные уроки, интерактивная онлайн-комната и контроль прогресса в одном месте.
+          <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
+            Онлайн-уроки, домашние задания и видеосвязь с преподавателем.
           </p>
 
-          <div className="space-y-4 pt-2">
-            {[
-              {
-                icon: "💻",
-                title: "Видеокласс прямо в браузере",
-                desc: "Без Zoom и лишних программ. Интерактивная доска, камера и звук.",
-              },
-              {
-                icon: "📊",
-                title: "Отчёты для родителей",
-                desc: "Полная картина успехов ребёнка и комментарии репетитора после каждого урока.",
-              },
-              {
-                icon: "⭐",
-                title: "Мотивация и награды",
-                desc: "Игровая геймификация с баллами и звёздами за каждое выполненное задание.",
-              },
-            ].map((feature, i) => (
-              <div key={i} className="flex items-start gap-3.5 p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
-                <span className="text-2xl">{feature.icon}</span>
-                <div>
-                  <h4 className="text-xs font-bold text-slate-900">{feature.title}</h4>
-                  <p className="text-[11px] text-slate-500 mt-0.5">{feature.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-3 pt-2 text-xs font-semibold text-slate-500">
-            <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            <span>Безопасная платформа, проверенные репетиторы РФ</span>
+          <div className="pt-2 space-y-2.5">
+            <div className="flex items-center gap-2.5 text-xs font-semibold text-slate-700">
+              <span className="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold shrink-0">✓</span>
+              <span>Интерактивный видеокласс</span>
+            </div>
+            <div className="flex items-center gap-2.5 text-xs font-semibold text-slate-700">
+              <span className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold shrink-0">✓</span>
+              <span>Отчёты для родителей</span>
+            </div>
+            <div className="flex items-center gap-2.5 text-xs font-semibold text-slate-700">
+              <span className="w-6 h-6 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center text-xs font-bold shrink-0">✓</span>
+              <span>Домашние задания и баллы</span>
+            </div>
           </div>
         </div>
 

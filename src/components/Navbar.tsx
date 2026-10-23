@@ -335,9 +335,11 @@ export default function Navbar() {
                   <Link href="/#trial" className="hover:text-blue-600 transition">
                     Пробный урок
                   </Link>
-                  <a href={getLkUrl("/login")} className="hover:text-blue-600 transition">
-                    Вход в кабинет
-                  </a>
+                  {!isLoginPage && (
+                    <a href={getLkUrl("/login")} className="hover:text-blue-600 transition">
+                      Вход в кабинет
+                    </a>
+                  )}
                 </nav>
               ) : (
                 <div className="hidden sm:flex items-center gap-2 pl-4 border-l border-slate-200">
