@@ -60,7 +60,8 @@ interface VideoRoomProps {
   studentName?: string;
   studentAvatar?: string;
   lessonId?: string;
-  onEndLesson?: () => void;
+  endTime?: string;
+  onEndLesson?: (forceComplete?: boolean) => void;
   onRoleChange?: (role: "TEACHER" | "STUDENT" | "PARENT") => void;
 }
 
@@ -169,6 +170,7 @@ export default function VideoRoom({
   studentName = "Ученик",
   studentAvatar,
   lessonId,
+  endTime,
   onEndLesson,
   onRoleChange,
 }: VideoRoomProps) {
@@ -204,26 +206,101 @@ export default function VideoRoom({
   const [raisedHand, setRaisedHand] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
 
+  // 3. Отслеживание времени окончания урока и 15-минутного льготного периода
+  const [currentEndTime, setCurrentEndTime] = useState<string | undefined>(endTime);
+  const [isTimeUp, setIsTimeUp] = useState<boolean>(false);
+  const [graceSecondsLeft, setGraceSecondsLeft] = useState<number>(15 * 60);
+  const [showTimeUpModal, setShowTimeUpModal] = useState<boolean>(false);
+  const [dismissedTimeUpModal, setDismissedTimeUpModal] = useState<boolean>(false);
+  const [showExitConfirmModal, setShowExitConfirmModal] = useState<boolean>(false);
+
   // Продление урока на 30 минут (для учителя)
   const [extendingLesson, setExtendingLesson] = useState(false);
   const [extendSuccess, setExtendSuccess] = useState(false);
+
+  useEffect(() => {
+    if (endTime) {
+      setCurrentEndTime(endTime);
+    }
+  }, [endTime]);
 
   const handleExtendLesson = async (mins = 30) => {
     if (!lessonId) return;
     try {
       setExtendingLesson(true);
-      await fetchWithAuth(`/api/lessons/${lessonId}`, {
+      const res = await fetchWithAuth(`/api/lessons/${lessonId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ extendMinutes: mins }),
       });
-      setExtendSuccess(true);
-      setTimeout(() => setExtendSuccess(false), 3000);
+      if (res.ok) {
+        const data = await res.json();
+        const base = currentEndTime ? new Date(currentEndTime).getTime() : Date.now();
+        const newEnd = data.endTime || new Date(Math.max(Date.now(), base) + mins * 60 * 1000).toISOString();
+        setCurrentEndTime(newEnd);
+        setIsTimeUp(false);
+        setShowTimeUpModal(false);
+        setDismissedTimeUpModal(false);
+        setExtendSuccess(true);
+        setTimeout(() => setExtendSuccess(false), 3000);
+      }
     } catch (e) {
       console.error("Ошибка продления урока:", e);
       alert("Не удалось продлить урок. Попробуйте ещё раз.");
     } finally {
       setExtendingLesson(false);
+    }
+  };
+
+  // Таймер отслеживания окончания запланированного времени и 15 минут запаса
+  useEffect(() => {
+    if (!currentEndTime) return;
+    const endMs = new Date(currentEndTime).getTime();
+    if (isNaN(endMs)) return;
+
+    const checkTime = () => {
+      const now = Date.now();
+      const graceEndMs = endMs + 15 * 60 * 1000;
+
+      if (now >= endMs) {
+        setIsTimeUp(true);
+        const remSec = Math.max(0, Math.floor((graceEndMs - now) / 1000));
+        setGraceSecondsLeft(remSec);
+
+        // Показываем модальное окно при первом достижении времени окончания урока
+        if (!dismissedTimeUpModal) {
+          setShowTimeUpModal(true);
+        }
+
+        // Если 15 минут запаса полностью истекли — закрываем урок
+        if (now >= graceEndMs) {
+          if (onEndLesson) {
+            onEndLesson(true);
+          }
+        }
+      } else {
+        setIsTimeUp(false);
+        setGraceSecondsLeft(15 * 60);
+      }
+    };
+
+    checkTime();
+    const timer = setInterval(checkTime, 1000);
+    return () => clearInterval(timer);
+  }, [currentEndTime, dismissedTimeUpModal, onEndLesson]);
+
+  const graceMins = Math.floor(graceSecondsLeft / 60);
+  const graceSecs = graceSecondsLeft % 60;
+  const formattedGraceTime = `${graceMins.toString().padStart(2, "0")}:${graceSecs.toString().padStart(2, "0")}`;
+
+  const handleExitClick = () => {
+    // Если время урока ещё не закончилось, показываем подтверждение, чтобы урок не закрылся случайно
+    if (!isTimeUp) {
+      setShowExitConfirmModal(true);
+    } else {
+      if (onEndLesson) {
+        onEndLesson(isTeacher);
+      }
     }
   };
 
@@ -2061,13 +2138,14 @@ export default function VideoRoom({
       <header className="h-14 sm:h-16 bg-white/95 backdrop-blur-xl border-b border-slate-200/80 px-3 sm:px-5 flex items-center justify-between gap-2 shrink-0 z-30 shadow-xs">
         {/* Слева: Кнопка назад + Собеседник + Эмодзи шифрования */}
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-          <Link
-            href={userRole === "TEACHER" ? "/teacher" : userRole === "PARENT" ? "/parent" : "/student"}
+          <button
+            type="button"
+            onClick={handleExitClick}
             className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition cursor-pointer shrink-0 border border-slate-200"
             title="Выйти в кабинет"
           >
             <ChevronLeft className="w-5 h-5" />
-          </Link>
+          </button>
 
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="relative shrink-0">
@@ -2198,7 +2276,7 @@ export default function VideoRoom({
           </button>
 
           <button
-            onClick={onEndLesson}
+            onClick={handleExitClick}
             className="hidden md:flex px-3.5 py-1.5 rounded-full bg-[#e53935] hover:bg-[#d32f2f] text-white font-bold transition items-center gap-1.5 cursor-pointer shadow-md shadow-rose-600/20"
             title="Завершить урок"
           >
@@ -2207,6 +2285,40 @@ export default function VideoRoom({
           </button>
         </div>
       </header>
+
+      {/* Плашка льготного периода: 15 минут после окончания времени урока */}
+      {isTimeUp && (
+        <div className="bg-gradient-to-r from-amber-500 to-amber-600 text-white px-3 sm:px-5 py-2 flex flex-wrap items-center justify-between gap-2.5 text-xs font-bold shadow-sm z-30 shrink-0 animate-in fade-in duration-200">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping shrink-0" />
+            <span>Запланированное время урока завершилось. Время на подведение итогов:</span>
+            <span className="px-2.5 py-0.5 rounded-full bg-black/25 font-mono text-xs tracking-wider shrink-0 border border-white/20">
+              {formattedGraceTime}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {isTeacher && (
+              <button
+                type="button"
+                onClick={() => handleExtendLesson(30)}
+                disabled={extendingLesson}
+                className="px-3 py-1 rounded-full bg-white text-amber-900 hover:bg-amber-50 active:scale-95 font-extrabold transition cursor-pointer shadow-xs disabled:opacity-50 flex items-center gap-1.5"
+              >
+                <Clock className="w-3.5 h-3.5" />
+                <span>{extendingLesson ? "Продление..." : "+30 мин"}</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleExitClick}
+              className="px-3 py-1 rounded-full bg-black/20 hover:bg-black/30 text-white transition cursor-pointer"
+            >
+              {isTeacher ? "Завершить урок" : "Выйти в кабинет"}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Плашка переподключения WebRTC / TURN (P1.2) */}
       {isReconnecting && (
@@ -3407,12 +3519,137 @@ export default function VideoRoom({
 
           {/* Завершить звонок (Красная кнопка) */}
           <button
-            onClick={onEndLesson}
+            onClick={handleExitClick}
             className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[#e53935] hover:bg-[#d32f2f] text-white flex items-center justify-center transition-all cursor-pointer shadow-lg shadow-rose-600/40 hover:scale-105 active:scale-95"
             title="Завершить звонок"
           >
             <PhoneOff className="w-5 h-5" />
           </button>
+        </div>
+      )}
+
+      {/* Модальное окно 1: Оповещение об окончании запланированного времени урока (45 мин) */}
+      {showTimeUpModal && (
+        <div className="fixed inset-0 z-[120] bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full text-center space-y-5 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200">
+            <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto border border-amber-200 shadow-xs">
+              <Clock className="w-7 h-7" />
+            </div>
+
+            <div className="space-y-1.5">
+              <span className="px-3 py-0.5 rounded-full bg-amber-100 text-amber-900 font-extrabold text-[11px] inline-flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+                Время урока завершилось
+              </span>
+              <h3 className="text-xl font-black text-slate-900">
+                Урок окончен
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
+                Запланированное время занятия подошло к концу. У вас есть{" "}
+                <strong className="text-slate-800">15 минут</strong>, чтобы подвести итоги, сохранить материалы и спокойно выйти.
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/80 flex items-center justify-between">
+              <span className="text-xs font-bold text-amber-900">
+                До закрытия класса осталось:
+              </span>
+              <span className="text-sm font-black font-mono text-amber-700 bg-white px-2.5 py-1 rounded-xl border border-amber-200">
+                {formattedGraceTime}
+              </span>
+            </div>
+
+            <div className="space-y-2 pt-1">
+              {isTeacher && (
+                <button
+                  type="button"
+                  onClick={() => handleExtendLesson(30)}
+                  disabled={extendingLesson}
+                  className="w-full py-3 px-4 rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-extrabold text-xs sm:text-sm transition cursor-pointer shadow-md shadow-amber-500/25 flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <Clock className="w-4 h-4" />
+                  <span>{extendingLesson ? "Продление..." : "Продлить урок на 30 минут"}</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowTimeUpModal(false);
+                  setDismissedTimeUpModal(true);
+                }}
+                className="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition cursor-pointer shadow-xs"
+              >
+                Подвести итоги (осталось {formattedGraceTime})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowTimeUpModal(false);
+                  onEndLesson?.(isTeacher);
+                }}
+                className="w-full py-2 px-4 rounded-xl text-xs font-semibold text-slate-500 hover:text-slate-700 transition cursor-pointer"
+              >
+                {isTeacher ? "Завершить урок сейчас" : "Выйти в личный кабинет"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Модальное окно 2: Подтверждение выхода, если время урока ещё не закончилось */}
+      {showExitConfirmModal && (
+        <div className="fixed inset-0 z-[120] bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full text-center space-y-5 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200">
+            <div className="w-14 h-14 rounded-2xl bg-blue-50 text-[#2481cc] flex items-center justify-center mx-auto border border-blue-200 shadow-xs">
+              <PhoneOff className="w-7 h-7" />
+            </div>
+
+            <div className="space-y-1.5">
+              <h3 className="text-xl font-black text-slate-900">
+                Выход из онлайн-класса
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
+                Время урока ещё не закончилось. Вы можете выйти в кабинет, при этом урок{" "}
+                <strong className="text-slate-800">не закроется</strong>, и вы сможете вернуться в него в любой момент.
+              </p>
+            </div>
+
+            <div className="space-y-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowExitConfirmModal(false);
+                  onEndLesson?.(false); // Выходим без перевода в COMPLETED — комната остаётся открытой!
+                }}
+                className="w-full py-3 px-4 rounded-2xl bg-[#2481cc] hover:bg-[#1f70b0] text-white font-extrabold text-xs sm:text-sm transition cursor-pointer shadow-md shadow-blue-500/25 flex items-center justify-center gap-2"
+              >
+                <span>Выйти в кабинет (оставить урок открытым)</span>
+              </button>
+
+              {isTeacher && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowExitConfirmModal(false);
+                    onEndLesson?.(true); // Учитель явно завершает урок досрочно
+                  }}
+                  className="w-full py-2.5 px-4 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs transition cursor-pointer border border-rose-200"
+                >
+                  Завершить урок досрочно и перейти к отчёту
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setShowExitConfirmModal(false)}
+                className="w-full py-2 px-4 rounded-xl text-xs font-semibold text-slate-500 hover:text-slate-700 transition cursor-pointer"
+              >
+                Отмена (остаться на уроке)
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

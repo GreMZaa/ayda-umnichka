@@ -96,9 +96,14 @@ export default function RoomPage({ params }: { params: { id: string } }) {
     };
   }, [params.id]);
 
-  const handleEndLesson = async () => {
+  const handleEndLesson = async (forceComplete = false) => {
     const targetId = lesson?.id || params.id;
-    if (targetId) {
+    const endMs = lesson?.endTime ? new Date(lesson.endTime).getTime() : 0;
+    const isGracePeriodOver = endMs > 0 && Date.now() > endMs + 15 * 60 * 1000;
+
+    // Урок закрывается только если истекли время урока + 15 минут запаса,
+    // либо если учитель явно выбрал «Завершить урок»
+    if (targetId && (forceComplete || isGracePeriodOver)) {
       try {
         await fetchWithAuth(`/api/lessons/${targetId}`, {
           method: "PATCH",
@@ -122,14 +127,21 @@ export default function RoomPage({ params }: { params: { id: string } }) {
   const isLessonExpired = () => {
     if (!lesson) return false;
     if (lesson.id === "umnichka-test-room" || lesson.id === "test-room") return false;
-    if (lesson.status === "COMPLETED") return true;
-    if (lesson.status === "LIVE") return false; // Идущий сейчас урок никогда не блокируется
+
+    // Проверяем время окончания: даём 15 минут запаса после окончания времени урока
     if (lesson.endTime) {
       const endMs = new Date(lesson.endTime).getTime();
-      if (isNaN(endMs)) return false;
-      // Даём запас минимум 2 часа после окончания урока, чтобы комната не блокировалась досрочно
-      return Date.now() > endMs + 2 * 60 * 60 * 1000;
+      if (!isNaN(endMs)) {
+        const graceEndMs = endMs + 15 * 60 * 1000;
+        // Пока не прошло запланированное время + 15 минут запаса, комната НЕ закрывается
+        if (Date.now() <= graceEndMs) {
+          return false;
+        }
+        return true;
+      }
     }
+
+    if (lesson.status === "COMPLETED") return true;
     return false;
   };
 
@@ -312,12 +324,13 @@ export default function RoomPage({ params }: { params: { id: string } }) {
       lessonTitle={lesson?.title || "Индивидуальный онлайн-урок"}
       subjectName={lesson?.subjectName || "Математика и логика"}
       subjectColor={lesson?.subjectColor || "#2563eb"}
-      teacherName={lesson?.teacherName || "Анна Сергеевна Иванова"}
+      teacherName={lesson?.teacherName || "Шаронова Василина Владимировна"}
       teacherAvatar={lesson?.teacherAvatar}
-      studentName={lesson?.studentName || "Ученик"}
+      studentName={lesson?.studentName || "Сергей Дмитриевич"}
       studentAvatar={lesson?.studentAvatar}
       lessonId={lesson?.id || params.id}
-      onEndLesson={handleEndLesson}
+      endTime={lesson?.endTime}
+      onEndLesson={(force) => handleEndLesson(force)}
       onRoleChange={(newRole) => {
         setCurrentRole(newRole);
         try {
