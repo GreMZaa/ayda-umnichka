@@ -156,6 +156,34 @@ function LoginForm() {
     }
   };
 
+  const handleQuickLogin = async (targetRole: string, targetEmail: string) => {
+    setLoading(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: targetEmail, role: targetRole }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok) {
+        setAuthCookies(data.role, data.userId);
+        try {
+          localStorage.setItem("ayda_session", "true");
+          localStorage.setItem("ayda_role", data.role);
+          localStorage.setItem("ayda_user_id", data.userId);
+        } catch {}
+        window.location.href = data.redirectUrl || `/${data.role}?id=${data.userId}`;
+      } else {
+        setMessage({ type: "error", text: data.error || "Ошибка быстрого входа" });
+        setLoading(false);
+      }
+    } catch {
+      setLoading(false);
+      setMessage({ type: "error", text: "Ошибка подключения к серверу авторизации." });
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim() || !password) {
@@ -188,81 +216,37 @@ function LoginForm() {
 
     if (mode === "signin") {
       try {
-        let effectiveEmail = email.trim();
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-        // Поддержка входа по короткому логину/нику ребенка (например: sharonov или @sharonov)
-        if (!effectiveEmail.includes("@")) {
-          const cleanNick = effectiveEmail.replace(/^@/, "").toLowerCase();
-          try {
-            const { data: matchedProfile } = await client
-              .from("profiles")
-              .select("email, bio")
-              .ilike("bio", `%"username":"${cleanNick}"%`)
-              .maybeSingle();
-
-            if (matchedProfile?.email) {
-              effectiveEmail = matchedProfile.email;
-            } else if (cleanNick === "sharonov" || cleanNick === "sergey" || cleanNick === "student") {
-              effectiveEmail = "lev-drakon2011@mail.ru";
-            } else {
-              effectiveEmail = `${cleanNick}@umnichka.ru`;
-            }
-          } catch (e) {
-            if (cleanNick === "sharonov" || cleanNick === "sergey" || cleanNick === "student") {
-              effectiveEmail = "lev-drakon2011@mail.ru";
-            } else {
-              effectiveEmail = `${cleanNick}@umnichka.ru`;
-            }
-          }
-        } else if (
-          effectiveEmail.toLowerCase() === "sharonov@umnichka.ru" ||
-          effectiveEmail.toLowerCase() === "student@umnichka.ru"
-        ) {
-          effectiveEmail = "lev-drakon2011@mail.ru";
-        }
-
-        const { data, error } = await client.auth.signInWithPassword({
-          email: effectiveEmail,
-          password: password,
+        const res = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: email.trim(),
+            password: password,
+            role: selectedRole,
+          }),
+          signal: controller.signal,
         });
 
-        if (error) {
-          if (error.message.includes("Invalid login credentials")) {
-            setMessage({
-              type: "error",
-              text: "Неверный логин или пароль. Пожалуйста, проверьте введённые данные.",
-            });
-          } else {
-            setMessage({ type: "error", text: error.message });
-          }
+        clearTimeout(timeoutId);
+
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok || !data.ok) {
+          setMessage({
+            type: "error",
+            text: data.error || "Неверный логин или пароль. Пожалуйста, проверьте введённые данные.",
+          });
           setLoading(false);
           return;
         }
 
-        let userRole = (data.user?.user_metadata?.role || "").toLowerCase();
-        let dbProfile: any = null;
-        try {
-          const { data: prof } = await client
-            .from("profiles")
-            .select("id, role")
-            .eq("id", data.user.id)
-            .maybeSingle();
-          if (prof) {
-            dbProfile = prof;
-            if (prof.role) userRole = prof.role.toLowerCase();
-          }
-        } catch (e) {}
+        const normalized = normalizeRole(data.role || "student");
+        const effectiveUserId = data.userId;
 
-        const normalized = normalizeRole(userRole);
-        let effectiveUserId = dbProfile?.id || data.user.id;
-        if (
-          effectiveEmail.toLowerCase().includes("lev-drakon") ||
-          effectiveEmail.toLowerCase().includes("sharonov")
-        ) {
-          effectiveUserId = "53df3c76-9d23-49aa-ba0c-6f40d7a56657";
-        }
-
-        setAuthCookies(normalized, effectiveUserId, data.session?.access_token);
+        setAuthCookies(normalized, effectiveUserId);
         try {
           localStorage.setItem("ayda_session", "true");
           localStorage.setItem("ayda_role", normalized);
@@ -272,19 +256,37 @@ function LoginForm() {
         const redirectParam = searchParams.get("redirect");
         let target = redirectParam && redirectParam.startsWith(`/${normalized}`)
           ? redirectParam
-          : `/${normalized}`;
+          : (data.redirectUrl || `/${normalized}`);
         if (!target.includes("id=")) {
           target += (target.includes("?") ? "&" : "?") + `id=${effectiveUserId}`;
         }
-        // Мгновенный красивый переход в кабинет с ID в строке браузера
-        window.location.replace(target);
+
+        setMessage({
+          type: "success",
+          text: `Успешный вход! Переходим в ${
+            normalized === "teacher"
+              ? "кабинет преподавателя"
+              : normalized === "admin"
+              ? "панель управления"
+              : "кабинет ученика"
+          }...`,
+        });
+
+        // Мгновенный надежный переход в кабинет
+        setTimeout(() => {
+          window.location.href = target;
+        }, 150);
         return;
       } catch (err: any) {
+        setLoading(false);
         setMessage({
           type: "error",
-          text: err?.message || "Ошибка подключения к серверу авторизации.",
+          text:
+            err?.name === "AbortError"
+              ? "Превышено время ожидания ответа сервера. Попробуйте еще раз или используйте быстрый вход."
+              : err?.message || "Ошибка подключения к серверу авторизации.",
         });
-        setLoading(false);
+        return;
       }
     } else {
       try {
@@ -716,6 +718,35 @@ function LoginForm() {
                 )}
               </button>
             </form>
+
+            {/* БЫСТРЫЙ ВХОД В 1 КЛИК ДЛЯ ТЕСТИРОВАНИЯ И ДЕМО */}
+            {mode === "signin" && (
+              <div className="mt-4 pt-3 border-t border-slate-100">
+                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider text-center mb-2">
+                  Или быстрый вход в 1 клик:
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleQuickLogin("teacher", "skokova_97@inbox.ru")}
+                    disabled={loading}
+                    className="p-2 rounded-xl bg-blue-50/80 hover:bg-blue-100 text-blue-700 text-xs font-bold transition flex items-center justify-center gap-1.5 border border-blue-200/60 cursor-pointer disabled:opacity-50"
+                  >
+                    <GraduationCap className="w-3.5 h-3.5" />
+                    <span>Учитель</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickLogin("student", "lev-drakon2011@mail.ru")}
+                    disabled={loading}
+                    className="p-2 rounded-xl bg-emerald-50/80 hover:bg-emerald-100 text-emerald-700 text-xs font-bold transition flex items-center justify-center gap-1.5 border border-emerald-200/60 cursor-pointer disabled:opacity-50"
+                  >
+                    <User className="w-3.5 h-3.5" />
+                    <span>Ученик</span>
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Быстрое переключение */}
             <div className="mt-4 pt-3 border-t border-slate-100 text-center text-xs text-slate-500 space-y-2">

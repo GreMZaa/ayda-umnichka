@@ -191,100 +191,52 @@ export default function Navbar() {
     setLoading(true);
     setErrorMsg(null);
 
-    const client = getSupabase();
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-    if (client) {
-      try {
-        let effectiveEmail = email.trim();
-
-        // Поддержка входа как по email, так и по короткому логину/нику (например sharonov)
-        if (!effectiveEmail.includes("@")) {
-          const cleanNick = effectiveEmail.replace(/^@/, "").toLowerCase();
-          try {
-            const { data: matchedProfile } = await client
-              .from("profiles")
-              .select("email, bio")
-              .ilike("bio", `%"username":"${cleanNick}"%`)
-              .maybeSingle();
-
-            if (matchedProfile?.email) {
-              effectiveEmail = matchedProfile.email;
-            } else if (cleanNick === "sharonov" || cleanNick === "sergey" || cleanNick === "student") {
-              effectiveEmail = "lev-drakon2011@mail.ru";
-            } else {
-              effectiveEmail = `${cleanNick}@umnichka.ru`;
-            }
-          } catch (e) {
-            if (cleanNick === "sharonov" || cleanNick === "sergey" || cleanNick === "student") {
-              effectiveEmail = "lev-drakon2011@mail.ru";
-            } else {
-              effectiveEmail = `${cleanNick}@umnichka.ru`;
-            }
-          }
-        } else if (
-          effectiveEmail.toLowerCase() === "sharonov@umnichka.ru" ||
-          effectiveEmail.toLowerCase() === "student@umnichka.ru"
-        ) {
-          effectiveEmail = "lev-drakon2011@mail.ru";
-        }
-
-        const { data, error } = await client.auth.signInWithPassword({
-          email: effectiveEmail,
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: email.trim(),
           password: password,
-        });
+        }),
+        signal: controller.signal,
+      });
 
-        if (error) {
-          if (error.message.includes("Invalid login credentials")) {
-            setErrorMsg("Неверный email или пароль. Если у вас ещё нет аккаунта, нажмите «Зарегистрироваться».");
-          } else {
-            setErrorMsg(error.message);
-          }
-          setLoading(false);
-          return;
-        }
+      clearTimeout(timeoutId);
 
-        let role = (data.user?.user_metadata?.role || "").toLowerCase();
-        if (!role || role === "authenticated") {
-          try {
-            const { data: prof } = await client
-              .from("profiles")
-              .select("role")
-              .eq("id", data.user?.id)
-              .maybeSingle();
-            if (prof?.role) role = prof.role.toLowerCase();
-          } catch (e) {}
-        }
-        const confirmedRole = normalizeRole(role || "student");
-        if (data.user) {
-          setAuthCookies(confirmedRole, data.user.id, data.session?.access_token);
-          try {
-            localStorage.setItem("ayda_session", "true");
-            localStorage.setItem("ayda_role", confirmedRole);
-            localStorage.setItem("ayda_user_id", data.user.id);
-          } catch {}
-        }
+      const data = await res.json().catch(() => ({}));
 
-        setShowLoginModal(false);
-        window.location.replace(`/${confirmedRole}`);
-        return;
-      } catch (err: any) {
-        setErrorMsg(err?.message || "Ошибка подключения к серверу авторизации.");
+      if (!res.ok || !data.ok) {
+        setErrorMsg(data.error || "Неверный email или пароль.");
         setLoading(false);
         return;
       }
-    } else {
-      setShowLoginModal(false);
-      const fallbackRole = email.includes("admin")
-        ? "admin"
-        : email.includes("teacher")
-        ? "teacher"
-        : email.includes("parent")
-        ? "parent"
-        : "student";
-      router.push(`/${fallbackRole}`);
-    }
 
-    setLoading(false);
+      const confirmedRole = normalizeRole(data.role || "student");
+      setAuthCookies(confirmedRole, data.userId);
+      try {
+        localStorage.setItem("ayda_session", "true");
+        localStorage.setItem("ayda_role", confirmedRole);
+        localStorage.setItem("ayda_user_id", data.userId);
+      } catch {}
+
+      setShowLoginModal(false);
+      window.location.href = data.redirectUrl || `/${confirmedRole}?id=${data.userId}`;
+      return;
+    } catch (err: any) {
+      setErrorMsg(
+        err?.name === "AbortError"
+          ? "Превышено время ожидания ответа сервера. Попробуйте еще раз."
+          : err?.message || "Ошибка подключения к серверу авторизации."
+      );
+      setLoading(false);
+      return;
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleLogout = async () => {

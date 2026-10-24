@@ -84,11 +84,12 @@ export function middleware(request: NextRequest) {
       }
     }
 
-    // Д) Страница логина: если пользователь уже авторизован, направляем в его кабинет
+    // Д) Страница логина: направляем в кабинет только если явно запрошен autologin=1
     if (isLoginRoute && aydaSession && aydaRole) {
       const mode = searchParams.get("mode");
       const logout = searchParams.get("logout");
-      if (mode !== "signup" && !logout) {
+      const autologin = searchParams.get("autologin");
+      if (mode !== "signup" && !logout && autologin === "1") {
         const url = request.nextUrl.clone();
         url.pathname = `/${aydaRole}`;
         if (aydaUserId && !url.searchParams.get("id")) {
