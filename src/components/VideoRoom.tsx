@@ -381,6 +381,18 @@ export default function VideoRoom({
   const iceCandidateQueueRef = useRef<RTCIceCandidateInit[]>([]);
   const makingOfferRef = useRef(false);
   const [audioNeedsUnlock, setAudioNeedsUnlock] = useState(false);
+  const hasEverConnectedRef = useRef(false);
+  const reconnectTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const triggerReconnecting = useCallback(() => {
+    // Плашку показываем только если связь с собеседником уже была установлена ранее
+    if (!hasEverConnectedRef.current) return;
+    setIsReconnecting(true);
+    if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+    reconnectTimerRef.current = setTimeout(() => {
+      setIsReconnecting(false);
+    }, 5000);
+  }, []);
 
   const currentCamOnRef = useRef(camOn);
   currentCamOnRef.current = camOn;
@@ -497,6 +509,9 @@ export default function VideoRoom({
 
         event.track.onunmute = () => {
           if (remoteStreamRef.current) {
+            hasEverConnectedRef.current = true;
+            setIsReconnecting(false);
+            if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
             const updated = new MediaStream(remoteStreamRef.current.getTracks());
             remoteStreamRef.current = updated;
             setRemoteStream(updated);
@@ -523,40 +538,46 @@ export default function VideoRoom({
 
       pc.oniceconnectionstatechange = () => {
         const state = pc.iceConnectionState;
-        if (state === "disconnected" || state === "failed") {
-          setIsReconnecting(true);
+        if (state === "connected" || state === "completed") {
+          hasEverConnectedRef.current = true;
+          setIsReconnecting(false);
+          if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+        } else if (state === "disconnected" || state === "failed") {
+          triggerReconnecting();
           try {
-            pc.createOffer({ iceRestart: true })
-              .then((offer) => pc.setLocalDescription(offer))
-              .then(() => {
-                if (channelRef.current) {
-                  channelRef.current.send({
-                    type: "broadcast",
-                    event: "webrtc_signal",
-                    payload: {
-                      senderId: myPeerId,
-                      senderRole: userRole,
-                      description: pc.localDescription,
-                    },
-                  });
-                }
-              })
-              .catch((err) => console.warn("ICE restart offer failed:", err));
+            if (hasEverConnectedRef.current) {
+              pc.createOffer({ iceRestart: true })
+                .then((offer) => pc.setLocalDescription(offer))
+                .then(() => {
+                  if (channelRef.current) {
+                    channelRef.current.send({
+                      type: "broadcast",
+                      event: "webrtc_signal",
+                      payload: {
+                        senderId: myPeerId,
+                        senderRole: userRole,
+                        description: pc.localDescription,
+                      },
+                    });
+                  }
+                })
+                .catch((err) => console.warn("ICE restart offer failed:", err));
+            }
           } catch (restartErr) {
             console.warn("ICE restart error:", restartErr);
           }
-        } else if (state === "connected" || state === "completed") {
-          setIsReconnecting(false);
         }
       };
 
       pc.onconnectionstatechange = () => {
         const state = pc.connectionState;
         if (state === "connected") {
+          hasEverConnectedRef.current = true;
           setIsReconnecting(false);
           setIsPartnerInRoom(true);
+          if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
         } else if (state === "failed" || state === "disconnected") {
-          setIsReconnecting(true);
+          triggerReconnecting();
         }
       };
 
@@ -565,7 +586,7 @@ export default function VideoRoom({
       console.warn("Failed to create RTCPeerConnection:", err);
       return null;
     }
-  }, [myPeerId, userRole, syncRemoteVideos]);
+  }, [myPeerId, userRole, syncRemoteVideos, triggerReconnecting]);
 
   // Инициация звонка (отправка offer)
   const initiateCall = useCallback(async () => {
@@ -1594,6 +1615,12 @@ export default function VideoRoom({
       });
 
     return () => {
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+      hasEverConnectedRef.current = false;
+      setIsReconnecting(false);
       supabase.removeChannel(channel);
       channelRef.current = null;
       if (peerConnectionRef.current) {
@@ -2358,9 +2385,19 @@ export default function VideoRoom({
 
       {/* Плашка переподключения WebRTC / TURN (P1.2) */}
       {isReconnecting && (
-        <div className="bg-amber-500 text-white text-xs font-bold py-1.5 px-4 flex items-center justify-center gap-2 shadow-sm animate-pulse z-20 shrink-0">
-          <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
-          <span>Восстановление связи с видеоклассом (повторное подключение)...</span>
+        <div className="bg-amber-500 text-white text-xs font-bold py-1.5 px-4 flex items-center justify-between gap-2 shadow-sm animate-pulse z-20 shrink-0">
+          <div className="flex items-center gap-2 mx-auto">
+            <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+            <span>Восстановление связи с видеоклассом (повторное подключение)...</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsReconnecting(false)}
+            className="p-1 hover:bg-black/20 rounded-lg text-white transition cursor-pointer shrink-0"
+            title="Закрыть"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
 
