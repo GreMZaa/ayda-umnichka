@@ -126,10 +126,26 @@ export async function GET(request: Request) {
             },
           });
         }
+        const now = Date.now();
+        const expiredLessonIds: string[] = [];
+
         const mappedLessons = sbLessons.map((l: any) => {
           const notes = db.getLessonNotes(l.id);
           const dbLesson = db.getLessonById(l.id);
-          const status = dbLesson?.status || l.status;
+          let status = dbLesson?.status || l.status;
+
+          // Автоматическое закрытие: если время окончания прошло, урок завершён и уходит в архив
+          const endMs = l.end_time
+            ? new Date(l.end_time).getTime()
+            : l.start_time
+            ? new Date(l.start_time).getTime() + 45 * 60 * 1000
+            : NaN;
+
+          if (status !== "COMPLETED" && status !== "CANCELLED" && !isNaN(endMs) && endMs <= now) {
+            status = "COMPLETED";
+            expiredLessonIds.push(l.id);
+          }
+
           return {
             id: l.id,
             title: l.title,
@@ -149,6 +165,26 @@ export async function GET(request: Request) {
             notes,
           };
         });
+
+        // Синхронизируем закрытие в Supabase и локальной базе
+        if (expiredLessonIds.length > 0) {
+          try {
+            client
+              .from("lessons")
+              .update({ status: "COMPLETED" })
+              .in("id", expiredLessonIds)
+              .then(({ error }: any) => {
+                if (error) console.error("Error auto-closing expired lessons in Supabase:", error);
+              });
+            for (const expId of expiredLessonIds) {
+              try {
+                db.updateLessonStatus(expId, "COMPLETED");
+              } catch (_) {}
+            }
+          } catch (e) {
+            console.error("Auto-close lessons error:", e);
+          }
+        }
         return NextResponse.json(mappedLessons, {
           headers: {
             "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",

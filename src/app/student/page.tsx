@@ -730,23 +730,27 @@ export default function StudentCabinet() {
           }
 
           if (sbLessons.length > 0) {
-            const mapped = sbLessons.map((l: any) => ({
-              id: l.id,
-              title: l.title || "Индивидуальный урок",
-              subjectId: l.subject_id,
-              subjectName: l.subjects?.name || "Английский язык",
-              subjectColor: l.subjects?.color || "#059669",
-              teacherId: l.teacher_id,
-              teacherName: l.teacher?.name || "Шаронова Василина Владимировна",
-              teacherAvatar: l.teacher?.avatar_url || TEACHER_VASILINA_AVATAR,
-              studentId: l.student_id,
-              studentName: l.student?.name || studentName || (userIsSharonov ? "Сергей Дмитриевич" : "Ученик"),
-              studentAvatar: l.student?.avatar_url || avatarUrl || (userIsSharonov ? SHARONOV_AVATAR : ""),
-              startTime: l.start_time,
-              endTime: l.end_time,
-              status: l.status,
-              roomName: l.room_name,
-            }));
+            const mapped = sbLessons.map((l: any) => {
+              const endMs = l.end_time ? new Date(l.end_time).getTime() : (l.start_time ? new Date(l.start_time).getTime() + 45 * 60 * 1000 : NaN);
+              const isPast = !isNaN(endMs) && endMs <= Date.now();
+              return {
+                id: l.id,
+                title: l.title || "Индивидуальный урок",
+                subjectId: l.subject_id,
+                subjectName: l.subjects?.name || "Английский язык",
+                subjectColor: l.subjects?.color || "#059669",
+                teacherId: l.teacher_id,
+                teacherName: l.teacher?.name || "Шаронова Василина Владимировна",
+                teacherAvatar: l.teacher?.avatar_url || TEACHER_VASILINA_AVATAR,
+                studentId: l.student_id,
+                studentName: l.student?.name || studentName || (userIsSharonov ? "Сергей Дмитриевич" : "Ученик"),
+                studentAvatar: l.student?.avatar_url || avatarUrl || (userIsSharonov ? SHARONOV_AVATAR : ""),
+                startTime: l.start_time,
+                endTime: l.end_time,
+                status: l.status === "COMPLETED" || isPast ? "COMPLETED" : l.status,
+                roomName: l.room_name,
+              };
+            });
             setLessons(mapped);
             setLoading(false);
             return;
@@ -945,29 +949,31 @@ export default function StudentCabinet() {
     }
   }, [lessons, dismissedCallLessonId]);
 
+  const isLessonExpired = (l: any) => {
+    if (l.status === "COMPLETED" || l.status === "CANCELLED") return true;
+    if (l.status === "LIVE") return false;
+    const endMs = l.endTime
+      ? new Date(l.endTime).getTime()
+      : l.startTime
+      ? new Date(l.startTime).getTime() + 45 * 60 * 1000
+      : NaN;
+    return !isNaN(endMs) && endMs <= Date.now();
+  };
+
   const liveLesson = lessons.find((l) => l.status === "LIVE");
 
-  // Активный урок для быстрого входа: LIVE либо запланированный урок на сегодня/ближайшее время
+  // Активный урок для быстрого входа: LIVE либо ближайший запланированный урок, время которого ещё не истекло
   const todayActiveLesson =
     liveLesson ||
-    lessons.find((l) => {
-      if (l.status === "COMPLETED" || l.status === "CANCELLED") return false;
-      // Если урок назначен на сегодня или будущее по Тольятти - он 100% активен для ученика!
-      if (l.startTime && isTodayOrFutureInTolyatti(l.startTime)) return true;
-      const endMs = new Date(l.endTime || l.startTime).getTime();
-      return isNaN(endMs) || endMs + 4 * 3600 * 1000 > Date.now();
-    }) ||
-    lessons.find((l) => l.status !== "CANCELLED") ||
-    lessons[0];
+    lessons
+      .filter((l) => !isLessonExpired(l))
+      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0] ||
+    null;
 
   const upcomingLessons = lessons
-    .filter((l) => {
-      if (l.status === "COMPLETED" || l.status === "CANCELLED") return false;
-      const endMs = new Date(l.endTime || l.startTime).getTime();
-      return isNaN(endMs) || endMs + 4 * 3600 * 1000 > Date.now();
-    })
+    .filter((l) => !isLessonExpired(l))
     .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-  const completedLessons = lessons.filter((l) => l.status === "COMPLETED");
+  const completedLessons = lessons.filter((l) => isLessonExpired(l) || l.status === "COMPLETED");
 
   const initial = studentName.charAt(0).toUpperCase();
 

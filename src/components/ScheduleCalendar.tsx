@@ -113,8 +113,8 @@ export default function ScheduleCalendar({
   const [filterSubject, setFilterSubject] = useState<string>("all");
   const [showPastLessons, setShowPastLessons] = useState<boolean>(true);
 
-  // Состояния для режима «Списком» (ACTIVE = актуальные уроки; прошедшие уроки не высвечиваются здесь и уходят в ARCHIVE)
-  const [listFilter, setListFilter] = useState<"ACTIVE" | "ARCHIVE" | "ALL">("ACTIVE");
+  // Состояния для режима «Списком» (ALL = все актуальные/запланированные уроки; прошедшие уроки ТОЛЬКО в ARCHIVE)
+  const [listFilter, setListFilter] = useState<"ALL" | "ARCHIVE" | "ACTIVE">("ALL");
   const [listSearchQuery, setListSearchQuery] = useState("");
   const [listScope, setListScope] = useState<"all" | "week">("all");
   const [extendingLessonId, setExtendingLessonId] = useState<string | null>(null);
@@ -229,23 +229,26 @@ export default function ScheduleCalendar({
     });
   }, [filteredLessons, weekStart, weekEnd]);
 
-  // Проверка: завершён ли урок или истекло ли его запланированное время
+  // Проверка: завершён ли урок или истекло ли его запланированное время.
+  // Если время прошло, даже если в комнату не заходили, урок автоматически считается закрытым и уходит в архив.
   const isLessonArchived = (lesson: LessonItem) => {
     if (lesson.status === "COMPLETED") return true;
-    if (lesson.status === "LIVE") return false; // Идущий сейчас урок никогда не закрыт и не в архиве
-    
-    // Если урок назначен на сегодня по Тольятти или на будущее — он ВСЕГДА АКТИВЕН!
-    // Ни учитель, ни ученик не должны терять урок в течение дня из-за сдвига поясов
-    if (lesson.startTime && isTodayOrFutureInTolyatti(lesson.startTime)) {
-      return false;
+    if (lesson.status === "LIVE") return false; // Идущий прямо сейчас урок не в архиве
+
+    // Проверяем физическое время окончания (или старт + 45 мин)
+    if (lesson.endTime) {
+      const endMs = new Date(lesson.endTime).getTime();
+      if (!isNaN(endMs) && endMs <= currentTime.getTime()) {
+        return true;
+      }
+    } else if (lesson.startTime) {
+      const startMs = new Date(lesson.startTime).getTime();
+      if (!isNaN(startMs) && startMs + 45 * 60 * 1000 <= currentTime.getTime()) {
+        return true;
+      }
     }
 
-    if (!lesson.endTime) return false;
-    const endMs = new Date(lesson.endTime).getTime();
-    if (isNaN(endMs)) return false;
-    // Сравниваем физическое время Date.now() (UTC ms) с реальным временем окончания урока.
-    // Даём буфер 4 часа после окончания, чтобы комната и карточка не закрывались преждевременно
-    return Date.now() > endMs + 4 * 60 * 60 * 1000;
+    return false;
   };
 
   const countActive = useMemo(
@@ -269,10 +272,14 @@ export default function ScheduleCalendar({
           }
         }
 
-        // Если урок прошёл, он уходит в архив и не высвечивается в "Все уроки"
+        // Старые/прошедшие уроки ТОЛЬКО в архиве! Во "Все уроки" и "Актуальные" их быть не должно!
         const isArch = isLessonArchived(lesson);
-        if (listFilter === "ACTIVE" && isArch) return false;
-        if (listFilter === "ARCHIVE" && !isArch) return false;
+        if (listFilter === "ARCHIVE") {
+          if (!isArch) return false;
+        } else {
+          // Во вкладке "Все уроки" (ALL) или "Актуальные" (ACTIVE) старых уроков быть не должно
+          if (isArch) return false;
+        }
 
         // Фильтр по диапазону дат
         if (listScope === "week") {
@@ -1000,11 +1007,10 @@ export default function ScheduleCalendar({
           {/* Единая лаконичная панель фильтрации */}
           <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs space-y-3">
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-              {/* Статусные табы: Актуальные (сегодня и впереди) vs Все уроки vs Архив (прошедшие) */}
+              {/* Статусные табы: Все уроки (актуальные/запланированные) vs Архив (прошедшие/завершённые) */}
               <div className="flex flex-wrap items-center gap-1.5">
                 {[
-                  { id: "ACTIVE" as const, label: "Актуальные", count: countActive },
-                  { id: "ALL" as const, label: "Все уроки", count: filteredLessons.length },
+                  { id: "ALL" as const, label: "Все уроки", count: countActive },
                   { id: "ARCHIVE" as const, label: "Архив", count: countArchived, icon: Archive },
                 ].map((f) => {
                   const Icon = f.icon;
