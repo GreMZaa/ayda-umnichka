@@ -267,8 +267,8 @@ export async function POST(request: Request) {
     }
 
     const lessonData = validation.data;
-    const isUuid = (str: string) =>
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+    const isUuid = (str?: string | null): str is string =>
+      Boolean(str && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str));
 
     // Сохранение в Supabase
     const client = getSupabase();

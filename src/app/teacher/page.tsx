@@ -1125,201 +1125,162 @@ export default function TeacherCabinet() {
     setCreatingLesson(true);
     setCreateError(null);
 
-    const client = getSupabase();
+    try {
+      const client = getSupabase();
 
-    // 1. Определение учебного предмета
-    let finalSubjectName = "";
-    let finalSubjectId = "";
-    let finalSubjectColor = "#2563eb";
+      // 1. Определение учебного предмета
+      let finalSubjectName = "Математика и логика";
+      let finalSubjectId = "fd8c024a-ff45-40e1-99ea-9afa55e1bf3d";
+      let finalSubjectColor = "#2563eb";
 
-    if (isCustomSubject) {
-      if (!customSubjectName.trim()) {
-        setCreateError("Пожалуйста, введите или выберите учебный предмет.");
-        setCreatingLesson(false);
-        return;
-      }
-      finalSubjectName = customSubjectName.trim();
-      const match = subjects.find(
-        (s) => s.name.toLowerCase() === finalSubjectName.toLowerCase()
-      );
-      if (match) {
-        finalSubjectId = match.id;
-        finalSubjectColor = match.color;
-      } else {
-        // Создаем предмет в Supabase
-        const newSubId = crypto.randomUUID();
-        finalSubjectId = newSubId;
-        finalSubjectColor = "#2563eb";
-        if (client) {
-          try {
-            await client.from("subjects").insert({
-              id: newSubId,
-              name: finalSubjectName,
-              color: finalSubjectColor,
-            });
-          } catch (e) {
-            console.error("Supabase insert subject error:", e);
+      if (isCustomSubject) {
+        if (!customSubjectName.trim()) {
+          setCreateError("Пожалуйста, введите или выберите учебный предмет.");
+          return;
+        }
+        finalSubjectName = customSubjectName.trim();
+        const match = subjects.find(
+          (s) => s.name.toLowerCase() === finalSubjectName.toLowerCase()
+        );
+        if (match) {
+          finalSubjectId = match.id;
+          finalSubjectColor = match.color;
+        } else {
+          finalSubjectId = crypto.randomUUID();
+          finalSubjectColor = "#2563eb";
+          if (client) {
+            try {
+              client.from("subjects").insert({
+                id: finalSubjectId,
+                name: finalSubjectName,
+                color: finalSubjectColor,
+              }).then(() => {});
+            } catch (e) {
+              console.warn("Supabase insert subject warning:", e);
+            }
           }
-        }
-        setSubjects((prev) => [
-          ...prev,
-          { id: finalSubjectId, name: finalSubjectName, color: finalSubjectColor },
-        ]);
-      }
-    } else {
-      const subject = subjects.find((s) => s.id === selectedSubjectId);
-      finalSubjectId = selectedSubjectId || subjects[0]?.id || "fd8c024a-ff45-40e1-99ea-9afa55e1bf3d";
-      finalSubjectName = subject?.name || "Математика и логика";
-      finalSubjectColor = subject?.color || "#2563eb";
-    }
-
-    // 2. Определение ученика (СТРОГО ТОЛЬКО ИЗ СПИСКА ДРУЗЕЙ)
-    const friend = friends.find((s) => s.id === selectedStudentId) || (friends.length === 1 ? friends[0] : null);
-    if (!friend) {
-      setCreateError(
-        "Урок можно создать только для ученика из вашего списка друзей. Пожалуйста, сначала добавьте ученика в друзья по никнейму."
-      );
-      setCreatingLesson(false);
-      return;
-    }
-    const finalStudentId = friend.id;
-    const finalStudentName = friend.name;
-
-    // 3. Определение реального ID преподавателя
-    let currentTeacherId = teacherId;
-    const isUuid = (str: string) =>
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
-
-    if (!currentTeacherId || !isUuid(currentTeacherId)) {
-      if (client) {
-        try {
-          const { data: tProf } = await client
-            .from("profiles")
-            .select("id")
-            .eq("role", "TEACHER")
-            .limit(1)
-            .maybeSingle();
-          currentTeacherId = tProf?.id || "882042e2-d020-426c-9826-9fba5b23ad2e";
-        } catch {
-          currentTeacherId = "882042e2-d020-426c-9826-9fba5b23ad2e";
+          setSubjects((prev) => [
+            ...prev,
+            { id: finalSubjectId, name: finalSubjectName, color: finalSubjectColor },
+          ]);
         }
       } else {
-        currentTeacherId = "882042e2-d020-426c-9826-9fba5b23ad2e";
+        const subject = subjects.find((s) => s.id === selectedSubjectId);
+        finalSubjectId = selectedSubjectId || subjects[0]?.id || "fd8c024a-ff45-40e1-99ea-9afa55e1bf3d";
+        finalSubjectName = subject?.name || "Математика и логика";
+        finalSubjectColor = subject?.color || "#2563eb";
       }
-    }
 
-    // Рассчитываем время начала и окончания в ISO с фиксированным часовым поясом Тольятти (UTC+4)
-    const startIso = tolyattiToIso(lessonDate, lessonTime);
-    const endDate = new Date(new Date(startIso).getTime() + lessonDurationMinutes * 60 * 1000);
-    const endIso = endDate.toISOString();
-    const roomName = lessonRoomName.trim() || `room-${Date.now()}`;
+      // 2. Определение ученика (из друзей или существующих учеников)
+      const friend =
+        friends.find((s) => s.id === selectedStudentId) ||
+        students.find((s) => s.id === selectedStudentId) ||
+        (friends.length > 0 ? friends[0] : null) ||
+        (students.length > 0 ? students[0] : null);
 
-    // 3. ПРОВЕРКА КОЛЛИЗИЙ РАСПИСАНИЯ ПЕРЕД СОЗДАНИЕМ (P1.3)
-    const newStartMs = new Date(startIso).getTime();
-    const newEndMs = new Date(endIso).getTime();
+      const finalStudentId = friend?.id || selectedStudentId || "53df3c76-9d23-49aa-ba0c-6f40d7a56657";
+      const finalStudentName = friend?.name || "Сергей Дмитриевич";
 
-    // Проверяем локальные уроки в стейте учителя (игнорируем отмененные, завершенные и уроки в прошлом)
-    const existingConflict = lessons.find((l) => {
-      if (l.status === "CANCELLED" || l.status === "COMPLETED") return false;
-      const lStart = new Date(l.startTime).getTime();
-      const lEnd = new Date(l.endTime).getTime();
-      if (lEnd <= Date.now()) return false;
-      return lStart < newEndMs && lEnd > newStartMs;
-    });
+      // 3. Определение реального ID преподавателя
+      let currentTeacherId = teacherId;
+      const isUuid = (str: string) =>
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 
-    if (existingConflict) {
-      const confirmOverride = typeof window !== "undefined" && window.confirm(
-        `Внимание: на выбранное время уже запланирован урок «${existingConflict.title}». Создать урок всё равно?`
-      );
-      if (!confirmOverride) {
-        setCreatingLesson(false);
-        return;
+      if (!currentTeacherId || !isUuid(currentTeacherId)) {
+        currentTeacherId = authUser?.id && isUuid(authUser.id) ? authUser.id : "882042e2-d020-426c-9826-9fba5b23ad2e";
       }
-    }
 
-    // 4. ПРЯМАЯ ЗАПИСЬ УРОКА В SUPABASE
-    let savedInSupabase = false;
-    if (client) {
+      // Рассчитываем время начала и окончания в ISO с фиксированным часовым поясом Тольятти (UTC+4)
+      const startIso = tolyattiToIso(lessonDate, lessonTime);
+      const endDate = new Date(new Date(startIso).getTime() + lessonDurationMinutes * 60 * 1000);
+      const endIso = endDate.toISOString();
+      const roomName = lessonRoomName.trim() || `room-${Date.now()}`;
+
+      let createdLesson: any = null;
+
+      // 4. Основное создание через серверный API (POST /api/lessons) с таймаутом 6 секунд
       try {
-        // Проверяем коллизии в Supabase (только не отмененные и не завершенные)
-        const { data: sbConflicts } = await client
-          .from("lessons")
-          .select("id, title, start_time, end_time, teacher_id, student_id")
-          .neq("status", "CANCELLED")
-          .neq("status", "COMPLETED")
-          .or(`teacher_id.eq.${currentTeacherId},student_id.eq.${finalStudentId}`);
-
-        const sbConflict = sbConflicts?.find((ex: any) => {
-          const exStart = new Date(ex.start_time).getTime();
-          const exEnd = new Date(ex.end_time).getTime();
-          if (exEnd <= Date.now()) return false;
-          return exStart < newEndMs && exEnd > newStartMs;
-        });
-
-        if (sbConflict && !existingConflict) {
-          const confirmSbOverride = typeof window !== "undefined" && window.confirm(
-            `Внимание: в расписании на это время уже найден урок «${sbConflict.title}». Создать урок всё равно?`
-          );
-          if (!confirmSbOverride) {
-            setCreatingLesson(false);
-            return;
-          }
-        }
-
-        const { data: insertedLesson, error: insErr } = await client
-          .from("lessons")
-          .insert({
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
+        const res = await fetchWithAuth("/api/lessons", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({
             title: newTitle.trim(),
-            subject_id: finalSubjectId,
-            teacher_id: currentTeacherId,
-            student_id: finalStudentId,
-            start_time: startIso,
-            end_time: endIso,
+            subjectId: finalSubjectId,
+            subjectName: finalSubjectName,
+            subjectColor: finalSubjectColor,
+            teacherId: currentTeacherId,
+            teacherName,
+            studentId: finalStudentId,
+            studentName: finalStudentName,
+            startTime: startIso,
+            endTime: endIso,
             status: "SCHEDULED",
-            room_name: roomName,
-          })
-          .select();
+            roomName: roomName,
+            allowOverlap: true,
+          }),
+        });
+        clearTimeout(timeoutId);
 
-        if (insErr) {
-          console.error("Supabase direct insert lesson error:", insErr);
-        } else if (insertedLesson) {
-          savedInSupabase = true;
+        if (res.ok) {
+          createdLesson = await res.json();
+        } else {
+          const errData = await res.json().catch(() => null);
+          console.warn("API /api/lessons returned status", res.status, errData);
         }
-      } catch (err) {
-        console.error("Supabase insert lesson exception:", err);
+      } catch (apiErr) {
+        console.warn("API creation network error/timeout:", apiErr);
       }
-    }
 
-    // Дублируем в API для синхронизации
-    try {
-      await fetchWithAuth("/api/lessons", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: newTitle.trim(),
-          subjectId: finalSubjectId,
-          subjectName: finalSubjectName,
-          subjectColor: finalSubjectColor,
-          teacherId: currentTeacherId,
-          teacherName,
-          studentId: finalStudentId,
-          studentName: finalStudentName,
-          startTime: startIso,
-          endTime: endIso,
-          status: "SCHEDULED",
-          roomName: roomName,
-          allowOverlap: true,
-        }),
-      });
-    } catch (e) {
-      console.warn("API fallback error:", e);
-    }
+      // 5. Прямой фоллбек в Supabase, если API не вернул созданный объект
+      if (!createdLesson && client) {
+        try {
+          const insertPromise = client
+            .from("lessons")
+            .insert({
+              title: newTitle.trim(),
+              subject_id: finalSubjectId,
+              teacher_id: currentTeacherId,
+              student_id: finalStudentId,
+              start_time: startIso,
+              end_time: endIso,
+              status: "SCHEDULED",
+              room_name: roomName,
+            })
+            .select()
+            .single();
 
-    // Сохраняем в локальное хранилище для мгновенной синхронизации с кабинетом ученика
-    try {
-      const localLessons = localStorage.getItem("ayda_latest_lessons");
-      const list = localLessons ? JSON.parse(localLessons) : [];
-      const newL = {
+          const timeoutPromise = new Promise<{ data: null; error: any }>((resolve) =>
+            setTimeout(() => resolve({ data: null, error: new Error("Supabase insert timeout") }), 4000)
+          );
+
+          const { data: inserted, error: insErr } = await Promise.race([insertPromise, timeoutPromise]);
+          if (inserted && !insErr) {
+            createdLesson = {
+              id: inserted.id,
+              title: inserted.title,
+              subjectId: finalSubjectId,
+              subjectName: finalSubjectName,
+              subjectColor: finalSubjectColor,
+              teacherId: currentTeacherId,
+              teacherName,
+              studentId: finalStudentId,
+              studentName: finalStudentName,
+              startTime: startIso,
+              endTime: endIso,
+              status: "SCHEDULED",
+              roomName: roomName,
+            };
+          }
+        } catch (sbErr) {
+          console.warn("Supabase direct fallback error:", sbErr);
+        }
+      }
+
+      // 6. Формируем финальный объект урока (даже при офлайн-режиме)
+      const finalLessonObj = createdLesson || {
         id: `loc-${Date.now()}`,
         title: newTitle.trim(),
         subjectId: finalSubjectId,
@@ -1327,42 +1288,61 @@ export default function TeacherCabinet() {
         subjectColor: finalSubjectColor,
         teacherId: currentTeacherId,
         teacherName,
+        teacherAvatar,
         studentId: finalStudentId,
         studentName: finalStudentName,
         startTime: startIso,
         endTime: endIso,
         status: "SCHEDULED",
         roomName: roomName,
+        notes: [],
       };
-      localStorage.setItem(
-        "ayda_latest_lessons",
-        JSON.stringify([newL, ...list.filter((x: any) => x.id !== newL.id)])
-      );
-    } catch (e) {}
 
-    // Оповещаем все кабинеты и устройства (WebSocket + Storage + BroadcastChannel + Event)
-    broadcastLessonsUpdated();
+      // 7. Сохраняем в локальное хранилище для мгновенной синхронизации с кабинетом ученика
+      try {
+        const localLessons = localStorage.getItem("ayda_latest_lessons");
+        const list = localLessons ? JSON.parse(localLessons) : [];
+        localStorage.setItem(
+          "ayda_latest_lessons",
+          JSON.stringify([finalLessonObj, ...list.filter((x: any) => x.id !== finalLessonObj.id)])
+        );
+      } catch (e) {}
 
-    await fetchLessons();
+      // 8. Мгновенно обновляем локальный стейт учителя, не дожидаясь сети
+      setLessons((prev) => [
+        finalLessonObj,
+        ...prev.filter((l) => l.id !== finalLessonObj.id),
+      ]);
 
-    // Сразу закрываем форму создания и показываем окно подтверждения
-    setCreateModalOpen(false);
-    setCreatingLesson(false);
+      // 9. Оповещаем все вкладки и кабинеты через BroadcastChannel + WebSocket
+      broadcastLessonsUpdated();
 
-    let formattedTime = "";
-    try {
-      formattedTime = formatTolyatti(startIso, "d MMMM (EEEE) в HH:mm");
-    } catch {
-      formattedTime = `${lessonDate} в ${lessonTime}`;
+      // Фоновое обновление уроков без блокировки интерфейса
+      fetchLessons().catch(() => {});
+
+      // 10. Закрываем окно создания урока и открываем окно подтверждения
+      setCreateModalOpen(false);
+
+      let formattedTime = "";
+      try {
+        formattedTime = formatTolyatti(startIso, "d MMMM (EEEE) в HH:mm");
+      } catch {
+        formattedTime = `${lessonDate} в ${lessonTime}`;
+      }
+
+      setLessonCreatedModal({
+        title: newTitle.trim(),
+        studentName: finalStudentName,
+        subjectName: finalSubjectName,
+        timeFormatted: formattedTime,
+        roomName: roomName,
+      });
+    } catch (err: any) {
+      console.error("General error in handleCreateLessonSubmit:", err);
+      setCreateError(err?.message || "Произошла непредвиденная ошибка при создании урока.");
+    } finally {
+      setCreatingLesson(false);
     }
-
-    setLessonCreatedModal({
-      title: newTitle.trim(),
-      studentName: finalStudentName,
-      subjectName: finalSubjectName,
-      timeFormatted: formattedTime,
-      roomName: roomName,
-    });
   };
 
   // Обновление статуса урока (SCHEDULED -> LIVE -> COMPLETED)

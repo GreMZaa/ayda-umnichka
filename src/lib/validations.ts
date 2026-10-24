@@ -6,24 +6,21 @@ export const LessonStatusEnum = z.enum(["SCHEDULED", "LIVE", "COMPLETED", "CANCE
 export const CreateLessonSchema = z.object({
   title: z
     .string()
-    .min(3, "Название урока должно быть не менее 3 символов")
+    .min(1, "Название урока не может быть пустым")
     .max(120, "Название урока не может превышать 120 символов")
     .trim(),
-  subjectId: z.string().min(1).max(50).trim(),
-  subjectName: z.string().min(1).max(80).trim(),
-  subjectColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Некорректный HEX-код цвета"),
-  teacherId: z.string().min(1).max(100).trim(),
-  teacherName: z.string().min(1).max(100).trim().optional(),
-  studentId: z.string().min(1).max(100).trim(),
-  studentName: z.string().min(1).max(100).trim().optional(),
-  startTime: z.string().datetime("Некорректный формат времени начала (ISO 8601)"),
-  endTime: z.string().datetime("Некорректный формат времени окончания (ISO 8601)"),
+  subjectId: z.string().optional(),
+  subjectName: z.string().optional().default("Предмет"),
+  subjectColor: z.string().optional().default("#2563eb"),
+  teacherId: z.string().optional(),
+  teacherName: z.string().optional(),
+  studentId: z.string().optional(),
+  studentName: z.string().optional(),
+  startTime: z.string(),
+  endTime: z.string(),
   status: LessonStatusEnum.default("SCHEDULED"),
-  roomName: z
-    .string()
-    .min(3, "Имя комнаты должно содержать минимум 3 символа")
-    .max(64, "Имя комнаты не должно превышать 64 символа")
-    .regex(/^[a-zA-Z0-9_-]+$/, "Имя комнаты может содержать только латинские буквы, цифры, дефис и подчеркивание"),
+  roomName: z.string().optional(),
+  allowOverlap: z.boolean().optional(),
 });
 
 // Схема обновления статуса

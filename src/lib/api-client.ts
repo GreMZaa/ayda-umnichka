@@ -24,6 +24,24 @@ export async function fetchWithAuth(url: string, init?: RequestInit): Promise<Re
     // В случае сбоя чтения сессии запрос отправляется как есть
   }
 
+  // Защита от вечных зависаний сети на мобильных устройствах: таймаут 9 секунд
+  if (!init?.signal) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 9000);
+    try {
+      const response = await fetch(url, {
+        ...init,
+        signal: controller.signal,
+        headers,
+      });
+      clearTimeout(timeoutId);
+      return response;
+    } catch (e) {
+      clearTimeout(timeoutId);
+      throw e;
+    }
+  }
+
   return fetch(url, {
     ...init,
     headers,
