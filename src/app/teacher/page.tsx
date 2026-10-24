@@ -52,6 +52,7 @@ import {
   getLocalTimezoneName,
 } from "@/lib/tolyatti-time";
 import { TEACHER_VASILINA_AVATAR } from "@/lib/default-avatar";
+import { broadcastLessonsUpdated, subscribeToLessonsUpdates } from "@/lib/broadcast";
 
 interface StudentProfile {
   id: string;
@@ -694,11 +695,8 @@ export default function TeacherCabinet() {
     };
     window.addEventListener("ayda:teacher-colleagues-updated", handleColleaguesUpdate);
 
-    // Слушатель событий обновления уроков
-    const handleLessonsUpdate = () => {
-      fetchLessons();
-    };
-    window.addEventListener("ayda:lessons-updated", handleLessonsUpdate);
+    // Мгновенная синхронизация уроков через Supabase WebSocket Broadcast + Storage + BroadcastChannel
+    const unsubscribeLessons = subscribeToLessonsUpdates(fetchLessons);
 
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
@@ -707,24 +705,7 @@ export default function TeacherCabinet() {
     };
     document.addEventListener("visibilitychange", handleVisibility);
     window.addEventListener("focus", fetchLessons);
-    const pollTimer = setInterval(fetchLessons, 10000);
-
-    let realtimeChannel: any = null;
-    try {
-      const client = getSupabase();
-      if (client) {
-        realtimeChannel = client
-          .channel("teacher-lessons-feed")
-          .on(
-            "postgres_changes",
-            { event: "*", schema: "public", table: "lessons" },
-            () => {
-              fetchLessons();
-            }
-          )
-          .subscribe();
-      }
-    } catch (e) {}
+    const pollTimer = setInterval(fetchLessons, 3000);
 
     fetchLessons();
 
@@ -732,16 +713,10 @@ export default function TeacherCabinet() {
       window.removeEventListener("ayda:profile-updated", handleProfileUpdate);
       window.removeEventListener("ayda:teacher-friends-updated", handleFriendsUpdate);
       window.removeEventListener("ayda:teacher-colleagues-updated", handleColleaguesUpdate);
-      window.removeEventListener("ayda:lessons-updated", handleLessonsUpdate);
       document.removeEventListener("visibilitychange", handleVisibility);
       window.removeEventListener("focus", fetchLessons);
       clearInterval(pollTimer);
-      if (realtimeChannel) {
-        try {
-          const client = getSupabase();
-          if (client) client.removeChannel(realtimeChannel);
-        } catch (e) {}
-      }
+      unsubscribeLessons();
     };
   }, [authUser?.id]);
 
@@ -1363,10 +1338,8 @@ export default function TeacherCabinet() {
       );
     } catch (e) {}
 
-    // Оповещаем все кабинеты (ученик, родитель) о появлении нового урока
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("ayda:lessons-updated"));
-    }
+    // Оповещаем все кабинеты и устройства (WebSocket + Storage + BroadcastChannel + Event)
+    broadcastLessonsUpdated();
 
     await fetchLessons();
 
@@ -1399,6 +1372,7 @@ export default function TeacherCabinet() {
         body: JSON.stringify({ status }),
       });
       fetchLessons();
+      broadcastLessonsUpdated();
     } catch (err) {
       console.error(err);
     }
@@ -1413,6 +1387,7 @@ export default function TeacherCabinet() {
         body: JSON.stringify({ extendMinutes: minutes }),
       });
       await fetchLessons();
+      broadcastLessonsUpdated();
     } catch (err) {
       console.error("Ошибка продления урока:", err);
       alert("Не удалось продлить урок. Попробуйте еще раз.");
@@ -1460,7 +1435,7 @@ export default function TeacherCabinet() {
     // 4. Оповещаем другие вкладки и кабинеты
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("ayda:students-updated"));
-      window.dispatchEvent(new CustomEvent("ayda:lessons-updated"));
+      broadcastLessonsUpdated();
     }
   };
 

@@ -50,6 +50,7 @@ import {
   isTodayInTolyatti,
 } from "@/lib/tolyatti-time";
 import { SHARONOV_AVATAR, TEACHER_VASILINA_AVATAR } from "@/lib/default-avatar";
+import { subscribeToLessonsUpdates } from "@/lib/broadcast";
 
 export interface TeacherProfile {
   id: string;
@@ -800,10 +801,8 @@ export default function StudentCabinet() {
 
     loadStudentLessons();
 
-    const handleLessonsUpdate = () => {
-      loadStudentLessons();
-    };
-    window.addEventListener("ayda:lessons-updated", handleLessonsUpdate);
+    // Мгновенная синхронизация уроков через Supabase WebSocket Broadcast + Storage + BroadcastChannel
+    const unsubscribeLessons = subscribeToLessonsUpdates(loadStudentLessons);
 
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
@@ -813,34 +812,16 @@ export default function StudentCabinet() {
     document.addEventListener("visibilitychange", handleVisibility);
     window.addEventListener("focus", loadStudentLessons);
 
-    const pollTimer = setInterval(loadStudentLessons, 10000);
-
-    let realtimeChannel = null;
-    try {
-      if (client) {
-        realtimeChannel = client
-          .channel("student-lessons-feed")
-          .on(
-            "postgres_changes",
-            { event: "*", schema: "public", table: "lessons" },
-            () => {
-              loadStudentLessons();
-            }
-          )
-          .subscribe();
-      }
-    } catch (e) {}
+    // Фоновый поллинг каждые 3 секунды для 100% надежности
+    const pollTimer = setInterval(loadStudentLessons, 3000);
 
     return () => {
       window.removeEventListener("ayda:profile-updated", handleProfileUpdate);
-      window.removeEventListener("ayda:lessons-updated", handleLessonsUpdate);
       window.removeEventListener("ayda:student-friends-updated", handleFriendsUpdate);
       document.removeEventListener("visibilitychange", handleVisibility);
       window.removeEventListener("focus", loadStudentLessons);
       clearInterval(pollTimer);
-      if (realtimeChannel && client) {
-        client.removeChannel(realtimeChannel);
-      }
+      unsubscribeLessons();
     };
   }, [authUser?.id, authUser?.email, studentId]);
 
