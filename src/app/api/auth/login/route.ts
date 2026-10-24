@@ -1,6 +1,14 @@
 import { NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
-import { normalizeRole } from "@/lib/auth-session";
+
+function normalizeRole(role: string | null | undefined): string {
+  if (!role) return "student";
+  const r = role.toLowerCase().trim();
+  if (r === "teacher" || r === "преподаватель" || r === "учитель") return "teacher";
+  if (r === "parent" || r === "родитель") return "parent";
+  if (r === "admin" || r === "администратор" || r === "админ") return "admin";
+  return "student";
+}
 
 const KNOWN_ACCOUNTS: Record<string, { id: string; role: string; name: string; email: string }> = {
   "skokova_97@inbox.ru": {
