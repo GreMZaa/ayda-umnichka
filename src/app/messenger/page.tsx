@@ -59,7 +59,7 @@ export default function MessengerPage() {
       {/* Left Chat List Column */}
       <div className="border-r border-slate-200 bg-slate-50 flex flex-col">
         <div className="p-4 border-b border-slate-200 bg-white">
-          <h2 className="font-bold text-base text-slate-900">Диалоги и Уведомления</h2>
+          <h2 className="font-bold text-base text-slate-800">Диалоги и Уведомления</h2>
           <p className="text-xs text-slate-500">Мессенджер центра «АйДаУмничка»</p>
         </div>
 
@@ -76,7 +76,7 @@ export default function MessengerPage() {
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between mb-0.5">
-                <h4 className="font-bold text-xs text-slate-900 truncate">
+                <h4 className="font-bold text-xs text-slate-800 truncate">
                   Светлана Васильевна (Логопед)
                 </h4>
                 <span className="text-[10px] text-slate-400">12:45</span>
@@ -99,7 +99,7 @@ export default function MessengerPage() {
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between mb-0.5">
-                <h4 className="font-bold text-xs text-slate-900 truncate">
+                <h4 className="font-bold text-xs text-slate-800 truncate">
                   Уведомления «АйДаУмничка»
                 </h4>
                 <span className="text-[10px] text-slate-400">Вчера</span>
@@ -121,7 +121,7 @@ export default function MessengerPage() {
               {activeChat === 'teacher' ? 'СВ' : '🔔'}
             </div>
             <div>
-              <h3 className="font-bold text-sm text-slate-900">
+              <h3 className="font-bold text-sm text-slate-800">
                 {activeChat === 'teacher' ? 'Светлана Васильевна Морозова' : 'Системный сервисный чат'}
               </h3>
               <p className="text-[11px] text-slate-500">
@@ -150,14 +150,14 @@ export default function MessengerPage() {
                 Вам начислено +8 занятий по абонементу «Юный оратор». Текущий баланс: 6 уроков.
               </div>
               <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-800">
-                <div className="font-bold text-slate-900 mb-1">Урок успешно проведен</div>
+                <div className="font-bold text-slate-800 mb-1">Урок успешно проведен</div>
                 Занятие «Автоматизация звука [Р]» завершено (45 мин). Списано 1 занятие с баланса.
               </div>
             </div>
           ) : (
             <>
-              {/* On-Demand Call Invite Card in Chat */}
-              <div className="p-4 rounded-2xl bg-gradient-to-r from-brand-50 to-indigo-50 border border-brand-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+              {/* On-Demand Call Invite Card in Chat (Solid brand tint, no gradient) */}
+              <div className="p-4 rounded-2xl bg-brand-50 border-2 border-brand-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-xl bg-brand-600 text-white flex items-center justify-center shrink-0">
                     <Video className="w-5 h-5 animate-pulse" />
@@ -166,7 +166,7 @@ export default function MessengerPage() {
                     <span className="text-[10px] font-bold text-brand-700 uppercase tracking-wider">
                       Приглашение на On-Demand урок
                     </span>
-                    <h4 className="text-xs font-bold text-slate-900">
+                    <h4 className="text-xs font-bold text-slate-800">
                       Тема: Автоматизация звука [Р] в словах и скороговорках
                     </h4>
                   </div>
@@ -196,7 +196,7 @@ export default function MessengerPage() {
                       className={`p-3 rounded-2xl flex items-center gap-3 shadow-sm max-w-sm ${
                         m.senderRole === 'student'
                           ? 'bg-brand-600 text-white rounded-br-none'
-                          : 'bg-slate-100 text-slate-900 rounded-bl-none'
+                          : 'bg-slate-100 text-slate-800 rounded-bl-none'
                       }`}
                     >
                       <button
@@ -236,7 +236,7 @@ export default function MessengerPage() {
                       className={`p-3.5 rounded-2xl text-xs max-w-md leading-relaxed shadow-sm ${
                         m.senderRole === 'student'
                           ? 'bg-brand-600 text-white rounded-br-none'
-                          : 'bg-slate-100 text-slate-900 rounded-bl-none'
+                          : 'bg-slate-100 text-slate-800 rounded-bl-none'
                       }`}
                     >
                       {m.text}

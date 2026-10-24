@@ -207,9 +207,9 @@ export default function Whiteboard({ onSaveSnapshot }: WhiteboardProps) {
 
         {/* Colors & Thickness */}
         <div className="flex items-center gap-2">
-          {/* Colors */}
+          {/* Colors (Vibrant, kid-friendly, no black) */}
           <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
-            {['#4F46E5', '#EF4444', '#10B981', '#F59E0B', '#0F172A'].map((c) => (
+            {['#4F46E5', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6'].map((c) => (
               <button
                 key={c}
                 onClick={() => setColor(c)}
@@ -275,3 +275,4 @@ export default function Whiteboard({ onSaveSnapshot }: WhiteboardProps) {
     </div>
   );
 }
+

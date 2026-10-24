@@ -14,7 +14,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ru">
-      <body className="min-h-screen bg-slate-50 text-slate-900 flex flex-col">
+      <body className="min-h-screen bg-slate-50 text-slate-800 flex flex-col">
         <Navbar />
         <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
           {children}
@@ -27,3 +27,4 @@ export default function RootLayout({
     </html>
   );
 }
+

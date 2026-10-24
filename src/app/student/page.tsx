@@ -49,7 +49,7 @@ export default function StudentDashboard() {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl sm:text-2xl font-bold text-slate-900">{student.fullName}</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-slate-800">{student.fullName}</h1>
               <span className="text-[11px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
                 Онлайн
               </span>
@@ -80,8 +80,8 @@ export default function StudentDashboard() {
           <BalanceWidget balance={balance} studentName={student.fullName} />
         </div>
 
-        {/* Active Lesson Callout Card */}
-        <div className="md:col-span-2 bg-gradient-to-br from-emerald-600 to-teal-700 rounded-3xl p-6 text-white shadow-lg flex flex-col justify-between">
+        {/* Active Lesson Callout Card (Solid Emerald, No gradient) */}
+        <div className="md:col-span-2 bg-emerald-600 border border-emerald-700 rounded-3xl p-6 text-white shadow-md flex flex-col justify-between">
           <div>
             <div className="flex items-center gap-2 mb-3">
               <span className="w-3 h-3 rounded-full bg-solar-400 animate-ping" />
@@ -117,7 +117,7 @@ export default function StudentDashboard() {
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2.5">
             <BookOpen className="w-5 h-5 text-brand-600" />
-            <h2 className="text-lg font-bold text-slate-900">Домашние задания</h2>
+            <h2 className="text-lg font-bold text-slate-800">Домашние задания</h2>
           </div>
           <span className="text-xs font-bold bg-brand-50 text-brand-700 px-3 py-1 rounded-full">
             {homeworks.length} активных заданий
@@ -131,7 +131,7 @@ export default function StudentDashboard() {
               className="p-5 rounded-2xl border border-slate-200 hover:border-brand-300 transition-all bg-slate-50/50"
             >
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-                <h3 className="font-bold text-base text-slate-900">{hw.title}</h3>
+                <h3 className="font-bold text-base text-slate-800">{hw.title}</h3>
                 <span
                   className={`text-xs px-2.5 py-1 rounded-full font-semibold self-start sm:self-auto ${
                     hw.status === 'assigned'
@@ -181,7 +181,7 @@ export default function StudentDashboard() {
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2.5">
             <Calendar className="w-5 h-5 text-indigo-600" />
-            <h2 className="text-lg font-bold text-slate-900">История пройденных уроков</h2>
+            <h2 className="text-lg font-bold text-slate-800">История пройденных уроков</h2>
           </div>
           <span className="text-xs text-slate-500">Списано занятий: {lessons.length}</span>
         </div>
@@ -194,7 +194,7 @@ export default function StudentDashboard() {
             >
               <div className="space-y-1.5">
                 <div className="flex items-center gap-2">
-                  <h4 className="font-bold text-sm text-slate-900">{lesson.topic}</h4>
+                  <h4 className="font-bold text-sm text-slate-800">{lesson.topic}</h4>
                   <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-mono">
                     {lesson.roomToken}
                   </span>
@@ -234,3 +234,4 @@ export default function StudentDashboard() {
     </div>
   );
 }
+

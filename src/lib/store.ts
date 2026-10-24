@@ -126,3 +126,4 @@ export const INITIAL_TRANSACTIONS: BalanceTransaction[] = [
     createdAt: '2026-10-23T14:45:00Z',
   },
 ];
+

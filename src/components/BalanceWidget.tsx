@@ -24,7 +24,7 @@ export default function BalanceWidget({ balance, studentName = 'Тимофей' 
           <div>
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Баланс занятий</span>
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-black text-slate-900">{balance}</span>
+              <span className="text-3xl font-black text-slate-800">{balance}</span>
               <span className="text-sm font-medium text-slate-600">
                 {balance === 1 ? 'занятие' : balance >= 2 && balance <= 4 ? 'занятия' : 'занятий'}
               </span>
@@ -60,3 +60,4 @@ export default function BalanceWidget({ balance, studentName = 'Тимофей' 
     </div>
   );
 }
+

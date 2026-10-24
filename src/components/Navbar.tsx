@@ -29,12 +29,12 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-500 flex items-center justify-center text-white shadow-md shadow-brand-500/20 group-hover:scale-105 transition-transform">
+            <div className="w-10 h-10 rounded-xl bg-brand-600 flex items-center justify-center text-white shadow-sm group-hover:scale-105 transition-transform">
               <Sparkles className="w-5 h-5 text-solar-400" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="font-extrabold text-lg tracking-tight text-slate-900">АйДаУмничка</span>
+                <span className="font-extrabold text-lg tracking-tight text-slate-800">АйДаУмничка</span>
                 <span className="text-[10px] uppercase font-bold bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full">Тольятти</span>
               </div>
               <p className="text-xs text-slate-500 hidden sm:block">Образовательная P2P онлайн-платформа</p>
@@ -48,7 +48,7 @@ export default function Navbar() {
               className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${
                 pathname === '/student'
                   ? 'bg-brand-50 text-brand-700 font-semibold'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100'
               }`}
             >
               <GraduationCap className="w-4 h-4 text-brand-600" />
@@ -59,7 +59,7 @@ export default function Navbar() {
               className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${
                 pathname === '/teacher'
                   ? 'bg-brand-50 text-brand-700 font-semibold'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100'
               }`}
             >
               <UserCheck className="w-4 h-4 text-indigo-600" />
@@ -70,7 +70,7 @@ export default function Navbar() {
               className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${
                 pathname === '/admin'
                   ? 'bg-brand-50 text-brand-700 font-semibold'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100'
               }`}
             >
               <Shield className="w-4 h-4 text-amber-600" />
@@ -81,7 +81,7 @@ export default function Navbar() {
               className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${
                 pathname === '/messenger'
                   ? 'bg-brand-50 text-brand-700 font-semibold'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100'
               }`}
             >
               <MessageCircle className="w-4 h-4 text-emerald-600" />
@@ -92,7 +92,7 @@ export default function Navbar() {
               className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${
                 pathname.startsWith('/room')
                   ? 'bg-brand-50 text-brand-700 font-semibold'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100'
               }`}
             >
               <Video className="w-4 h-4 text-rose-500 animate-pulse" />
@@ -116,7 +116,7 @@ export default function Navbar() {
               <button
                 onClick={() => switchRole('student')}
                 className={`px-2 py-1 rounded-lg transition-all ${
-                  activeRole === 'student' ? 'bg-white text-slate-900 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-900'
+                  activeRole === 'student' ? 'bg-white text-slate-800 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
                 Ученик
@@ -124,7 +124,7 @@ export default function Navbar() {
               <button
                 onClick={() => switchRole('teacher')}
                 className={`px-2 py-1 rounded-lg transition-all ${
-                  activeRole === 'teacher' ? 'bg-white text-slate-900 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-900'
+                  activeRole === 'teacher' ? 'bg-white text-slate-800 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
                 Педагог
@@ -132,7 +132,7 @@ export default function Navbar() {
               <button
                 onClick={() => switchRole('admin')}
                 className={`px-2 py-1 rounded-lg transition-all ${
-                  activeRole === 'admin' ? 'bg-white text-slate-900 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-900'
+                  activeRole === 'admin' ? 'bg-white text-slate-800 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
                 Админ
@@ -144,3 +144,4 @@ export default function Navbar() {
     </header>
   );
 }
+

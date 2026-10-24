@@ -51,7 +51,7 @@ export default function AdminDashboard() {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Панель Управления Центром</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-slate-800">Панель Управления Центром</h1>
               <span className="text-[11px] bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded-full">
                 Администрация
               </span>
@@ -66,7 +66,7 @@ export default function AdminDashboard() {
         <div className="flex items-center gap-3">
           <div className="bg-slate-50 border border-slate-200 px-4 py-2 rounded-2xl text-center">
             <span className="text-xs text-slate-500 font-medium">Активных учеников</span>
-            <p className="text-lg font-black text-slate-900">28</p>
+            <p className="text-lg font-black text-slate-800">28</p>
           </div>
           <div className="bg-slate-50 border border-slate-200 px-4 py-2 rounded-2xl text-center">
             <span className="text-xs text-slate-500 font-medium">Уроков в этом месяце</span>
@@ -89,12 +89,12 @@ export default function AdminDashboard() {
           <div>
             <div className="flex items-center gap-2 mb-4">
               <Coins className="w-5 h-5 text-solar-500" />
-              <h2 className="text-lg font-bold text-slate-900">Пополнение абонемента</h2>
+              <h2 className="text-lg font-bold text-slate-800">Пополнение абонемента</h2>
             </div>
 
             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 mb-6">
               <span className="text-xs text-slate-500 font-medium">Выбранный ученик:</span>
-              <p className="text-sm font-bold text-slate-900 mt-0.5">Тимофей Смирнов (6 лет)</p>
+              <p className="text-sm font-bold text-slate-800 mt-0.5">Тимофей Смирнов (6 лет)</p>
               <div className="mt-2 flex items-baseline gap-2">
                 <span className="text-xs text-slate-600">Текущий баланс:</span>
                 <span className="text-xl font-black text-brand-600">{studentBalance} уроков</span>
@@ -144,7 +144,7 @@ export default function AdminDashboard() {
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
               <Users className="w-5 h-5 text-brand-600" />
-              <h2 className="text-lg font-bold text-slate-900">Ученики и преподаватели</h2>
+              <h2 className="text-lg font-bold text-slate-800">Ученики и преподаватели</h2>
             </div>
             <span className="text-xs text-slate-500">База центра «АйДаУмничка»</span>
           </div>
@@ -162,7 +162,7 @@ export default function AdminDashboard() {
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
                 <tr className="hover:bg-slate-50/80">
-                  <td className="py-3.5 px-3 font-semibold text-slate-900">
+                  <td className="py-3.5 px-3 font-semibold text-slate-800">
                     Тимофей Смирнов
                     <span className="block text-[11px] text-slate-500 font-normal">Елена (мама), +7 927...</span>
                   </td>
@@ -184,7 +184,7 @@ export default function AdminDashboard() {
                 </tr>
 
                 <tr className="hover:bg-slate-50/80">
-                  <td className="py-3.5 px-3 font-semibold text-slate-900">
+                  <td className="py-3.5 px-3 font-semibold text-slate-800">
                     Алиса Васильева
                     <span className="block text-[11px] text-slate-500 font-normal">Анна (мама), +7 937...</span>
                   </td>
@@ -201,7 +201,7 @@ export default function AdminDashboard() {
                 </tr>
 
                 <tr className="hover:bg-slate-50/80">
-                  <td className="py-3.5 px-3 font-semibold text-slate-900">
+                  <td className="py-3.5 px-3 font-semibold text-slate-800">
                     Максим Кузнецов
                     <span className="block text-[11px] text-slate-500 font-normal">Игорь (папа), +7 917...</span>
                   </td>
@@ -227,7 +227,7 @@ export default function AdminDashboard() {
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
             <Calendar className="w-5 h-5 text-indigo-600" />
-            <h2 className="text-lg font-bold text-slate-900">Журнал транзакций баланса (Аудит)</h2>
+            <h2 className="text-lg font-bold text-slate-800">Журнал транзакций баланса (Аудит)</h2>
           </div>
           <span className="text-xs text-slate-500">Записей: {transactions.length}</span>
         </div>
@@ -247,7 +247,7 @@ export default function AdminDashboard() {
                   >
                     {tx.amount > 0 ? `+${tx.amount}` : tx.amount}
                   </span>
-                  <span className="font-bold text-xs text-slate-900">{tx.description}</span>
+                  <span className="font-bold text-xs text-slate-800">{tx.description}</span>
                 </div>
                 <p className="text-[11px] text-slate-500 mt-1">
                   Ученик: {tx.studentName} • Инициатор: {tx.adminName}
@@ -264,3 +264,4 @@ export default function AdminDashboard() {
     </div>
   );
 }
+
