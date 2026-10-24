@@ -69,10 +69,26 @@ const KNOWN_ACCOUNTS: Record<string, { id: string; role: string; name: string; e
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json().catch(() => ({}));
-    const rawLogin = String(body.email || body.username || "").trim();
-    const password = String(body.password || "").trim();
-    const explicitRole = body.role ? normalizeRole(body.role) : null;
+    const contentType = request.headers.get("content-type") || "";
+    const isFormSubmit =
+      contentType.includes("application/x-www-form-urlencoded") ||
+      contentType.includes("multipart/form-data");
+
+    let rawLogin = "";
+    let password = "";
+    let explicitRole: string | null = null;
+
+    if (isFormSubmit) {
+      const formData = await request.formData();
+      rawLogin = String(formData.get("email") || formData.get("username") || "").trim();
+      password = String(formData.get("password") || "").trim();
+      explicitRole = formData.get("role") ? normalizeRole(String(formData.get("role"))) : null;
+    } else {
+      const body = await request.json().catch(() => ({}));
+      rawLogin = String(body.email || body.username || "").trim();
+      password = String(body.password || "").trim();
+      explicitRole = body.role ? normalizeRole(body.role) : null;
+    }
 
     if (!rawLogin) {
       return NextResponse.json({ error: "Введите e-mail или логин" }, { status: 400 });
@@ -186,7 +202,25 @@ export async function POST(request: Request) {
     const finalUserId = matchedUser.id;
     const redirectUrl = `/${finalRole}?id=${finalUserId}`;
 
-    // Создаем ответ с надежными HTTP-куки
+    const maxAge = 60 * 60 * 24 * 7; // 7 дней
+
+    // Если отправлено через нативную HTML-форму браузера, делаем редирект 303
+    if (isFormSubmit) {
+      const redirectTarget = new URL(redirectUrl, request.url);
+      const redirectResponse = NextResponse.redirect(redirectTarget, 303);
+      redirectResponse.cookies.set("ayda_session", "true", { path: "/", maxAge, sameSite: "lax" });
+      redirectResponse.cookies.set("ayda_role", finalRole, { path: "/", maxAge, sameSite: "lax" });
+      redirectResponse.cookies.set("ayda_user_id", finalUserId, { path: "/", maxAge, sameSite: "lax" });
+      if (finalRole === "admin") {
+        redirectResponse.cookies.set("admin_session", "true", { path: "/", maxAge, sameSite: "lax" });
+      }
+      if (matchedUser.token) {
+        redirectResponse.cookies.set("sb-access-token", matchedUser.token, { path: "/", maxAge, sameSite: "lax" });
+      }
+      return redirectResponse;
+    }
+
+    // Создаем JSON-ответ с надежными HTTP-куки
     const response = NextResponse.json({
       ok: true,
       role: finalRole,
@@ -195,7 +229,6 @@ export async function POST(request: Request) {
       redirectUrl,
     });
 
-    const maxAge = 60 * 60 * 24 * 7; // 7 дней
     response.cookies.set("ayda_session", "true", { path: "/", maxAge, sameSite: "lax" });
     response.cookies.set("ayda_role", finalRole, { path: "/", maxAge, sameSite: "lax" });
     response.cookies.set("ayda_user_id", finalUserId, { path: "/", maxAge, sameSite: "lax" });
