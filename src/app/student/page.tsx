@@ -48,6 +48,8 @@ import {
   formatTolyatti,
   isTodayOrFutureInTolyatti,
   isTodayInTolyatti,
+  toTolyattiDate,
+  nowInTolyatti,
 } from "@/lib/tolyatti-time";
 import { SHARONOV_AVATAR, TEACHER_VASILINA_AVATAR } from "@/lib/default-avatar";
 import { subscribeToLessonsUpdates } from "@/lib/broadcast";
@@ -731,8 +733,17 @@ export default function StudentCabinet() {
 
           if (sbLessons.length > 0) {
             const mapped = sbLessons.map((l: any) => {
+              const lessonDate = l.start_time ? toTolyattiDate(l.start_time) : null;
+              const todayStart = nowInTolyatti();
+              todayStart.setHours(0, 0, 0, 0);
+              let isPastDay = false;
+              if (lessonDate) {
+                lessonDate.setHours(0, 0, 0, 0);
+                isPastDay = lessonDate.getTime() < todayStart.getTime();
+              }
               const endMs = l.end_time ? new Date(l.end_time).getTime() : (l.start_time ? new Date(l.start_time).getTime() + 45 * 60 * 1000 : NaN);
-              const isPast = !isNaN(endMs) && endMs <= Date.now();
+              // Завершёнными считаются только уроки из прошлых дней либо закончившиеся более 3 часов назад
+              const isPast = isPastDay || (!isNaN(endMs) && endMs + 3 * 60 * 60 * 1000 <= Date.now());
               return {
                 id: l.id,
                 title: l.title || "Индивидуальный урок",
@@ -952,12 +963,27 @@ export default function StudentCabinet() {
   const isLessonExpired = (l: any) => {
     if (l.status === "COMPLETED" || l.status === "CANCELLED") return true;
     if (l.status === "LIVE") return false;
+
+    // Урок из прошедших календарных дней (вчера и ранее по Тольятти)
+    if (l.startTime) {
+      const lDate = toTolyattiDate(l.startTime);
+      const today = nowInTolyatti();
+      lDate.setHours(0, 0, 0, 0);
+      const todayStart = new Date(today);
+      todayStart.setHours(0, 0, 0, 0);
+      if (lDate.getTime() < todayStart.getTime()) {
+        return true;
+      }
+    }
+
     const endMs = l.endTime
       ? new Date(l.endTime).getTime()
       : l.startTime
       ? new Date(l.startTime).getTime() + 45 * 60 * 1000
       : NaN;
-    return !isNaN(endMs) && endMs <= Date.now();
+
+    // Для уроков сегодняшнего дня: держим активными во время урока и ещё 3 часа после завершения
+    return !isNaN(endMs) && endMs + 3 * 60 * 60 * 1000 <= Date.now();
   };
 
   const liveLesson = lessons.find((l) => l.status === "LIVE");

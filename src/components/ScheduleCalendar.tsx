@@ -230,20 +230,38 @@ export default function ScheduleCalendar({
   }, [filteredLessons, weekStart, weekEnd]);
 
   // Проверка: завершён ли урок или истекло ли его запланированное время.
-  // Если время прошло, даже если в комнату не заходили, урок автоматически считается закрытым и уходит в архив.
+  // Старыми и уходящими в архив считаются:
+  // 1) Уроки со статусом COMPLETED или CANCELLED
+  // 2) Уроки из предыдущих календарных дней (до сегодняшнего дня по Тольятти)
+  // 3) Уроки сегодняшнего дня, если после их окончания прошло более 3 часов (grace period)
+  // Уроки сегодняшнего дня и предстоящие уроки ВСЕГДА остаются активными и доступны для входа!
   const isLessonArchived = (lesson: LessonItem) => {
-    if (lesson.status === "COMPLETED") return true;
-    if (lesson.status === "LIVE") return false; // Идущий прямо сейчас урок не в архиве
+    if (lesson.status === "COMPLETED" || lesson.status === "CANCELLED") return true;
+    if (lesson.status === "LIVE") return false; // Идущий прямо сейчас урок всегда активен
 
-    // Проверяем физическое время окончания (или старт + 45 мин)
-    if (lesson.endTime) {
-      const endMs = new Date(lesson.endTime).getTime();
-      if (!isNaN(endMs) && endMs <= currentTime.getTime()) {
+    // 1. Проверяем день: если урок из прошедших дней (вчера и ранее по Тольятти)
+    if (lesson.startTime) {
+      const lessonDate = toTolyattiDate(lesson.startTime);
+      const today = nowInTolyatti();
+      lessonDate.setHours(0, 0, 0, 0);
+      const todayStart = new Date(today);
+      todayStart.setHours(0, 0, 0, 0);
+      if (lessonDate.getTime() < todayStart.getTime()) {
         return true;
       }
-    } else if (lesson.startTime) {
-      const startMs = new Date(lesson.startTime).getTime();
-      if (!isNaN(startMs) && startMs + 45 * 60 * 1000 <= currentTime.getTime()) {
+    }
+
+    // 2. Для уроков сегодняшнего дня: закрываем только если после окончания прошло более 3 часов
+    const nowMs = Date.now();
+    const endMs = lesson.endTime
+      ? new Date(lesson.endTime).getTime()
+      : lesson.startTime
+      ? new Date(lesson.startTime).getTime() + 45 * 60 * 1000
+      : NaN;
+
+    if (!isNaN(endMs)) {
+      const GRACE_PERIOD_MS = 3 * 60 * 60 * 1000; // 3 часа запаса
+      if (endMs + GRACE_PERIOD_MS <= nowMs) {
         return true;
       }
     }

@@ -4,6 +4,7 @@ import { authenticateRequest } from "@/lib/server-auth";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limiter";
 import { CreateLessonSchema } from "@/lib/validations";
 import { getSupabase } from "@/lib/supabase";
+import { toTolyattiDate, nowInTolyatti } from "@/lib/tolyatti-time";
 
 export async function GET(request: Request) {
   // 1. Rate Limiting
@@ -134,14 +135,27 @@ export async function GET(request: Request) {
           const dbLesson = db.getLessonById(l.id);
           let status = dbLesson?.status || l.status;
 
-          // Автоматическое закрытие: если время окончания прошло, урок завершён и уходит в архив
+          // Автоматическое закрытие старых уроков в архив:
+          // Закрываем, только если урок из прошедших дней (вчера и ранее по Тольятти)
+          // либо если после окончания сегодняшнего урока прошло более 3 часов
+          const lessonDate = l.start_time ? toTolyattiDate(l.start_time) : null;
+          const todayStart = nowInTolyatti();
+          todayStart.setHours(0, 0, 0, 0);
+          let isOldDay = false;
+          if (lessonDate) {
+            lessonDate.setHours(0, 0, 0, 0);
+            isOldDay = lessonDate.getTime() < todayStart.getTime();
+          }
+
           const endMs = l.end_time
             ? new Date(l.end_time).getTime()
             : l.start_time
             ? new Date(l.start_time).getTime() + 45 * 60 * 1000
             : NaN;
 
-          if (status !== "COMPLETED" && status !== "CANCELLED" && !isNaN(endMs) && endMs <= now) {
+          const isExpiredWithGrace = !isNaN(endMs) && endMs + 3 * 60 * 60 * 1000 <= now;
+
+          if (status !== "COMPLETED" && status !== "CANCELLED" && (isOldDay || isExpiredWithGrace)) {
             status = "COMPLETED";
             expiredLessonIds.push(l.id);
           }
