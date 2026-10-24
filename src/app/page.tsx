@@ -53,9 +53,7 @@ export default function HomePage() {
           setCurrentUserRole({
             roleKey: rKey,
             roleTitle:
-              rKey === "parent"
-                ? "кабинет Родителя"
-                : rKey === "teacher"
+              rKey === "teacher"
                 ? "кабинет Преподавателя"
                 : rKey === "admin"
                 ? "Панель управления"
@@ -205,7 +203,7 @@ export default function HomePage() {
 
           {/* Подзаголовок */}
           <p className="text-sm sm:text-base text-slate-600 leading-relaxed max-w-xl">
-            Встроенная интерактивная видеосвязь прямо в браузере. Удобные личные кабинеты для ученика и родителя. Без Zoom и установки сторонних программ.
+            Встроенная интерактивная видеосвязь прямо в браузере. Удобные личные кабинеты для ученика и преподавателя. Без Zoom и установки сторонних программ.
           </p>
 
           {/* 3 преимущества: качественные карточки */}
@@ -311,7 +309,7 @@ export default function HomePage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      Ваше имя (родитель):
+                      Ваше имя:
                     </label>
                     <input
                       type="text"

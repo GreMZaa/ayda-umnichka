@@ -51,7 +51,7 @@ import { SHARONOV_AVATAR, TEACHER_VASILINA_AVATAR } from "@/lib/default-avatar";
 interface VideoRoomProps {
   roomName: string;
   userName: string;
-  userRole: "TEACHER" | "STUDENT" | "PARENT";
+  userRole: "TEACHER" | "STUDENT";
   lessonTitle: string;
   subjectName?: string;
   subjectColor?: string;
@@ -62,7 +62,7 @@ interface VideoRoomProps {
   lessonId?: string;
   endTime?: string;
   onEndLesson?: (forceComplete?: boolean) => void;
-  onRoleChange?: (role: "TEACHER" | "STUDENT" | "PARENT") => void;
+  onRoleChange?: (role: "TEACHER" | "STUDENT") => void;
 }
 
 type ToolType = "pen" | "highlighter" | "eraser" | "line" | "arrow" | "rect" | "circle" | "text";
@@ -1422,7 +1422,7 @@ export default function VideoRoom({
           if (typeof payload.studentHomeworkNotes === "string") setStudentHomeworkNotes(payload.studentHomeworkNotes);
           if (typeof payload.studentHomeworkDone === "boolean") setStudentHomeworkDone(payload.studentHomeworkDone);
 
-          if (userRole === "STUDENT" || userRole === "PARENT") {
+          if (userRole === "STUDENT") {
             showToast("Преподаватель обновил домашнее задание! 📝");
           } else {
             showToast("Данные урока синхронизированы");

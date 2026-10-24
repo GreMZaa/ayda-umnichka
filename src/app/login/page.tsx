@@ -32,9 +32,8 @@ function LoginForm() {
   const initialMode = searchParams.get("mode") === "signup" ? "signup" : "signin";
   const [mode, setMode] = useState<"signin" | "signup">(initialMode);
   const paramRole = searchParams.get("role");
-  const [selectedRole, setSelectedRole] = useState<"student" | "parent" | "teacher">(() => {
+  const [selectedRole, setSelectedRole] = useState<"student" | "teacher">(() => {
     if (paramRole === "teacher") return "teacher";
-    if (paramRole === "parent") return "parent";
     return "student";
   });
   const [selectedGrade, setSelectedGrade] = useState("3 класс");
@@ -84,7 +83,7 @@ function LoginForm() {
       setMode("signup");
     }
     const qRole = searchParams.get("role");
-    if (qRole === "teacher" || qRole === "parent" || qRole === "student") {
+    if (qRole === "teacher" || qRole === "student") {
       setSelectedRole(qRole);
     }
   }, [searchParams]);
@@ -93,7 +92,6 @@ function LoginForm() {
     try {
       router.prefetch("/student");
       router.prefetch("/teacher");
-      router.prefetch("/parent");
     } catch {}
   }, [router]);
 
@@ -327,12 +325,10 @@ function LoginForm() {
                 email: email.trim(),
                 name: fullName.trim(),
                 role: roleStr.toUpperCase(),
-                bio: roleStr === "student" ? selectedGrade : roleStr === "parent" ? "Родитель" : "Преподаватель",
+                bio: roleStr === "student" ? selectedGrade : "Преподаватель",
                 avatar_url:
                   roleStr === "student"
                     ? "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&h=200&fit=crop&crop=faces"
-                    : roleStr === "parent"
-                    ? "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&h=200&fit=crop&crop=faces"
                     : "https://images.unsplash.com/photo-1580894732444-8ecded7900cd?w=200&h=200&fit=crop&crop=faces",
               },
             ]);
@@ -482,7 +478,7 @@ function LoginForm() {
                   <label className="block text-xs font-bold text-slate-700">
                     Кто будет пользоваться аккаунтом?
                   </label>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 gap-2.5">
                     {[
                       {
                         id: "student" as const,
@@ -490,13 +486,6 @@ function LoginForm() {
                         desc: "1–11 класс",
                         icon: User,
                         color: "emerald",
-                      },
-                      {
-                        id: "parent" as const,
-                        title: "Родитель",
-                        desc: "Контроль и оплата",
-                        icon: Users,
-                        color: "amber",
                       },
                       {
                         id: "teacher" as const,
@@ -566,7 +555,7 @@ function LoginForm() {
                 <>
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-0.5">
-                      {selectedRole === "parent" ? "Ваше имя (родитель):" : "Ваше имя и фамилия:"}
+                      Ваше имя и фамилия:
                     </label>
                     <div className="relative">
                       <User className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />

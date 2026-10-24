@@ -6,13 +6,12 @@ import { getSupabase } from "@/lib/supabase";
 import { GraduationCap, ShieldCheck, User, Users, Calendar, BookOpen, Award, Bell, Video, ArrowRight } from "lucide-react";
 import BrandLogo from "@/components/BrandLogo";
 
-export type AllowedRole = "student" | "teacher" | "parent" | "admin";
+export type AllowedRole = "student" | "teacher" | "admin";
 
 export function normalizeRole(role: string | null | undefined): AllowedRole {
   if (!role) return "student";
   const r = role.toLowerCase().trim();
   if (r === "teacher" || r === "преподаватель" || r === "учитель") return "teacher";
-  if (r === "parent" || r === "родитель") return "parent";
   if (r === "admin" || r === "администратор" || r === "админ") return "admin";
   return "student";
 }
@@ -21,8 +20,6 @@ export function roleTitleRu(role: AllowedRole): string {
   switch (role) {
     case "teacher":
       return "Преподаватель";
-    case "parent":
-      return "Родитель";
     case "admin":
       return "Администратор";
     case "student":

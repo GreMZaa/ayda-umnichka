@@ -31,7 +31,7 @@ export interface ProfileData {
   id?: string;
   name: string;
   username?: string;
-  role: "STUDENT" | "TEACHER" | "PARENT" | "ADMIN" | string;
+  role: "STUDENT" | "TEACHER" | "ADMIN" | string;
   email?: string;
   phone?: string;
   avatarUrl?: string;
@@ -66,16 +66,6 @@ export const AVATAR_PRESETS = [
     url: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=240&h=240&fit=crop&crop=faces",
   },
   {
-    id: "parent-f",
-    label: "Мама",
-    url: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=240&h=240&fit=crop&crop=faces",
-  },
-  {
-    id: "parent-m",
-    label: "Папа",
-    url: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=240&h=240&fit=crop&crop=faces",
-  },
-  {
     id: "pup-1",
     label: "Питомец-умничка",
     url: "https://images.unsplash.com/photo-1552053831-71594a27632d?w=240&h=240&fit=crop",
@@ -93,8 +83,8 @@ interface EditProfileModalProps {
   onProfileUpdated?: (updated: ProfileData) => void;
   initialProfile?: Partial<ProfileData>;
   initialData?: Partial<ProfileData>;
-  defaultRole?: "STUDENT" | "TEACHER" | "PARENT" | "ADMIN" | string;
-  role?: "STUDENT" | "TEACHER" | "PARENT" | "ADMIN" | string;
+  defaultRole?: "STUDENT" | "TEACHER" | "ADMIN" | string;
+  role?: "STUDENT" | "TEACHER" | "ADMIN" | string;
   currentProfile?: any;
   onSave?: (data?: any) => void;
 }
@@ -575,8 +565,6 @@ export default function EditProfileModal({
   const roleName =
     role.toUpperCase() === "TEACHER"
       ? "Преподаватель"
-      : role.toUpperCase() === "PARENT"
-      ? "Родитель"
       : role.toUpperCase() === "ADMIN"
       ? "Администратор"
       : "Ученик";
@@ -934,46 +922,6 @@ export default function EditProfileModal({
                   value={bio}
                   onChange={(e) => setBio(e.target.value)}
                   placeholder="Краткое описание методики работы, подход к ученикам..."
-                  className="w-full p-2.5 rounded-2xl border border-slate-200 text-xs text-slate-900 font-medium focus:outline-none focus:border-blue-600"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* В. Для Родителя */}
-          {role.toUpperCase() === "PARENT" && (
-            <div className="space-y-3 pt-1 border-t border-slate-100">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Удобный способ связи для куратора:
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {["Чат на платформе", "WhatsApp", "Телефонный звонок"].map((contact) => (
-                    <button
-                      type="button"
-                      key={contact}
-                      onClick={() => setPreferredContact(contact)}
-                      className={`py-2 px-2 rounded-xl text-xs font-bold transition border cursor-pointer ${
-                        preferredContact === contact
-                          ? "bg-blue-50 border-blue-600 text-blue-700 shadow-2xs"
-                          : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
-                      }`}
-                    >
-                      {contact}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Пожелания к занятиям и центру:
-                </label>
-                <textarea
-                  rows={2}
-                  value={bio}
-                  onChange={(e) => setBio(e.target.value)}
-                  placeholder="Пожелания куратору, особенности графика ребёнка..."
                   className="w-full p-2.5 rounded-2xl border border-slate-200 text-xs text-slate-900 font-medium focus:outline-none focus:border-blue-600"
                 />
               </div>

@@ -5,7 +5,7 @@ import AgentationClient from "@/components/AgentationClient";
 
 export const metadata: Metadata = {
   title: "АйДаУмничка — Платформа для репетиторов и онлайн-уроков",
-  description: "Образовательная платформа центра «АйДаУмничка»: личные кабинеты преподавателя, ученика и родителя со встроенной видеосвязью.",
+  description: "Образовательная платформа центра «АйДаУмничка»: личные кабинеты преподавателя и ученика со встроенной видеосвязью.",
   manifest: "/manifest.json",
   icons: {
     icon: [

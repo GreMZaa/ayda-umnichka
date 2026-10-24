@@ -81,7 +81,7 @@ import BrandLogo from "@/components/BrandLogo";
 export interface TelegramChat {
   id: string;
   name: string;
-  role: "teacher" | "student" | "parent" | "support" | "admin" | "assistant";
+  role: "teacher" | "student" | "support" | "admin" | "assistant";
   roleLabel: string;
   avatar: string;
   online: boolean;
@@ -121,7 +121,7 @@ export interface TelegramMessage {
 }
 
 interface TelegramCabinetProps {
-  currentRole: "TEACHER" | "STUDENT" | "PARENT" | "ADMIN";
+  currentRole: "TEACHER" | "STUDENT" | "ADMIN";
   currentUser: {
     id: string;
     name: string;
@@ -396,71 +396,6 @@ export default function TelegramCabinet({
           }
         });
       }
-    } else if (currentRole === "PARENT") {
-      const parentLessons = Array.isArray(lessons) ? lessons : [];
-      parentLessons.forEach((l) => {
-        const tId = l.teacherId || l.teacher_id || l.teacher?.id || "vasilina";
-        const tName = l.teacherName || l.teacher?.name || "Шаронова Василина Владимировна";
-        const chatId = `teacher-${tId}`;
-        if (!list.some((c) => c.id === chatId)) {
-          list.push({
-            id: chatId,
-            name: tName,
-            role: "teacher",
-            roleLabel: l.subjectName ? `Преподаватель • ${l.subjectName}` : "Преподаватель",
-            avatar: l.teacherAvatar || l.teacher?.avatar_url || TEACHER_VASILINA_AVATAR,
-            online: true,
-            statusText: "в сети",
-            lastMessage: l.title ? `Урок ребёнка: «${l.title}»` : "Диалог с преподавателем",
-            lastMessageTime: l.startTime ? formatTolyatti(l.startTime, "d MMM, HH:mm") : "Недавно",
-            unreadCount: 0,
-            lessonId: l.id,
-            lessonTitle: l.title,
-            lessonTime: l.startTime ? formatTolyatti(l.startTime, "d MMMM (EE) в HH:mm") : undefined,
-            lessonSubject: l.subjectName || "Занятие",
-          });
-        }
-      });
-
-      if (Array.isArray(friendTeachers)) {
-        friendTeachers.forEach((t) => {
-          const chatId = `teacher-${t.id}`;
-          if (!list.some((c) => c.id === chatId)) {
-            list.push({
-              id: chatId,
-              name: t.name,
-              role: "teacher",
-              roleLabel: t.subjects ? `Преподаватель • ${t.subjects}` : "Преподаватель",
-              avatar: t.avatarUrl || TEACHER_VASILINA_AVATAR,
-              online: true,
-              statusText: "в сети",
-              lastMessage: "Преподаватель в списке контактов.",
-              lastMessageTime: "Сегодня",
-              unreadCount: 0,
-            });
-          }
-        });
-      }
-
-      if (Array.isArray(friendStudents)) {
-        friendStudents.forEach((st) => {
-          const chatId = `student-${st.id}`;
-          if (!list.some((c) => c.id === chatId)) {
-            list.push({
-              id: chatId,
-              name: st.name,
-              role: "student",
-              roleLabel: st.grade ? `Ученик • ${st.grade}` : "Ученик",
-              avatar: st.avatarUrl || SHARONOV_AVATAR,
-              online: true,
-              statusText: "в сети",
-              lastMessage: "Ученик в списке контактов.",
-              lastMessageTime: "Сегодня",
-              unreadCount: 0,
-            });
-          }
-        });
-      }
     }
 
     return list;
@@ -533,8 +468,6 @@ export default function TelegramCabinet({
         roleLabel = user.subjects ? `Преподаватель • ${user.subjects}` : "Преподаватель";
       } else if (user.role === "STUDENT") {
         roleLabel = user.grade ? `Ученик • ${user.grade}` : "Ученик";
-      } else if (user.role === "PARENT") {
-        roleLabel = "Родитель";
       } else if (user.role === "ADMIN") {
         roleLabel = "Администратор";
       }
@@ -905,8 +838,6 @@ export default function TelegramCabinet({
                       ? "Учитель"
                       : currentRole === "STUDENT"
                       ? "Ученик"
-                      : currentRole === "PARENT"
-                      ? "Родитель"
                       : "Админ"}
                   </span>
                 </div>
@@ -1057,8 +988,6 @@ export default function TelegramCabinet({
                                     ? "Учитель"
                                     : user.role === "STUDENT"
                                     ? "Ученик"
-                                    : user.role === "PARENT"
-                                    ? "Родитель"
                                     : "Админ"}
                                 </span>
                                 {user.username && (
@@ -1288,7 +1217,7 @@ export default function TelegramCabinet({
                     {currentUser.name}
                   </div>
                   <div className="text-[10px] text-slate-400 font-medium leading-none">
-                    {currentRole === "TEACHER" ? "Преподаватель" : currentRole === "STUDENT" ? "Ученик" : "Родитель"}
+                    {currentRole === "TEACHER" ? "Преподаватель" : "Ученик"}
                   </div>
                 </div>
               </button>
@@ -1559,8 +1488,6 @@ export default function TelegramCabinet({
               ? "teacher"
               : currentRole === "STUDENT"
               ? "student"
-              : currentRole === "PARENT"
-              ? "parent"
               : "admin"
           }
           currentProfile={{

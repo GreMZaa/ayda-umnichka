@@ -11,7 +11,7 @@ export default function RoomPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const [lesson, setLesson] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [currentRole, setCurrentRole] = useState<"TEACHER" | "STUDENT" | "PARENT">("TEACHER");
+  const [currentRole, setCurrentRole] = useState<"TEACHER" | "STUDENT">("TEACHER");
   const [userName, setUserName] = useState<string>("");
   const [bypassedExpired, setBypassedExpired] = useState(false);
   const [extending, setExtending] = useState(false);
@@ -38,8 +38,6 @@ export default function RoomPage({ params }: { params: { id: string } }) {
 
       if (roleFromQuery === "student" || activeRole === "student" || profileRole === "student" || referrer.includes("/student")) {
         setCurrentRole("STUDENT");
-      } else if (roleFromQuery === "parent" || activeRole === "parent" || profileRole === "parent" || referrer.includes("/parent")) {
-        setCurrentRole("PARENT");
       } else if (roleFromQuery === "teacher" || activeRole === "teacher" || profileRole === "teacher" || referrer.includes("/teacher")) {
         setCurrentRole("TEACHER");
       } else {
@@ -117,8 +115,6 @@ export default function RoomPage({ params }: { params: { id: string } }) {
 
     if (currentRole === "TEACHER") {
       router.push("/teacher");
-    } else if (currentRole === "PARENT") {
-      router.push("/parent");
     } else {
       router.push("/student");
     }
@@ -297,7 +293,7 @@ export default function RoomPage({ params }: { params: { id: string } }) {
 
           <button
             type="button"
-            onClick={() => router.push(currentRole === "PARENT" ? "/parent" : "/student")}
+            onClick={() => router.push("/student")}
             className="w-full py-3.5 px-5 rounded-2xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-extrabold text-sm shadow-lg shadow-blue-500/25 transition cursor-pointer flex items-center justify-center gap-2"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -312,8 +308,6 @@ export default function RoomPage({ params }: { params: { id: string } }) {
     userName ||
     (currentRole === "TEACHER"
       ? lesson?.teacherName || "Анна Сергеевна Иванова"
-      : currentRole === "PARENT"
-      ? "Родитель"
       : lesson?.studentName || "Ученик");
 
   return (

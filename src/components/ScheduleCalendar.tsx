@@ -65,7 +65,7 @@ export interface LessonItem {
 }
 
 interface ScheduleCalendarProps {
-  role: "student" | "teacher" | "parent";
+  role: "student" | "teacher";
   lessons: LessonItem[];
   title?: string;
   onUpdateStatus?: (lessonId: string, status: string) => Promise<void> | void;
@@ -1329,7 +1329,7 @@ export default function ScheduleCalendar({
                             isLive
                               ? "bg-red-600 hover:bg-red-700 text-white"
                               : "bg-blue-600 hover:bg-blue-700 text-white"
-                          }`}>{enteringRoomId === (lesson.id || lesson.roomName) ? (<><Loader2 className="w-3.5 h-3.5 animate-spin" /><span>Входим...</span></>) : (<><Video className="w-3.5 h-3.5" /><span>{role === "parent" ? "Присутствовать" : "Войти в класс"}</span></>)}</a>
+                          }`}>{enteringRoomId === (lesson.id || lesson.roomName) ? (<><Loader2 className="w-3.5 h-3.5 animate-spin" /><span>Входим...</span></>) : (<><Video className="w-3.5 h-3.5" /><span>Войти в класс</span></>)}</a>
                       )}
                     </div>
                   </div>

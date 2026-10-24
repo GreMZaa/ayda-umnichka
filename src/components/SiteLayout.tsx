@@ -13,7 +13,6 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
   const isCabinet =
     pathname.startsWith("/teacher") ||
     pathname.startsWith("/student") ||
-    pathname.startsWith("/parent") ||
     pathname.startsWith("/chat") ||
     pathname.startsWith("/room") ||
     pathname.startsWith("/admin");

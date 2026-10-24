@@ -27,6 +27,13 @@ export function middleware(request: NextRequest) {
     const isAdminRoute = pathname === "/admin" || pathname.startsWith("/admin/");
     const isLoginRoute = pathname === "/login";
 
+    // Автоматический редирект со старого маршрута /parent в /student
+    if (isParentRoute) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/student";
+      return NextResponse.redirect(url, 308);
+    }
+
     // А) Защита кабинета ученика: доступ только для роли student (и администратора)
     if (isStudentRoute) {
       if (!aydaSession) {
@@ -59,27 +66,11 @@ export function middleware(request: NextRequest) {
       }
     }
 
-    // В) Защита кабинета родителя: доступ только для роли parent (и администратора)
-    if (isParentRoute) {
-      if (!aydaSession) {
-        const url = request.nextUrl.clone();
-        url.pathname = "/login";
-        url.searchParams.set("role", "parent");
-        url.searchParams.set("redirect", pathname);
-        return NextResponse.redirect(url);
-      }
-      if (aydaRole && aydaRole !== "parent" && aydaRole !== "admin") {
-        const url = request.nextUrl.clone();
-        url.pathname = `/${aydaRole}`;
-        return NextResponse.redirect(url);
-      }
-    }
-
     // Г) Защита панели администратора: доступ только для роли admin
     if (isAdminRoute) {
       if (aydaRole && aydaRole !== "admin" && !adminSession) {
         const url = request.nextUrl.clone();
-        url.pathname = `/${aydaRole}`;
+        url.pathname = `/${aydaRole === "parent" ? "student" : aydaRole}`;
         return NextResponse.redirect(url);
       }
     }
@@ -91,7 +82,8 @@ export function middleware(request: NextRequest) {
       const autologin = searchParams.get("autologin");
       if (mode !== "signup" && !logout && autologin === "1") {
         const url = request.nextUrl.clone();
-        url.pathname = `/${aydaRole}`;
+        const role = aydaRole === "parent" ? "student" : aydaRole;
+        url.pathname = `/${role}`;
         if (aydaUserId && !url.searchParams.get("id")) {
           url.searchParams.set("id", aydaUserId);
         }
@@ -106,7 +98,7 @@ export function middleware(request: NextRequest) {
     if (isLkHost && pathname === "/") {
       const url = request.nextUrl.clone();
       if (aydaSession && aydaRole) {
-        const targetRole = ["student", "teacher", "parent", "admin"].includes(aydaRole) ? aydaRole : "student";
+        const targetRole = ["student", "teacher", "admin"].includes(aydaRole) ? aydaRole : "student";
         url.pathname = `/${targetRole}`;
         if (aydaUserId && !url.searchParams.get("id")) {
           url.searchParams.set("id", aydaUserId);
@@ -124,7 +116,7 @@ export function middleware(request: NextRequest) {
       const logout = searchParams.get("logout");
       const guest = searchParams.get("guest");
       if (mode !== "signup" && !logout && !guest) {
-        const targetRole = ["student", "teacher", "parent", "admin"].includes(aydaRole) ? aydaRole : "student";
+        const targetRole = ["student", "teacher", "admin"].includes(aydaRole) ? aydaRole : "student";
         const url = request.nextUrl.clone();
         url.pathname = `/${targetRole}`;
         if (aydaUserId && !url.searchParams.get("id")) {

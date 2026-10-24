@@ -62,11 +62,10 @@ export default function Navbar() {
 
   const isRoom = pathname.startsWith("/room");
   const isLoginPage = pathname === "/login";
-  const isParent = pathname.startsWith("/parent");
   const isStudent = pathname.startsWith("/student");
   const isTeacher = pathname.startsWith("/teacher");
   const isAdmin = pathname.startsWith("/admin");
-  const isInsideCabinet = isParent || isStudent || isTeacher || isAdmin;
+  const isInsideCabinet = isStudent || isTeacher || isAdmin;
 
   // Закрытие выпадающего меню пользователя и мобильного бургера по клику снаружи или Escape
   useEffect(() => {
@@ -90,17 +89,13 @@ export default function Navbar() {
   }, []);
 
   // Определение профиля текущего вошедшего пользователя из сессии Supabase или роли
-  const defaultCabinetName = isParent
-    ? "Личный кабинет родителя"
-    : isStudent
+  const defaultCabinetName = isStudent
     ? "Личный кабинет ученика"
     : isTeacher
     ? "Преподаватель"
     : "Администратор";
 
-  const defaultRoleTitle = isParent
-    ? "Родитель"
-    : isStudent
+  const defaultRoleTitle = isStudent
     ? "Ученик"
     : isTeacher
     ? "Преподаватель"
@@ -110,7 +105,7 @@ export default function Navbar() {
     ? {
         name: authProfile?.name || defaultCabinetName,
         role: authProfile?.role || defaultRoleTitle,
-        icon: isParent ? Users : isStudent ? User : isTeacher ? GraduationCap : ShieldCheck,
+        icon: isStudent ? User : isTeacher ? GraduationCap : ShieldCheck,
       }
     : null;
 
@@ -126,9 +121,7 @@ export default function Navbar() {
           setAuthProfile({
             name: meta.full_name || user.email?.split("@")[0] || defaultCabinetName,
             role:
-              rKey === "parent"
-                ? "Родитель"
-                : rKey === "teacher"
+              rKey === "teacher"
                 ? "Преподаватель"
                 : rKey === "admin"
                 ? "Управление"
@@ -150,7 +143,7 @@ export default function Navbar() {
 
       // Подгрузка аватара из сохраненного профиля
       try {
-        const curRole = isTeacher ? "teacher" : isStudent ? "student" : isParent ? "parent" : "admin";
+        const curRole = isTeacher ? "teacher" : isStudent ? "student" : "admin";
         const saved =
           localStorage.getItem(`ayda_profile_${curRole}`) ||
           localStorage.getItem("ayda_current_user_profile");
@@ -724,7 +717,7 @@ export default function Navbar() {
       <EditProfileModal
         isOpen={editProfileModalOpen}
         onClose={() => setEditProfileModalOpen(false)}
-        defaultRole={isTeacher ? "TEACHER" : isStudent ? "STUDENT" : isParent ? "PARENT" : "ADMIN"}
+        defaultRole={isTeacher ? "TEACHER" : isStudent ? "STUDENT" : "ADMIN"}
         onProfileUpdated={(updated) => {
           if (updated.avatarUrl !== undefined) setCurrentUserAvatar(updated.avatarUrl);
           if (updated.name) {

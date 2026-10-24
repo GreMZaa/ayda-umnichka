@@ -1,6 +1,6 @@
 import { getSupabase } from "@/lib/supabase";
 
-export type UserRole = "admin" | "teacher" | "student" | "parent";
+export type UserRole = "admin" | "teacher" | "student";
 
 export interface AuthenticatedUser {
   id: string;

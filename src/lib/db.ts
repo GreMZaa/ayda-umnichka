@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 
-export type Role = "ADMIN" | "TEACHER" | "STUDENT" | "PARENT";
+export type Role = "ADMIN" | "TEACHER" | "STUDENT";
 export type LessonStatus = "SCHEDULED" | "LIVE" | "COMPLETED" | "CANCELLED";
 
 export interface User {

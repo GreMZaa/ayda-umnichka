@@ -7,7 +7,7 @@ import { getSupabase } from "@/lib/supabase";
 
 export default function ChatPage() {
   const router = useRouter();
-  const [role, setRole] = useState<"TEACHER" | "STUDENT" | "PARENT" | "ADMIN">("STUDENT");
+  const [role, setRole] = useState<"TEACHER" | "STUDENT" | "ADMIN">("STUDENT");
   const [user, setUser] = useState<any>({
     id: "me",
     name: "Пользователь",
@@ -17,7 +17,7 @@ export default function ChatPage() {
   useEffect(() => {
     try {
       const activeRole = localStorage.getItem("ayda_active_role")?.toUpperCase();
-      if (activeRole === "TEACHER" || activeRole === "STUDENT" || activeRole === "PARENT" || activeRole === "ADMIN") {
+      if (activeRole === "TEACHER" || activeRole === "STUDENT" || activeRole === "ADMIN") {
         setRole(activeRole);
       }
 
@@ -48,8 +48,11 @@ export default function ChatPage() {
                   role: prof.role,
                   phone: prof.phone,
                 });
-                if (prof.role) {
-                  setRole(prof.role.toUpperCase() as any);
+                const cleanRole = (prof.role || "").toUpperCase();
+                if (cleanRole === "TEACHER" || cleanRole === "ADMIN") {
+                  setRole(cleanRole);
+                } else {
+                  setRole("STUDENT");
                 }
               }
               setLoading(false);

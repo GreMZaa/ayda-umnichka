@@ -209,10 +209,6 @@ export async function GET(request: Request) {
     lessons = db.getLessons({ teacherId: user.id, status: statusFilter });
   } else if (user.role === "student") {
     lessons = db.getLessons({ studentId: user.id, status: statusFilter });
-  } else if (user.role === "parent") {
-    const children = db.getParentChildren(user.id);
-    const childIds = children.map((c) => c.id);
-    lessons = db.getLessons({ studentIds: childIds, status: statusFilter });
   } else {
     return NextResponse.json({ error: "Доступ запрещен для текущей роли." }, { status: 403 });
   }
