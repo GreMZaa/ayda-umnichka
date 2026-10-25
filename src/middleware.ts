@@ -22,19 +22,38 @@ export function middleware(request: NextRequest) {
     shouldSetCookie = true;
   }
 
+  // Check for agentation query parameter
+  const agentationParam = request.nextUrl.searchParams.get('agentation');
+  const hasAgentation = request.nextUrl.searchParams.has('agentation');
+  const enableAgentation = agentationParam === '1' || agentationParam === 'true' || (hasAgentation && agentationParam !== '0' && agentationParam !== 'false');
+  const disableAgentation = agentationParam === '0' || agentationParam === 'false';
+
+  const applyCookies = (res: NextResponse) => {
+    if (shouldSetCookie) {
+      res.cookies.set('aida_user_id', userId, {
+        path: '/',
+        maxAge: 31536000,
+        sameSite: 'lax',
+      });
+    }
+    if (enableAgentation) {
+      res.cookies.set('agentation', '1', {
+        path: '/',
+        maxAge: 2592000,
+        sameSite: 'lax',
+      });
+    } else if (disableAgentation) {
+      res.cookies.delete('agentation');
+    }
+  };
+
   // Handle root "/" on LK subdomain:
   // Immediately redirect to user's personal ID in the address bar (e.g. /id749210 or /s.sharonovv)
   if (isLkSubdomain && pathname === '/') {
     const url = request.nextUrl.clone();
     url.pathname = `/${userId}`;
     const response = NextResponse.redirect(url);
-    if (shouldSetCookie) {
-      response.cookies.set('aida_user_id', userId, {
-        path: '/',
-        maxAge: 31536000,
-        sameSite: 'lax',
-      });
-    }
+    applyCookies(response);
     return response;
   }
 
@@ -43,25 +62,13 @@ export function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = `/${userId}`;
     const response = NextResponse.redirect(url);
-    if (shouldSetCookie) {
-      response.cookies.set('aida_user_id', userId, {
-        path: '/',
-        maxAge: 31536000,
-        sameSite: 'lax',
-      });
-    }
+    applyCookies(response);
     return response;
   }
 
   // When visiting any dynamic /[userId], ensure the cookie is preserved
   const response = NextResponse.next();
-  if (shouldSetCookie) {
-    response.cookies.set('aida_user_id', userId, {
-      path: '/',
-      maxAge: 31536000,
-      sameSite: 'lax',
-    });
-  }
+  applyCookies(response);
   return response;
 }
 
