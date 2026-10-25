@@ -28,56 +28,56 @@ export default function WeekCalendar({ onSelectDay }: { onSelectDay?: (date: num
   };
 
   return (
-    <div className="bg-white rounded-[28px] p-5 border border-[#F2E3D5] shadow-xs space-y-4">
+    <div className="bg-white rounded-2xl p-4 sm:p-5 border border-[#F2E0CF] shadow-xs flex flex-col justify-between h-full space-y-3">
       {/* Calendar Header */}
       <div className="flex items-center justify-between">
         <div>
           <span className="text-[10px] font-extrabold text-coralAccent uppercase tracking-widest">
             Расписание занятий
           </span>
-          <h4 className="font-black text-base text-ink-900 mt-0.5">Октябрь 2026</h4>
+          <h4 className="font-black text-sm sm:text-base text-[#161F38] mt-0.5">Октябрь 2026</h4>
         </div>
 
         <div className="flex items-center gap-1.5">
           <button
             aria-label="Предыдущая неделя"
-            className="w-8 h-8 rounded-full bg-[#FFF7EE] hover:bg-[#FDEEDC] text-ink-700 flex items-center justify-center transition-colors duration-140 active:scale-90 cursor-pointer"
+            className="w-7 h-7 rounded-full bg-[#FFF7EE] hover:bg-[#FDEEDC] text-[#161F38] flex items-center justify-center transition-colors duration-140 active:scale-90 cursor-pointer"
           >
-            <ChevronLeft className="w-4 h-4" />
+            <ChevronLeft className="w-3.5 h-3.5" />
           </button>
           <button
             aria-label="Следующая неделя"
-            className="w-8 h-8 rounded-full bg-[#FFF7EE] hover:bg-[#FDEEDC] text-ink-700 flex items-center justify-center transition-colors duration-140 active:scale-90 cursor-pointer"
+            className="w-7 h-7 rounded-full bg-[#FFF7EE] hover:bg-[#FDEEDC] text-[#161F38] flex items-center justify-center transition-colors duration-140 active:scale-90 cursor-pointer"
           >
-            <ChevronRight className="w-4 h-4" />
+            <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
       {/* Days Row */}
-      <div className="grid grid-cols-6 gap-2">
+      <div className="grid grid-cols-6 gap-1.5">
         {days.map((d) => {
           const isSelected = selectedDate === d.date;
           return (
             <button
               key={d.date}
               onClick={() => handleSelect(d.date)}
-              className={`py-3 px-2 rounded-2xl flex flex-col items-center justify-center transition-[background-color,color,transform,box-shadow] duration-140 ease-out-emil active:scale-95 cursor-pointer relative ${
+              className={`py-2 px-1.5 rounded-xl flex flex-col items-center justify-center transition-[background-color,color,transform,box-shadow] duration-140 ease-out-emil active:scale-95 cursor-pointer relative ${
                 isSelected
-                  ? 'bg-ink-900 text-white shadow-sm'
-                  : 'bg-[#FFF8F1] hover:bg-[#FDEEDC] text-ink-800'
+                  ? 'bg-[#161F38] text-white shadow-2xs'
+                  : 'bg-[#FFF8F1] hover:bg-[#FDEEDC] text-[#161F38]'
               }`}
             >
-              <span className={`text-[10px] font-bold ${isSelected ? 'text-white/70' : 'text-ink-400'}`}>
+              <span className={`text-[9px] font-bold ${isSelected ? 'text-white/70' : 'text-[#8A95A8]'}`}>
                 {d.name}
               </span>
-              <span className="text-sm font-black mt-0.5">{d.date}</span>
+              <span className="text-xs font-black mt-0.5">{d.date}</span>
 
               {/* Lesson indicator dot */}
               {d.hasLesson && (
                 <span
-                  className={`w-1.5 h-1.5 rounded-full mt-1 ${
-                    isSelected ? 'bg-limeAccent' : 'bg-coralAccent'
+                  className={`w-1.5 h-1.5 rounded-full mt-0.5 ${
+                    isSelected ? 'bg-[#5C8519]' : 'bg-coralAccent'
                   }`}
                 />
               )}
@@ -87,13 +87,13 @@ export default function WeekCalendar({ onSelectDay }: { onSelectDay?: (date: num
       </div>
 
       {/* Selected Day Status */}
-      <div className="pt-2 border-t border-[#F7EBE0] flex items-center justify-between text-xs">
-        <span className="text-ink-500 flex items-center gap-1.5 font-medium">
+      <div className="pt-2 border-t border-[#F8EDE1] flex items-center justify-between text-xs">
+        <span className="text-[#6B758E] flex items-center gap-1.5 text-[11px] font-medium">
           <Sparkles className="w-3.5 h-3.5 text-coralAccent" />
           Уроков не запланировано
         </span>
-        <span className="text-[11px] font-extrabold text-coralAccent bg-[#FFF7EE] px-3 py-1 rounded-full border border-[#F4DEC6]">
-          Свободный день
+        <span className="text-[10px] font-extrabold text-coralAccent bg-[#FFF7EE] px-2.5 py-0.5 rounded-full border border-[#FCDDC7]">
+          Свободно
         </span>
       </div>
     </div>
