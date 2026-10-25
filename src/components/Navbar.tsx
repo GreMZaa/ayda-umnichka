@@ -17,14 +17,14 @@ import { getLkUrl } from '@/lib/lkUrl';
 
 export default function Navbar() {
   const router = useRouter();
-  const pathname = usePathname();
-  const isHome = pathname === '/';
-  const isLogin = pathname === '/login';
-  const isStudent = pathname === '/student' || /^\/id\d+/.test(pathname);
-  const isTeacher = pathname === '/teacher';
-  const isAdmin = pathname === '/admin';
+  const pathname = usePathname() || '';
+  const isHome = pathname === '/' || pathname === '';
+  const isLogin = pathname.startsWith('/login');
+  const isTeacher = pathname.startsWith('/teacher');
+  const isAdmin = pathname.startsWith('/admin');
   const isRoom = pathname.startsWith('/room');
-  const isInsideLk = isStudent || isTeacher || isAdmin || isRoom;
+  const isInsideLk = !isHome && !isLogin;
+  const isStudent = isInsideLk && !isTeacher && !isAdmin && !isRoom;
 
   const [balance, setBalance] = useState<number>(0);
   const [userName, setUserName] = useState<string>('');
@@ -34,25 +34,35 @@ export default function Navbar() {
   const [logoClicks, setLogoClicks] = useState(0);
 
   useEffect(() => {
-    const savedBalance = localStorage.getItem('aida_student_balance');
-    if (savedBalance) setBalance(parseInt(savedBalance, 10));
-    const savedName = localStorage.getItem('aida_full_name');
-    if (savedName) setUserName(savedName);
+    const updateFromStorage = () => {
+      const savedBalance = localStorage.getItem('aida_student_balance');
+      if (savedBalance) setBalance(parseInt(savedBalance, 10));
+      const savedName = localStorage.getItem('aida_full_name');
+      if (savedName) setUserName(savedName);
 
-    const savedRole =
-      localStorage.getItem('aida_active_role') ||
-      document.cookie.match(/(?:^|; )aida_active_role=([^;]*)/)?.[1] ||
-      '';
-    if (savedRole) setUserRole(savedRole);
+      const savedRole =
+        localStorage.getItem('aida_active_role') ||
+        document.cookie.match(/(?:^|; )aida_active_role=([^;]*)/)?.[1] ||
+        '';
+      if (savedRole) setUserRole(savedRole);
 
-    const savedUid =
-      localStorage.getItem('aida_auth_user_id') ||
-      localStorage.getItem('aida_user_id') ||
-      document.cookie.match(/(?:^|; )aida_auth_user_id=([^;]*)/)?.[1] ||
-      '';
-    if (savedUid) setUserId(savedUid);
+      const savedUid =
+        localStorage.getItem('aida_auth_user_id') ||
+        localStorage.getItem('aida_user_id') ||
+        document.cookie.match(/(?:^|; )aida_auth_user_id=([^;]*)/)?.[1] ||
+        '';
+      if (savedUid) setUserId(savedUid);
+    };
 
+    updateFromStorage();
+    window.addEventListener('storage', updateFromStorage);
+    window.addEventListener('aida-user-updated', updateFromStorage);
     setLkUrl(getLkUrl('/login'));
+
+    return () => {
+      window.removeEventListener('storage', updateFromStorage);
+      window.removeEventListener('aida-user-updated', updateFromStorage);
+    };
   }, []);
 
   const handleLogoClick = (e: React.MouseEvent) => {
@@ -184,7 +194,7 @@ export default function Navbar() {
             {/* Balance Pill — Only visible for student */}
             {isStudent && (
               <Link
-                href="/student"
+                href={userId ? `/${userId}` : '/student'}
                 suppressHydrationWarning
                 className="hidden sm:flex items-center gap-2 bg-white border border-[#EADBCC] px-3.5 py-1.5 rounded-full text-xs font-bold text-[#161F38] shadow-xs hover:border-coralAccent transition-[border-color,box-shadow,transform] duration-140 ease-out-emil active:scale-[0.98]"
               >
