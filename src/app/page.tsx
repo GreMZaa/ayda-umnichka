@@ -268,9 +268,9 @@ export default function HomePage() {
             ═════════════════════════════════════════════════════════════ */}
         <section
           id="slide-onboarding"
-          className="snap-start snap-always w-full min-h-[calc(100dvh-5rem)] lg:h-[calc(100dvh-5rem)] flex items-center justify-center p-3 sm:p-5 lg:p-6 pb-8 sm:pb-12 lg:pb-14"
+          className="snap-start snap-always w-full min-h-[calc(100dvh-5rem)] lg:h-[calc(100dvh-5rem)] flex items-center justify-center p-3 sm:p-5 lg:p-6"
         >
-          <div className="max-w-7xl w-full lg:max-h-[660px] bg-white rounded-[28px] sm:rounded-[36px] lg:rounded-[44px] p-4 sm:p-7 lg:p-10 pb-6 sm:pb-9 lg:pb-10 border border-[#F2E0CF] shadow-[0_20px_50px_rgba(22,31,56,0.04)] flex flex-col justify-between overflow-visible lg:overflow-hidden relative">
+          <div className="max-w-7xl w-full h-full lg:max-h-[680px] bg-white rounded-[28px] sm:rounded-[36px] lg:rounded-[44px] p-5 sm:p-8 lg:p-10 pb-6 sm:pb-8 lg:pb-9 border border-[#F2E0CF] shadow-[0_20px_50px_rgba(22,31,56,0.04)] flex flex-col justify-between overflow-visible lg:overflow-hidden relative">
             <div className="absolute top-0 right-0 w-[55%] h-[60%] bg-[radial-gradient(circle_at_80%_20%,_rgba(255,225,205,0.45)_0%,_transparent_70%)] pointer-events-none" />
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 items-center flex-1 my-auto relative z-10">
@@ -337,8 +337,8 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Enhanced Beautiful Footer with Direct Phone 8 995 485 46 67 */}
-            <div className="mt-4 sm:mt-5 pt-3.5 sm:pt-4 pb-2 sm:pb-3 border-t border-[#F2E0CF] flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left relative z-10">
+            {/* Enhanced Beautiful Footer with Direct Phone 8 995 485 46 67 (Anchored nicely at the bottom) */}
+            <div className="mt-auto pt-4 sm:pt-5 border-t border-[#F2E0CF] flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left relative z-10">
               <div className="flex flex-col sm:flex-row items-center gap-3">
                 {/* Clickable Phone Number */}
                 <a
