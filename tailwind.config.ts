@@ -48,6 +48,21 @@ const config: Config = {
         '3xl': '28px',
         '4xl': '36px',
       },
+      transitionTimingFunction: {
+        'out-emil': 'cubic-bezier(0.23, 1, 0.32, 1)',
+        'in-out-emil': 'cubic-bezier(0.77, 0, 0.175, 1)',
+        'drawer-emil': 'cubic-bezier(0.32, 0.72, 0, 1)',
+      },
+      transitionDuration: {
+        '140': '140ms',
+        '180': '180ms',
+        '220': '220ms',
+        '250': '250ms',
+      },
+      scale: {
+        '97': '0.97',
+        '98': '0.98',
+      },
     },
   },
   plugins: [],

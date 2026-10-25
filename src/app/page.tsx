@@ -94,7 +94,7 @@ export default function HomePage() {
           onClick={() => activeSlide > 0 && scrollToSlide(activeSlide - 1)}
           disabled={activeSlide === 0}
           aria-label="Предыдущий экран"
-          className="w-6 h-6 rounded-full flex items-center justify-center text-[#161F38]/50 hover:text-[#161F38] hover:bg-[#FFF7EE] disabled:opacity-20 disabled:pointer-events-none transition-all"
+          className="w-6 h-6 rounded-full flex items-center justify-center text-[#161F38]/50 hover:text-[#161F38] hover:bg-[#FFF7EE] disabled:opacity-20 disabled:pointer-events-none transition-colors duration-140 active:scale-90"
         >
           <ChevronUp className="w-3.5 h-3.5" />
         </button>
@@ -106,16 +106,16 @@ export default function HomePage() {
               key={s.id}
               onClick={() => scrollToSlide(idx)}
               aria-label={`Перейти к экрану ${s.label}`}
-              className="group relative flex items-center justify-center p-1"
+              className="group relative flex items-center justify-center p-1 cursor-pointer"
             >
               <div
-                className={`transition-all duration-300 rounded-full ${
+                className={`transition-[height,width,background-color] duration-220 ease-out-emil rounded-full ${
                   isActive
                     ? 'w-2.5 h-7 bg-coralAccent shadow-xs'
                     : 'w-2 h-2 bg-[#DFCABB] hover:bg-coralAccent/60'
                 }`}
               />
-              <span className="pointer-events-none absolute right-9 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-xl bg-[#161F38] text-white text-[10px] font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity shadow-sm">
+              <span className="pointer-events-none absolute right-9 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-xl bg-[#161F38] text-white text-[10px] font-bold whitespace-nowrap opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 transition-[opacity,transform] duration-140 ease-out-emil shadow-sm">
                 {s.number}. {s.label}
               </span>
             </button>
@@ -126,7 +126,7 @@ export default function HomePage() {
           onClick={() => activeSlide < slides.length - 1 && scrollToSlide(activeSlide + 1)}
           disabled={activeSlide === slides.length - 1}
           aria-label="Следующий экран"
-          className="w-6 h-6 rounded-full flex items-center justify-center text-[#161F38]/50 hover:text-[#161F38] hover:bg-[#FFF7EE] disabled:opacity-20 disabled:pointer-events-none transition-all"
+          className="w-6 h-6 rounded-full flex items-center justify-center text-[#161F38]/50 hover:text-[#161F38] hover:bg-[#FFF7EE] disabled:opacity-20 disabled:pointer-events-none transition-colors duration-140 active:scale-90"
         >
           <ChevronDown className="w-3.5 h-3.5" />
         </button>
@@ -246,10 +246,10 @@ export default function HomePage() {
                 <div className="pt-1 sm:pt-2">
                   <button
                     onClick={() => scrollToSlide(1)}
-                    className="w-full sm:w-auto bg-[#C5E87D] hover:bg-[#B6DC67] text-[#161F38] font-black text-xs sm:text-sm md:text-base px-6 sm:px-8 py-3.5 sm:py-4 rounded-full shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-3 active:scale-95 group cursor-pointer"
+                    className="w-full sm:w-auto bg-[#C5E87D] hover:bg-[#B6DC67] text-[#161F38] font-black text-xs sm:text-sm md:text-base px-6 sm:px-8 py-3.5 sm:py-4 rounded-full shadow-md hover:shadow-lg transition-[background-color,box-shadow,transform] duration-140 ease-out-emil flex items-center justify-center gap-3 active:scale-[0.97] group cursor-pointer"
                   >
                     <span>Записаться на бесплатный пробный урок</span>
-                    <span className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white flex items-center justify-center text-xs group-hover:translate-x-1 transition-transform shadow-2xs">
+                    <span className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white flex items-center justify-center text-xs group-hover:translate-x-1 transition-transform duration-140 ease-out-emil shadow-2xs">
                       ➔
                     </span>
                   </button>
@@ -261,10 +261,10 @@ export default function HomePage() {
             <div className="flex items-center justify-center pt-2 relative z-10">
               <button
                 onClick={() => scrollToSlide(1)}
-                className="flex items-center gap-2 text-[11px] font-bold text-[#6B758E] hover:text-coralAccent transition-colors group cursor-pointer"
+                className="flex items-center gap-2 text-[11px] font-bold text-[#6B758E] hover:text-coralAccent transition-colors duration-140 group cursor-pointer"
               >
                 <span>Листать вниз: форма записи на вводный урок</span>
-                <span className="inline-block animate-bounce text-coralAccent">↓</span>
+                <span className="inline-block text-coralAccent group-hover:translate-y-0.5 transition-transform duration-140 ease-out-emil">↓</span>
               </button>
             </div>
           </div>
@@ -358,9 +358,9 @@ export default function HomePage() {
                 {/* Clickable Phone Number */}
                 <a
                   href="tel:89954854667"
-                  className="inline-flex items-center gap-2 bg-[#FFF8F1] hover:bg-[#FFF2E6] border border-[#F2DECE] px-3.5 py-1.5 rounded-full text-xs font-black text-[#161F38] shadow-2xs hover:border-coralAccent transition-all group"
+                  className="inline-flex items-center gap-2 bg-[#FFF8F1] hover:bg-[#FFF2E6] border border-[#F2DECE] px-3.5 py-1.5 rounded-full text-xs font-black text-[#161F38] shadow-2xs hover:border-coralAccent transition-[border-color,background-color,transform] duration-140 ease-out-emil active:scale-[0.98] group"
                 >
-                  <div className="w-5 h-5 rounded-full bg-[#5C8519] text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                  <div className="w-5 h-5 rounded-full bg-[#5C8519] text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform duration-140">
                     <Phone className="w-3 h-3" />
                   </div>
                   <span className="tracking-wide">8 995 485 46 67</span>
@@ -378,7 +378,7 @@ export default function HomePage() {
 
               <button
                 onClick={() => scrollToSlide(0)}
-                className="inline-flex items-center gap-1.5 text-xs font-extrabold text-coralAccent hover:text-coralAccent-hover bg-[#FFF8F1] hover:bg-[#FFF2E6] border border-[#F2DECE] px-3.5 py-1.5 rounded-full transition-all cursor-pointer shadow-2xs"
+                className="inline-flex items-center gap-1.5 text-xs font-extrabold text-coralAccent hover:text-coralAccent-hover bg-[#FFF8F1] hover:bg-[#FFF2E6] border border-[#F2DECE] px-3.5 py-1.5 rounded-full transition-[border-color,background-color,color,transform] duration-140 ease-out-emil active:scale-95 cursor-pointer shadow-2xs"
               >
                 <span>Наверх к началу</span>
                 <span>↑</span>

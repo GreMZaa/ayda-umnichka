@@ -62,7 +62,7 @@ export default function StudentDashboard() {
         <div className="flex items-center gap-1.5 bg-[#FFF7EE] p-1 rounded-full border border-[#F4DEC6]">
           <button
             onClick={() => setViewMode('desktop')}
-            className={`px-3.5 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 ${
+            className={`px-3.5 py-1 rounded-full text-xs font-bold transition-[background-color,color,box-shadow] duration-140 ease-out-emil active:scale-95 flex items-center gap-1.5 cursor-pointer ${
               viewMode === 'desktop' ? 'bg-white text-ink-900 shadow-xs' : 'text-ink-500 hover:text-ink-900'
             }`}
           >
@@ -71,7 +71,7 @@ export default function StudentDashboard() {
           </button>
           <button
             onClick={() => setViewMode('phone')}
-            className={`px-3.5 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 ${
+            className={`px-3.5 py-1 rounded-full text-xs font-bold transition-[background-color,color,box-shadow] duration-140 ease-out-emil active:scale-95 flex items-center gap-1.5 cursor-pointer ${
               viewMode === 'phone' ? 'bg-white text-ink-900 shadow-xs' : 'text-ink-500 hover:text-ink-900'
             }`}
           >
@@ -179,7 +179,7 @@ export default function StudentDashboard() {
             <div className="flex items-center gap-3">
               <Link
                 href="/messenger"
-                className="inline-flex items-center gap-2 bg-[#FFF7EE] hover:bg-[#FDEEDC] text-ink-900 border border-[#F4DEC6] px-5 py-2.5 rounded-full text-xs font-extrabold transition-all shadow-xs"
+                className="inline-flex items-center gap-2 bg-[#FFF7EE] hover:bg-[#FDEEDC] text-ink-900 border border-[#F4DEC6] px-5 py-2.5 rounded-full text-xs font-extrabold transition-[background-color,border-color,transform] duration-140 ease-out-emil active:scale-[0.98] shadow-xs cursor-pointer"
               >
                 <MessageSquare className="w-4 h-4 text-coralAccent" />
                 <span>Чат с логопедом</span>
@@ -219,7 +219,7 @@ export default function StudentDashboard() {
               <div className="pt-4 flex items-center gap-3">
                 <Link
                   href="/room/room-logoped-timofey"
-                  className="bg-limeAccent hover:bg-limeAccent-hover text-ink-900 font-extrabold px-6 py-2.5 rounded-full text-xs shadow-xs transition-all flex items-center gap-2"
+                  className="bg-limeAccent hover:bg-limeAccent-hover text-ink-900 font-extrabold px-6 py-2.5 rounded-full text-xs shadow-xs transition-[background-color,transform,box-shadow] duration-140 ease-out-emil active:scale-[0.97] flex items-center gap-2 cursor-pointer"
                 >
                   <Video className="w-3.5 h-3.5 text-ink-900" />
                   <span>Войти в урок</span>
@@ -290,7 +290,7 @@ export default function StudentDashboard() {
                         ) : (
                           <button
                             onClick={() => setRecordingHwId(hw.id)}
-                            className="bg-coralAccent hover:bg-coralAccent-hover text-white px-5 py-2 rounded-full text-xs font-bold shadow-xs transition-all"
+                            className="bg-coralAccent hover:bg-coralAccent-hover text-white px-5 py-2 rounded-full text-xs font-bold shadow-xs transition-[background-color,transform,box-shadow] duration-140 ease-out-emil active:scale-[0.97] cursor-pointer"
                           >
                             Записать голосовой ответ
                           </button>

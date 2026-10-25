@@ -17,7 +17,7 @@ export default function PhoneMockup({ children, title }: PhoneMockupProps) {
         
         {/* Dynamic Island Pill */}
         <div className="absolute left-1/2 -translate-x-1/2 top-2.5 w-24 h-6 bg-ink-900 rounded-full flex items-center justify-end px-2">
-          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]" />
         </div>
 
         <div className="flex items-center gap-1.5">

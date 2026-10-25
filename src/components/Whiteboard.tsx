@@ -147,7 +147,7 @@ export default function Whiteboard({ onSaveSnapshot }: WhiteboardProps) {
         <div className="flex items-center gap-1 bg-white p-1 rounded-full border border-[#EADBCC] shadow-xs">
           <button
             onClick={() => setTool('pen')}
-            className={`p-2 rounded-full text-xs font-bold transition-all ${
+            className={`p-2 rounded-full text-xs font-bold transition-[background-color,color,transform] duration-140 ease-out-emil active:scale-90 cursor-pointer ${
               tool === 'pen' ? 'bg-[#FFF7EE] text-coralAccent shadow-xs' : 'text-ink-600 hover:bg-[#FFF7EE]'
             }`}
             title="Карандаш"
@@ -156,7 +156,7 @@ export default function Whiteboard({ onSaveSnapshot }: WhiteboardProps) {
           </button>
           <button
             onClick={() => setTool('highlighter')}
-            className={`p-2 rounded-full text-xs font-bold transition-all ${
+            className={`p-2 rounded-full text-xs font-bold transition-[background-color,color,transform] duration-140 ease-out-emil active:scale-90 cursor-pointer ${
               tool === 'highlighter' ? 'bg-[#FFF7EE] text-coralAccent shadow-xs' : 'text-ink-600 hover:bg-[#FFF7EE]'
             }`}
             title="Маркер-выделитель"
@@ -165,7 +165,7 @@ export default function Whiteboard({ onSaveSnapshot }: WhiteboardProps) {
           </button>
           <button
             onClick={() => setTool('eraser')}
-            className={`p-2 rounded-full text-xs font-bold transition-all ${
+            className={`p-2 rounded-full text-xs font-bold transition-[background-color,color,transform] duration-140 ease-out-emil active:scale-90 cursor-pointer ${
               tool === 'eraser' ? 'bg-[#FFF7EE] text-coralAccent shadow-xs' : 'text-ink-600 hover:bg-[#FFF7EE]'
             }`}
             title="Ластик"
@@ -175,7 +175,7 @@ export default function Whiteboard({ onSaveSnapshot }: WhiteboardProps) {
           <div className="w-[1px] h-5 bg-[#EADBCC] mx-1" />
           <button
             onClick={() => setTool('line')}
-            className={`p-2 rounded-full text-xs font-bold transition-all ${
+            className={`p-2 rounded-full text-xs font-bold transition-[background-color,color,transform] duration-140 ease-out-emil active:scale-90 cursor-pointer ${
               tool === 'line' ? 'bg-[#FFF7EE] text-coralAccent shadow-xs' : 'text-ink-600 hover:bg-[#FFF7EE]'
             }`}
             title="Прямая линия"
@@ -184,7 +184,7 @@ export default function Whiteboard({ onSaveSnapshot }: WhiteboardProps) {
           </button>
           <button
             onClick={() => setTool('rect')}
-            className={`p-2 rounded-full text-xs font-bold transition-all ${
+            className={`p-2 rounded-full text-xs font-bold transition-[background-color,color,transform] duration-140 ease-out-emil active:scale-90 cursor-pointer ${
               tool === 'rect' ? 'bg-[#FFF7EE] text-coralAccent shadow-xs' : 'text-ink-600 hover:bg-[#FFF7EE]'
             }`}
             title="Прямоугольник"
@@ -193,7 +193,7 @@ export default function Whiteboard({ onSaveSnapshot }: WhiteboardProps) {
           </button>
           <button
             onClick={() => setTool('circle')}
-            className={`p-2 rounded-full text-xs font-bold transition-all ${
+            className={`p-2 rounded-full text-xs font-bold transition-[background-color,color,transform] duration-140 ease-out-emil active:scale-90 cursor-pointer ${
               tool === 'circle' ? 'bg-[#FFF7EE] text-coralAccent shadow-xs' : 'text-ink-600 hover:bg-[#FFF7EE]'
             }`}
             title="Круг"
@@ -246,7 +246,7 @@ export default function Whiteboard({ onSaveSnapshot }: WhiteboardProps) {
           </button>
           <button
             onClick={saveSnapshot}
-            className="flex items-center gap-1.5 px-5 py-2 text-xs text-ink-900 bg-limeAccent hover:bg-limeAccent-hover rounded-full transition-all font-black shadow-xs"
+            className="flex items-center gap-1.5 px-5 py-2 text-xs text-ink-900 bg-limeAccent hover:bg-limeAccent-hover rounded-full transition-[background-color,transform,box-shadow] duration-140 ease-out-emil active:scale-[0.97] font-black shadow-xs cursor-pointer"
             title="Сохранить снимок доски в историю урока"
           >
             <Download className="w-3.5 h-3.5" />

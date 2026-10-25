@@ -263,7 +263,7 @@ function LoginFormContent() {
                     setErrorMessage('');
                     setSuccessMessage('');
                   }}
-                  className={`flex-1 py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  className={`flex-1 py-2 rounded-xl text-xs font-black transition-[background-color,color,box-shadow] duration-140 ease-out-emil active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer ${
                     tab === 'login'
                       ? 'bg-white text-[#161F38] shadow-xs'
                       : 'text-[#6B758E] hover:text-[#161F38]'
@@ -279,7 +279,7 @@ function LoginFormContent() {
                     setErrorMessage('');
                     setSuccessMessage('');
                   }}
-                  className={`flex-1 py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  className={`flex-1 py-2 rounded-xl text-xs font-black transition-[background-color,color,box-shadow] duration-140 ease-out-emil active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer ${
                     tab === 'register'
                       ? 'bg-white text-[#161F38] shadow-xs'
                       : 'text-[#6B758E] hover:text-[#161F38]'
@@ -392,7 +392,7 @@ function LoginFormContent() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full bg-coralAccent hover:bg-coralAccent-hover text-white font-black text-xs sm:text-sm py-3 rounded-full shadow-xs transition-all flex items-center justify-center gap-2 active:scale-98 disabled:opacity-50 cursor-pointer"
+                    className="w-full bg-coralAccent hover:bg-coralAccent-hover text-white font-black text-xs sm:text-sm py-3 rounded-full shadow-xs transition-[background-color,transform,box-shadow] duration-140 ease-out-emil flex items-center justify-center gap-2 active:scale-[0.97] disabled:opacity-50 cursor-pointer"
                   >
                     <span>{loading ? 'Секунду...' : tab === 'register' ? 'Зарегистрироваться и получить ID' : 'Войти в кабинет'}</span>
                     <ArrowRight className="w-4 h-4" />
@@ -439,10 +439,10 @@ function LoginFormContent() {
               <button
                 type="button"
                 onClick={() => handleDemoLogin('student', '/student')}
-                className="w-full group bg-white hover:bg-[#FFFBF7] p-3 rounded-2xl border border-[#F2DECE] hover:border-coralAccent transition-all flex items-center justify-between text-left cursor-pointer shadow-2xs"
+                className="w-full group bg-white hover:bg-[#FFFBF7] p-3 rounded-2xl border border-[#F2DECE] hover:border-coralAccent transition-[background-color,border-color,transform] duration-140 ease-out-emil active:scale-[0.98] flex items-center justify-between text-left cursor-pointer shadow-2xs"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-[#FFF2E6] text-coralAccent flex items-center justify-center font-bold shrink-0 group-hover:scale-105 transition-transform">
+                  <div className="w-9 h-9 rounded-xl bg-[#FFF2E6] text-coralAccent flex items-center justify-center font-bold shrink-0 group-hover:scale-105 transition-transform duration-140">
                     <GraduationCap className="w-4 h-4" />
                   </div>
                   <div>
@@ -457,17 +457,17 @@ function LoginFormContent() {
                     </div>
                   </div>
                 </div>
-                <ArrowRight className="w-4 h-4 text-coralAccent group-hover:translate-x-1 transition-transform" />
+                <ArrowRight className="w-4 h-4 text-coralAccent group-hover:translate-x-1 transition-transform duration-140" />
               </button>
 
               {/* Teacher Role */}
               <button
                 type="button"
                 onClick={() => handleDemoLogin('teacher', '/teacher')}
-                className="w-full group bg-white hover:bg-[#FFFBF7] p-3 rounded-2xl border border-[#F2DECE] hover:border-coralAccent transition-all flex items-center justify-between text-left cursor-pointer shadow-2xs"
+                className="w-full group bg-white hover:bg-[#FFFBF7] p-3 rounded-2xl border border-[#F2DECE] hover:border-coralAccent transition-[background-color,border-color,transform] duration-140 ease-out-emil active:scale-[0.98] flex items-center justify-between text-left cursor-pointer shadow-2xs"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-[#F0F7FF] text-[#2B6CB0] flex items-center justify-center font-bold shrink-0 group-hover:scale-105 transition-transform">
+                  <div className="w-9 h-9 rounded-xl bg-[#F0F7FF] text-[#2B6CB0] flex items-center justify-center font-bold shrink-0 group-hover:scale-105 transition-transform duration-140">
                     <UserCheck className="w-4 h-4" />
                   </div>
                   <div>
@@ -479,17 +479,17 @@ function LoginFormContent() {
                     </div>
                   </div>
                 </div>
-                <ArrowRight className="w-4 h-4 text-[#2B6CB0] group-hover:translate-x-1 transition-transform" />
+                <ArrowRight className="w-4 h-4 text-[#2B6CB0] group-hover:translate-x-1 transition-transform duration-140" />
               </button>
 
               {/* Admin Role */}
               <button
                 type="button"
                 onClick={() => handleDemoLogin('admin', '/admin')}
-                className="w-full group bg-white hover:bg-[#FFFBF7] p-3 rounded-2xl border border-[#F2DECE] hover:border-coralAccent transition-all flex items-center justify-between text-left cursor-pointer shadow-2xs"
+                className="w-full group bg-white hover:bg-[#FFFBF7] p-3 rounded-2xl border border-[#F2DECE] hover:border-coralAccent transition-[background-color,border-color,transform] duration-140 ease-out-emil active:scale-[0.98] flex items-center justify-between text-left cursor-pointer shadow-2xs"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-[#FAF5FF] text-[#6B46C1] flex items-center justify-center font-bold shrink-0 group-hover:scale-105 transition-transform">
+                  <div className="w-9 h-9 rounded-xl bg-[#FAF5FF] text-[#6B46C1] flex items-center justify-center font-bold shrink-0 group-hover:scale-105 transition-transform duration-140">
                     <Shield className="w-4 h-4" />
                   </div>
                   <div>
@@ -501,7 +501,7 @@ function LoginFormContent() {
                     </div>
                   </div>
                 </div>
-                <ArrowRight className="w-4 h-4 text-[#6B46C1] group-hover:translate-x-1 transition-transform" />
+                <ArrowRight className="w-4 h-4 text-[#6B46C1] group-hover:translate-x-1 transition-transform duration-140" />
               </button>
             </div>
 

@@ -134,7 +134,7 @@ export default function MessengerPage() {
           {activeChat === 'teacher' && (
             <Link
               href="/room/room-logoped-timofey"
-              className="inline-flex items-center gap-2 bg-limeAccent hover:bg-limeAccent-hover text-ink-900 px-4 py-2 rounded-full text-xs font-black shadow-xs transition-all"
+              className="inline-flex items-center gap-2 bg-limeAccent hover:bg-limeAccent-hover text-ink-900 px-4 py-2 rounded-full text-xs font-black shadow-xs transition-[background-color,transform,box-shadow] duration-140 ease-out-emil active:scale-[0.97] cursor-pointer"
             >
               <Video className="w-3.5 h-3.5" />
               <span>Войти в урок</span>
@@ -161,7 +161,7 @@ export default function MessengerPage() {
               <div className="p-4 rounded-3xl bg-[#FFF8F1] border-2 border-coralAccent/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-2xl bg-coralAccent text-white flex items-center justify-center shrink-0">
-                    <Video className="w-5 h-5 animate-pulse" />
+                    <Video className="w-5 h-5" />
                   </div>
                   <div>
                     <span className="text-[10px] font-extrabold text-coralAccent uppercase tracking-wider">
@@ -174,7 +174,7 @@ export default function MessengerPage() {
                 </div>
                 <Link
                   href="/room/room-logoped-timofey"
-                  className="inline-flex items-center gap-1.5 bg-limeAccent hover:bg-limeAccent-hover text-ink-900 px-4 py-2 rounded-full text-xs font-black transition-all shadow-xs shrink-0"
+                  className="inline-flex items-center gap-1.5 bg-limeAccent hover:bg-limeAccent-hover text-ink-900 px-4 py-2 rounded-full text-xs font-black transition-[background-color,transform,box-shadow] duration-140 ease-out-emil active:scale-[0.97] shadow-xs shrink-0"
                 >
                   <span>Присоединиться</span>
                   <ArrowRight className="w-3.5 h-3.5" />
@@ -202,7 +202,7 @@ export default function MessengerPage() {
                     >
                       <button
                         onClick={() => toggleVoicePlayback(m.id)}
-                        className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
+                        className={`w-9 h-9 rounded-full flex items-center justify-center transition-[background-color,transform] duration-140 ease-out-emil active:scale-90 ${
                           m.senderRole === 'student'
                             ? 'bg-white text-coralAccent hover:bg-white/90'
                             : 'bg-coralAccent text-white hover:bg-coralAccent-hover'
@@ -266,7 +266,7 @@ export default function MessengerPage() {
               />
               <button
                 type="submit"
-                className="w-10 h-10 bg-coralAccent hover:bg-coralAccent-hover text-white rounded-full flex items-center justify-center shadow-xs transition-all shrink-0"
+                className="w-10 h-10 bg-coralAccent hover:bg-coralAccent-hover text-white rounded-full flex items-center justify-center shadow-xs transition-[background-color,transform] duration-140 ease-out-emil active:scale-90 shrink-0 cursor-pointer"
               >
                 <Send className="w-4 h-4" />
               </button>

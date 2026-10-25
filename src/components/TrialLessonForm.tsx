@@ -43,7 +43,7 @@ export default function TrialLessonForm() {
 
   if (submitted) {
     return (
-      <div className="bg-[#FFF8F1] rounded-3xl p-6 sm:p-8 border border-[#F2E2D0] text-center space-y-4 max-w-lg mx-auto">
+      <div className="bg-[#FFF8F1] rounded-3xl p-6 sm:p-8 border border-[#F2E2D0] text-center space-y-4 max-w-lg mx-auto animate-in fade-in zoom-in-95 duration-200 ease-out-emil">
         <div className="w-16 h-16 rounded-full bg-[#EAF7CF] text-[#5C8519] flex items-center justify-center mx-auto shadow-xs">
           <CheckCircle2 className="w-8 h-8" />
         </div>
@@ -62,7 +62,7 @@ export default function TrialLessonForm() {
         <div className="pt-2">
           <button
             onClick={() => setSubmitted(false)}
-            className="text-xs font-bold text-[#161F38] hover:text-coralAccent underline"
+            className="text-xs font-bold text-[#161F38] hover:text-coralAccent underline transition-colors duration-140"
           >
             Отправить ещё одну заявку
           </button>
@@ -132,7 +132,7 @@ export default function TrialLessonForm() {
                 key={subj}
                 type="button"
                 onClick={() => setSelectedSubject(subj)}
-                className={`text-[11px] font-bold px-3 py-1.5 rounded-full border transition-all ${
+                className={`text-[11px] font-bold px-3 py-1.5 rounded-full border transition-[background-color,border-color,color,transform] duration-140 ease-out-emil active:scale-95 cursor-pointer ${
                   selectedSubject === subj
                     ? 'bg-[#161F38] text-white border-[#161F38] shadow-2xs'
                     : 'bg-[#FFF8F1] text-[#161F38]/80 border-[#F2E0CF] hover:border-coralAccent'
@@ -148,7 +148,7 @@ export default function TrialLessonForm() {
         <div className="pt-1.5">
           <button
             type="submit"
-            className="w-full bg-coralAccent hover:bg-coralAccent-hover text-white font-black text-xs sm:text-sm py-3 rounded-full shadow-sm transition-all flex items-center justify-center gap-2 active:scale-98 cursor-pointer"
+            className="w-full bg-coralAccent hover:bg-coralAccent-hover text-white font-black text-xs sm:text-sm py-3 rounded-full shadow-sm transition-[background-color,transform,box-shadow] duration-140 ease-out-emil flex items-center justify-center gap-2 active:scale-[0.97] cursor-pointer"
           >
             <span>Записаться на бесплатный урок</span>
             <Send className="w-4 h-4" />

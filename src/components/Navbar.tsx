@@ -150,7 +150,7 @@ export default function Navbar() {
               <Link
                 href="/student"
                 suppressHydrationWarning
-                className="hidden sm:flex items-center gap-2 bg-white border border-[#EADBCC] px-3.5 py-1.5 rounded-full text-xs font-bold text-[#161F38] shadow-xs hover:border-coralAccent transition-all"
+                className="hidden sm:flex items-center gap-2 bg-white border border-[#EADBCC] px-3.5 py-1.5 rounded-full text-xs font-bold text-[#161F38] shadow-xs hover:border-coralAccent transition-[border-color,box-shadow,transform] duration-140 ease-out-emil active:scale-[0.98]"
               >
                 <Coins className="w-4 h-4 text-coralAccent" />
                 <span suppressHydrationWarning>
@@ -177,14 +177,14 @@ export default function Navbar() {
                   type="button"
                   onClick={handleLogout}
                   title="Сменить роль или выйти"
-                  className="text-xs font-bold text-[#8A95A8] hover:text-coralAccent px-2.5 py-1.5 rounded-full hover:bg-white border border-transparent hover:border-[#F2DECE] transition-all cursor-pointer"
+                  className="text-xs font-bold text-[#8A95A8] hover:text-coralAccent px-2.5 py-1.5 rounded-full hover:bg-white border border-transparent hover:border-[#F2DECE] transition-colors duration-140 cursor-pointer active:scale-95"
                 >
                   Выйти
                 </button>
 
                 <a
                   href="https://ayda-umnichka.vercel.app"
-                  className="hidden sm:inline-flex text-xs font-semibold text-[#8A95A8] hover:text-[#161F38] px-2 py-1 transition-colors"
+                  className="hidden sm:inline-flex text-xs font-semibold text-[#8A95A8] hover:text-[#161F38] px-2 py-1 transition-colors duration-140"
                 >
                   На сайт →
                 </a>
@@ -192,7 +192,7 @@ export default function Navbar() {
             ) : isLogin ? (
               <a
                 href="https://ayda-umnichka.vercel.app"
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#161F38] bg-white border border-[#EADBCC] px-4 py-2 rounded-full hover:border-coralAccent transition-all shadow-xs"
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#161F38] bg-white border border-[#EADBCC] px-4 py-2 rounded-full hover:border-coralAccent transition-[border-color,box-shadow,transform] duration-140 ease-out-emil shadow-xs active:scale-[0.97]"
               >
                 <span>← На главную</span>
               </a>
@@ -200,7 +200,7 @@ export default function Navbar() {
               // On landing page: Direct real link to LK subdomain (lk-[project].vercel.app)
               <a
                 href={lkUrl}
-                className="bg-[#C5E87D] hover:bg-[#B6DC67] text-[#161F38] font-black px-3.5 py-2 sm:px-5 sm:py-2.5 rounded-full text-xs tracking-tight transition-all shadow-xs flex items-center gap-1.5 sm:gap-2 active:scale-95 cursor-pointer whitespace-nowrap"
+                className="bg-[#C5E87D] hover:bg-[#B6DC67] text-[#161F38] font-black px-3.5 py-2 sm:px-5 sm:py-2.5 rounded-full text-xs tracking-tight transition-[background-color,transform,box-shadow] duration-140 ease-out-emil shadow-xs flex items-center gap-1.5 sm:gap-2 active:scale-[0.97] cursor-pointer whitespace-nowrap"
               >
                 <LogIn className="w-3.5 h-3.5 text-[#161F38]" />
                 <span>Вход / Регистрация</span>

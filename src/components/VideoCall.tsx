@@ -166,7 +166,7 @@ export default function VideoCall({
         {/* Mic Toggle */}
         <button
           onClick={() => setMicActive(!micActive)}
-          className={`p-3 rounded-full transition-all ${
+          className={`p-3 rounded-full transition-[background-color,border-color,transform] duration-140 ease-out-emil active:scale-90 cursor-pointer ${
             micActive ? 'bg-[#FFF7EE] hover:bg-[#FDEEDC] text-ink-800' : 'bg-rose-100 text-rose-700 border border-rose-300'
           }`}
           title={micActive ? 'Выключить микрофон' : 'Включить микрофон'}
@@ -177,7 +177,7 @@ export default function VideoCall({
         {/* Cam Toggle */}
         <button
           onClick={() => setCamActive(!camActive)}
-          className={`p-3 rounded-full transition-all ${
+          className={`p-3 rounded-full transition-[background-color,border-color,transform] duration-140 ease-out-emil active:scale-90 cursor-pointer ${
             camActive ? 'bg-[#FFF7EE] hover:bg-[#FDEEDC] text-ink-800' : 'bg-rose-100 text-rose-700 border border-rose-300'
           }`}
           title={camActive ? 'Выключить камеру' : 'Включить камеру'}
@@ -188,7 +188,7 @@ export default function VideoCall({
         {/* Screen Share */}
         <button
           onClick={toggleScreenShare}
-          className={`p-3 rounded-full transition-all ${
+          className={`p-3 rounded-full transition-[background-color,transform] duration-140 ease-out-emil active:scale-90 cursor-pointer ${
             isScreenSharing ? 'bg-limeAccent text-ink-900' : 'bg-[#FFF7EE] hover:bg-[#FDEEDC] text-ink-800'
           }`}
           title="Демонстрация экрана"
@@ -200,7 +200,7 @@ export default function VideoCall({
         {onToggleWhiteboard && (
           <button
             onClick={onToggleWhiteboard}
-            className="p-3 bg-limeAccent hover:bg-limeAccent-hover text-ink-900 rounded-full transition-all flex items-center gap-2 font-black text-xs px-5 shadow-xs"
+            className="p-3 bg-limeAccent hover:bg-limeAccent-hover text-ink-900 rounded-full transition-[background-color,transform,box-shadow] duration-140 ease-out-emil active:scale-[0.97] flex items-center gap-2 font-black text-xs px-5 shadow-xs cursor-pointer"
             title="Переключить на интерактивную доску"
           >
             <Layout className="w-4 h-4 text-ink-900" />
@@ -211,7 +211,7 @@ export default function VideoCall({
         {/* End Call */}
         <button
           onClick={handleEnd}
-          className="p-3 bg-coralAccent hover:bg-coralAccent-hover text-white rounded-full transition-all flex items-center gap-1.5 font-black text-xs px-5 shadow-xs"
+          className="p-3 bg-coralAccent hover:bg-coralAccent-hover text-white rounded-full transition-[background-color,transform,box-shadow] duration-140 ease-out-emil active:scale-[0.97] flex items-center gap-1.5 font-black text-xs px-5 shadow-xs cursor-pointer"
           title="Завершить занятие"
         >
           <PhoneOff className="w-4 h-4" />

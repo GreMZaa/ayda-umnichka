@@ -129,28 +129,28 @@ export default function AdminDashboard() {
             <div className="space-y-2.5">
               <button
                 onClick={() => adjustBalance(4, 'Оплата мини-абонемента (+4 урока)')}
-                className="w-full py-3 px-4 bg-[#FFFDFB] hover:bg-[#FFF7EE] border border-[#EADBCC] text-ink-900 rounded-2xl text-xs font-bold transition-all flex items-center justify-between"
+                className="w-full py-3 px-4 bg-[#FFFDFB] hover:bg-[#FFF7EE] border border-[#EADBCC] text-ink-900 rounded-2xl text-xs font-bold transition-[background-color,border-color,transform] duration-140 ease-out-emil active:scale-[0.98] flex items-center justify-between cursor-pointer"
               >
                 <span>Пакет «Старт» (+4 занятия)</span>
                 <span className="text-coralAccent font-black">+4</span>
               </button>
               <button
                 onClick={() => adjustBalance(8, 'Оплата стандартного абонемента (+8 уроков)')}
-                className="w-full py-3 px-4 bg-[#FFF7EE] hover:bg-[#FDEEDC] text-ink-900 rounded-2xl text-xs font-extrabold transition-all flex items-center justify-between border-2 border-[#F4DEC6]"
+                className="w-full py-3 px-4 bg-[#FFF7EE] hover:bg-[#FDEEDC] text-ink-900 rounded-2xl text-xs font-extrabold transition-[background-color,border-color,transform] duration-140 ease-out-emil active:scale-[0.98] flex items-center justify-between border-2 border-[#F4DEC6] cursor-pointer"
               >
                 <span>Пакет «Оптимальный» (+8 занятий)</span>
                 <span className="text-coralAccent font-black">+8</span>
               </button>
               <button
                 onClick={() => adjustBalance(16, 'Оплата расширенного абонемента (+16 уроков)')}
-                className="w-full py-3 px-4 bg-limeAccent/30 hover:bg-limeAccent/50 text-ink-900 rounded-2xl text-xs font-extrabold transition-all flex items-center justify-between border border-[#C5E87D]"
+                className="w-full py-3 px-4 bg-limeAccent/30 hover:bg-limeAccent/50 text-ink-900 rounded-2xl text-xs font-extrabold transition-[background-color,border-color,transform] duration-140 ease-out-emil active:scale-[0.98] flex items-center justify-between border border-[#C5E87D] cursor-pointer"
               >
                 <span>Пакет «Интенсив» (+16 занятий)</span>
                 <span className="text-emerald-800 font-black">+16</span>
               </button>
               <button
                 onClick={() => adjustBalance(-1, 'Ручная корректировка / внеочередное списание')}
-                className="w-full py-2 px-4 text-[#B91C1C] hover:bg-[#FEE2E2] rounded-xl text-xs font-medium transition-all text-center"
+                className="w-full py-2 px-4 text-[#B91C1C] hover:bg-[#FEE2E2] rounded-xl text-xs font-medium transition-[background-color,transform] duration-140 ease-out-emil active:scale-[0.98] text-center cursor-pointer"
               >
                 Списать 1 занятие (ручная корректировка)
               </button>

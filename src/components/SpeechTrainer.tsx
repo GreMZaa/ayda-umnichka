@@ -84,9 +84,9 @@ export default function SpeechTrainer() {
             <button
               key={opt.key}
               onClick={() => handleSelect(opt.key)}
-              className={`p-3.5 rounded-2xl text-sm font-extrabold transition-all flex items-center justify-between border-2 ${
+              className={`p-3.5 rounded-2xl text-sm font-extrabold transition-[background-color,border-color,transform,box-shadow] duration-140 ease-out-emil active:scale-[0.98] cursor-pointer flex items-center justify-between border-2 ${
                 isSelected
-                  ? 'bg-[#FBBF24] text-ink-900 border-white shadow-sm scale-[1.02]'
+                  ? 'bg-[#FBBF24] text-ink-900 border-white shadow-sm scale-[1.01]'
                   : 'bg-white/10 hover:bg-white/20 text-white border-white/20'
               }`}
             >
@@ -109,18 +109,18 @@ export default function SpeechTrainer() {
 
       {/* Bottom Actions Bar */}
       <div className="pt-2 flex items-center justify-between border-t border-white/20">
-        <button className="flex items-center gap-1.5 text-xs text-white/80 hover:text-white font-bold">
+        <button className="flex items-center gap-1.5 text-xs text-white/80 hover:text-white font-bold transition-colors duration-140 cursor-pointer active:scale-95">
           <ChevronLeft className="w-4 h-4" />
           <span>Назад</span>
         </button>
 
-        <button className="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-[#FBBF24] shadow-xs">
+        <button className="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-[#FBBF24] shadow-xs transition-[background-color,transform] duration-140 ease-out-emil active:scale-90 cursor-pointer">
           <Lightbulb className="w-5 h-5" />
         </button>
 
         <button
           onClick={() => alert('Отлично! +15 XP начислено за правильный ответ!')}
-          className="bg-white hover:bg-white/90 text-ink-900 px-6 py-2.5 rounded-full text-xs font-black flex items-center gap-1 shadow-sm transition-transform active:scale-95"
+          className="bg-white hover:bg-white/90 text-ink-900 px-6 py-2.5 rounded-full text-xs font-black flex items-center gap-1 shadow-sm transition-[background-color,transform] duration-140 ease-out-emil active:scale-[0.97] cursor-pointer"
         >
           <span>Далее</span>
           <ChevronRight className="w-4 h-4" />

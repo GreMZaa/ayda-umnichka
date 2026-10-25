@@ -96,7 +96,7 @@ export default function BadgesGrid() {
         </div>
         <div className="w-full bg-[#FFF7EE] h-3 rounded-full overflow-hidden p-0.5 border border-[#F2E2D0]">
           <div
-            className="bg-coralAccent h-full rounded-full transition-all duration-700"
+            className="bg-coralAccent h-full rounded-full transition-[width] duration-250 ease-out-emil"
             style={{ width: '75%' }}
           />
         </div>
@@ -116,9 +116,9 @@ export default function BadgesGrid() {
           {badges.map((b) => (
             <div
               key={b.id}
-              className={`p-3.5 rounded-2xl border text-center transition-all flex flex-col items-center justify-between ${
+              className={`p-3.5 rounded-2xl border text-center transition-[transform,box-shadow] duration-140 ease-out-emil flex flex-col items-center justify-between select-none ${
                 b.unlocked
-                  ? `${b.color} shadow-xs`
+                  ? `${b.color} shadow-xs hover:scale-[1.02] active:scale-[0.97] cursor-pointer`
                   : 'bg-slate-50 text-slate-400 border-slate-200 opacity-60'
               }`}
             >

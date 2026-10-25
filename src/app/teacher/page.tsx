@@ -152,7 +152,7 @@ export default function TeacherDashboard() {
                 <button
                   type="submit"
                   disabled={isCreating}
-                  className="inline-flex items-center gap-2 bg-limeAccent hover:bg-limeAccent-hover text-ink-900 font-black px-8 py-4 rounded-full transition-all shadow-xs active:scale-95 text-xs"
+                  className="inline-flex items-center gap-2 bg-limeAccent hover:bg-limeAccent-hover text-ink-900 font-black px-8 py-4 rounded-full transition-[background-color,transform,box-shadow] duration-140 ease-out-emil shadow-xs active:scale-[0.97] text-xs cursor-pointer"
                 >
                   <Video className="w-4 h-4 text-ink-900" />
                   <span>{isCreating ? 'Генерация P2P комнаты...' : 'Начать урок прямо сейчас (1 клик)'}</span>
@@ -299,7 +299,7 @@ export default function TeacherDashboard() {
 
             <button
               type="submit"
-              className="inline-flex items-center gap-2 bg-coralAccent hover:bg-coralAccent-hover text-white font-black px-6 py-3 rounded-full text-xs shadow-xs transition-all"
+              className="inline-flex items-center gap-2 bg-coralAccent hover:bg-coralAccent-hover text-white font-black px-6 py-3 rounded-full text-xs shadow-xs transition-[background-color,transform,box-shadow] duration-140 ease-out-emil active:scale-[0.97] cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>Отправить задание ученику</span>

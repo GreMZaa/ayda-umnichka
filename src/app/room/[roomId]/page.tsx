@@ -81,7 +81,7 @@ export default function LessonRoomPage() {
         <div className="flex items-center gap-2 bg-[#FFF7EE] p-1 rounded-full border border-[#F4DEC6]">
           <button
             onClick={() => setIsWhiteboardActive(false)}
-            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 ${
+            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-[background-color,color,box-shadow] duration-140 ease-out-emil active:scale-95 cursor-pointer flex items-center gap-1.5 ${
               !isWhiteboardActive
                 ? 'bg-white text-ink-900 shadow-sm'
                 : 'text-ink-600 hover:text-ink-900'
@@ -92,7 +92,7 @@ export default function LessonRoomPage() {
           </button>
           <button
             onClick={() => setIsWhiteboardActive(true)}
-            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 ${
+            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-[background-color,color,box-shadow] duration-140 ease-out-emil active:scale-95 cursor-pointer flex items-center gap-1.5 ${
               isWhiteboardActive
                 ? 'bg-white text-ink-900 shadow-sm'
                 : 'text-ink-600 hover:text-ink-900'

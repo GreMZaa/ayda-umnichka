@@ -86,21 +86,21 @@ export default function BalanceWidget({
         <div className="pt-1 flex items-center gap-2">
           <button
             aria-label="Предыдущий урок"
-            className="w-5 h-5 rounded-full flex items-center justify-center text-[#161F38]/60 hover:text-[#161F38] hover:bg-[#FDEEDC] transition-colors"
+            className="w-5 h-5 rounded-full flex items-center justify-center text-[#161F38]/60 hover:text-[#161F38] hover:bg-[#FDEEDC] transition-colors duration-140 active:scale-90 cursor-pointer"
           >
             <ArrowLeft className="w-3 h-3" />
           </button>
 
           <div className="flex-1 bg-[#F5E5D4] h-2 rounded-full overflow-hidden relative">
             <div
-              className="bg-coralAccent h-full rounded-full transition-all duration-500"
+              className="bg-coralAccent h-full rounded-full transition-[width] duration-220 ease-out-emil"
               style={{ width: `${progressPercent}%` }}
             />
           </div>
 
           <button
             aria-label="Следующий урок"
-            className="w-5 h-5 rounded-full flex items-center justify-center text-[#161F38]/60 hover:text-[#161F38] hover:bg-[#FDEEDC] transition-colors"
+            className="w-5 h-5 rounded-full flex items-center justify-center text-[#161F38]/60 hover:text-[#161F38] hover:bg-[#FDEEDC] transition-colors duration-140 active:scale-90 cursor-pointer"
           >
             <ArrowRight className="w-3 h-3" />
           </button>

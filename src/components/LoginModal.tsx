@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { X, GraduationCap, UserCheck, Shield, ExternalLink, ArrowRight, Sparkles, Check, Copy } from 'lucide-react';
@@ -14,9 +14,29 @@ interface LoginModalProps {
 export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
   const router = useRouter();
   const [copied, setCopied] = useState(false);
+  const [isRendered, setIsRendered] = useState(isOpen);
+  const [isVisible, setIsVisible] = useState(false);
   const lkUrl = typeof window !== 'undefined' ? getLkUrl('/login') : '/login';
 
-  if (!isOpen) return null;
+  // Handle smooth enter/exit animation without sudden unmounting
+  useEffect(() => {
+    if (isOpen) {
+      setIsRendered(true);
+      // Double rAF / small timeout to trigger enter transition smoothly
+      const timer = requestAnimationFrame(() => {
+        setIsVisible(true);
+      });
+      return () => cancelAnimationFrame(timer);
+    } else {
+      setIsVisible(false);
+      const timer = setTimeout(() => {
+        setIsRendered(false);
+      }, 180);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen]);
+
+  if (!isRendered) return null;
 
   const handleRoleSelect = (role: 'student' | 'teacher' | 'admin', path: string) => {
     localStorage.setItem('aida_active_role', role);
@@ -34,13 +54,23 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-900/40 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="relative w-full max-w-md bg-white rounded-[32px] p-6 sm:p-7 shadow-2xl border border-[#F2E0CF] space-y-5">
+    <div
+      onClick={onClose}
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-900/40 backdrop-blur-xs transition-opacity duration-180 ease-out-emil ${
+        isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+      }`}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className={`relative w-full max-w-md bg-white rounded-[32px] p-6 sm:p-7 shadow-2xl border border-[#F2E0CF] space-y-5 transition-[transform,opacity] duration-180 ease-out-emil ${
+          isVisible ? 'scale-100 opacity-100' : 'scale-[0.96] opacity-0'
+        }`}
+      >
         {/* Close Button */}
         <button
           onClick={onClose}
           aria-label="Закрыть"
-          className="absolute top-5 right-5 w-8 h-8 rounded-full bg-[#FFF7EE] flex items-center justify-center text-[#161F38]/60 hover:text-[#161F38] hover:bg-[#FCECDD] transition-colors cursor-pointer"
+          className="absolute top-5 right-5 w-8 h-8 rounded-full bg-[#FFF7EE] flex items-center justify-center text-[#161F38]/60 hover:text-[#161F38] hover:bg-[#FCECDD] transition-colors duration-140 cursor-pointer active:scale-90"
         >
           <X className="w-4 h-4" />
         </button>
@@ -66,10 +96,10 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
           {/* Student */}
           <button
             onClick={() => handleRoleSelect('student', '/student')}
-            className="w-full group bg-[#FFF8F1] hover:bg-[#FFF2E6] p-3.5 rounded-2xl border border-[#F2DECE] hover:border-coralAccent transition-all flex items-center justify-between text-left cursor-pointer"
+            className="w-full group bg-[#FFF8F1] hover:bg-[#FFF2E6] p-3.5 rounded-2xl border border-[#F2DECE] hover:border-coralAccent transition-[background-color,border-color,transform] duration-140 ease-out-emil active:scale-[0.98] flex items-center justify-between text-left cursor-pointer"
           >
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-white text-coralAccent flex items-center justify-center font-bold shadow-2xs group-hover:scale-105 transition-transform">
+              <div className="w-10 h-10 rounded-xl bg-white text-coralAccent flex items-center justify-center font-bold shadow-2xs group-hover:scale-105 transition-transform duration-140">
                 <GraduationCap className="w-5 h-5" />
               </div>
               <div>
@@ -81,16 +111,16 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
                 </div>
               </div>
             </div>
-            <ArrowRight className="w-4 h-4 text-coralAccent group-hover:translate-x-1 transition-transform" />
+            <ArrowRight className="w-4 h-4 text-coralAccent group-hover:translate-x-1 transition-transform duration-140" />
           </button>
 
           {/* Teacher */}
           <button
             onClick={() => handleRoleSelect('teacher', '/teacher')}
-            className="w-full group bg-[#FFF8F1] hover:bg-[#FFF2E6] p-3.5 rounded-2xl border border-[#F2DECE] hover:border-coralAccent transition-all flex items-center justify-between text-left cursor-pointer"
+            className="w-full group bg-[#FFF8F1] hover:bg-[#FFF2E6] p-3.5 rounded-2xl border border-[#F2DECE] hover:border-coralAccent transition-[background-color,border-color,transform] duration-140 ease-out-emil active:scale-[0.98] flex items-center justify-between text-left cursor-pointer"
           >
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-white text-[#161F38] flex items-center justify-center font-bold shadow-2xs group-hover:scale-105 transition-transform">
+              <div className="w-10 h-10 rounded-xl bg-white text-[#161F38] flex items-center justify-center font-bold shadow-2xs group-hover:scale-105 transition-transform duration-140">
                 <UserCheck className="w-5 h-5" />
               </div>
               <div>
@@ -102,16 +132,16 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
                 </div>
               </div>
             </div>
-            <ArrowRight className="w-4 h-4 text-[#161F38] group-hover:translate-x-1 transition-transform" />
+            <ArrowRight className="w-4 h-4 text-[#161F38] group-hover:translate-x-1 transition-transform duration-140" />
           </button>
 
           {/* Admin */}
           <button
             onClick={() => handleRoleSelect('admin', '/admin')}
-            className="w-full group bg-[#FFF8F1] hover:bg-[#FFF2E6] p-3.5 rounded-2xl border border-[#F2DECE] hover:border-coralAccent transition-all flex items-center justify-between text-left cursor-pointer"
+            className="w-full group bg-[#FFF8F1] hover:bg-[#FFF2E6] p-3.5 rounded-2xl border border-[#F2DECE] hover:border-coralAccent transition-[background-color,border-color,transform] duration-140 ease-out-emil active:scale-[0.98] flex items-center justify-between text-left cursor-pointer"
           >
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-white text-[#161F38] flex items-center justify-center font-bold shadow-2xs group-hover:scale-105 transition-transform">
+              <div className="w-10 h-10 rounded-xl bg-white text-[#161F38] flex items-center justify-center font-bold shadow-2xs group-hover:scale-105 transition-transform duration-140">
                 <Shield className="w-5 h-5" />
               </div>
               <div>
@@ -123,7 +153,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
                 </div>
               </div>
             </div>
-            <ArrowRight className="w-4 h-4 text-[#161F38] group-hover:translate-x-1 transition-transform" />
+            <ArrowRight className="w-4 h-4 text-[#161F38] group-hover:translate-x-1 transition-transform duration-140" />
           </button>
         </div>
 

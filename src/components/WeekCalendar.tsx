@@ -39,10 +39,16 @@ export default function WeekCalendar({ onSelectDay }: { onSelectDay?: (date: num
         </div>
 
         <div className="flex items-center gap-1.5">
-          <button className="w-8 h-8 rounded-full bg-[#FFF7EE] hover:bg-[#FDEEDC] text-ink-700 flex items-center justify-center transition-colors">
+          <button
+            aria-label="Предыдущая неделя"
+            className="w-8 h-8 rounded-full bg-[#FFF7EE] hover:bg-[#FDEEDC] text-ink-700 flex items-center justify-center transition-colors duration-140 active:scale-90 cursor-pointer"
+          >
             <ChevronLeft className="w-4 h-4" />
           </button>
-          <button className="w-8 h-8 rounded-full bg-[#FFF7EE] hover:bg-[#FDEEDC] text-ink-700 flex items-center justify-center transition-colors">
+          <button
+            aria-label="Следующая неделя"
+            className="w-8 h-8 rounded-full bg-[#FFF7EE] hover:bg-[#FDEEDC] text-ink-700 flex items-center justify-center transition-colors duration-140 active:scale-90 cursor-pointer"
+          >
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
@@ -56,7 +62,7 @@ export default function WeekCalendar({ onSelectDay }: { onSelectDay?: (date: num
             <button
               key={d.date}
               onClick={() => handleSelect(d.date)}
-              className={`py-3 px-2 rounded-2xl flex flex-col items-center justify-center transition-all relative ${
+              className={`py-3 px-2 rounded-2xl flex flex-col items-center justify-center transition-[background-color,color,transform,box-shadow] duration-140 ease-out-emil active:scale-95 cursor-pointer relative ${
                 isSelected
                   ? 'bg-ink-900 text-white shadow-sm'
                   : 'bg-[#FFF8F1] hover:bg-[#FDEEDC] text-ink-800'
