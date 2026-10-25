@@ -13,15 +13,16 @@ import {
   UserPlus,
   Lock,
   Mail,
-  Phone,
   Sparkles,
   CheckCircle2,
   AlertCircle,
   Eye,
-  EyeOff
+  EyeOff,
+  Zap,
+  Check
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { getClientUserId, bindAuthUserWithSupabase, setClientUserId, issueNewUserId } from '@/lib/userSession';
+import { getClientUserId, setClientUserId, issueNewUserId } from '@/lib/userSession';
 
 // Validate redirect path to prevent Open Redirect (CWE-601)
 function getSafeRedirect(rawRedirect: string | null, fallback: string): string {
@@ -40,6 +41,7 @@ function LoginFormContent() {
   const errorParam = searchParams.get('error');
 
   const [tab, setTab] = useState<'login' | 'register'>('login');
+  const [selectedRole, setSelectedRole] = useState<'student' | 'teacher' | 'admin'>('student');
   
   // Form states
   const [emailOrPhone, setEmailOrPhone] = useState('');
@@ -48,10 +50,18 @@ function LoginFormContent() {
   const [childName, setChildName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState(errorParam === 'forbidden' ? 'Доступ ограничен. Войдите с соответствующими правами.' : '');
   const [successMessage, setSuccessMessage] = useState('');
 
-  // Handle standard login/register
+  // Select registration role from the right block
+  const handleSelectRegistrationRole = (role: 'student' | 'teacher' | 'admin') => {
+    setSelectedRole(role);
+    setTab('register');
+    setErrorMessage('');
+    setSuccessMessage('');
+  };
+
+  // Handle standard login/register via Supabase without email confirmation
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
@@ -68,53 +78,56 @@ function LoginFormContent() {
         }
 
         const email = emailOrPhone.includes('@')
-          ? emailOrPhone.trim()
+          ? emailOrPhone.trim().toLowerCase()
           : `${emailOrPhone.replace(/\D/g, '')}@aidaumnichka.ru`;
 
-        // ID is strictly issued upon registration
         const publicId = issueNewUserId();
 
-        if (isSupabaseConfigured) {
-          const { data: signUpData, error } = await supabase.auth.signUp({
+        // 1. Call server API to create Supabase user with email_confirm: true (no confirmation email needed!)
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
             email,
             password,
-            options: {
-              data: {
-                public_id: publicId,
-                full_name: `${fullName}${childName ? ` (ребёнок: ${childName})` : ''}`,
-                role: 'student',
-                balance_lessons: 1, // 1 welcome lesson
-              },
-            },
-          });
+            fullName,
+            childName,
+            role: selectedRole,
+            publicId,
+          }),
+        });
 
-          if (error) {
-            throw error;
-          }
+        const resData = await res.json();
 
-          if (signUpData?.user) {
-            await bindAuthUserWithSupabase({
-              publicId,
-              authUserId: signUpData.user.id,
-              fullName: `${fullName}${childName ? ` (ребёнок: ${childName})` : ''}`,
+        if (!res.ok) {
+          throw new Error(resData.error || 'Ошибка регистрации');
+        }
+
+        // 2. Immediately sign in to create browser session
+        if (isSupabaseConfigured) {
+          try {
+            await supabase.auth.signInWithPassword({
               email,
-              role: 'student',
+              password,
             });
+          } catch (signInErr) {
+            console.warn('Auto sign-in fallback:', signInErr);
           }
         }
 
-        // Save local active role and verified auth user ID
-        localStorage.setItem('aida_active_role', 'student');
-        localStorage.setItem('aida_student_balance', '1');
-        document.cookie = 'aida_active_role=student; path=/; max-age=2592000; SameSite=Lax';
+        // 3. Save local active role and verified auth user ID
+        localStorage.setItem('aida_active_role', selectedRole);
+        localStorage.setItem('aida_student_balance', selectedRole === 'student' ? '1' : '0');
+        document.cookie = `aida_active_role=${selectedRole}; path=/; max-age=2592000; SameSite=Lax`;
         document.cookie = `aida_auth_user_id=${encodeURIComponent(publicId)}; path=/; max-age=2592000; SameSite=Lax`;
         document.cookie = `aida_user_id=${encodeURIComponent(publicId)}; path=/; max-age=2592000; SameSite=Lax`;
 
-        setSuccessMessage(`Регистрация прошла успешно! Вам присвоен уникальный ID: ${publicId}. Перенаправляем в личный кабинет...`);
+        setSuccessMessage(`Регистрация в Supabase успешна (без подтверждения почты)! Присвоен ID: ${publicId}. Входим...`);
         setTimeout(() => {
-          const safeDest = getSafeRedirect(redirectParam, `/${publicId}`);
+          const fallback = selectedRole === 'teacher' ? '/teacher' : selectedRole === 'admin' ? '/admin' : `/${publicId}`;
+          const safeDest = getSafeRedirect(redirectParam, fallback);
           router.push(safeDest);
-        }, 900);
+        }, 700);
       } else {
         // Login
         if (!emailOrPhone || !password) {
@@ -124,10 +137,11 @@ function LoginFormContent() {
         }
 
         const email = emailOrPhone.includes('@')
-          ? emailOrPhone.trim()
+          ? emailOrPhone.trim().toLowerCase()
           : `${emailOrPhone.replace(/\D/g, '')}@aidaumnichka.ru`;
 
         let targetId = cabinetId || getClientUserId() || issueNewUserId();
+        let userRole = 'student';
 
         if (isSupabaseConfigured) {
           const { data: signInData, error } = await supabase.auth.signInWithPassword({
@@ -139,30 +153,33 @@ function LoginFormContent() {
             throw error;
           }
 
-          // If signed in, retrieve bound public_id from Supabase
           if (signInData?.user) {
-            const { data: profile } = await supabase
-              .from('profiles')
-              .select('public_id')
-              .eq('id', signInData.user.id)
+            const { data: binding } = await supabase
+              .from('user_bindings')
+              .select('public_id, role')
+              .eq('auth_user_id', signInData.user.id)
               .maybeSingle();
 
-            if (profile?.public_id) {
-              targetId = profile.public_id;
+            if (binding?.public_id) {
+              targetId = binding.public_id;
               setClientUserId(targetId);
+            }
+            if (binding?.role) {
+              userRole = binding.role;
             }
           }
         }
 
         // Save role and verified auth cookies
-        localStorage.setItem('aida_active_role', 'student');
-        document.cookie = 'aida_active_role=student; path=/; max-age=2592000; SameSite=Lax';
+        localStorage.setItem('aida_active_role', userRole);
+        document.cookie = `aida_active_role=${userRole}; path=/; max-age=2592000; SameSite=Lax`;
         document.cookie = `aida_auth_user_id=${encodeURIComponent(targetId)}; path=/; max-age=2592000; SameSite=Lax`;
         document.cookie = `aida_user_id=${encodeURIComponent(targetId)}; path=/; max-age=2592000; SameSite=Lax`;
 
         setSuccessMessage('Вход выполнен! Перенаправляем в личный кабинет...');
         setTimeout(() => {
-          const safeDest = getSafeRedirect(redirectParam, `/${targetId}`);
+          const fallback = userRole === 'teacher' ? '/teacher' : userRole === 'admin' ? '/admin' : `/${targetId}`;
+          const safeDest = getSafeRedirect(redirectParam, fallback);
           router.push(safeDest);
         }, 500);
       }
@@ -174,88 +191,42 @@ function LoginFormContent() {
     }
   };
 
-  // Quick 1-click Demo Login
-  const handleDemoLogin = (role: 'student' | 'teacher' | 'admin', defaultPath: string) => {
-    localStorage.setItem('aida_active_role', role);
-    document.cookie = `aida_active_role=${role}; path=/; max-age=2592000; SameSite=Lax`;
-    if (role === 'admin') {
-      document.cookie = `aida_auth_user_id=director; path=/; max-age=2592000; SameSite=Lax`;
-    } else if (role === 'teacher') {
-      document.cookie = `aida_auth_user_id=user-teacher-1; path=/; max-age=2592000; SameSite=Lax`;
-    } else {
-      const cid = getClientUserId() || 'id700101';
-      document.cookie = `aida_auth_user_id=${encodeURIComponent(cid)}; path=/; max-age=2592000; SameSite=Lax`;
-      document.cookie = `aida_user_id=${encodeURIComponent(cid)}; path=/; max-age=2592000; SameSite=Lax`;
-    }
-    const safeDest = getSafeRedirect(redirectParam, defaultPath);
-    router.push(safeDest);
-  };
-
   return (
-    <div className="min-h-[calc(100vh-5rem)] bg-[#FFF7EE] flex items-center justify-center p-3 sm:p-6 lg:p-8">
-      <div className="w-full max-w-4xl bg-white rounded-[28px] sm:rounded-[36px] lg:rounded-[44px] border border-[#F2E0CF] shadow-[0_20px_50px_rgba(22,31,56,0.06)] overflow-hidden">
-        <div className="grid grid-cols-1 lg:grid-cols-12">
+    <div className="h-[calc(100dvh-4rem)] sm:h-[calc(100dvh-5rem)] max-h-[calc(100dvh-4rem)] sm:max-h-[calc(100dvh-5rem)] overflow-hidden bg-[#FFF7EE] flex items-center justify-center p-2 sm:p-4 lg:p-6 select-none">
+      <div className="w-full max-w-4xl max-h-full overflow-hidden bg-white rounded-[24px] sm:rounded-[32px] border border-[#F2E0CF] shadow-[0_20px_50px_rgba(22,31,56,0.06)] flex flex-col justify-center">
+        <div className="grid grid-cols-1 lg:grid-cols-12 items-stretch">
           
-          {/* Left Column: Interactive Form */}
-          <div className="lg:col-span-7 p-6 sm:p-9 lg:p-11 flex flex-col justify-between">
+          {/* Left Column: Interactive Supabase Auth Form */}
+          <div className="lg:col-span-7 p-4 sm:p-6 lg:p-7 flex flex-col justify-between">
             <div>
-              {/* Back Link */}
-              <div className="flex items-center justify-between pb-5">
+              {/* Back Link & Tag */}
+              <div className="flex items-center justify-between pb-2">
                 <a
                   href="https://ayda-umnichka.vercel.app"
-                  className="inline-flex items-center gap-1.5 text-xs font-bold text-[#8A95A8] hover:text-coralAccent transition-colors"
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-[#8A95A8] hover:text-coralAccent transition-colors duration-140"
                 >
                   <span>←</span>
-                  <span>На главную сайта</span>
+                  <span>На главную</span>
                 </a>
-                <span className="text-[11px] font-black uppercase tracking-wider text-coralAccent bg-[#FFF2E6] px-3 py-1 rounded-full border border-[#FCDDC7]">
-                  Тольятти
-                </span>
-              </div>
-
-              {/* Security Notices if redirected from protected routes */}
-              {cabinetId && (
-                <div className="mb-4 bg-amber-50 border border-amber-200 text-amber-900 p-3.5 rounded-2xl text-xs flex items-start gap-2.5 animate-in fade-in">
-                  <Lock className="w-4 h-4 text-coralAccent shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-black block text-xs">Вход в кабинет &apos;/{cabinetId}&apos;</span>
-                    <span className="text-[#6B758E] text-[11px] leading-tight block mt-0.5">
-                      Для доступа к этому кабинету необходимо выполнить вход.
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {errorParam === 'forbidden' && (
-                <div className="mb-4 bg-red-50 border border-red-200 text-red-900 p-3.5 rounded-2xl text-xs flex items-start gap-2.5 animate-in fade-in">
-                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-black block text-xs">Доступ ограничен</span>
-                    <span className="text-red-700 text-[11px] leading-tight block mt-0.5">
-                      Для доступа к запрашиваемому разделу требуются специальные права учетной записи.
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              <div className="flex items-center gap-2 mb-2">
                 <span className="text-[10px] font-black text-coralAccent uppercase tracking-widest bg-[#FFF2E6] px-2.5 py-0.5 rounded-full border border-[#FCDDC7]">
-                  ПЛАТФОРМА ОБУЧЕНИЯ
+                  SUPABASE AUTH
                 </span>
               </div>
 
               {/* Title */}
-              <div className="space-y-1 pb-5">
-                <h1 className="text-2xl sm:text-3xl font-black text-[#161F38] tracking-tight">
-                  Вход в личный кабинет
+              <div className="space-y-0.5 pb-3">
+                <h1 className="text-xl sm:text-2xl font-black text-[#161F38] tracking-tight">
+                  {tab === 'register' ? 'Быстрая регистрация' : 'Вход в личный кабинет'}
                 </h1>
-                <p className="text-xs sm:text-sm text-[#6B758E]">
-                  Онлайн-занятия, интерактивная доска, баланс и связь с педагогом
+                <p className="text-[11px] sm:text-xs text-[#6B758E]">
+                  {tab === 'register'
+                    ? `Создание кабинета: ${selectedRole === 'student' ? 'Ученик (+1 урок)' : selectedRole === 'teacher' ? 'Педагог' : 'Администратор'} • Без подтверждения почты`
+                    : 'Онлайн-занятия, интерактивная доска, баланс и связь с педагогом'}
                 </p>
               </div>
 
               {/* Tabs: Login vs Register */}
-              <div className="flex bg-[#FFF8F1] p-1 rounded-2xl border border-[#F2DECE] mb-5">
+              <div className="flex bg-[#FFF8F1] p-1 rounded-2xl border border-[#F2DECE] mb-3">
                 <button
                   type="button"
                   onClick={() => {
@@ -263,7 +234,7 @@ function LoginFormContent() {
                     setErrorMessage('');
                     setSuccessMessage('');
                   }}
-                  className={`flex-1 py-2 rounded-xl text-xs font-black transition-[background-color,color,box-shadow] duration-140 ease-out-emil active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer ${
+                  className={`flex-1 py-1.5 rounded-xl text-xs font-black transition-[background-color,color,box-shadow] duration-140 ease-out-emil active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer ${
                     tab === 'login'
                       ? 'bg-white text-[#161F38] shadow-xs'
                       : 'text-[#6B758E] hover:text-[#161F38]'
@@ -279,7 +250,7 @@ function LoginFormContent() {
                     setErrorMessage('');
                     setSuccessMessage('');
                   }}
-                  className={`flex-1 py-2 rounded-xl text-xs font-black transition-[background-color,color,box-shadow] duration-140 ease-out-emil active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer ${
+                  className={`flex-1 py-1.5 rounded-xl text-xs font-black transition-[background-color,color,box-shadow] duration-140 ease-out-emil active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer ${
                     tab === 'register'
                       ? 'bg-white text-[#161F38] shadow-xs'
                       : 'text-[#6B758E] hover:text-[#161F38]'
@@ -292,55 +263,55 @@ function LoginFormContent() {
 
               {/* Feedback messages */}
               {errorMessage && (
-                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-2xl text-xs text-red-700 flex items-center gap-2">
+                <div className="mb-2.5 p-2.5 bg-red-50 border border-red-200 rounded-2xl text-xs text-red-700 flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
-                  <span>{errorMessage}</span>
+                  <span className="leading-tight">{errorMessage}</span>
                 </div>
               )}
 
               {successMessage && (
-                <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-800 flex items-center gap-2">
+                <div className="mb-2.5 p-2.5 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-800 flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-                  <span>{successMessage}</span>
+                  <span className="leading-tight">{successMessage}</span>
                 </div>
               )}
 
               {/* Form */}
-              <form onSubmit={handleAuthSubmit} className="space-y-3.5">
+              <form onSubmit={handleAuthSubmit} className="space-y-2.5">
                 {tab === 'register' && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-xs font-extrabold text-[#161F38] block">
-                        Имя родителя:
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div className="space-y-0.5">
+                      <label className="text-[11px] font-extrabold text-[#161F38] block">
+                        Ваше имя:
                       </label>
                       <input
                         type="text"
                         required
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
-                        placeholder="Елена"
-                        className="w-full bg-[#FFFBF7] border border-[#F2E0CF] rounded-2xl px-3.5 py-2.5 text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent"
+                        placeholder="Елена Смирнова"
+                        className="w-full bg-[#FFFBF7] border border-[#F2E0CF] rounded-xl px-3 py-1.5 text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent"
                       />
                     </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-extrabold text-[#161F38] block">
-                        Имя ребёнка:
+                    <div className="space-y-0.5">
+                      <label className="text-[11px] font-extrabold text-[#161F38] block">
+                        Имя ребёнка {selectedRole === 'teacher' && '(или специализация)'}:
                       </label>
                       <input
                         type="text"
                         value={childName}
                         onChange={(e) => setChildName(e.target.value)}
-                        placeholder="Тимофей"
-                        className="w-full bg-[#FFFBF7] border border-[#F2E0CF] rounded-2xl px-3.5 py-2.5 text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent"
+                        placeholder={selectedRole === 'teacher' ? 'Логопед-дефектолог' : 'Тимофей (6 лет)'}
+                        className="w-full bg-[#FFFBF7] border border-[#F2E0CF] rounded-xl px-3 py-1.5 text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent"
                       />
                     </div>
                   </div>
                 )}
 
                 {/* Email / Phone */}
-                <div className="space-y-1">
-                  <label className="text-xs font-extrabold text-[#161F38] block">
-                    Телефон или Email:
+                <div className="space-y-0.5">
+                  <label className="text-[11px] font-extrabold text-[#161F38] block">
+                    Email или номер телефона:
                   </label>
                   <div className="relative">
                     <input
@@ -348,16 +319,16 @@ function LoginFormContent() {
                       required
                       value={emailOrPhone}
                       onChange={(e) => setEmailOrPhone(e.target.value)}
-                      placeholder="+7 (927) 000-00-00 или email@mail.ru"
-                      className="w-full bg-[#FFFBF7] border border-[#F2E0CF] rounded-2xl px-3.5 py-2.5 pl-9 text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent"
+                      placeholder="user@mail.ru или +7 (927) 000-00-00"
+                      className="w-full bg-[#FFFBF7] border border-[#F2E0CF] rounded-xl px-3 py-1.5 pl-8 text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent"
                     />
-                    <Mail className="w-4 h-4 text-[#9E9085] absolute left-3 top-1/2 -translate-y-1/2" />
+                    <Mail className="w-3.5 h-3.5 text-[#9E9085] absolute left-2.5 top-1/2 -translate-y-1/2" />
                   </div>
                 </div>
 
                 {/* Password */}
-                <div className="space-y-1">
-                  <label className="text-xs font-extrabold text-[#161F38] block">
+                <div className="space-y-0.5">
+                  <label className="text-[11px] font-extrabold text-[#161F38] block">
                     Пароль:
                   </label>
                   <div className="relative">
@@ -367,147 +338,157 @@ function LoginFormContent() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full bg-[#FFFBF7] border border-[#F2E0CF] rounded-2xl px-3.5 py-2.5 pl-9 pr-9 text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent font-mono"
+                      className="w-full bg-[#FFFBF7] border border-[#F2E0CF] rounded-xl px-3 py-1.5 pl-8 pr-8 text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent font-mono"
                     />
-                    <Lock className="w-4 h-4 text-[#9E9085] absolute left-3 top-1/2 -translate-y-1/2" />
+                    <Lock className="w-3.5 h-3.5 text-[#9E9085] absolute left-2.5 top-1/2 -translate-y-1/2" />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9E9085] hover:text-[#161F38] transition-colors"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#9E9085] hover:text-[#161F38] transition-colors"
                     >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                     </button>
                   </div>
                 </div>
 
                 {/* Submit Button */}
-                {tab === 'register' && (
-                  <div className="bg-[#FFF8F1] border border-[#F2DECE] p-3 rounded-2xl flex items-center gap-2.5 text-xs text-[#6B758E]">
-                    <Sparkles className="w-4 h-4 text-coralAccent shrink-0" />
-                    <span>Персональный ID кабинета (например, id123456) выдается сразу после завершения регистрации.</span>
-                  </div>
-                )}
-
-                <div className="pt-2">
+                <div className="pt-1">
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full bg-coralAccent hover:bg-coralAccent-hover text-white font-black text-xs sm:text-sm py-3 rounded-full shadow-xs transition-[background-color,transform,box-shadow] duration-140 ease-out-emil flex items-center justify-center gap-2 active:scale-[0.97] disabled:opacity-50 cursor-pointer"
+                    className="w-full bg-coralAccent hover:bg-coralAccent-hover text-white font-black text-xs sm:text-sm py-2.5 rounded-full shadow-xs transition-[background-color,transform,box-shadow] duration-140 ease-out-emil flex items-center justify-center gap-2 active:scale-[0.97] disabled:opacity-50 cursor-pointer"
                   >
-                    <span>{loading ? 'Секунду...' : tab === 'register' ? 'Зарегистрироваться и получить ID' : 'Войти в кабинет'}</span>
-                    <ArrowRight className="w-4 h-4" />
+                    <span>
+                      {loading
+                        ? 'Секунду...'
+                        : tab === 'register'
+                        ? `Зарегистрировать (${selectedRole === 'student' ? 'Ученик' : selectedRole === 'teacher' ? 'Педагог' : 'Админ'})`
+                        : 'Войти в личный кабинет'}
+                    </span>
+                    <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </form>
             </div>
 
-            <p className="text-[10px] text-[#8A95A8] text-center pt-5">
-              Вход защищен SSL • Данные хранятся в соответствии с 152-ФЗ
+            <p className="text-[10px] text-[#8A95A8] text-center pt-2">
+              ⚡ Подтверждение почты отключено • Мгновенный доступ через Supabase
             </p>
           </div>
 
-          {/* Right Column: One-Click Demo Access & Mascot */}
-          <div className="lg:col-span-5 bg-[#FFF8F1] p-6 sm:p-9 lg:p-10 border-t lg:border-t-0 lg:border-l border-[#F2DECE] flex flex-col justify-between space-y-6">
+          {/* Right Column: Registration Buttons Block */}
+          <div className="lg:col-span-5 bg-[#FFF8F1] p-4 sm:p-6 lg:p-7 border-t lg:border-t-0 lg:border-l border-[#F2DECE] flex flex-col justify-between space-y-4">
             
-            {/* Official Logo Banner */}
-            <div className="flex items-center gap-3.5 bg-white p-3.5 rounded-3xl border border-[#F2DECE] shadow-2xs">
-              <div className="w-16 h-16 rounded-full overflow-hidden relative border-2 border-white shadow-2xs shrink-0 bg-white">
-                <Image
-                  src="/images/logo-official.png"
-                  alt="Логотип АйДаУмничка"
-                  fill
-                  className="object-contain p-0.5"
-                />
+            {/* Header */}
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black text-[#5C8519] uppercase tracking-wider bg-[#EAF7CF] px-2 py-0.5 rounded-full border border-[#D5ECA3] flex items-center gap-1">
+                  <Zap className="w-3 h-3 text-[#5C8519]" />
+                  БЫСТРАЯ РЕГИСТРАЦИЯ
+                </span>
               </div>
-              <div className="space-y-0.5 min-w-0">
-                <div className="text-[10px] font-black text-coralAccent uppercase tracking-wider">
-                  АйДаУмничка • Тольятти
-                </div>
-                <div className="text-xs font-bold text-[#161F38] leading-snug">
-                  Быстрый демонстрационный доступ в 1 клик
-                </div>
-              </div>
+              <h3 className="text-base font-black text-[#161F38] leading-snug">
+                Кнопки регистрации
+              </h3>
+              <p className="text-[11px] text-[#6B758E] leading-relaxed">
+                Нажмите нужную кнопку, чтобы зарегистрироваться без подтверждения почты:
+              </p>
             </div>
 
-            {/* Quick Demo Role Cards */}
-            <div className="space-y-2.5">
-              <div className="text-[11px] font-black text-[#6B758E] uppercase tracking-wider px-1">
-                Выберите тестовую роль:
-              </div>
-
-              {/* Student Role */}
+            {/* Quick Registration Buttons */}
+            <div className="space-y-2">
+              {/* Button 1: Student Registration */}
               <button
                 type="button"
-                onClick={() => handleDemoLogin('student', '/student')}
-                className="w-full group bg-white hover:bg-[#FFFBF7] p-3 rounded-2xl border border-[#F2DECE] hover:border-coralAccent transition-[background-color,border-color,transform] duration-140 ease-out-emil active:scale-[0.98] flex items-center justify-between text-left cursor-pointer shadow-2xs"
+                onClick={() => handleSelectRegistrationRole('student')}
+                className={`w-full group p-3 rounded-2xl border transition-[background-color,border-color,transform] duration-140 ease-out-emil active:scale-[0.98] flex items-center justify-between text-left cursor-pointer shadow-2xs ${
+                  tab === 'register' && selectedRole === 'student'
+                    ? 'bg-white border-coralAccent ring-2 ring-coralAccent/20'
+                    : 'bg-white/80 hover:bg-white border-[#F2DECE] hover:border-coralAccent'
+                }`}
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2.5">
                   <div className="w-9 h-9 rounded-xl bg-[#FFF2E6] text-coralAccent flex items-center justify-center font-bold shrink-0 group-hover:scale-105 transition-transform duration-140">
                     <GraduationCap className="w-4 h-4" />
                   </div>
                   <div>
                     <div className="text-xs font-black text-[#161F38] flex items-center gap-1.5">
-                      <span>Кабинет Ученика</span>
+                      <span>Регистрация Ученика</span>
                       <span className="text-[9px] font-extrabold bg-[#EAF7CF] text-[#5C8519] px-1.5 py-0.2 rounded-full">
-                        6 занятий
+                        +1 урок
                       </span>
                     </div>
                     <div className="text-[10px] text-[#6B758E]">
-                      Тимофей Смирнов (6 лет) • ДЗ и уроки
+                      Личный ID, расписание и домашние задания
                     </div>
                   </div>
                 </div>
-                <ArrowRight className="w-4 h-4 text-coralAccent group-hover:translate-x-1 transition-transform duration-140" />
+                <ArrowRight className="w-3.5 h-3.5 text-coralAccent group-hover:translate-x-1 transition-transform duration-140" />
               </button>
 
-              {/* Teacher Role */}
+              {/* Button 2: Teacher Registration */}
               <button
                 type="button"
-                onClick={() => handleDemoLogin('teacher', '/teacher')}
-                className="w-full group bg-white hover:bg-[#FFFBF7] p-3 rounded-2xl border border-[#F2DECE] hover:border-coralAccent transition-[background-color,border-color,transform] duration-140 ease-out-emil active:scale-[0.98] flex items-center justify-between text-left cursor-pointer shadow-2xs"
+                onClick={() => handleSelectRegistrationRole('teacher')}
+                className={`w-full group p-3 rounded-2xl border transition-[background-color,border-color,transform] duration-140 ease-out-emil active:scale-[0.98] flex items-center justify-between text-left cursor-pointer shadow-2xs ${
+                  tab === 'register' && selectedRole === 'teacher'
+                    ? 'bg-white border-[#2B6CB0] ring-2 ring-[#2B6CB0]/20'
+                    : 'bg-white/80 hover:bg-white border-[#F2DECE] hover:border-[#2B6CB0]'
+                }`}
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2.5">
                   <div className="w-9 h-9 rounded-xl bg-[#F0F7FF] text-[#2B6CB0] flex items-center justify-center font-bold shrink-0 group-hover:scale-105 transition-transform duration-140">
                     <UserCheck className="w-4 h-4" />
                   </div>
                   <div>
                     <div className="text-xs font-black text-[#161F38]">
-                      Рабочее место Педагога
+                      Регистрация Педагога
                     </div>
                     <div className="text-[10px] text-[#6B758E]">
-                      Светлана Васильевна • Старт видеоурока
+                      Кабинет репетитора, доска и старт видеоуроков
                     </div>
                   </div>
                 </div>
-                <ArrowRight className="w-4 h-4 text-[#2B6CB0] group-hover:translate-x-1 transition-transform duration-140" />
+                <ArrowRight className="w-3.5 h-3.5 text-[#2B6CB0] group-hover:translate-x-1 transition-transform duration-140" />
               </button>
 
-              {/* Admin Role */}
+              {/* Button 3: Admin Registration */}
               <button
                 type="button"
-                onClick={() => handleDemoLogin('admin', '/admin')}
-                className="w-full group bg-white hover:bg-[#FFFBF7] p-3 rounded-2xl border border-[#F2DECE] hover:border-coralAccent transition-[background-color,border-color,transform] duration-140 ease-out-emil active:scale-[0.98] flex items-center justify-between text-left cursor-pointer shadow-2xs"
+                onClick={() => handleSelectRegistrationRole('admin')}
+                className={`w-full group p-3 rounded-2xl border transition-[background-color,border-color,transform] duration-140 ease-out-emil active:scale-[0.98] flex items-center justify-between text-left cursor-pointer shadow-2xs ${
+                  tab === 'register' && selectedRole === 'admin'
+                    ? 'bg-white border-[#6B46C1] ring-2 ring-[#6B46C1]/20'
+                    : 'bg-white/80 hover:bg-white border-[#F2DECE] hover:border-[#6B46C1]'
+                }`}
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2.5">
                   <div className="w-9 h-9 rounded-xl bg-[#FAF5FF] text-[#6B46C1] flex items-center justify-center font-bold shrink-0 group-hover:scale-105 transition-transform duration-140">
                     <Shield className="w-4 h-4" />
                   </div>
                   <div>
                     <div className="text-xs font-black text-[#161F38]">
-                      Панель Руководителя
+                      Регистрация Руководителя
                     </div>
                     <div className="text-[10px] text-[#6B758E]">
-                      Управление балансом и расписанием
+                      Панель управления учениками и балансами
                     </div>
                   </div>
                 </div>
-                <ArrowRight className="w-4 h-4 text-[#6B46C1] group-hover:translate-x-1 transition-transform duration-140" />
+                <ArrowRight className="w-3.5 h-3.5 text-[#6B46C1] group-hover:translate-x-1 transition-transform duration-140" />
               </button>
             </div>
 
-            {/* Bottom Note */}
-            <div className="bg-white/60 p-3 rounded-2xl border border-[#F4DEC6] text-[10px] text-[#6B758E] leading-relaxed">
-              💡 <strong>Совет:</strong> вы можете войти в одном браузере как Педагог, а в другом (или инкогнито) как Ученик, чтобы протестировать видеосвязь и онлайн-доску в реальном времени!
+            {/* Instant Access Benefits */}
+            <div className="bg-white/70 p-2.5 rounded-2xl border border-[#F2DECE] space-y-1">
+              <div className="flex items-center gap-1.5 text-[10px] font-bold text-[#161F38]">
+                <Check className="w-3 h-3 text-[#5C8519]" />
+                <span>Без ссылок на почту: вход сразу после отправки</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-[10px] font-bold text-[#161F38]">
+                <Check className="w-3 h-3 text-[#5C8519]" />
+                <span>Присвоение персонального ID в базе Supabase</span>
+              </div>
             </div>
 
           </div>
@@ -520,7 +501,7 @@ function LoginFormContent() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<div className="h-screen bg-[#FFF7EE] flex items-center justify-center text-xs font-bold text-[#6B758E]">Загрузка...</div>}>
       <LoginFormContent />
     </Suspense>
   );

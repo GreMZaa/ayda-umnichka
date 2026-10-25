@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   LogIn,
   GraduationCap,
@@ -16,6 +16,7 @@ import {
 import { getLkUrl } from '@/lib/lkUrl';
 
 export default function Navbar() {
+  const router = useRouter();
   const pathname = usePathname();
   const isHome = pathname === '/';
   const isLogin = pathname === '/login';
@@ -26,12 +27,25 @@ export default function Navbar() {
 
   const [balance, setBalance] = useState<number>(6);
   const [lkUrl, setLkUrl] = useState<string>('https://lk-ayda-umnichka.vercel.app/login');
+  const [logoClicks, setLogoClicks] = useState(0);
 
   useEffect(() => {
     const savedBalance = localStorage.getItem('aida_student_balance');
     if (savedBalance) setBalance(parseInt(savedBalance, 10));
     setLkUrl(getLkUrl('/login'));
   }, []);
+
+  const handleLogoClick = (e: React.MouseEvent) => {
+    const nextCount = logoClicks + 1;
+    if (nextCount >= 3) {
+      e.preventDefault();
+      setLogoClicks(0);
+      router.push('/admin');
+    } else {
+      setLogoClicks(nextCount);
+      setTimeout(() => setLogoClicks(0), 1200);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('aida_active_role');
@@ -49,8 +63,8 @@ export default function Navbar() {
     <header className="sticky top-0 z-50 bg-[#FFF7EE]/95 backdrop-blur-md border-b border-[#F4E4D3]">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 sm:h-20">
-          {/* Brand Logo with Official Center Logo */}
-          <Link href="/" className="flex items-center gap-2.5 sm:gap-3 group">
+          {/* Brand Logo with Official Center Logo (Triple-click secret gateway to /admin) */}
+          <Link href="/" onClick={handleLogoClick} className="flex items-center gap-2.5 sm:gap-3 group cursor-pointer" title="Нажмите 3 раза для перехода в админку">
             <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full overflow-hidden relative shadow-xs border-2 border-white bg-white group-hover:scale-105 transition-transform shrink-0">
               <Image
                 src="/images/logo-official.png"
@@ -70,78 +84,80 @@ export default function Navbar() {
             </div>
           </Link>
 
-          {/* Navigation Links */}
-          <nav className="hidden md:flex items-center gap-6 lg:gap-8">
-            {isHome ? (
-              <>
-                <button
-                  onClick={() => navigateToSlide(0)}
-                  className="text-sm font-semibold text-[#161F38] hover:text-coralAccent transition-colors cursor-pointer"
-                >
-                  Главная
-                </button>
-                <button
-                  onClick={() => navigateToSlide(1)}
-                  className="text-sm font-semibold text-[#161F38]/80 hover:text-coralAccent transition-colors cursor-pointer"
-                >
-                  Записаться на урок
-                </button>
-              </>
-            ) : (
-              <>
-                <Link
-                  href="/"
-                  className="text-sm font-semibold text-[#161F38]/80 hover:text-[#161F38] transition-colors"
-                >
-                  Главная
-                </Link>
-                <Link
-                  href="/student"
-                  className={`text-sm font-semibold transition-colors flex items-center gap-1.5 ${
-                    pathname === '/student'
-                      ? 'text-[#161F38] font-bold underline underline-offset-8 decoration-coralAccent decoration-2'
-                      : 'text-[#161F38]/80 hover:text-[#161F38]'
-                  }`}
-                >
-                  <GraduationCap className="w-4 h-4 text-coralAccent" />
-                  Ученик
-                </Link>
-                <Link
-                  href="/teacher"
-                  className={`text-sm font-semibold transition-colors flex items-center gap-1.5 ${
-                    pathname === '/teacher'
-                      ? 'text-[#161F38] font-bold underline underline-offset-8 decoration-coralAccent decoration-2'
-                      : 'text-[#161F38]/80 hover:text-[#161F38]'
-                  }`}
-                >
-                  <UserCheck className="w-4 h-4 text-[#161F38]" />
-                  Педагог
-                </Link>
-                <Link
-                  href="/admin"
-                  className={`text-sm font-semibold transition-colors flex items-center gap-1.5 ${
-                    pathname === '/admin'
-                      ? 'text-[#161F38] font-bold underline underline-offset-8 decoration-coralAccent decoration-2'
-                      : 'text-[#161F38]/80 hover:text-[#161F38]'
-                  }`}
-                >
-                  <Shield className="w-4 h-4 text-[#161F38]" />
-                  Админка
-                </Link>
-                <Link
-                  href="/messenger"
-                  className={`text-sm font-semibold transition-colors flex items-center gap-1.5 ${
-                    pathname === '/messenger'
-                      ? 'text-[#161F38] font-bold underline underline-offset-8 decoration-coralAccent decoration-2'
-                      : 'text-[#161F38]/80 hover:text-[#161F38]'
-                  }`}
-                >
-                  <MessageCircle className="w-4 h-4 text-[#161F38]" />
-                  Чат и ДЗ
-                </Link>
-              </>
-            )}
-          </nav>
+          {/* Navigation Links — Hidden on /login page */}
+          {!isLogin && (
+            <nav className="hidden md:flex items-center gap-6 lg:gap-8">
+              {isHome ? (
+                <>
+                  <button
+                    onClick={() => navigateToSlide(0)}
+                    className="text-sm font-semibold text-[#161F38] hover:text-coralAccent transition-colors cursor-pointer"
+                  >
+                    Главная
+                  </button>
+                  <button
+                    onClick={() => navigateToSlide(1)}
+                    className="text-sm font-semibold text-[#161F38]/80 hover:text-coralAccent transition-colors cursor-pointer"
+                  >
+                    Записаться на урок
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link
+                    href="/"
+                    className="text-sm font-semibold text-[#161F38]/80 hover:text-[#161F38] transition-colors"
+                  >
+                    Главная
+                  </Link>
+                  <Link
+                    href="/student"
+                    className={`text-sm font-semibold transition-colors flex items-center gap-1.5 ${
+                      pathname === '/student'
+                        ? 'text-[#161F38] font-bold underline underline-offset-8 decoration-coralAccent decoration-2'
+                        : 'text-[#161F38]/80 hover:text-[#161F38]'
+                    }`}
+                  >
+                    <GraduationCap className="w-4 h-4 text-coralAccent" />
+                    Ученик
+                  </Link>
+                  <Link
+                    href="/teacher"
+                    className={`text-sm font-semibold transition-colors flex items-center gap-1.5 ${
+                      pathname === '/teacher'
+                        ? 'text-[#161F38] font-bold underline underline-offset-8 decoration-coralAccent decoration-2'
+                        : 'text-[#161F38]/80 hover:text-[#161F38]'
+                    }`}
+                  >
+                    <UserCheck className="w-4 h-4 text-[#161F38]" />
+                    Педагог
+                  </Link>
+                  <Link
+                    href="/admin"
+                    className={`text-sm font-semibold transition-colors flex items-center gap-1.5 ${
+                      pathname === '/admin'
+                        ? 'text-[#161F38] font-bold underline underline-offset-8 decoration-coralAccent decoration-2'
+                        : 'text-[#161F38]/80 hover:text-[#161F38]'
+                    }`}
+                  >
+                    <Shield className="w-4 h-4 text-[#161F38]" />
+                    Админка
+                  </Link>
+                  <Link
+                    href="/messenger"
+                    className={`text-sm font-semibold transition-colors flex items-center gap-1.5 ${
+                      pathname === '/messenger'
+                        ? 'text-[#161F38] font-bold underline underline-offset-8 decoration-coralAccent decoration-2'
+                        : 'text-[#161F38]/80 hover:text-[#161F38]'
+                    }`}
+                  >
+                    <MessageCircle className="w-4 h-4 text-[#161F38]" />
+                    Чат и ДЗ
+                  </Link>
+                </>
+              )}
+            </nav>
+          )}
 
           {/* Right Section */}
           <div className="flex items-center gap-3">
