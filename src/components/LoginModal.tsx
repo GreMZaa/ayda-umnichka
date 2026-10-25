@@ -14,7 +14,7 @@ interface LoginModalProps {
 export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
   const router = useRouter();
   const [copied, setCopied] = useState(false);
-  const lkUrl = typeof window !== 'undefined' ? getLkUrl('/student') : '/student';
+  const lkUrl = typeof window !== 'undefined' ? getLkUrl('/login') : '/login';
 
   if (!isOpen) return null;
 

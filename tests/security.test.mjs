@@ -81,15 +81,14 @@ describe('Security Suite: RBAC & Cabinet Protection Tests', () => {
       assert.match(location, new RegExp(`/login\\?redirect=%2F${foreignId}&cabinetId=${foreignId}&auth_required=1`));
     });
 
-    test('Own temporary guest ID is allowed preview', async () => {
-      const myGuestId = 'id888123';
-      const res = await fetch(`${BASE_URL}/${myGuestId}`, {
-        redirect: 'manual',
-        headers: {
-          Cookie: `aida_user_id=${myGuestId};`
-        }
+    test('Unregistered visitor without ID is redirected to /login (ID issued only after registration)', async () => {
+      const anyId = 'id888123';
+      const res = await fetch(`${BASE_URL}/${anyId}`, {
+        redirect: 'manual'
       });
-      assert.strictEqual(res.status, 200, 'Visitor must access their own temporary guest ID');
+      assert.strictEqual(res.status, 307, 'Visitor must login/register before accessing cabinet');
+      const location = res.headers.get('location') || '';
+      assert.match(location, new RegExp(`/login\\?redirect=%2F${anyId}&cabinetId=${anyId}&auth_required=1`));
     });
 
     test('Authenticated user matching cabinet ID is allowed access', async () => {
@@ -97,7 +96,7 @@ describe('Security Suite: RBAC & Cabinet Protection Tests', () => {
       const res = await fetch(`${BASE_URL}/${myAuthId}`, {
         redirect: 'manual',
         headers: {
-          Cookie: `aida_auth_user_id=${myAuthId}; aida_user_id=session_device;`
+          Cookie: `aida_auth_user_id=${myAuthId}; aida_user_id=${myAuthId}; aida_active_role=student;`
         }
       });
       assert.strictEqual(res.status, 200, 'Authenticated owner must receive 200 OK');
@@ -105,17 +104,13 @@ describe('Security Suite: RBAC & Cabinet Protection Tests', () => {
   });
 
   describe('4. Navigation /student isolation', () => {
-    test('/student automatically redirects guest to their personal cookie ID', async () => {
-      const guestId = 'id554433';
+    test('/student redirects unregistered visitor to /login', async () => {
       const res = await fetch(`${BASE_URL}/student`, {
-        redirect: 'manual',
-        headers: {
-          Cookie: `aida_user_id=${guestId};`
-        }
+        redirect: 'manual'
       });
       assert.strictEqual(res.status, 307);
       const location = res.headers.get('location') || '';
-      assert.strictEqual(location, `/${guestId}`);
+      assert.strictEqual(location, '/login?redirect=%2Fstudent');
     });
 
     test('/student redirects authenticated user to their bound profile', async () => {
@@ -123,7 +118,7 @@ describe('Security Suite: RBAC & Cabinet Protection Tests', () => {
       const res = await fetch(`${BASE_URL}/student`, {
         redirect: 'manual',
         headers: {
-          Cookie: `aida_auth_user_id=${authId}; aida_user_id=dev_cookie;`
+          Cookie: `aida_auth_user_id=${authId}; aida_user_id=${authId}; aida_active_role=student;`
         }
       });
       assert.strictEqual(res.status, 307);

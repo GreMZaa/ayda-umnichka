@@ -82,12 +82,12 @@ export async function POST(req: NextRequest) {
 
     const payload = {
       public_id: publicId,
-      full_name: body.fullName || 'Гость платформы',
+      full_name: body.fullName || 'Новый ученик',
       role: role,
       phone: body.phone || null,
       email: body.email || null,
       auth_user_id: body.authUserId || null,
-      is_registered: Boolean(body.isRegistered),
+      is_registered: body.isRegistered !== undefined ? Boolean(body.isRegistered) : true,
       balance_lessons: balance,
       metadata: body.metadata || {},
       updated_at: new Date().toISOString(),

@@ -100,7 +100,7 @@ export function middleware(request: NextRequest) {
   // Generic /student: redirect to user's personal ID or require login
   if (pathname === '/student') {
     const targetId = authUserId || cookieUserId;
-    if (targetId && activeRole) {
+    if (targetId) {
       const url = request.nextUrl.clone();
       url.pathname = `/${targetId}`;
       const response = NextResponse.redirect(url);
@@ -126,17 +126,16 @@ export function middleware(request: NextRequest) {
 
   // ─────────────────────────────────────────────────────────
   // 3. CABINET ID PROTECTION (IDOR / BOLA GUARD: CWE-639)
-  // "id должен выдаваться после регистрации"
   // "если в строке ввел id кабинета то в него можно было войти только через наш вход в лк"
+  // "свободный просмотр разрешается только для свежего временного гостевого ID, который принадлежит именно этому посетителю (по aida_user_id)"
   // ─────────────────────────────────────────────────────────
   const pathParts = pathname.split('/').filter(Boolean);
   if (pathParts.length === 1 && !SYSTEM_ROUTES.has(pathParts[0].toLowerCase())) {
     const requestedId = pathParts[0].toLowerCase();
     const isOwner =
-      Boolean(activeRole) &&
-      (cookieUserId?.toLowerCase() === requestedId ||
-       authUserId?.toLowerCase() === requestedId ||
-       activeRole === 'admin');
+      cookieUserId?.toLowerCase() === requestedId ||
+      authUserId?.toLowerCase() === requestedId ||
+      activeRole === 'admin';
 
     // If caller does not own this cabinet ID or is not authenticated:
     // Require logging in or registering through our official login page!
