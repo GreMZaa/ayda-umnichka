@@ -24,7 +24,7 @@ export function getLkUrl(path: string = ''): string {
 
     // 2. If running locally on localhost, point to the vercel lk- subdomain
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return `https://lk-aidaumnichka.vercel.app${path}`;
+      return `https://lk-ayda-umnichka.vercel.app${path}`;
     }
 
     // 3. If on custom domain (e.g. domain.ru -> lk-domain.ru)
@@ -35,5 +35,5 @@ export function getLkUrl(path: string = ''): string {
     return `${protocol}//${hostname}${path}`;
   }
 
-  return `https://lk-aidaumnichka.vercel.app${path}`;
+  return `https://lk-ayda-umnichka.vercel.app${path}`;
 }
