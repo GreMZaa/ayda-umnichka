@@ -27,7 +27,8 @@ import {
   ArrowRight,
   UserCheck,
   Database,
-  AlertCircle
+  AlertCircle,
+  Paperclip
 } from 'lucide-react';
 import {
   setCustomSlug,
@@ -109,6 +110,55 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
         }
         if (data.binding?.balance_lessons !== undefined) {
           setBalance(data.binding.balance_lessons);
+        }
+
+        // 3. Fetch homework assigned to this student from Supabase
+        try {
+          const hwRes = await fetch(`/api/homework?studentPublicId=${encodeURIComponent(routeUserId)}`);
+          const hwData = await hwRes.json();
+          if (hwData?.homework) {
+            const mappedHw: HomeworkItem[] = hwData.homework.map((h: any) => ({
+              id: h.id,
+              title: h.title,
+              taskDescription: h.task_description,
+              taskFileUrl: h.task_file_url,
+              fileName: h.file_name,
+              teacherName: h.teacher_name || 'Преподаватель',
+              studentId: h.student_public_id || routeUserId,
+              status: h.status || 'assigned',
+              studentSolutionText: h.student_solution_text,
+              createdAt: h.created_at,
+            }));
+            setHomeworks(mappedHw);
+          }
+        } catch (err) {
+          console.warn('Failed to load homework:', err);
+        }
+
+        // 4. Fetch scheduled lessons for this student from Supabase
+        try {
+          const lessRes = await fetch(`/api/lessons?studentPublicId=${encodeURIComponent(routeUserId)}`);
+          const lessData = await lessRes.json();
+          if (lessData?.lessons) {
+            const activeLessons = lessData.lessons.filter(
+              (l: any) => l.status === 'pending' || l.status === 'active'
+            );
+            const mappedLessons: LessonSession[] = activeLessons.map((l: any) => ({
+              id: l.id,
+              roomToken: l.room_token,
+              teacherId: l.teacher_id || '',
+              teacherName: l.teacher_name || 'Преподаватель',
+              studentId: l.student_public_id || routeUserId,
+              studentName: l.student_name || 'Ученик',
+              topic: l.topic,
+              status: l.status,
+              durationMinutes: l.duration_minutes || 45,
+              createdAt: l.created_at,
+            }));
+            setLessons(mappedLessons);
+          }
+        } catch (err) {
+          console.warn('Failed to load lessons:', err);
         }
       } catch (err) {
         console.warn('Cabinet verification check error:', err);
@@ -483,6 +533,21 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
                       </span>
                     </div>
                     <p className="text-xs text-ink-600 leading-relaxed">{hw.taskDescription}</p>
+
+                    {hw.taskFileUrl && (
+                      <div className="pt-1">
+                        <a
+                          href={hw.taskFileUrl}
+                          download={hw.fileName || 'material'}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-[11px] font-bold text-coralAccent bg-[#FFF2E6] hover:bg-[#FFE3CC] border border-[#FCDDC7] px-3 py-1.5 rounded-xl transition-colors cursor-pointer"
+                        >
+                          <Paperclip className="w-3.5 h-3.5" />
+                          <span>Прикрепленный файл: {hw.fileName || 'Скачать материалы к уроку'}</span>
+                        </a>
+                      </div>
+                    )}
 
                     <div className="pt-2 border-t border-[#F8EFE7]">
                       {recordingHwId === hw.id ? (

@@ -40,6 +40,7 @@ export interface HomeworkItem {
   title: string;
   taskDescription: string;
   taskFileUrl?: string;
+  fileName?: string;
   studentSolutionText?: string;
   studentSolutionFileUrl?: string;
   status: 'assigned' | 'submitted' | 'reviewed';

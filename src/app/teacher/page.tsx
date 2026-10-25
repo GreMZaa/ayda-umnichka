@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import WeekCalendar from '@/components/WeekCalendar';
+import LessonsScheduleHistory from '@/components/LessonsScheduleHistory';
 import {
   Video,
   UserCheck,
@@ -11,52 +11,121 @@ import {
   Users,
   CheckCircle2,
   Sparkles,
-  PhoneCall,
   Shield,
   Trash2,
   GraduationCap,
   ChevronRight,
   RefreshCw,
-  Mail
+  Mail,
+  Paperclip,
+  X,
+  Search
 } from 'lucide-react';
 import type { TeacherRecord } from '@/app/api/teachers/route';
 
-interface StudentItem {
+interface SupabaseStudent {
   id: string;
+  publicId: string;
   fullName: string;
-  age: string;
-  phone: string;
-  note: string;
-  addedAt: string;
+  phone?: string;
+  email?: string;
+}
+
+interface BoundStudentItem {
+  id: string;
+  publicId?: string;
+  fullName: string;
+  phone?: string;
+  notes?: string;
+  addedAt?: string;
 }
 
 export default function TeacherDashboard() {
   const router = useRouter();
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
   const [teacherName, setTeacherName] = useState<string>('Преподаватель');
-  const [studentInput, setStudentInput] = useState<string>('');
-  const [lessonTopic, setLessonTopic] = useState<string>('Индивидуальное занятие');
-  const [isCreating, setIsCreating] = useState<boolean>(false);
+  const [teacherPublicId, setTeacherPublicId] = useState<string>('id179017');
 
-  // Students roster state
-  const [students, setStudents] = useState<StudentItem[]>([]);
+  // Supabase Students state
+  const [supabaseStudents, setSupabaseStudents] = useState<SupabaseStudent[]>([]);
+  const [loadingStudents, setLoadingStudents] = useState<boolean>(true);
+
+  // Bound Students roster (saved in Supabase teacher_students)
+  const [boundStudents, setBoundStudents] = useState<BoundStudentItem[]>([]);
   const [showAddStudentForm, setShowAddStudentForm] = useState(false);
-  const [newStudentName, setNewStudentName] = useState('');
-  const [newStudentAge, setNewStudentAge] = useState('');
-  const [newStudentPhone, setNewStudentPhone] = useState('');
-  const [newStudentNote, setNewStudentNote] = useState('');
+  const [selectedStudentToAdd, setSelectedStudentToAdd] = useState('');
+  const [customStudentName, setCustomStudentName] = useState('');
+  const [customStudentNote, setCustomStudentNote] = useState('');
+  const [isBindingStudent, setIsBindingStudent] = useState(false);
+
+  // Lesson Launcher state
+  const [launcherStudentInput, setLauncherStudentInput] = useState<string>('');
+  const [launcherStudentPublicId, setLauncherStudentPublicId] = useState<string>('');
+  const [lessonTopic, setLessonTopic] = useState<string>('Индивидуальное занятие: Логопедия');
+  const [isCreatingLesson, setIsCreatingLesson] = useState<boolean>(false);
+  const [launcherDropdownOpen, setLauncherDropdownOpen] = useState(false);
 
   // Homework creation state
-  const [hwStudent, setHwStudent] = useState('');
+  const [hwStudentInput, setHwStudentInput] = useState('');
+  const [hwStudentPublicId, setHwStudentPublicId] = useState('');
   const [hwTitle, setHwTitle] = useState('');
   const [hwDesc, setHwDesc] = useState('');
+  const [hwDropdownOpen, setHwDropdownOpen] = useState(false);
+  const [hwFile, setHwFile] = useState<{ name: string; url: string } | null>(null);
+  const [isSubmittingHw, setIsSubmittingHw] = useState(false);
   const [hwSuccess, setHwSuccess] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Dynamic teachers loaded strictly from Supabase
+  // Teachers directory
   const [supabaseTeachers, setSupabaseTeachers] = useState<TeacherRecord[]>([]);
   const [loadingTeachers, setLoadingTeachers] = useState(true);
 
-  const fetchSupabaseTeachers = async () => {
+  // 1. Fetch available students from Supabase
+  const fetchSupabaseStudents = async () => {
+    try {
+      setLoadingStudents(true);
+      const res = await fetch('/api/students', { cache: 'no-store' });
+      const data = await res.json();
+      if (data?.students) {
+        setSupabaseStudents(data.students);
+      }
+    } catch (err) {
+      console.warn('Failed to load students:', err);
+    } finally {
+      setLoadingStudents(false);
+    }
+  };
+
+  // 2. Fetch bound students from Supabase teacher_students
+  const fetchBoundStudents = async (pubId: string) => {
+    try {
+      const res = await fetch(`/api/teacher/students?teacherPublicId=${encodeURIComponent(pubId)}`, {
+        cache: 'no-store',
+      });
+      const data = await res.json();
+      if (data?.students && data.students.length > 0) {
+        const mapped: BoundStudentItem[] = data.students.map((st: any) => ({
+          id: st.id,
+          publicId: st.student_public_id,
+          fullName: st.student_name,
+          notes: st.notes,
+          addedAt: st.created_at ? new Date(st.created_at).toLocaleDateString('ru-RU') : '',
+        }));
+        setBoundStudents(mapped);
+      } else {
+        // Fallback to local storage if DB is initially empty
+        const saved = localStorage.getItem('aida_teacher_students_v1');
+        if (saved) {
+          setBoundStudents(JSON.parse(saved));
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to load bound students:', err);
+    }
+  };
+
+  // 3. Fetch teachers
+  const fetchTeachers = async () => {
     try {
       setLoadingTeachers(true);
       const res = await fetch('/api/teachers', { cache: 'no-store' });
@@ -65,7 +134,7 @@ export default function TeacherDashboard() {
         setSupabaseTeachers(data.teachers);
       }
     } catch (err) {
-      console.warn('Failed to load teachers from Supabase:', err);
+      console.warn('Failed to load teachers:', err);
     } finally {
       setLoadingTeachers(false);
     }
@@ -85,18 +154,15 @@ export default function TeacherDashboard() {
     const savedName = localStorage.getItem('aida_full_name');
     if (savedName) setTeacherName(savedName);
 
-    // Load saved teacher students list from localStorage
-    try {
-      const savedStudents = localStorage.getItem('aida_teacher_students_v1');
-      if (savedStudents) {
-        setStudents(JSON.parse(savedStudents));
-      }
-    } catch (e) {
-      console.warn('Error reading students roster:', e);
-    }
+    const savedUserId =
+      localStorage.getItem('aida_auth_user_id') ||
+      document.cookie.match(/(?:^|; )aida_auth_user_id=([^;]*)/)?.[1] ||
+      'id179017';
+    setTeacherPublicId(savedUserId);
 
-    // Load dynamic faculty directly from Supabase
-    fetchSupabaseTeachers();
+    fetchSupabaseStudents();
+    fetchBoundStudents(savedUserId);
+    fetchTeachers();
   }, [router]);
 
   if (isAuthorized === false) {
@@ -113,72 +179,206 @@ export default function TeacherDashboard() {
     );
   }
 
-  const handleAddStudent = (e: React.FormEvent) => {
+  // Handle adding student to teacher's roster in Supabase
+  const handleAddStudent = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newStudentName.trim()) return;
+    setIsBindingStudent(true);
 
-    const newStudent: StudentItem = {
-      id: `st_${Date.now()}`,
-      fullName: newStudentName.trim(),
-      age: newStudentAge.trim() || '6 лет',
-      phone: newStudentPhone.trim(),
-      note: newStudentNote.trim() || 'Индивидуальное сопровождение',
-      addedAt: new Date().toLocaleDateString('ru-RU'),
-    };
+    let nameToSave = customStudentName.trim();
+    let publicIdToSave = '';
 
-    const updated = [newStudent, ...students];
-    setStudents(updated);
-    try {
-      localStorage.setItem('aida_teacher_students_v1', JSON.stringify(updated));
-    } catch (err) {
-      console.warn('Failed to save student:', err);
+    if (selectedStudentToAdd) {
+      const found = supabaseStudents.find((s) => s.publicId === selectedStudentToAdd);
+      if (found) {
+        nameToSave = found.fullName;
+        publicIdToSave = found.publicId;
+      }
     }
 
-    setNewStudentName('');
-    setNewStudentAge('');
-    setNewStudentPhone('');
-    setNewStudentNote('');
-    setShowAddStudentForm(false);
-  };
+    if (!nameToSave) {
+      setIsBindingStudent(false);
+      return;
+    }
 
-  const handleRemoveStudent = (id: string) => {
-    const updated = students.filter((s) => s.id !== id);
-    setStudents(updated);
     try {
-      localStorage.setItem('aida_teacher_students_v1', JSON.stringify(updated));
+      const res = await fetch('/api/teacher/students', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          teacher_public_id: teacherPublicId,
+          student_public_id: publicIdToSave || null,
+          student_name: nameToSave,
+          notes: customStudentNote.trim() || 'Индивидуальное сопровождение',
+        }),
+      });
+
+      const data = await res.json();
+      if (data?.success && data?.student) {
+        const newEntry: BoundStudentItem = {
+          id: data.student.id,
+          publicId: data.student.student_public_id,
+          fullName: data.student.student_name,
+          notes: data.student.notes,
+          addedAt: new Date().toLocaleDateString('ru-RU'),
+        };
+        const updated = [newEntry, ...boundStudents];
+        setBoundStudents(updated);
+        try {
+          localStorage.setItem('aida_teacher_students_v1', JSON.stringify(updated));
+        } catch (_) {}
+      }
     } catch (err) {
-      console.warn('Failed to save student:', err);
+      console.warn('Error binding student:', err);
+    } finally {
+      setIsBindingStudent(false);
+      setSelectedStudentToAdd('');
+      setCustomStudentName('');
+      setCustomStudentNote('');
+      setShowAddStudentForm(false);
     }
   };
 
-  const selectStudentForLesson = (student: StudentItem) => {
-    setStudentInput(`${student.fullName} (${student.age})`);
-    setLessonTopic(`Урок: ${student.note}`);
+  // Remove student from roster
+  const handleRemoveStudent = async (id: string, publicId?: string) => {
+    try {
+      await fetch(`/api/teacher/students?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
+    } catch (err) {
+      console.warn('Error unbinding student:', err);
+    }
+
+    const updated = boundStudents.filter((s) => s.id !== id);
+    setBoundStudents(updated);
+    try {
+      localStorage.setItem('aida_teacher_students_v1', JSON.stringify(updated));
+    } catch (_) {}
   };
 
-  const startOnDemandLesson = (e: React.FormEvent) => {
+  // Select student for launcher
+  const selectStudentForLesson = (name: string, publicId?: string) => {
+    setLauncherStudentInput(name);
+    setLauncherStudentPublicId(publicId || '');
+    setLauncherDropdownOpen(false);
+  };
+
+  // Launch on-demand lesson
+  const startOnDemandLesson = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsCreating(true);
+    setIsCreatingLesson(true);
 
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const roomToken = `room-${randomSuffix}`;
 
+    try {
+      // Create active lesson in Supabase
+      await fetch('/api/lessons', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          room_token: roomToken,
+          topic: lessonTopic,
+          student_name: launcherStudentInput || 'Ученик центра',
+          student_public_id: launcherStudentPublicId || null,
+          teacher_name: teacherName,
+          status: 'active',
+          duration_minutes: 45,
+        }),
+      });
+    } catch (err) {
+      console.warn('Failed to record lesson:', err);
+    }
+
     setTimeout(() => {
-      setIsCreating(false);
+      setIsCreatingLesson(false);
       router.push(`/room/${roomToken}?role=teacher&topic=${encodeURIComponent(lessonTopic)}`);
-    }, 500);
+    }, 400);
   };
 
-  const assignHomework = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!hwTitle || !hwDesc) return;
-    setHwSuccess(true);
-    setTimeout(() => {
-      setHwTitle('');
-      setHwDesc('');
-      setHwSuccess(false);
-    }, 3000);
+  // Handle file attachment for homework
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Check file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Размер файла не должен превышать 5 МБ');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      setHwFile({
+        name: file.name,
+        url: dataUrl,
+      });
+    };
+    reader.readAsDataURL(file);
   };
+
+  const removeFileAttachment = () => {
+    setHwFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Submit homework to Supabase
+  const assignHomework = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!hwTitle.trim() || !hwDesc.trim()) return;
+
+    try {
+      setIsSubmittingHw(true);
+
+      const res = await fetch('/api/homework', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: hwTitle,
+          task_description: hwDesc,
+          student_public_id: hwStudentPublicId || null,
+          student_name: hwStudentInput || 'Всем закрепленным ученикам',
+          teacher_name: teacherName,
+          task_file_url: hwFile?.url || null,
+          file_name: hwFile?.name || null,
+        }),
+      });
+
+      if (res.ok) {
+        setHwSuccess(true);
+        setTimeout(() => {
+          setHwTitle('');
+          setHwDesc('');
+          setHwFile(null);
+          setHwStudentInput('');
+          setHwStudentPublicId('');
+          setHwSuccess(false);
+        }, 3000);
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Ошибка при сохранении задания');
+      }
+    } catch (err) {
+      console.warn('Error assigning homework:', err);
+    } finally {
+      setIsSubmittingHw(false);
+    }
+  };
+
+  // Filtered lists for comboboxes
+  const filteredLauncherStudents = supabaseStudents.filter(
+    (s) =>
+      s.fullName.toLowerCase().includes(launcherStudentInput.toLowerCase()) ||
+      s.publicId.toLowerCase().includes(launcherStudentInput.toLowerCase())
+  );
+
+  const filteredHwStudents = supabaseStudents.filter(
+    (s) =>
+      s.fullName.toLowerCase().includes(hwStudentInput.toLowerCase()) ||
+      s.publicId.toLowerCase().includes(hwStudentInput.toLowerCase())
+  );
 
   return (
     <div className="space-y-4 sm:space-y-5">
@@ -204,7 +404,7 @@ export default function TeacherDashboard() {
         <div className="flex items-center gap-2 self-stretch md:self-auto justify-end">
           <div className="bg-[#FFF8F1] border border-[#F2DECE] px-3 py-1.5 rounded-xl text-center min-w-[70px]">
             <span className="text-[9px] text-[#6B758E] font-extrabold uppercase tracking-wider block">Учеников</span>
-            <p className="text-sm font-black text-[#161F38]">{students.length}</p>
+            <p className="text-sm font-black text-[#161F38]">{boundStudents.length}</p>
           </div>
           <div className="bg-[#FFF8F1] border border-[#F2DECE] px-3 py-1.5 rounded-xl text-center min-w-[70px]">
             <span className="text-[9px] text-[#6B758E] font-extrabold uppercase tracking-wider block">Преподавателей</span>
@@ -220,39 +420,72 @@ export default function TeacherDashboard() {
         </div>
       </div>
 
-      {/* Row 1: Aligned Launcher + Schedule (items-stretch ensures equal height) */}
+      {/* Row 1: Aligned Launcher + Schedule/History */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 items-stretch">
         {/* On-Demand Lesson Launcher (Left) */}
         <div className="lg:col-span-8 bg-[#FFF8F1] border border-[#F2DECE] rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col justify-between h-full">
           <div>
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <div className="inline-flex items-center gap-1.5 bg-white px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider text-coralAccent border border-[#FCDDC7]">
-                <span className="w-1.5 h-1.5 rounded-full bg-coralAccent animate-pulse" />
-                <span>P2P Видеоурок</span>
-              </div>
-              <span className="text-[10px] text-[#6B758E] font-semibold">
-                Без сторонних программ
-              </span>
-            </div>
-
             <h2 className="text-lg sm:text-xl font-black text-[#161F38] tracking-tight">Запустить онлайн-урок</h2>
-            <p className="text-[11px] text-[#6B758E] mt-0.5">
-              Создайте защищенную P2P комнату с видеосвязью и интерактивной доской в 1 клик.
-            </p>
 
             <form onSubmit={startOnDemandLesson} className="mt-3.5 space-y-2.5">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <div>
+                {/* Searchable Student Picker */}
+                <div className="relative">
                   <label className="block text-[11px] font-extrabold text-[#161F38] mb-1">
                     Ученик:
                   </label>
-                  <input
-                    type="text"
-                    value={studentInput}
-                    onChange={(e) => setStudentInput(e.target.value)}
-                    placeholder="Имя ученика или ID"
-                    className="w-full bg-white border border-[#EADBCC] rounded-xl px-3 py-1.5 text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent"
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={launcherStudentInput}
+                      onChange={(e) => {
+                        setLauncherStudentInput(e.target.value);
+                        setLauncherStudentPublicId('');
+                        setLauncherDropdownOpen(true);
+                      }}
+                      onFocus={() => setLauncherDropdownOpen(true)}
+                      placeholder="Поиск или ввод имени ученика..."
+                      className="w-full bg-white border border-[#EADBCC] rounded-xl px-3 py-1.5 text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent pr-8"
+                    />
+                    <Search className="w-3.5 h-3.5 text-[#8A95A8] absolute right-2.5 top-2.5 pointer-events-none" />
+                  </div>
+
+                  {/* Dropdown list of students */}
+                  {launcherDropdownOpen && (
+                    <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-[#F2DECE] rounded-xl shadow-lg max-h-48 overflow-y-auto p-1 animate-in fade-in">
+                      {filteredLauncherStudents.length === 0 ? (
+                        <div className="p-2 text-center text-[11px] text-[#8A95A8]">
+                          {launcherStudentInput ? 'Ученик не найден в базе, будет записан как введено' : 'Нет доступных учеников'}
+                        </div>
+                      ) : (
+                        filteredLauncherStudents.map((st) => (
+                          <button
+                            key={st.publicId}
+                            type="button"
+                            onClick={() => selectStudentForLesson(st.fullName, st.publicId)}
+                            className="w-full text-left p-2 rounded-lg hover:bg-[#FFF8F1] transition-colors flex items-center justify-between text-xs cursor-pointer"
+                          >
+                            <div>
+                              <div className="font-bold text-[#161F38]">{st.fullName}</div>
+                              <div className="text-[10px] text-[#8A95A8]">ID: {st.publicId} {st.phone ? `• ${st.phone}` : ''}</div>
+                            </div>
+                            <span className="text-[10px] font-extrabold text-coralAccent bg-[#FFF2E6] px-1.5 py-0.5 rounded-full">
+                              Выбрать
+                            </span>
+                          </button>
+                        ))
+                      )}
+                      <div className="p-1 border-t border-[#F8EDE1] text-right">
+                        <button
+                          type="button"
+                          onClick={() => setLauncherDropdownOpen(false)}
+                          className="text-[10px] font-bold text-[#8A95A8] hover:text-[#161F38] px-2 py-0.5"
+                        >
+                          Закрыть список
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -273,14 +506,14 @@ export default function TeacherDashboard() {
               <div className="pt-2 flex items-center justify-between gap-3">
                 <button
                   type="submit"
-                  disabled={isCreating}
+                  disabled={isCreatingLesson}
                   className="inline-flex items-center gap-2 bg-coralAccent hover:bg-coralAccent-hover text-white font-black text-xs py-2.5 px-6 rounded-full shadow-xs transition-[background-color,transform,box-shadow] duration-140 ease-out-emil active:scale-[0.97] cursor-pointer"
                 >
                   <Video className="w-3.5 h-3.5" />
-                  <span>{isCreating ? 'Генерация комнаты...' : 'Начать урок сейчас (1 клик)'}</span>
+                  <span>{isCreatingLesson ? 'Генерация комнаты...' : 'Начать урок сейчас (1 клик)'}</span>
                 </button>
 
-                {students.length > 0 && !studentInput && (
+                {boundStudents.length > 0 && !launcherStudentInput && (
                   <span className="text-[10px] text-[#6B758E] hidden sm:inline">
                     💡 Выберите ученика из списка ниже для быстрого заполнения
                   </span>
@@ -290,13 +523,18 @@ export default function TeacherDashboard() {
           </div>
         </div>
 
-        {/* Schedule Calendar (Right) */}
+        {/* Schedule & Lesson History (Right) */}
         <div className="lg:col-span-4 h-full flex flex-col justify-between">
-          <WeekCalendar />
+          <LessonsScheduleHistory
+            onStartLesson={(token, topic) => {
+              router.push(`/room/${token}?role=teacher&topic=${encodeURIComponent(topic)}`);
+            }}
+            availableStudents={supabaseStudents}
+          />
         </div>
       </div>
 
-      {/* Row 2: Aligned Students Roster & Homework (items-stretch ensures equal height) */}
+      {/* Row 2: Aligned Students Roster & Homework */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 items-stretch">
         {/* Assigned Students List */}
         <div className="lg:col-span-6 bg-white rounded-2xl p-4 sm:p-5 border border-[#F2E0CF] shadow-xs flex flex-col justify-between h-full space-y-3">
@@ -308,7 +546,7 @@ export default function TeacherDashboard() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] bg-[#FFF8F1] text-[#161F38] border border-[#F2DECE] px-2 py-0.5 rounded-full font-bold">
-                  {students.length} активных
+                  {boundStudents.length} активных
                 </span>
                 <button
                   type="button"
@@ -324,40 +562,61 @@ export default function TeacherDashboard() {
             {/* Form to Add Student */}
             {showAddStudentForm && (
               <form onSubmit={handleAddStudent} className="p-3 bg-[#FFF8F1] border border-[#F2DECE] rounded-xl space-y-2 animate-in fade-in">
-                <div className="text-[11px] font-black text-[#161F38]">Карточка нового ученика:</div>
+                <div className="text-[11px] font-black text-[#161F38]">Привязать ученика к кабинету:</div>
+
+                {supabaseStudents.length > 0 && (
+                  <div>
+                    <label className="block text-[10px] font-bold text-[#6B758E] mb-1">
+                      Выбрать из зарегистрированных учеников:
+                    </label>
+                    <select
+                      value={selectedStudentToAdd}
+                      onChange={(e) => {
+                        setSelectedStudentToAdd(e.target.value);
+                        if (e.target.value) {
+                          setCustomStudentName('');
+                        }
+                      }}
+                      className="w-full bg-white border border-[#EADBCC] rounded-lg px-2.5 py-1.5 text-xs text-[#161F38] focus:outline-none focus:border-coralAccent"
+                    >
+                      <option value="">-- Выберите ученика из базы --</option>
+                      {supabaseStudents.map((st) => (
+                        <option key={st.publicId} value={st.publicId}>
+                          {st.fullName} ({st.publicId}) {st.phone ? `• ${st.phone}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <input
-                    type="text"
-                    required
-                    value={newStudentName}
-                    onChange={(e) => setNewStudentName(e.target.value)}
-                    placeholder="ФИО ученика (напр. Артём Смирнов)"
-                    className="bg-white border border-[#EADBCC] rounded-lg px-2.5 py-1.5 text-xs text-[#161F38] focus:outline-none focus:border-coralAccent"
-                  />
-                  <input
-                    type="text"
-                    value={newStudentAge}
-                    onChange={(e) => setNewStudentAge(e.target.value)}
-                    placeholder="Возраст/класс (напр. 6 лет)"
-                    className="bg-white border border-[#EADBCC] rounded-lg px-2.5 py-1.5 text-xs text-[#161F38] focus:outline-none focus:border-coralAccent"
-                  />
+                  <div>
+                    <label className="block text-[10px] font-bold text-[#6B758E] mb-0.5">
+                      Или введите ФИО:
+                    </label>
+                    <input
+                      type="text"
+                      disabled={Boolean(selectedStudentToAdd)}
+                      value={customStudentName}
+                      onChange={(e) => setCustomStudentName(e.target.value)}
+                      placeholder="ФИО ученика"
+                      className="w-full bg-white border border-[#EADBCC] rounded-lg px-2.5 py-1.5 text-xs text-[#161F38] focus:outline-none focus:border-coralAccent disabled:bg-gray-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-[#6B758E] mb-0.5">
+                      Направление / примечание:
+                    </label>
+                    <input
+                      type="text"
+                      value={customStudentNote}
+                      onChange={(e) => setCustomStudentNote(e.target.value)}
+                      placeholder="Логопедия, запуск речи..."
+                      className="w-full bg-white border border-[#EADBCC] rounded-lg px-2.5 py-1.5 text-xs text-[#161F38] focus:outline-none focus:border-coralAccent"
+                    />
+                  </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <input
-                    type="text"
-                    value={newStudentPhone}
-                    onChange={(e) => setNewStudentPhone(e.target.value)}
-                    placeholder="Телефон родителя (+7...)"
-                    className="bg-white border border-[#EADBCC] rounded-lg px-2.5 py-1.5 text-xs text-[#161F38] focus:outline-none focus:border-coralAccent"
-                  />
-                  <input
-                    type="text"
-                    value={newStudentNote}
-                    onChange={(e) => setNewStudentNote(e.target.value)}
-                    placeholder="Направление (напр. Логопедия)"
-                    className="bg-white border border-[#EADBCC] rounded-lg px-2.5 py-1.5 text-xs text-[#161F38] focus:outline-none focus:border-coralAccent"
-                  />
-                </div>
+
                 <div className="flex justify-end gap-2 pt-1">
                   <button
                     type="button"
@@ -368,41 +627,46 @@ export default function TeacherDashboard() {
                   </button>
                   <button
                     type="submit"
-                    className="text-xs font-black bg-coralAccent hover:bg-coralAccent-hover text-white px-4 py-1.5 rounded-full shadow-2xs active:scale-95 cursor-pointer"
+                    disabled={isBindingStudent}
+                    className="text-xs font-black bg-coralAccent hover:bg-coralAccent-hover text-white px-4 py-1.5 rounded-full shadow-2xs active:scale-95 cursor-pointer disabled:opacity-50"
                   >
-                    Сохранить ученика
+                    {isBindingStudent ? 'Сохранение...' : 'Закрепить ученика'}
                   </button>
                 </div>
               </form>
             )}
 
             {/* Students List */}
-            {students.length === 0 ? (
+            {boundStudents.length === 0 ? (
               <div className="p-5 rounded-xl border border-dashed border-[#F2DECE] bg-[#FFFAF5] text-center space-y-1.5">
                 <Users className="w-6 h-6 text-coralAccent mx-auto opacity-50" />
                 <h4 className="font-bold text-xs text-[#161F38]">Пока нет закрепленных учеников</h4>
                 <p className="text-[11px] text-[#6B758E] max-w-xs mx-auto">
-                  Нажмите кнопку «Добавить ученика», чтобы привязать ученика к вашему кабинету.
+                  Нажмите «Добавить ученика», чтобы привязать ученика к вашему кабинету.
                 </p>
               </div>
             ) : (
               <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
-                {students.map((st) => (
+                {boundStudents.map((st) => (
                   <div
                     key={st.id}
                     className="p-2.5 rounded-xl border border-[#F2DECE] bg-[#FFFDFB] hover:bg-white transition-colors flex items-center justify-between gap-2 shadow-2xs"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className="w-8 h-8 rounded-lg bg-[#FFF2E6] text-coralAccent font-black text-xs flex items-center justify-center shrink-0">
-                        {st.fullName[0]}
+                        {st.fullName[0] || 'У'}
                       </div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
                           <span className="text-xs font-black text-[#161F38] truncate">{st.fullName}</span>
-                          <span className="text-[10px] text-[#6B758E] font-medium shrink-0">({st.age})</span>
+                          {st.publicId && (
+                            <span className="text-[10px] text-[#6B758E] font-medium shrink-0">
+                              (ID: {st.publicId})
+                            </span>
+                          )}
                         </div>
                         <div className="text-[10px] text-[#6B758E] truncate">
-                          {st.note} {st.phone ? `• ${st.phone}` : ''}
+                          {st.notes || 'Индивидуальное сопровождение'} {st.phone ? `• ${st.phone}` : ''}
                         </div>
                       </div>
                     </div>
@@ -410,7 +674,7 @@ export default function TeacherDashboard() {
                     <div className="flex items-center gap-1.5 shrink-0">
                       <button
                         type="button"
-                        onClick={() => selectStudentForLesson(st)}
+                        onClick={() => selectStudentForLesson(st.fullName, st.publicId)}
                         title="Выбрать для старта онлайн-урока"
                         className="text-[10px] font-black bg-[#EAF7CF] hover:bg-[#DCF2B7] text-[#5C8519] px-2.5 py-1 rounded-full transition-colors cursor-pointer active:scale-95 flex items-center gap-1"
                       >
@@ -419,7 +683,7 @@ export default function TeacherDashboard() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleRemoveStudent(st.id)}
+                        onClick={() => handleRemoveStudent(st.id, st.publicId)}
                         title="Удалить из списка"
                         className="text-[#8A95A8] hover:text-red-500 p-1 transition-colors cursor-pointer"
                       >
@@ -433,7 +697,7 @@ export default function TeacherDashboard() {
           </div>
 
           <div className="pt-2 border-t border-[#F8EDE1] flex items-center justify-between text-[11px] text-[#6B758E]">
-            <span>Всего в списке: <strong className="text-[#161F38]">{students.length}</strong></span>
+            <span>Всего в списке: <strong className="text-[#161F38]">{boundStudents.length}</strong></span>
             <span className="text-[10px] text-[#8A95A8]">Данные сохраняются в кабинете</span>
           </div>
         </div>
@@ -449,37 +713,79 @@ export default function TeacherDashboard() {
             {hwSuccess && (
               <div className="p-2.5 bg-[#F2FBE8] border border-[#C5E87D] rounded-xl text-[#161F38] text-xs font-black flex items-center gap-2 animate-in fade-in">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>Домашнее задание успешно назначено!</span>
+                <span>Домашнее задание успешно отправлено в личный кабинет ученика!</span>
               </div>
             )}
 
             <form onSubmit={assignHomework} className="space-y-2.5">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div>
+                {/* Searchable Student Picker for Homework */}
+                <div className="relative">
                   <label className="block text-[11px] font-extrabold text-[#161F38] mb-1">
                     Ученик:
                   </label>
-                  {students.length > 0 ? (
-                    <select
-                      value={hwStudent}
-                      onChange={(e) => setHwStudent(e.target.value)}
-                      className="w-full bg-[#FFFDFB] border border-[#EADBCC] rounded-xl px-2.5 py-1.5 text-xs text-[#161F38] focus:outline-none focus:border-coralAccent"
-                    >
-                      <option value="">Всем закрепленным ученикам</option>
-                      {students.map((st) => (
-                        <option key={st.id} value={st.fullName}>
-                          {st.fullName} ({st.age})
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
+                  <div className="relative">
                     <input
                       type="text"
-                      value={hwStudent}
-                      onChange={(e) => setHwStudent(e.target.value)}
-                      placeholder="Имя ученика"
-                      className="w-full bg-[#FFFDFB] border border-[#EADBCC] rounded-xl px-2.5 py-1.5 text-xs text-[#161F38] focus:outline-none focus:border-coralAccent"
+                      value={hwStudentInput}
+                      onChange={(e) => {
+                        setHwStudentInput(e.target.value);
+                        setHwStudentPublicId('');
+                        setHwDropdownOpen(true);
+                      }}
+                      onFocus={() => setHwDropdownOpen(true)}
+                      placeholder="Всем или поиск ученика..."
+                      className="w-full bg-[#FFFDFB] border border-[#EADBCC] rounded-xl px-2.5 py-1.5 text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent pr-8"
                     />
+                    <Search className="w-3.5 h-3.5 text-[#8A95A8] absolute right-2.5 top-2.5 pointer-events-none" />
+                  </div>
+
+                  {/* Dropdown list of students for homework */}
+                  {hwDropdownOpen && (
+                    <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-[#F2DECE] rounded-xl shadow-lg max-h-48 overflow-y-auto p-1 animate-in fade-in">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setHwStudentInput('');
+                          setHwStudentPublicId('');
+                          setHwDropdownOpen(false);
+                        }}
+                        className="w-full text-left p-2 rounded-lg hover:bg-[#FFF8F1] transition-colors text-xs font-bold text-coralAccent cursor-pointer"
+                      >
+                        📢 Всем закрепленным ученикам
+                      </button>
+
+                      {filteredHwStudents.map((st) => (
+                        <button
+                          key={st.publicId}
+                          type="button"
+                          onClick={() => {
+                            setHwStudentInput(st.fullName);
+                            setHwStudentPublicId(st.publicId);
+                            setHwDropdownOpen(false);
+                          }}
+                          className="w-full text-left p-2 rounded-lg hover:bg-[#FFF8F1] transition-colors flex items-center justify-between text-xs cursor-pointer"
+                        >
+                          <div>
+                            <div className="font-bold text-[#161F38]">{st.fullName}</div>
+                            <div className="text-[10px] text-[#8A95A8]">ID: {st.publicId}</div>
+                          </div>
+                          <span className="text-[10px] font-extrabold text-coralAccent bg-[#FFF2E6] px-1.5 py-0.5 rounded-full">
+                            Выбрать
+                          </span>
+                        </button>
+                      ))}
+
+                      <div className="p-1 border-t border-[#F8EDE1] text-right">
+                        <button
+                          type="button"
+                          onClick={() => setHwDropdownOpen(false)}
+                          className="text-[10px] font-bold text-[#8A95A8] hover:text-[#161F38] px-2 py-0.5"
+                        >
+                          Закрыть список
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </div>
 
@@ -512,13 +818,48 @@ export default function TeacherDashboard() {
                 />
               </div>
 
+              {/* File Attachment Support */}
+              <div className="pt-1">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  onChange={handleFileChange}
+                  accept="image/*,.pdf,.doc,.docx,.txt,audio/*"
+                  className="hidden"
+                />
+
+                {hwFile ? (
+                  <div className="inline-flex items-center gap-2 bg-[#FFF8F1] border border-[#F2DECE] px-3 py-1.5 rounded-xl text-xs">
+                    <Paperclip className="w-3.5 h-3.5 text-coralAccent" />
+                    <span className="font-bold text-[#161F38] max-w-[200px] truncate">{hwFile.name}</span>
+                    <button
+                      type="button"
+                      onClick={removeFileAttachment}
+                      className="text-[#8A95A8] hover:text-red-500 p-0.5 rounded cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-[#6B758E] hover:text-[#161F38] bg-[#FFF8F1] hover:bg-[#FFF2E6] border border-[#F2DECE] px-3 py-1.5 rounded-xl transition-colors cursor-pointer active:scale-95"
+                  >
+                    <Paperclip className="w-3.5 h-3.5 text-coralAccent" />
+                    <span>Прикрепить файл к заданию (до 5 МБ)</span>
+                  </button>
+                )}
+              </div>
+
               <div className="flex justify-end pt-1">
                 <button
                   type="submit"
-                  className="inline-flex items-center gap-1.5 bg-coralAccent hover:bg-coralAccent-hover text-white font-black px-5 py-2 rounded-full text-xs shadow-xs transition-[background-color,transform,box-shadow] duration-140 ease-out-emil active:scale-[0.97] cursor-pointer"
+                  disabled={isSubmittingHw}
+                  className="inline-flex items-center gap-1.5 bg-coralAccent hover:bg-coralAccent-hover text-white font-black px-5 py-2 rounded-full text-xs shadow-xs transition-[background-color,transform,box-shadow] duration-140 ease-out-emil active:scale-[0.97] cursor-pointer disabled:opacity-50"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>Отправить задание</span>
+                  <span>{isSubmittingHw ? 'Отправка...' : 'Отправить задание'}</span>
                 </button>
               </div>
             </form>
@@ -526,39 +867,36 @@ export default function TeacherDashboard() {
 
           <div className="pt-2 border-t border-[#F8EDE1] flex items-center justify-between text-[11px] text-[#6B758E]">
             <span>Статус отправки: <strong className="text-[#5C8519]">Готов</strong></span>
-            <span className="text-[10px] text-[#8A95A8]">Мгновенно поступает в чат</span>
+            <span className="text-[10px] text-[#8A95A8]">Мгновенно поступает в кабинет ученика</span>
           </div>
         </div>
       </div>
 
-      {/* Row 3: Real Teachers & Pedagogical Faculty from Supabase */}
+      {/* Row 3: Real Teachers & Pedagogical Faculty */}
       <div className="bg-white rounded-2xl p-4 sm:p-5 border border-[#F2E0CF] shadow-xs space-y-3.5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <div className="flex items-center gap-2">
               <GraduationCap className="w-4 h-4 text-coralAccent" />
               <h3 className="font-black text-sm sm:text-base text-[#161F38]">
-                Преподаватели детского центра «АйДаУмничка» (Supabase)
+                Преподаватели детского центра «АйДаУмничка»
               </h3>
             </div>
             <p className="text-[11px] text-[#6B758E] mt-0.5">
-              Реальные педагоги и руководство центра из базы данных Supabase
+              Педагогический состав и руководство центра
             </p>
           </div>
 
           <div className="flex items-center gap-2 self-start sm:self-auto">
             <button
               type="button"
-              onClick={fetchSupabaseTeachers}
+              onClick={fetchTeachers}
               disabled={loadingTeachers}
-              title="Обновить список из базы Supabase"
+              title="Обновить список преподавателей"
               className="p-1 text-[#8A95A8] hover:text-[#161F38] transition-colors rounded-lg active:scale-95 cursor-pointer"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loadingTeachers ? 'animate-spin' : ''}`} />
             </button>
-            <span className="text-[10px] font-extrabold bg-[#EAF7CF] text-[#5C8519] border border-[#D5ECA3] px-2.5 py-0.5 rounded-full">
-              {supabaseTeachers.length} в базе Supabase
-            </span>
           </div>
         </div>
 
@@ -566,14 +904,14 @@ export default function TeacherDashboard() {
         {loadingTeachers && supabaseTeachers.length === 0 ? (
           <div className="p-6 text-center text-xs font-bold text-[#6B758E] flex items-center justify-center gap-2">
             <RefreshCw className="w-4 h-4 animate-spin text-coralAccent" />
-            <span>Загрузка преподавателей из Supabase...</span>
+            <span>Загрузка преподавателей...</span>
           </div>
         ) : supabaseTeachers.length === 0 ? (
           <div className="p-6 rounded-xl border border-dashed border-[#F2DECE] bg-[#FFFAF5] text-center space-y-1">
             <Users className="w-6 h-6 text-coralAccent mx-auto opacity-50" />
             <h4 className="font-bold text-xs text-[#161F38]">Преподаватели пока не зарегистрированы</h4>
             <p className="text-[11px] text-[#6B758E]">
-              Новые преподаватели отобразятся здесь сразу после регистрации через Supabase Auth.
+              Новые преподаватели отобразятся здесь сразу после регистрации.
             </p>
           </div>
         ) : (
