@@ -20,13 +20,16 @@ export default function Navbar() {
   const pathname = usePathname();
   const isHome = pathname === '/';
   const isLogin = pathname === '/login';
-  const isStudent = pathname === '/student';
+  const isStudent = pathname === '/student' || /^\/id\d+/.test(pathname);
   const isTeacher = pathname === '/teacher';
   const isAdmin = pathname === '/admin';
-  const isInsideLk = isStudent || isTeacher || isAdmin;
+  const isRoom = pathname.startsWith('/room');
+  const isInsideLk = isStudent || isTeacher || isAdmin || isRoom;
 
   const [balance, setBalance] = useState<number>(0);
   const [userName, setUserName] = useState<string>('');
+  const [userRole, setUserRole] = useState<string>('');
+  const [userId, setUserId] = useState<string>('');
   const [lkUrl, setLkUrl] = useState<string>('https://lk-ayda-umnichka.vercel.app/login');
   const [logoClicks, setLogoClicks] = useState(0);
 
@@ -35,6 +38,20 @@ export default function Navbar() {
     if (savedBalance) setBalance(parseInt(savedBalance, 10));
     const savedName = localStorage.getItem('aida_full_name');
     if (savedName) setUserName(savedName);
+
+    const savedRole =
+      localStorage.getItem('aida_active_role') ||
+      document.cookie.match(/(?:^|; )aida_active_role=([^;]*)/)?.[1] ||
+      '';
+    if (savedRole) setUserRole(savedRole);
+
+    const savedUid =
+      localStorage.getItem('aida_auth_user_id') ||
+      localStorage.getItem('aida_user_id') ||
+      document.cookie.match(/(?:^|; )aida_auth_user_id=([^;]*)/)?.[1] ||
+      '';
+    if (savedUid) setUserId(savedUid);
+
     setLkUrl(getLkUrl('/login'));
   }, []);
 
@@ -178,7 +195,24 @@ export default function Navbar() {
               </Link>
             )}
 
-            {isInsideLk ? (
+            {isRoom ? (
+              // Inside Video Lesson Room: Clean button to return to personal cabinet
+              <Link
+                href={
+                  userRole === 'teacher'
+                    ? `/teacher?id=${userId || 'id179017'}`
+                    : userRole === 'admin'
+                    ? '/admin'
+                    : userId
+                    ? `/${userId}`
+                    : '/student'
+                }
+                className="bg-[#C5E87D] hover:bg-[#B6DC67] text-[#161F38] font-black px-4 py-2 sm:px-5 sm:py-2.5 rounded-full text-xs tracking-tight transition-[background-color,transform,box-shadow] duration-140 ease-out-emil shadow-xs flex items-center gap-1.5 active:scale-[0.97] cursor-pointer whitespace-nowrap"
+              >
+                <GraduationCap className="w-3.5 h-3.5 text-[#161F38]" />
+                <span>Личный кабинет</span>
+              </Link>
+            ) : isInsideLk ? (
               // Inside LK: Shows active role pill, logout, and navigation back to main site
               <div className="flex items-center gap-2">
                 <div className="bg-white border border-[#F2DECE] text-[#161F38] font-extrabold px-3.5 py-2 rounded-full text-xs tracking-tight shadow-2xs flex items-center gap-2">

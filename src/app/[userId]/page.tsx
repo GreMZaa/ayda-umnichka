@@ -68,6 +68,21 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
   const [teachers, setTeachers] = useState<TeacherRecord[]>([]);
   const [loadingTeachers, setLoadingTeachers] = useState(true);
 
+  // Active lesson room state (to re-enter after exit)
+  const [activeLessonRoom, setActiveLessonRoom] = useState<{ roomId: string; topic: string } | null>(null);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('aida_active_lesson_room');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.roomId && Date.now() - (parsed.timestamp || 0) < 3 * 3600 * 1000) {
+          setActiveLessonRoom(parsed);
+        }
+      }
+    } catch (_) {}
+  }, []);
+
   const fetchTeachers = async () => {
     try {
       setLoadingTeachers(true);
@@ -453,6 +468,39 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
                 </span>
               )}
             </div>
+
+            {/* Quick Re-Entry to Active Lesson */}
+            {activeLessonRoom && (
+              <div className="p-3 bg-[#EAF7CF] border border-[#CCE8A2] rounded-xl flex items-center justify-between gap-3 animate-in fade-in">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#5C8519] animate-pulse shrink-0" />
+                  <div className="text-xs text-[#161F38] truncate">
+                    <span className="font-extrabold">Урок сейчас активен:</span>{' '}
+                    <span className="text-[#5C8519] font-bold">{activeLessonRoom.topic}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Link
+                    href={`/room/${activeLessonRoom.roomId}?role=student&topic=${encodeURIComponent(activeLessonRoom.topic)}`}
+                    className="inline-flex items-center gap-1 bg-[#5C8519] hover:bg-[#4E7214] text-white font-black text-xs px-3.5 py-1.5 rounded-full shadow-2xs active:scale-95 cursor-pointer"
+                  >
+                    <Video className="w-3.5 h-3.5" />
+                    <span>Вернуться в урок</span>
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      localStorage.removeItem('aida_active_lesson_room');
+                      setActiveLessonRoom(null);
+                    }}
+                    className="text-[#8A95A8] hover:text-[#161F38] text-xs px-1"
+                    title="Скрыть напоминание"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            )}
 
             {lessons.length > 0 ? (
               <div className="bg-white/90 border border-[#F2DECE] rounded-xl p-3.5 space-y-2 shadow-2xs">
