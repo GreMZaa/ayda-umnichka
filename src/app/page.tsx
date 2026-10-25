@@ -3,7 +3,8 @@
 import React, { useRef, useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import BalanceWidget from '@/components/BalanceWidget';
+import FeatureOverviewCard from '@/components/FeatureOverviewCard';
+import TrialLessonForm from '@/components/TrialLessonForm';
 import {
   Video,
   ChevronDown,
@@ -11,6 +12,10 @@ import {
   UserCheck,
   Shield,
   GraduationCap,
+  Sparkles,
+  ArrowRight,
+  CheckCircle2,
+  PhoneCall,
 } from 'lucide-react';
 
 export default function HomePage() {
@@ -19,9 +24,9 @@ export default function HomePage() {
 
   const slides = [
     { id: 'hero', label: 'Главная', number: '01' },
-    { id: 'onboarding', label: 'Знакомство', number: '02' },
+    { id: 'trial-form', label: 'Запись на урок', number: '02' },
     { id: 'progress', label: 'Прогресс', number: '03' },
-    { id: 'portals', label: 'Разделы', number: '04' },
+    { id: 'portals', label: 'Кабинеты', number: '04' },
   ];
 
   const scrollToSlide = (index: number) => {
@@ -42,6 +47,19 @@ export default function HomePage() {
       setActiveSlide(newIndex);
     }
   };
+
+  // Listen to navigation events from Navbar
+  useEffect(() => {
+    const handleNavEvent = (e: CustomEvent) => {
+      const targetIndex = e.detail;
+      if (typeof targetIndex === 'number' && targetIndex >= 0 && targetIndex < slides.length) {
+        scrollToSlide(targetIndex);
+      }
+    };
+
+    window.addEventListener('aida-navigate-slide', handleNavEvent as EventListener);
+    return () => window.removeEventListener('aida-navigate-slide', handleNavEvent as EventListener);
+  }, [slides.length]);
 
   // Keyboard navigation for page-by-page листание
   useEffect(() => {
@@ -120,33 +138,29 @@ export default function HomePage() {
         style={{ scrollSnapType: 'y mandatory' }}
       >
         {/* ═════════════════════════════════════════════════════════════
-            SLIDE 1: HERO — Exact Reproduction of Reference Image 2
+            SLIDE 1: HERO SECTION — Exact Match to Requested Copy & Single Button
             ═════════════════════════════════════════════════════════════ */}
         <section
           id="slide-hero"
           className="snap-start snap-always w-full h-[calc(100vh-5rem)] min-h-[calc(100vh-5rem)] max-h-[calc(100vh-5rem)] flex items-center justify-center p-3 sm:p-5 lg:p-6"
         >
-          {/* Main Card Container with Subtle Warm Glows */}
           <div className="max-w-7xl w-full h-full max-h-[640px] bg-white rounded-[36px] sm:rounded-[44px] p-5 sm:p-8 lg:p-10 border border-[#F2E0CF] shadow-[0_20px_50px_rgba(22,31,56,0.04)] flex flex-col justify-between overflow-hidden relative">
-            {/* Ambient Warm Gradient Glows matching Reference Image 2 */}
+            {/* Ambient Warm Gradient Glows */}
             <div className="absolute top-0 right-0 w-[55%] h-[70%] bg-[radial-gradient(circle_at_75%_25%,_rgba(255,225,205,0.55)_0%,_rgba(255,242,232,0.25)_45%,_transparent_75%)] pointer-events-none" />
             <div className="absolute bottom-0 left-0 w-[45%] h-[55%] bg-[radial-gradient(circle_at_20%_80%,_rgba(255,232,215,0.4)_0%,_transparent_65%)] pointer-events-none" />
 
-            {/* Inner Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 items-center flex-1 my-auto relative z-10">
               
-              {/* ─────────────────────────────────────────────────────────
-                  LEFT COLUMN: Arched Cat + Pill + Balance Card
-                  ───────────────────────────────────────────────────────── */}
+              {/* Left Column: HD Mascot + Pill + Informative Overview Card */}
               <div className="lg:col-span-6 space-y-4 sm:space-y-5">
                 
                 {/* Cat + Pill Row */}
                 <div className="flex items-end gap-3 sm:gap-4">
-                  {/* Arched Organic Cat Mascot Frame */}
+                  {/* Arched Organic Cat Mascot Frame with HD Generated Mascot */}
                   <div className="w-36 h-44 sm:w-44 sm:h-52 lg:w-48 lg:h-56 rounded-[36px] sm:rounded-[40px] overflow-hidden relative shadow-sm border-2 border-white bg-[#FFF6EE] shrink-0">
                     <Image
-                      src="/images/mascot-main.png"
-                      alt="Кот-наставник центра АйДаУмничка"
+                      src="/images/mascot-center-hd.jpg"
+                      alt="Кот-наставник центра АйДаУмничка (Тольятти)"
                       fill
                       className="object-cover"
                       priority
@@ -155,9 +169,9 @@ export default function HomePage() {
 
                   {/* "КАК ПРОХОДИТ УРОК?" Pill Button */}
                   <div className="pb-2 space-y-2">
-                    <Link
-                      href="/room/demo-live-room"
-                      className="inline-flex items-center gap-3 bg-[#FFFDFB] border border-[#161F38] rounded-full pl-5 pr-2 py-2 shadow-xs hover:bg-[#FFF5EC] transition-all group"
+                    <button
+                      onClick={() => scrollToSlide(1)}
+                      className="inline-flex items-center gap-3 bg-[#FFFDFB] border border-[#161F38] rounded-full pl-5 pr-2 py-2 shadow-xs hover:bg-[#FFF5EC] transition-all group cursor-pointer"
                     >
                       <span className="text-[11px] font-black text-[#161F38] uppercase tracking-wider whitespace-nowrap">
                         КАК ПРОХОДИТ УРОК?
@@ -170,7 +184,7 @@ export default function HomePage() {
                           className="object-contain p-1"
                         />
                       </div>
-                    </Link>
+                    </button>
 
                     <div className="text-[11px] text-[#6B758E] pl-2 font-medium hidden sm:block">
                       Прямая P2P видеосвязь • Без сторонних серверов
@@ -178,18 +192,16 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                {/* Horizontal Smart Balance Card Component */}
-                <BalanceWidget balance={6} studentName="Тимофей Смирнов" />
+                {/* Introductory Information Overview Card */}
+                <FeatureOverviewCard />
               </div>
 
-              {/* ─────────────────────────────────────────────────────────
-                  RIGHT COLUMN: Alternating Bold/Light Typography + Bottom Question Capsule
-                  ───────────────────────────────────────────────────────── */}
+              {/* Right Column: Requested Headline & Single CTA Button */}
               <div className="lg:col-span-6 space-y-6 lg:pl-2">
                 
-                {/* Headline with Doodle Arrow */}
+                {/* Requested Headline: Онлайн-уроки с репетитором, где всё понятно и удобно. */}
                 <div className="relative">
-                  {/* Hand-drawn Loop Arrow matching Reference Image 2 */}
+                  {/* Hand-drawn Loop Arrow */}
                   <div className="absolute -top-6 right-2 sm:right-6 text-[#161F38] pointer-events-none select-none">
                     <svg width="90" height="85" viewBox="0 0 110 100" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <path
@@ -208,64 +220,49 @@ export default function HomePage() {
                     </svg>
                   </div>
 
-                  {/* Alternating Bold / Light Geometric Sans-serif Headline */}
                   <div className="text-[#161F38] tracking-tight">
-                    <div className="font-black text-5xl sm:text-6xl lg:text-[76px] leading-[0.98]">
-                      Учите
+                    <div className="font-black text-4xl sm:text-5xl lg:text-[62px] leading-[1.02]">
+                      Онлайн-уроки
                     </div>
-                    <div className="font-normal text-3xl sm:text-4xl lg:text-[50px] leading-[1.05] mt-1 text-[#161F38]/90">
-                      своих дошкольников
+                    <div className="font-normal text-3xl sm:text-4xl lg:text-[46px] leading-[1.06] mt-1 text-[#161F38]/90">
+                      с репетитором,
                     </div>
-                    <div className="font-black text-5xl sm:text-6xl lg:text-[76px] leading-[0.98] mt-1">
-                      чистой речи
+                    <div className="font-black text-4xl sm:text-5xl lg:text-[60px] leading-[1.02] mt-1">
+                      где всё понятно
                     </div>
-                    <div className="font-normal text-3xl sm:text-4xl lg:text-[50px] leading-[1.05] mt-1 text-[#161F38]/90">
-                      и мышлению
+                    <div className="font-normal text-3xl sm:text-4xl lg:text-[46px] leading-[1.06] mt-1 text-[#161F38]/90">
+                      и удобно.
                     </div>
                   </div>
                 </div>
 
-                {/* Bottom Row: Wide Question Capsule + Lime Button */}
-                <div className="flex flex-wrap items-center gap-3 pt-2">
-                  {/* Lime Action Button */}
-                  <Link
-                    href="/room/demo-live-room"
-                    className="bg-[#C5E87D] hover:bg-[#B6DC67] text-[#161F38] font-black text-xs sm:text-sm px-6 py-3.5 rounded-full shadow-xs transition-all flex items-center gap-2 active:scale-95"
-                  >
-                    <Video className="w-4 h-4 text-[#161F38]" />
-                    <span>Начать On-Demand урок</span>
-                  </Link>
+                {/* Subtitle */}
+                <p className="text-xs sm:text-sm text-[#6B758E] max-w-lg leading-relaxed">
+                  Индивидуальные занятия с логопедом и репетиторами для дошкольников и школьников в г. Тольятти. Интерактивная доска, видео без задержек и комфорт для родителей.
+                </p>
 
-                  {/* Wide Capsule Pill with Mascot Cutout (Exact Match to Reference Image 2) */}
-                  <Link
-                    href="/messenger"
-                    className="inline-flex items-center justify-between gap-3 bg-[#FFFDFB] border border-[#161F38] rounded-full pl-5 pr-1.5 py-1.5 shadow-xs hover:bg-[#FFF5EC] transition-all group"
+                {/* Exactly ONE CTA Button: Записаться на бесплатный пробный урок */}
+                <div className="pt-2">
+                  <button
+                    onClick={() => scrollToSlide(1)}
+                    className="w-full sm:w-auto bg-[#C5E87D] hover:bg-[#B6DC67] text-[#161F38] font-black text-sm sm:text-base px-8 py-4 rounded-full shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-3 active:scale-95 group cursor-pointer"
                   >
-                    <span className="text-[10px] sm:text-[11px] font-black text-[#161F38] uppercase tracking-wider leading-tight max-w-[210px]">
-                      ЗАДАЙТЕ ВОПРОС ПЕДАГОГУ, ЕСЛИ ЕСТЬ СОМНЕНИЯ
+                    <span>Записаться на бесплатный пробный урок</span>
+                    <span className="w-7 h-7 rounded-full bg-white flex items-center justify-center text-xs group-hover:translate-x-1 transition-transform shadow-2xs">
+                      ➔
                     </span>
-
-                    {/* Fluffy Mascot Circle */}
-                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full overflow-hidden border border-[#F2DECE] relative shrink-0 shadow-2xs group-hover:scale-105 transition-transform bg-[#FFF6EE]">
-                      <Image
-                        src="/images/mascot-happy.png"
-                        alt="Кот наставник"
-                        fill
-                        className="object-cover"
-                      />
-                    </div>
-                  </Link>
+                  </button>
                 </div>
               </div>
             </div>
 
-            {/* Slide Down Hint Button */}
+            {/* Slide Down Hint */}
             <div className="flex items-center justify-center pt-2 relative z-10">
               <button
                 onClick={() => scrollToSlide(1)}
                 className="flex items-center gap-2 text-[11px] font-bold text-[#6B758E] hover:text-coralAccent transition-colors group cursor-pointer"
               >
-                <span>Листать вниз: знакомство с учеником</span>
+                <span>Листать вниз: форма записи на вводный урок</span>
                 <span className="inline-block animate-bounce text-coralAccent">↓</span>
               </button>
             </div>
@@ -273,7 +270,7 @@ export default function HomePage() {
         </section>
 
         {/* ═════════════════════════════════════════════════════════════
-            SLIDE 2: ONBOARDING & PROFILE (Знакомство)
+            SLIDE 2: TRIAL LESSON FORM (Requested Form Layout)
             ═════════════════════════════════════════════════════════════ */}
         <section
           id="slide-onboarding"
@@ -283,70 +280,25 @@ export default function HomePage() {
             <div className="absolute top-0 right-0 w-[55%] h-[60%] bg-[radial-gradient(circle_at_80%_20%,_rgba(255,225,205,0.45)_0%,_transparent_70%)] pointer-events-none" />
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 items-center flex-1 my-auto relative z-10">
-              {/* Left Column: Title & Student Profile Card */}
-              <div className="lg:col-span-7 space-y-4">
+              {/* Left Column: Form Section */}
+              <div className="lg:col-span-7 space-y-3">
                 <div className="space-y-1">
-                  <span className="text-[10px] font-black text-coralAccent uppercase tracking-widest">
-                    Шаг 01 • Персонализация
+                  <span className="text-[10px] font-black text-coralAccent uppercase tracking-widest bg-[#FFF2E6] px-2.5 py-0.5 rounded-full border border-[#FCDDC7] inline-block">
+                    БЕСПЛАТНЫЙ ПРОБНЫЙ УРОК • 0 ₽
                   </span>
                   <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-[#161F38] tracking-tight leading-snug">
-                    Для начала давайте <br />
-                    <span className="font-normal text-[#161F38]/90">познакомимся с учеником</span>
+                    Запишитесь на вводный онлайн-урок
                   </h2>
+                  <p className="text-xs sm:text-sm text-[#6B758E] leading-relaxed">
+                    Познакомим ребенка с репетитором, определим уровень знаний и составим персональный трек обучения.
+                  </p>
                 </div>
 
-                {/* Profile Card */}
-                <div className="bg-[#FFF8F1] p-4 sm:p-5 rounded-3xl border border-[#F2E2D0] flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3.5">
-                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl overflow-hidden relative border-2 border-white shadow-xs shrink-0 bg-white">
-                      <Image
-                        src="/images/child-avatar.png"
-                        alt="Ученик Тимофей"
-                        fill
-                        className="object-cover"
-                      />
-                    </div>
-                    <div>
-                      <h3 className="font-extrabold text-base text-[#161F38]">Тимофей Смирнов</h3>
-                      <p className="text-xs text-[#6B758E]">Уровень 1 (Дошкольник) • Мама: Елена</p>
-                      <span className="inline-block mt-1 text-[10px] font-bold bg-[#C5E87D] text-[#161F38] px-2.5 py-0.5 rounded-full">
-                        Готов к уроку
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* 3D Puzzle icon */}
-                  <div className="w-12 h-12 relative shrink-0 hidden sm:block">
-                    <Image
-                      src="/images/puzzle-icon.png"
-                      alt="Обучающий пазл"
-                      fill
-                      className="object-contain"
-                    />
-                  </div>
-                </div>
-
-                {/* Pill Field Rows */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="bg-[#FFFDFB] border border-[#F2E2D0] rounded-2xl p-3.5 flex items-center justify-between shadow-2xs">
-                    <span className="text-xs font-bold text-[#161F38]/80">Возраст ребенка:</span>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-black text-[#161F38]">6 лет</span>
-                      <span className="text-sm">😃</span>
-                    </div>
-                  </div>
-
-                  <div className="bg-[#FFFDFB] border border-[#F2E2D0] rounded-2xl p-3.5 flex items-center justify-between shadow-2xs">
-                    <span className="text-xs font-bold text-[#161F38]/80">Город:</span>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-black text-[#161F38]">Тольятти</span>
-                      <span className="text-sm">📍</span>
-                    </div>
-                  </div>
-                </div>
+                {/* The Requested Form */}
+                <TrialLessonForm />
               </div>
 
-              {/* Right Column: Tutor Speech Card & Next Step */}
+              {/* Right Column: Tutor Guidance & Trust Badges */}
               <div className="lg:col-span-5 flex flex-col justify-between space-y-4">
                 <div className="bg-[#FFF8F1] p-4 sm:p-5 rounded-3xl border border-[#F2E2D0] flex items-center gap-4">
                   <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden relative border border-white shadow-xs shrink-0 bg-white">
@@ -358,29 +310,34 @@ export default function HomePage() {
                     />
                   </div>
                   <p className="text-xs text-[#161F38]/90 leading-relaxed">
-                    «Я пушистый куратор центра <strong>«АйДаУмничка»</strong>. Наша цель — поставить звуки и привить любовь к знаниям. Учитесь в радость!»
+                    «На вводном занятии педагог легко найдет контакт с ребенком, определит текущий уровень и покажет, как интересно учиться онлайн!»
                   </p>
                 </div>
 
-                <div className="space-y-3 pt-2 text-center sm:text-left">
-                  <div className="flex items-center justify-center sm:justify-start gap-2">
-                    <svg width="35" height="25" viewBox="0 0 50 40" fill="none">
-                      <path d="M10 5C25 10 35 25 35 35M35 35L25 32M35 35L38 22" stroke="#161F38" strokeWidth="3" strokeLinecap="round" />
-                    </svg>
-                    <h4 className="font-extrabold text-xs sm:text-sm text-[#161F38]">
-                      Все настроено, запускайте сессию!
-                    </h4>
+                <div className="bg-[#FFFBF7] p-4 rounded-3xl border border-[#F2E0CF] space-y-2.5">
+                  <h4 className="text-xs font-black text-[#161F38] uppercase tracking-wider">
+                    Что будет на вводном уроке:
+                  </h4>
+                  <div className="space-y-1.5 text-xs text-[#55607A]">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[#5C8519] shrink-0" />
+                      <span>25 минут в дружелюбной игровой форме</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[#5C8519] shrink-0" />
+                      <span>Индивидуальная диагностика речи и навыков</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[#5C8519] shrink-0" />
+                      <span>Рекомендации логопеда-дефектолога родителям</span>
+                    </div>
                   </div>
+                </div>
 
-                  <div className="flex items-center justify-center sm:justify-start">
-                    <Link
-                      href="/room/demo-live-room"
-                      className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-coralAccent hover:bg-coralAccent-hover text-white font-extrabold text-xs flex flex-col items-center justify-center shadow-md transition-transform hover:scale-105 active:scale-95 text-center p-2"
-                    >
-                      <Video className="w-5 h-5 mb-1" />
-                      <span>Начать урок</span>
-                    </Link>
-                  </div>
+                <div className="text-center sm:text-left pt-1">
+                  <span className="text-[11px] font-bold text-[#8A95A8]">
+                    📍 Центр «АйДаУмничка» • г. Тольятти
+                  </span>
                 </div>
               </div>
             </div>
