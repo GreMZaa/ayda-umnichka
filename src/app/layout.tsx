@@ -6,8 +6,19 @@ import AgentationToolbar from "@/components/AgentationToolbar";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://ayda-umnichka.vercel.app'),
   title: "АйДаУмничка — Детский развивающий центр (Тольятти)",
   description: "Образовательная онлайн-платформа детского центра «АйДаУмничка» в г. Тольятти: P2P видеоуроки, интерактивная доска, чаты и прозрачный учет баланса занятий.",
+  icons: {
+    icon: '/logo.png',
+    shortcut: '/logo.png',
+    apple: '/logo.png',
+  },
+  openGraph: {
+    title: "АйДаУмничка — Детский развивающий центр (Тольятти)",
+    description: "Образовательная онлайн-платформа детского центра «АйДаУмничка» в г. Тольятти",
+    images: ['/images/logo-official.png'],
+  },
 };
 
 export const viewport: Viewport = {

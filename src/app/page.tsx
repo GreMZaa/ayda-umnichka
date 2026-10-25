@@ -159,13 +159,13 @@ export default function HomePage() {
                 
                 {/* Cat + Companion Feature Column (Completely fills the space beside the mascot) */}
                 <div className="flex items-stretch gap-3.5 sm:gap-4">
-                  {/* Arched Organic Cat Mascot Frame with HD Generated Mascot */}
-                  <div className="w-32 h-44 sm:w-44 sm:h-52 lg:w-48 lg:h-56 rounded-[30px] sm:rounded-[40px] overflow-hidden relative shadow-sm border-2 border-white bg-[#FFF6EE] shrink-0">
+                  {/* Official Center Logo Frame */}
+                  <div className="w-32 h-32 sm:w-44 sm:h-44 lg:w-48 lg:h-48 rounded-full overflow-hidden relative shadow-md border-4 border-white bg-white shrink-0 self-center">
                     <Image
-                      src="/images/mascot-center-hd.jpg"
-                      alt="Кот-наставник центра АйДаУмничка (Тольятти)"
+                      src="/images/logo-official.png"
+                      alt="Официальный логотип детского центра АйДаУмничка (Тольятти)"
                       fill
-                      className="object-cover"
+                      className="object-contain p-1"
                       priority
                     />
                   </div>
@@ -347,6 +347,14 @@ export default function HomePage() {
             {/* Enhanced Beautiful Footer with Direct Phone 8 995 485 46 67 (Anchored nicely at the bottom) */}
             <div className="mt-auto pt-4 sm:pt-5 border-t border-[#F2E0CF] flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left relative z-10">
               <div className="flex flex-col sm:flex-row items-center gap-3">
+                <div className="w-8 h-8 rounded-full overflow-hidden relative border border-[#F2DECE] shadow-2xs shrink-0 bg-white hidden sm:block">
+                  <Image
+                    src="/images/logo-official.png"
+                    alt="Логотип АйДаУмничка"
+                    fill
+                    className="object-contain"
+                  />
+                </div>
                 {/* Clickable Phone Number */}
                 <a
                   href="tel:89954854667"
@@ -360,7 +368,7 @@ export default function HomePage() {
 
                 <div>
                   <p className="text-xs font-bold text-[#161F38]">
-                    © 2026 Онлайн-уроки и репетиторы «АйДаУмничка»
+                    © 2026 Центр подготовки к школе и развития детей «АйДаУмничка»
                   </p>
                   <p className="text-[10px] text-[#6B758E]">
                     г. Тольятти • Защищенная P2P видеосвязь • Уроки On-Demand

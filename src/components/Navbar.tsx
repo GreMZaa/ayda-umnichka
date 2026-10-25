@@ -49,11 +49,11 @@ export default function Navbar() {
     <header className="sticky top-0 z-50 bg-[#FFF7EE]/95 backdrop-blur-md border-b border-[#F4E4D3]">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 sm:h-20">
-          {/* Brand Logo with Professional Vector Mark from logo-design */}
+          {/* Brand Logo with Official Center Logo */}
           <Link href="/" className="flex items-center gap-2.5 sm:gap-3 group">
-            <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl overflow-hidden relative shadow-xs border border-white group-hover:scale-105 transition-transform shrink-0">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full overflow-hidden relative shadow-xs border-2 border-white bg-white group-hover:scale-105 transition-transform shrink-0">
               <Image
-                src="/logo.svg"
+                src="/images/logo-official.png"
                 alt="Логотип АйДаУмничка"
                 fill
                 className="object-contain"
@@ -65,7 +65,7 @@ export default function Navbar() {
                 <span className="font-black text-lg sm:text-xl tracking-tight text-[#161F38]">АйДаУмничка</span>
               </div>
               <p className="text-[11px] text-[#6B758E] hidden sm:block font-medium">
-                Онлайн-уроки и репетиторы
+                Центр подготовки к школе и развития детей
               </p>
             </div>
           </Link>

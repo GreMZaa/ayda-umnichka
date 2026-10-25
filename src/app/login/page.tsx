@@ -311,14 +311,14 @@ export default function LoginPage() {
           {/* Right Column: One-Click Demo Access & Mascot */}
           <div className="lg:col-span-5 bg-[#FFF8F1] p-6 sm:p-9 lg:p-10 border-t lg:border-t-0 lg:border-l border-[#F2DECE] flex flex-col justify-between space-y-6">
             
-            {/* Mascot Banner */}
+            {/* Official Logo Banner */}
             <div className="flex items-center gap-3.5 bg-white p-3.5 rounded-3xl border border-[#F2DECE] shadow-2xs">
-              <div className="w-16 h-16 rounded-2xl overflow-hidden relative border border-white shadow-2xs shrink-0">
+              <div className="w-16 h-16 rounded-full overflow-hidden relative border-2 border-white shadow-2xs shrink-0 bg-white">
                 <Image
-                  src="/images/mascot-center-hd.jpg"
-                  alt="Кот АйДаУмничка"
+                  src="/images/logo-official.png"
+                  alt="Логотип АйДаУмничка"
                   fill
-                  className="object-cover"
+                  className="object-contain p-0.5"
                 />
               </div>
               <div className="space-y-0.5 min-w-0">
