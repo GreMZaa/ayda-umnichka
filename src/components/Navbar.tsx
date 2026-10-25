@@ -15,6 +15,12 @@ import {
 } from 'lucide-react';
 import { getLkUrl } from '@/lib/lkUrl';
 
+// Helper to clean technical registration suffixes like (ребёнок: ...) from display name
+const cleanDisplayName = (name: string): string => {
+  if (!name) return '';
+  return name.replace(/\s*\(.*?\)$/, '').trim();
+};
+
 export default function Navbar() {
   const router = useRouter();
   const pathname = usePathname() || '';
@@ -224,17 +230,16 @@ export default function Navbar() {
               </Link>
             ) : isInsideLk ? (
               // Inside LK: Shows active role pill, logout, and navigation back to main site
-              <div className="flex items-center gap-2">
-                <div className="bg-white border border-[#F2DECE] text-[#161F38] font-extrabold px-3.5 py-2 rounded-full text-xs tracking-tight shadow-2xs flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-[#5C8519]" />
-                  <span suppressHydrationWarning>
-                    {userName
-                      ? userName
-                      : isStudent
-                      ? 'Кабинет Ученика'
-                      : isTeacher
-                      ? 'Кабинет Педагога'
-                      : 'Администратор'}
+              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                <div className="bg-white border border-[#F2DECE] text-[#161F38] font-extrabold px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-full text-xs tracking-tight shadow-2xs flex items-center gap-1.5 max-w-[125px] sm:max-w-[200px] shrink truncate whitespace-nowrap">
+                  <span className="w-2 h-2 rounded-full bg-[#5C8519] shrink-0" />
+                  <span className="truncate whitespace-nowrap" suppressHydrationWarning>
+                    {cleanDisplayName(userName) ||
+                      (isStudent
+                        ? 'Кабинет Ученика'
+                        : isTeacher
+                        ? 'Кабинет Педагога'
+                        : 'Администратор')}
                   </span>
                 </div>
 
@@ -242,14 +247,14 @@ export default function Navbar() {
                   type="button"
                   onClick={handleLogout}
                   title="Сменить роль или выйти"
-                  className="text-xs font-bold text-[#8A95A8] hover:text-coralAccent px-2.5 py-1.5 rounded-full hover:bg-white border border-transparent hover:border-[#F2DECE] transition-colors duration-140 cursor-pointer active:scale-95"
+                  className="text-xs font-bold text-[#8A95A8] hover:text-coralAccent px-2 py-1.5 sm:px-2.5 sm:py-1.5 rounded-full hover:bg-white border border-transparent hover:border-[#F2DECE] transition-colors duration-140 cursor-pointer active:scale-95 whitespace-nowrap shrink-0"
                 >
                   Выйти
                 </button>
 
                 <a
                   href="https://ayda-umnichka.vercel.app"
-                  className="hidden sm:inline-flex text-xs font-semibold text-[#8A95A8] hover:text-[#161F38] px-2 py-1 transition-colors duration-140"
+                  className="hidden sm:inline-flex text-xs font-semibold text-[#8A95A8] hover:text-[#161F38] px-2 py-1 transition-colors duration-140 whitespace-nowrap"
                 >
                   На сайт →
                 </a>

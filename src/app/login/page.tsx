@@ -116,8 +116,9 @@ function LoginFormContent() {
 
         // 3. Save local active role and verified auth user ID
         const displayName = `${fullName}${childName ? ` (ребёнок: ${childName})` : ''}`.trim();
+        const cleanName = fullName.trim() || displayName.replace(/\s*\(.*?\)$/, '').trim();
         localStorage.setItem('aida_active_role', selectedRole);
-        localStorage.setItem('aida_full_name', displayName);
+        localStorage.setItem('aida_full_name', cleanName);
         localStorage.setItem('aida_student_balance', selectedRole === 'student' ? '1' : '0');
         document.cookie = `aida_active_role=${selectedRole}; path=/; max-age=2592000; SameSite=Lax`;
         document.cookie = `aida_auth_user_id=${encodeURIComponent(publicId)}; path=/; max-age=2592000; SameSite=Lax`;
@@ -168,7 +169,8 @@ function LoginFormContent() {
               userRole = binding.role;
             }
             if (binding?.full_name) {
-              localStorage.setItem('aida_full_name', binding.full_name);
+              const cleanFullName = binding.full_name.replace(/\s*\(.*?\)$/, '').trim() || binding.full_name;
+              localStorage.setItem('aida_full_name', cleanFullName);
             }
             if (binding?.balance_lessons !== undefined) {
               localStorage.setItem('aida_student_balance', binding.balance_lessons.toString());

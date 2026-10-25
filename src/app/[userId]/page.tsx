@@ -115,8 +115,9 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
       setIsSupabaseSynced(true);
       if (data.binding?.full_name) {
         setStudentName(data.binding.full_name);
+        const cleanName = data.binding.full_name.replace(/\s*\(.*?\)$/, '').trim() || data.binding.full_name;
         try {
-          localStorage.setItem('aida_full_name', data.binding.full_name);
+          localStorage.setItem('aida_full_name', cleanName);
           localStorage.setItem('aida_active_role', 'student');
           localStorage.setItem('aida_auth_user_id', uid);
           window.dispatchEvent(new Event('aida-user-updated'));
