@@ -26,6 +26,14 @@ export default function HomePage() {
   ];
 
   const scrollToSlide = (index: number) => {
+    const targetId = index === 1 ? 'slide-onboarding' : 'slide-hero';
+    const targetElem = document.getElementById(targetId);
+    if (targetElem) {
+      targetElem.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setActiveSlide(index);
+      return;
+    }
+
     if (!containerRef.current) return;
     const slideHeight = containerRef.current.clientHeight;
     containerRef.current.scrollTo({
@@ -74,13 +82,13 @@ export default function HomePage() {
   }, [activeSlide, slides.length]);
 
   return (
-    <div className="relative w-full h-[calc(100vh-5rem)] overflow-hidden bg-[#FFF7EE]">
+    <div className="relative w-full min-h-[calc(100vh-5rem)] md:h-[calc(100vh-5rem)] overflow-visible md:overflow-hidden bg-[#FFF7EE]">
       {/* ─────────────────────────────────────────────────────────────
-          MINIMALIST SLIDE NAVIGATOR (Visible on sm+ screens, hidden on mobile for clean touch space)
+          MINIMALIST SLIDE NAVIGATOR (Visible on desktop md+ screens, hidden on mobile for clean touch space)
           ───────────────────────────────────────────────────────────── */}
       <nav
         aria-label="Навигация по экранам"
-        className="hidden sm:flex fixed right-3 sm:right-6 top-1/2 -translate-y-1/2 z-40 flex-col items-center gap-2 bg-white/70 backdrop-blur-md p-2 rounded-full border border-[#F4E3D2] shadow-sm"
+        className="hidden md:flex fixed right-3 sm:right-6 top-1/2 -translate-y-1/2 z-40 flex-col items-center gap-2 bg-white/70 backdrop-blur-md p-2 rounded-full border border-[#F4E3D2] shadow-sm"
       >
         <button
           onClick={() => activeSlide > 0 && scrollToSlide(activeSlide - 1)}
@@ -125,22 +133,21 @@ export default function HomePage() {
       </nav>
 
       {/* ─────────────────────────────────────────────────────────────
-          SNAP-SCROLL CONTAINER (2 Blocks)
+          CONTENT CONTAINER (Fluid smooth scrolling on mobile, Snap presentation on desktop)
           ───────────────────────────────────────────────────────────── */}
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="w-full h-full overflow-y-auto snap-y snap-mandatory scroll-smooth"
-        style={{ scrollSnapType: 'y mandatory' }}
+        className="w-full h-auto md:h-full overflow-y-visible md:overflow-y-auto md:snap-y md:snap-mandatory scroll-smooth"
       >
         {/* ═════════════════════════════════════════════════════════════
             SLIDE 1: HERO SECTION
             ═════════════════════════════════════════════════════════════ */}
         <section
           id="slide-hero"
-          className="snap-start snap-always w-full min-h-[calc(100dvh-5rem)] lg:h-[calc(100dvh-5rem)] flex items-center justify-center p-3 sm:p-4 lg:p-5"
+          className="w-full min-h-auto md:min-h-[calc(100dvh-5rem)] lg:h-[calc(100dvh-5rem)] md:snap-start md:snap-always flex items-center justify-center p-3 sm:p-4 lg:p-5"
         >
-          <div className="max-w-7xl w-full h-full lg:max-h-[720px] bg-white rounded-[28px] sm:rounded-[36px] lg:rounded-[44px] p-4 sm:p-7 lg:p-9 border border-[#F2E0CF] shadow-[0_20px_50px_rgba(22,31,56,0.04)] flex flex-col justify-between overflow-visible lg:overflow-hidden relative">
+          <div className="max-w-7xl w-full h-auto md:h-full lg:max-h-[720px] bg-white rounded-[28px] sm:rounded-[36px] lg:rounded-[44px] p-4 sm:p-7 lg:p-9 border border-[#F2E0CF] shadow-[0_20px_50px_rgba(22,31,56,0.04)] flex flex-col justify-between overflow-visible lg:overflow-hidden relative">
             {/* Ambient Warm Gradient Glows */}
             <div className="absolute top-0 right-0 w-[55%] h-[70%] bg-[radial-gradient(circle_at_75%_25%,_rgba(255,225,205,0.55)_0%,_rgba(255,242,232,0.25)_45%,_transparent_75%)] pointer-events-none" />
             <div className="absolute bottom-0 left-0 w-[45%] h-[55%] bg-[radial-gradient(circle_at_20%_80%,_rgba(255,232,215,0.4)_0%,_transparent_65%)] pointer-events-none" />
@@ -268,9 +275,9 @@ export default function HomePage() {
             ═════════════════════════════════════════════════════════════ */}
         <section
           id="slide-onboarding"
-          className="snap-start snap-always w-full min-h-[calc(100dvh-5rem)] lg:h-[calc(100dvh-5rem)] flex items-center justify-center p-3 sm:p-4 lg:p-5"
+          className="w-full min-h-auto md:min-h-[calc(100dvh-5rem)] lg:h-[calc(100dvh-5rem)] md:snap-start md:snap-always flex items-center justify-center p-3 sm:p-4 lg:p-5 mt-4 md:mt-0"
         >
-          <div className="max-w-7xl w-full h-full lg:max-h-[720px] bg-white rounded-[28px] sm:rounded-[36px] lg:rounded-[44px] p-4 sm:p-7 lg:p-9 pb-4 sm:pb-6 lg:pb-7 border border-[#F2E0CF] shadow-[0_20px_50px_rgba(22,31,56,0.04)] flex flex-col justify-between overflow-visible lg:overflow-hidden relative">
+          <div className="max-w-7xl w-full h-auto md:h-full lg:max-h-[720px] bg-white rounded-[28px] sm:rounded-[36px] lg:rounded-[44px] p-4 sm:p-7 lg:p-9 pb-4 sm:pb-6 lg:pb-7 border border-[#F2E0CF] shadow-[0_20px_50px_rgba(22,31,56,0.04)] flex flex-col justify-between overflow-visible lg:overflow-hidden relative">
             <div className="absolute top-0 right-0 w-[55%] h-[60%] bg-[radial-gradient(circle_at_80%_20%,_rgba(255,225,205,0.45)_0%,_transparent_70%)] pointer-events-none" />
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 items-center flex-1 my-auto relative z-10">
