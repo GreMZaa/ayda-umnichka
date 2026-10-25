@@ -12,13 +12,20 @@ function AgentationInner() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    // Check if ?agentation=1 or ?agentation=true is strictly in the current URL
-    const urlParams = new URLSearchParams(window.location.search);
+    // Check if ?agentation=1 or ?agentation=true is in the current URL (handling accidental double ? like ?id=123?agentation=1)
+    const rawSearch = window.location.search || '';
+    const rawNormalized = rawSearch.includes('?') ? rawSearch.replace(/\?/g, '&').replace(/^&/, '?') : rawSearch;
+    const urlParams = new URLSearchParams(rawNormalized);
     const paramFromWindow = urlParams.get('agentation');
     const paramFromHook = searchParams ? searchParams.get('agentation') : null;
 
     const val = (paramFromWindow ?? paramFromHook)?.toLowerCase();
-    const isActiveInUrl = val === '1' || val === 'true';
+    const isActiveInUrl =
+      val === '1' ||
+      val === 'true' ||
+      rawSearch.includes('agentation=1') ||
+      rawSearch.includes('agentation=true') ||
+      window.location.href.includes('agentation=1');
 
     if (isActiveInUrl) {
       setActive(true);

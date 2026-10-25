@@ -172,9 +172,22 @@ export default function TeacherDashboard() {
       'id179017';
     setTeacherPublicId(savedUserId);
 
-    // Keep personal ID in URL address bar
-    if (typeof window !== 'undefined' && !window.location.search.includes('id=')) {
-      window.history.replaceState(null, '', `/teacher?id=${savedUserId}`);
+    // Keep personal ID in URL address bar while strictly preserving all other query parameters (e.g. agentation=1)
+    if (typeof window !== 'undefined') {
+      let raw = window.location.search || '';
+      // Fix accidental double question mark like ?id=123?agentation=1
+      if (raw.indexOf('?', 1) !== -1) {
+        raw = '?' + raw.slice(1).replace(/\?/g, '&');
+      }
+      const sp = new URLSearchParams(raw);
+      if (!sp.get('id')) {
+        sp.set('id', savedUserId);
+      }
+      const newQuery = sp.toString();
+      const currentQuery = window.location.search.replace(/^\?/, '');
+      if (newQuery && currentQuery !== newQuery) {
+        window.history.replaceState(null, '', `/teacher?${newQuery}`);
+      }
     }
 
     fetchSupabaseStudents();
