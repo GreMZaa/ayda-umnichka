@@ -226,26 +226,7 @@ export default function HomePage() {
               <div className="lg:col-span-6 space-y-6 lg:pl-2">
                 
                 {/* Requested Headline: Онлайн-уроки с репетитором, где всё понятно и удобно. */}
-                <div className="relative">
-                  {/* Hand-drawn Loop Arrow */}
-                  <div className="absolute -top-6 right-2 sm:right-6 text-[#161F38] pointer-events-none select-none">
-                    <svg width="90" height="85" viewBox="0 0 110 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path
-                        d="M20 80 C 25 35, 60 18, 92 14 M92 14 L 74 13 M92 14 L 88 32"
-                        stroke="#161F38"
-                        strokeWidth="4"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                      <path
-                        d="M25 75 C 10 62, 14 46, 32 49 C 50 52, 47 72, 30 75 C 20 76, 16 64, 28 50"
-                        stroke="#161F38"
-                        strokeWidth="3.2"
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                  </div>
-
+                <div>
                   <div className="text-[#161F38] tracking-tight">
                     <div className="font-black text-4xl sm:text-5xl lg:text-[62px] leading-[1.02]">
                       Онлайн-уроки
