@@ -163,54 +163,41 @@ export default function HomePage() {
                     />
                   </div>
 
-                  {/* Right Companion Panel — Fills the previous empty space with value and interactive pills */}
-                  <div className="flex-1 flex flex-col justify-between py-0.5 min-w-0">
-                    {/* "КАК ПРОХОДИТ УРОК?" Pill Button */}
-                    <div>
-                      <button
-                        onClick={() => scrollToSlide(1)}
-                        className="inline-flex items-center justify-between gap-2.5 bg-[#FFFDFB] border border-[#161F38] rounded-full pl-3.5 sm:pl-4 pr-1.5 py-1.5 shadow-xs hover:bg-[#FFF5EC] transition-all group cursor-pointer w-full sm:w-auto"
-                      >
-                        <span className="text-[10px] sm:text-[11px] font-black text-[#161F38] uppercase tracking-wider whitespace-nowrap">
-                          КАК ПРОХОДИТ УРОК?
-                        </span>
-                        <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-[#EBF7D0] flex items-center justify-center p-1 relative shrink-0 group-hover:scale-105 transition-transform">
-                          <Image
-                            src="/images/puzzle-icon.png"
-                            alt="Пазл"
-                            fill
-                            className="object-contain p-0.5"
-                          />
-                        </div>
-                      </button>
+                  {/* Right Companion Panel — Fills the space with value and interactive pills */}
+                  <div className="flex-1 flex flex-col justify-between py-1 min-w-0">
+                    {/* Header Tag */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-black text-coralAccent uppercase tracking-widest bg-[#FFF2E6] px-2.5 py-0.5 rounded-full border border-[#FCDDC7] inline-block">
+                        ОНЛАЙН-ЦЕНТР • ТОЛЬЯТТИ
+                      </span>
                     </div>
 
                     {/* 3 Interactive Highlight Bullets */}
-                    <div className="space-y-1.5 my-1.5">
-                      <div className="flex items-center gap-2 bg-[#FFF8F1] border border-[#F2DECE] px-2.5 sm:px-3 py-1.5 rounded-xl shadow-2xs">
+                    <div className="space-y-2 my-1">
+                      <div className="flex items-center gap-2 bg-[#FFF8F1] border border-[#F2DECE] px-3 py-2 rounded-xl shadow-2xs">
                         <span className="text-xs shrink-0">🎨</span>
-                        <span className="text-[10px] sm:text-[11px] font-bold text-[#161F38] truncate">
+                        <span className="text-[11px] font-bold text-[#161F38] truncate">
                           Интерактивная доска для рисования
                         </span>
                       </div>
 
-                      <div className="flex items-center gap-2 bg-[#FFF8F1] border border-[#F2DECE] px-2.5 sm:px-3 py-1.5 rounded-xl shadow-2xs">
+                      <div className="flex items-center gap-2 bg-[#FFF8F1] border border-[#F2DECE] px-3 py-2 rounded-xl shadow-2xs">
                         <span className="text-xs shrink-0">⚡</span>
-                        <span className="text-[10px] sm:text-[11px] font-bold text-[#161F38] truncate">
+                        <span className="text-[11px] font-bold text-[#161F38] truncate">
                           Без Zoom и VPN • Запуск в 1 клик
                         </span>
                       </div>
 
-                      <div className="flex items-center gap-2 bg-[#FFF8F1] border border-[#F2DECE] px-2.5 sm:px-3 py-1.5 rounded-xl shadow-2xs">
+                      <div className="flex items-center gap-2 bg-[#FFF8F1] border border-[#F2DECE] px-3 py-2 rounded-xl shadow-2xs">
                         <span className="text-xs shrink-0">🎯</span>
-                        <span className="text-[10px] sm:text-[11px] font-bold text-[#161F38] truncate">
+                        <span className="text-[11px] font-bold text-[#161F38] truncate">
                           Репетитор под характер ребёнка
                         </span>
                       </div>
                     </div>
 
                     {/* Social Proof & Rating Badge */}
-                    <div className="flex items-center gap-2 text-[9px] sm:text-[10px] font-extrabold text-[#161F38] bg-[#FFFBF7] border border-[#EADBCC] px-2.5 sm:px-3 py-1 rounded-full shadow-2xs">
+                    <div className="flex items-center gap-2 text-[10px] font-extrabold text-[#161F38] bg-[#FFFBF7] border border-[#EADBCC] px-3 py-1.5 rounded-full shadow-2xs">
                       <span className="text-amber-500 tracking-tighter">★★★★★</span>
                       <span className="text-[#6B758E] font-medium">•</span>
                       <span className="truncate">200+ учеников в Тольятти</span>
