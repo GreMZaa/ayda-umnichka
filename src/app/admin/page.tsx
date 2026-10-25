@@ -1,22 +1,45 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Shield, Coins, Users, CheckCircle, Calendar } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Shield, Coins, Users, CheckCircle, Calendar, AlertTriangle } from 'lucide-react';
 import { INITIAL_PROFILES, INITIAL_TRANSACTIONS } from '@/lib/store';
 import { BalanceTransaction } from '@/types';
 import { formatDate } from '@/lib/utils';
 
 export default function AdminDashboard() {
+  const router = useRouter();
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
   const [studentBalance, setStudentBalance] = useState<number>(6);
   const [transactions, setTransactions] = useState<BalanceTransaction[]>(INITIAL_TRANSACTIONS);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   useEffect(() => {
+    const role = localStorage.getItem('aida_active_role') || document.cookie.match(/(?:^|; )aida_active_role=([^;]*)/)?.[1];
+    if (role !== 'admin') {
+      setIsAuthorized(false);
+      router.replace('/login?redirect=/admin&error=forbidden');
+      return;
+    }
+    setIsAuthorized(true);
+
     const saved = localStorage.getItem('aida_student_balance');
     if (saved) {
       setStudentBalance(parseInt(saved, 10));
     }
-  }, []);
+  }, [router]);
+
+  if (isAuthorized === false) {
+    return (
+      <div className="min-h-[50vh] flex items-center justify-center p-4">
+        <div className="bg-white rounded-3xl p-6 border border-red-200 text-center max-w-sm space-y-3">
+          <Shield className="w-10 h-10 text-red-500 mx-auto" />
+          <h2 className="text-lg font-black text-ink-900">Доступ ограничен</h2>
+          <p className="text-xs text-ink-500">Требуются права администратора. Перенаправляем на форму авторизации...</p>
+        </div>
+      </div>
+    );
+  }
 
   const adjustBalance = (amount: number, description: string) => {
     const newBalance = studentBalance + amount;

@@ -24,7 +24,7 @@ export default function Footer() {
         <span className="font-bold text-ink-700">Центр «АйДаУмничка»</span>
       </div>
       <p className="font-semibold text-ink-700">© 2026 Детский центр подготовки к школе и развития детей (г. Тольятти)</p>
-      <p className="mt-1 text-ink-400">P2P WebRTC видеосвязь без сторонних шлюзов • Устойчивость к белым спискам РФ • On-Demand уроки</p>
+      <p className="mt-1 text-ink-400">Видеоуроки прямо в браузере без сторонних программ • Индивидуальное развитие речи и интеллекта</p>
     </footer>
   );
 }

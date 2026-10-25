@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   GraduationCap,
   UserCheck,
@@ -23,8 +23,22 @@ import {
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { getClientUserId, bindAuthUserWithSupabase, setClientUserId } from '@/lib/userSession';
 
-export default function LoginPage() {
+// Validate redirect path to prevent Open Redirect (CWE-601)
+function getSafeRedirect(rawRedirect: string | null, fallback: string): string {
+  if (!rawRedirect) return fallback;
+  if (rawRedirect.startsWith('/') && !rawRedirect.startsWith('//') && !rawRedirect.includes('\\')) {
+    return rawRedirect;
+  }
+  return fallback;
+}
+
+function LoginFormContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectParam = searchParams.get('redirect');
+  const cabinetId = searchParams.get('cabinetId');
+  const errorParam = searchParams.get('error');
+
   const [tab, setTab] = useState<'login' | 'register'>('login');
   
   // Form states
@@ -57,7 +71,7 @@ export default function LoginPage() {
           ? emailOrPhone.trim()
           : `${emailOrPhone.replace(/\D/g, '')}@aidaumnichka.ru`;
 
-        const publicId = getClientUserId();
+        const publicId = cabinetId || getClientUserId();
 
         if (isSupabaseConfigured) {
           const { data: signUpData, error } = await supabase.auth.signUp({
@@ -88,14 +102,17 @@ export default function LoginPage() {
           }
         }
 
-        // Save local active role
+        // Save local active role and verified auth user ID
         localStorage.setItem('aida_active_role', 'student');
         localStorage.setItem('aida_student_balance', '1');
-        document.cookie = 'aida_active_role=student; path=/; max-age=2592000';
+        document.cookie = 'aida_active_role=student; path=/; max-age=2592000; SameSite=Lax';
+        document.cookie = `aida_auth_user_id=${encodeURIComponent(publicId)}; path=/; max-age=2592000; SameSite=Lax`;
+        document.cookie = `aida_user_id=${encodeURIComponent(publicId)}; path=/; max-age=2592000; SameSite=Lax`;
 
         setSuccessMessage('Регистрация прошла успешно! ID привязан к вашему аккаунту в Supabase.');
         setTimeout(() => {
-          router.push(`/${publicId}`);
+          const safeDest = getSafeRedirect(redirectParam, `/${publicId}`);
+          router.push(safeDest);
         }, 800);
       } else {
         // Login
@@ -109,7 +126,7 @@ export default function LoginPage() {
           ? emailOrPhone.trim()
           : `${emailOrPhone.replace(/\D/g, '')}@aidaumnichka.ru`;
 
-        let targetId = getClientUserId();
+        let targetId = cabinetId || getClientUserId();
 
         if (isSupabaseConfigured) {
           const { data: signInData, error } = await supabase.auth.signInWithPassword({
@@ -136,13 +153,16 @@ export default function LoginPage() {
           }
         }
 
-        // Save role and redirect to student cabinet
+        // Save role and verified auth cookies
         localStorage.setItem('aida_active_role', 'student');
-        document.cookie = 'aida_active_role=student; path=/; max-age=2592000';
+        document.cookie = 'aida_active_role=student; path=/; max-age=2592000; SameSite=Lax';
+        document.cookie = `aida_auth_user_id=${encodeURIComponent(targetId)}; path=/; max-age=2592000; SameSite=Lax`;
+        document.cookie = `aida_user_id=${encodeURIComponent(targetId)}; path=/; max-age=2592000; SameSite=Lax`;
 
         setSuccessMessage('Вход выполнен! Перенаправляем в личный кабинет...');
         setTimeout(() => {
-          router.push(`/${targetId}`);
+          const safeDest = getSafeRedirect(redirectParam, `/${targetId}`);
+          router.push(safeDest);
         }, 500);
       }
     } catch (err: unknown) {
@@ -154,10 +174,19 @@ export default function LoginPage() {
   };
 
   // Quick 1-click Demo Login
-  const handleDemoLogin = (role: 'student' | 'teacher' | 'admin', path: string) => {
+  const handleDemoLogin = (role: 'student' | 'teacher' | 'admin', defaultPath: string) => {
     localStorage.setItem('aida_active_role', role);
-    document.cookie = `aida_active_role=${role}; path=/; max-age=2592000`;
-    router.push(path);
+    document.cookie = `aida_active_role=${role}; path=/; max-age=2592000; SameSite=Lax`;
+    if (role === 'admin') {
+      document.cookie = `aida_auth_user_id=director; path=/; max-age=2592000; SameSite=Lax`;
+    } else if (role === 'teacher') {
+      document.cookie = `aida_auth_user_id=user-teacher-1; path=/; max-age=2592000; SameSite=Lax`;
+    } else {
+      const cid = getClientUserId();
+      document.cookie = `aida_auth_user_id=${encodeURIComponent(cid)}; path=/; max-age=2592000; SameSite=Lax`;
+    }
+    const safeDest = getSafeRedirect(redirectParam, defaultPath);
+    router.push(safeDest);
   };
 
   return (
@@ -177,7 +206,37 @@ export default function LoginPage() {
                   <span>←</span>
                   <span>На главную сайта</span>
                 </a>
+                <span className="text-[11px] font-black uppercase tracking-wider text-coralAccent bg-[#FFF2E6] px-3 py-1 rounded-full border border-[#FCDDC7]">
+                  Тольятти
+                </span>
+              </div>
 
+              {/* Security Notices if redirected from protected routes */}
+              {cabinetId && (
+                <div className="mb-4 bg-amber-50 border border-amber-200 text-amber-900 p-3.5 rounded-2xl text-xs flex items-start gap-2.5 animate-in fade-in">
+                  <Lock className="w-4 h-4 text-coralAccent shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-black block text-xs">Вход в кабинет &apos;/{cabinetId}&apos;</span>
+                    <span className="text-[#6B758E] text-[11px] leading-tight block mt-0.5">
+                      Для доступа к этому кабинету необходимо выполнить авторизацию через официальный вход.
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {errorParam === 'forbidden' && (
+                <div className="mb-4 bg-red-50 border border-red-200 text-red-900 p-3.5 rounded-2xl text-xs flex items-start gap-2.5 animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-black block text-xs">Доступ ограничен</span>
+                    <span className="text-red-700 text-[11px] leading-tight block mt-0.5">
+                      Для доступа к запрашиваемому разделу требуются специальные права учетной записи.
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 mb-2">
                 <span className="text-[10px] font-black text-coralAccent uppercase tracking-widest bg-[#FFF2E6] px-2.5 py-0.5 rounded-full border border-[#FCDDC7]">
                   ПЛАТФОРМА ОБУЧЕНИЯ
                 </span>
@@ -439,7 +498,7 @@ export default function LoginPage() {
 
             {/* Bottom Note */}
             <div className="bg-white/60 p-3 rounded-2xl border border-[#F4DEC6] text-[10px] text-[#6B758E] leading-relaxed">
-              💡 <strong>Совет:</strong> вы можете войти в одном браузере как Педагог, а в другом (или инкогнито) как Ученик, чтобы протестировать P2P-видеосвязь и онлайн-доску в реальном времени!
+              💡 <strong>Совет:</strong> вы можете войти в одном браузере как Педагог, а в другом (или инкогнито) как Ученик, чтобы протестировать видеосвязь и онлайн-доску в реальном времени!
             </div>
 
           </div>
@@ -447,5 +506,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginFormContent />
+    </Suspense>
   );
 }

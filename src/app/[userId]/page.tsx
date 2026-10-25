@@ -59,6 +59,7 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
   // Pre-registration binding states
   const [isRegistered, setIsRegistered] = useState(false);
   const [isSupabaseSynced, setIsSupabaseSynced] = useState(false);
+  const [isAccessBlocked, setIsAccessBlocked] = useState(false);
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [bindEmail, setBindEmail] = useState('');
   const [bindPassword, setBindPassword] = useState('');
@@ -88,6 +89,22 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
           if (data?.exists && data.binding) {
             setIsSupabaseSynced(true);
             if (data.binding.is_registered) {
+              // Verify ownership: must match authenticated user or admin
+              const activeAuthUser =
+                localStorage.getItem('aida_auth_user_id') ||
+                document.cookie.match(/(?:^|; )aida_auth_user_id=([^;]*)/)?.[1];
+              const activeRole =
+                localStorage.getItem('aida_active_role') ||
+                document.cookie.match(/(?:^|; )aida_active_role=([^;]*)/)?.[1];
+
+              const decodedAuth = activeAuthUser ? decodeURIComponent(activeAuthUser).toLowerCase() : '';
+              const isOwner = decodedAuth === routeUserId.toLowerCase() || activeRole === 'admin';
+
+              if (!isOwner) {
+                // If not authenticated as this user, block access and require login
+                setIsAccessBlocked(true);
+                return;
+              }
               setIsRegistered(true);
             }
             if (data.binding.balance_lessons !== undefined) {
@@ -213,6 +230,38 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
     setRecordingHwId(null);
     alert('Домашнее задание успешно отправлено на проверку преподавателю!');
   };
+
+  if (isAccessBlocked) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-[32px] p-6 sm:p-8 border border-[#F2DECE] shadow-lg text-center space-y-4 animate-in fade-in duration-300">
+          <div className="w-16 h-16 rounded-3xl bg-[#FFF2E6] text-coralAccent flex items-center justify-center mx-auto border border-[#FCDDC7]">
+            <Lock className="w-8 h-8" />
+          </div>
+          <div className="space-y-1.5">
+            <span className="text-[10px] font-black text-coralAccent uppercase tracking-widest bg-[#FFF2E6] px-2.5 py-0.5 rounded-full border border-[#FCDDC7]">
+              Защищенный кабинет
+            </span>
+            <h2 className="text-xl font-black text-[#161F38]">
+              Кабинет /{routeUserId} защищен
+            </h2>
+            <p className="text-xs text-[#6B758E] leading-relaxed">
+              Этот личный кабинет привязан к зарегистрированному аккаунту в центре «АйДаУмничка». Для доступа необходимо войти через официальную форму входа.
+            </p>
+          </div>
+          <div className="pt-2">
+            <Link
+              href={`/login?redirect=/${encodeURIComponent(routeUserId)}&cabinetId=${encodeURIComponent(routeUserId)}`}
+              className="inline-flex items-center justify-center gap-2 w-full bg-coralAccent hover:bg-coralAccent-hover text-white py-3 rounded-full text-xs font-black transition-all shadow-xs cursor-pointer"
+            >
+              <span>Войти через форму входа</span>
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

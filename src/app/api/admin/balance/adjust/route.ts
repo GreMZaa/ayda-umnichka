@@ -1,7 +1,18 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const roleCookie = request.cookies.get('aida_active_role')?.value;
+    const authHeader = request.headers.get('authorization');
+    const isAdmin = roleCookie === 'admin' || (authHeader && authHeader === `Bearer ${process.env.ADMIN_SECRET_KEY || 'admin_secret'}`);
+
+    if (!isAdmin) {
+      return NextResponse.json(
+        { error: 'Доступ запрещен. Требуются права администратора.' },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const { student_id, amount, description } = body;
 

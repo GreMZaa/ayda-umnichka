@@ -71,15 +71,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing publicId' }, { status: 400 });
     }
 
+    const roleCookie = req.cookies.get('aida_active_role')?.value;
+    const authHeader = req.headers.get('authorization');
+    const isAdmin = roleCookie === 'admin' || (authHeader && authHeader === `Bearer ${process.env.ADMIN_SECRET_KEY || 'admin_secret'}`);
+
+    // Privilege escalation & mass assignment prevention:
+    // Only verified admin can assign teacher/admin roles or arbitrary balance
+    const role = isAdmin && body.role ? body.role : 'student';
+    const balance = isAdmin && typeof body.balanceLessons === 'number' ? body.balanceLessons : 0;
+
     const payload = {
       public_id: publicId,
       full_name: body.fullName || 'Гость платформы',
-      role: body.role || 'student',
+      role: role,
       phone: body.phone || null,
       email: body.email || null,
       auth_user_id: body.authUserId || null,
       is_registered: Boolean(body.isRegistered),
-      balance_lessons: body.balanceLessons || 0,
+      balance_lessons: balance,
       metadata: body.metadata || {},
       updated_at: new Date().toISOString(),
     };

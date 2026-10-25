@@ -1,22 +1,45 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import WeekCalendar from '@/components/WeekCalendar';
-import { Video, UserCheck, Plus, BookOpen, Users, CheckCircle2, ShieldCheck, Clock, Sparkles, PhoneCall } from 'lucide-react';
+import { Video, UserCheck, Plus, BookOpen, Users, CheckCircle2, ShieldCheck, Clock, Sparkles, PhoneCall, Shield } from 'lucide-react';
 import { INITIAL_PROFILES } from '@/lib/store';
 
 export default function TeacherDashboard() {
   const router = useRouter();
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
   const teacher = INITIAL_PROFILES[1];
   const [selectedStudent, setSelectedStudent] = useState<string>('Тимофей Смирнов');
   const [lessonTopic, setLessonTopic] = useState<string>('Автоматизация шипящих звуков [Ш], [Ж]');
   const [isCreating, setIsCreating] = useState<boolean>(false);
 
+  useEffect(() => {
+    const role = localStorage.getItem('aida_active_role') || document.cookie.match(/(?:^|; )aida_active_role=([^;]*)/)?.[1];
+    if (role !== 'teacher' && role !== 'admin') {
+      setIsAuthorized(false);
+      router.replace('/login?redirect=/teacher&error=forbidden');
+      return;
+    }
+    setIsAuthorized(true);
+  }, [router]);
+
   // Homework creation state
   const [hwTitle, setHwTitle] = useState('');
   const [hwDesc, setHwDesc] = useState('');
   const [hwSuccess, setHwSuccess] = useState(false);
+
+  if (isAuthorized === false) {
+    return (
+      <div className="min-h-[50vh] flex items-center justify-center p-4">
+        <div className="bg-white rounded-3xl p-6 border border-red-200 text-center max-w-sm space-y-3">
+          <Shield className="w-10 h-10 text-red-500 mx-auto" />
+          <h2 className="text-lg font-black text-ink-900">Доступ ограничен</h2>
+          <p className="text-xs text-ink-500">Кабинет учителя доступен только зарегистрированным педагогам платформы. Перенаправляем на вход...</p>
+        </div>
+      </div>
+    );
+  }
 
   const startOnDemandLesson = (e: React.FormEvent) => {
     e.preventDefault();

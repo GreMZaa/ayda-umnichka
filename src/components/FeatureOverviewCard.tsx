@@ -69,23 +69,23 @@ export default function FeatureOverviewCard() {
           </p>
         </div>
 
-        {/* 3 Quick Bullets */}
-        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 gap-x-2 gap-y-1 pt-1 text-[11px] text-[#161F38] font-bold">
+        {/* 4 Quick Clear Bullets for Parents */}
+        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 gap-x-2 gap-y-1.5 pt-1 text-[11px] text-[#161F38] font-bold">
           <div className="flex items-center gap-1.5 truncate">
-            <CheckCircle2 className="w-3 h-3 text-[#5C8519] shrink-0" />
-            <span>P2P видеосвязь</span>
+            <CheckCircle2 className="w-3.5 h-3.5 text-[#5C8519] shrink-0" />
+            <span>Уроки прямо на сайте (без Zoom)</span>
           </div>
           <div className="flex items-center gap-1.5 truncate">
-            <CheckCircle2 className="w-3 h-3 text-[#5C8519] shrink-0" />
-            <span>Интерактивная доска</span>
+            <CheckCircle2 className="w-3.5 h-3.5 text-[#5C8519] shrink-0" />
+            <span>Интерактивная доска с играми</span>
           </div>
           <div className="flex items-center gap-1.5 truncate">
-            <CheckCircle2 className="w-3 h-3 text-[#5C8519] shrink-0" />
-            <span>Аудио-задания в чате</span>
+            <CheckCircle2 className="w-3.5 h-3.5 text-[#5C8519] shrink-0" />
+            <span>Голосовые ответы логопеду</span>
           </div>
           <div className="flex items-center gap-1.5 truncate">
-            <CheckCircle2 className="w-3 h-3 text-[#5C8519] shrink-0" />
-            <span>Прозрачный абонемент</span>
+            <CheckCircle2 className="w-3.5 h-3.5 text-[#5C8519] shrink-0" />
+            <span>Понятный баланс занятий</span>
           </div>
         </div>
       </div>
