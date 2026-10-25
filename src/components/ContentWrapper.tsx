@@ -6,8 +6,9 @@ import { usePathname } from 'next/navigation';
 export default function ContentWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isHome = pathname === '/';
+  const isLogin = pathname === '/login';
 
-  if (isHome) {
+  if (isHome || isLogin) {
     return (
       <main className="flex-1 w-full overflow-hidden flex flex-col">
         {children}

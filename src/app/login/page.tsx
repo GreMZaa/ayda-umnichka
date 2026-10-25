@@ -203,15 +203,15 @@ function LoginFormContent() {
   };
 
   return (
-    <div className="h-[calc(100dvh-4rem)] sm:h-[calc(100dvh-5rem)] max-h-[calc(100dvh-4rem)] sm:max-h-[calc(100dvh-5rem)] overflow-hidden bg-[#FFF7EE] flex items-center justify-center p-2 sm:p-4 lg:p-6 select-none">
-      <div className="w-full max-w-4xl max-h-full overflow-hidden bg-white rounded-[24px] sm:rounded-[32px] border border-[#F2E0CF] shadow-[0_20px_50px_rgba(22,31,56,0.06)] flex flex-col justify-center">
+    <div className="w-full h-[calc(100dvh-4rem)] sm:h-[calc(100dvh-5rem)] overflow-hidden bg-[#FFF7EE] flex items-center justify-center p-2 sm:p-4 select-none">
+      <div className="w-full max-w-4xl max-h-[calc(100dvh-4.5rem)] sm:max-h-[calc(100dvh-5.5rem)] bg-white rounded-[24px] sm:rounded-[28px] border border-[#F2E0CF] shadow-[0_16px_40px_rgba(22,31,56,0.06)] overflow-y-auto lg:overflow-hidden flex flex-col justify-center">
         <div className="grid grid-cols-1 lg:grid-cols-12 items-stretch">
           
           {/* Left Column: Interactive Supabase Auth Form */}
-          <div className="lg:col-span-7 p-4 sm:p-6 lg:p-7 flex flex-col justify-between">
+          <div className="lg:col-span-7 p-4 sm:p-5 lg:p-6 flex flex-col justify-between">
             <div>
               {/* Back Link & Tag */}
-              <div className="flex items-center justify-between pb-2">
+              <div className="flex items-center justify-between pb-1.5">
                 <a
                   href="https://ayda-umnichka.vercel.app"
                   className="inline-flex items-center gap-1.5 text-xs font-bold text-[#8A95A8] hover:text-coralAccent transition-colors duration-140"
@@ -225,11 +225,11 @@ function LoginFormContent() {
               </div>
 
               {/* Title */}
-              <div className="space-y-0.5 pb-3">
-                <h1 className="text-xl sm:text-2xl font-black text-[#161F38] tracking-tight">
+              <div className="space-y-0.5 pb-2">
+                <h1 className="text-lg sm:text-xl font-black text-[#161F38] tracking-tight">
                   {tab === 'register' ? 'Быстрая регистрация' : 'Вход в личный кабинет'}
                 </h1>
-                <p className="text-[11px] sm:text-xs text-[#6B758E]">
+                <p className="text-[11px] text-[#6B758E]">
                   {tab === 'register'
                     ? `Создание кабинета: ${selectedRole === 'student' ? 'Ученик (+1 урок)' : selectedRole === 'teacher' ? 'Педагог' : 'Администратор'} • Без подтверждения почты`
                     : 'Онлайн-занятия, интерактивная доска, баланс и связь с педагогом'}
@@ -237,7 +237,7 @@ function LoginFormContent() {
               </div>
 
               {/* Tabs: Login vs Register */}
-              <div className="flex bg-[#FFF8F1] p-1 rounded-2xl border border-[#F2DECE] mb-3">
+              <div className="flex bg-[#FFF8F1] p-1 rounded-2xl border border-[#F2DECE] mb-2.5">
                 <button
                   type="button"
                   onClick={() => {
@@ -274,21 +274,21 @@ function LoginFormContent() {
 
               {/* Feedback messages */}
               {errorMessage && (
-                <div className="mb-2.5 p-2.5 bg-red-50 border border-red-200 rounded-2xl text-xs text-red-700 flex items-center gap-2">
+                <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
                   <span className="leading-tight">{errorMessage}</span>
                 </div>
               )}
 
               {successMessage && (
-                <div className="mb-2.5 p-2.5 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-800 flex items-center gap-2">
+                <div className="mb-2 p-2 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
                   <span className="leading-tight">{successMessage}</span>
                 </div>
               )}
 
               {/* Form */}
-              <form onSubmit={handleAuthSubmit} className="space-y-2.5">
+              <form onSubmit={handleAuthSubmit} className="space-y-2">
                 {tab === 'register' && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div className="space-y-0.5">
@@ -363,11 +363,11 @@ function LoginFormContent() {
                 </div>
 
                 {/* Submit Button */}
-                <div className="pt-1">
+                <div className="pt-0.5">
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full bg-coralAccent hover:bg-coralAccent-hover text-white font-black text-xs sm:text-sm py-2.5 rounded-full shadow-xs transition-[background-color,transform,box-shadow] duration-140 ease-out-emil flex items-center justify-center gap-2 active:scale-[0.97] disabled:opacity-50 cursor-pointer"
+                    className="w-full bg-coralAccent hover:bg-coralAccent-hover text-white font-black text-xs sm:text-sm py-2 sm:py-2.5 rounded-full shadow-xs transition-[background-color,transform,box-shadow] duration-140 ease-out-emil flex items-center justify-center gap-2 active:scale-[0.97] disabled:opacity-50 cursor-pointer"
                   >
                     <span>
                       {loading
@@ -382,44 +382,44 @@ function LoginFormContent() {
               </form>
             </div>
 
-            <p className="text-[10px] text-[#8A95A8] text-center pt-2">
+            <p className="text-[10px] text-[#8A95A8] text-center pt-1.5">
               ⚡ Подтверждение почты отключено • Мгновенный доступ через Supabase
             </p>
           </div>
 
           {/* Right Column: Registration Buttons Block */}
-          <div className="lg:col-span-5 bg-[#FFF8F1] p-4 sm:p-6 lg:p-7 border-t lg:border-t-0 lg:border-l border-[#F2DECE] flex flex-col justify-between space-y-4">
+          <div className="lg:col-span-5 bg-[#FFF8F1] p-4 sm:p-5 lg:p-6 border-t lg:border-t-0 lg:border-l border-[#F2DECE] flex flex-col justify-between space-y-3">
             
             {/* Header */}
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-black text-[#5C8519] uppercase tracking-wider bg-[#EAF7CF] px-2 py-0.5 rounded-full border border-[#D5ECA3] flex items-center gap-1">
                   <Zap className="w-3 h-3 text-[#5C8519]" />
                   БЫСТРАЯ РЕГИСТРАЦИЯ
                 </span>
               </div>
-              <h3 className="text-base font-black text-[#161F38] leading-snug">
+              <h3 className="text-sm sm:text-base font-black text-[#161F38] leading-snug">
                 Кнопки регистрации
               </h3>
-              <p className="text-[11px] text-[#6B758E] leading-relaxed">
+              <p className="text-[10px] sm:text-[11px] text-[#6B758E] leading-relaxed">
                 Нажмите нужную кнопку, чтобы зарегистрироваться без подтверждения почты:
               </p>
             </div>
 
             {/* Quick Registration Buttons */}
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {/* Button 1: Student Registration */}
               <button
                 type="button"
                 onClick={() => handleSelectRegistrationRole('student')}
-                className={`w-full group p-3 rounded-2xl border transition-[background-color,border-color,transform] duration-140 ease-out-emil active:scale-[0.98] flex items-center justify-between text-left cursor-pointer shadow-2xs ${
+                className={`w-full group p-2.5 sm:p-3 rounded-2xl border transition-[background-color,border-color,transform] duration-140 ease-out-emil active:scale-[0.98] flex items-center justify-between text-left cursor-pointer shadow-2xs ${
                   tab === 'register' && selectedRole === 'student'
                     ? 'bg-white border-coralAccent ring-2 ring-coralAccent/20'
                     : 'bg-white/80 hover:bg-white border-[#F2DECE] hover:border-coralAccent'
                 }`}
               >
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-[#FFF2E6] text-coralAccent flex items-center justify-center font-bold shrink-0 group-hover:scale-105 transition-transform duration-140">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-[#FFF2E6] text-coralAccent flex items-center justify-center font-bold shrink-0 group-hover:scale-105 transition-transform duration-140">
                     <GraduationCap className="w-4 h-4" />
                   </div>
                   <div>
@@ -441,14 +441,14 @@ function LoginFormContent() {
               <button
                 type="button"
                 onClick={() => handleSelectRegistrationRole('teacher')}
-                className={`w-full group p-3 rounded-2xl border transition-[background-color,border-color,transform] duration-140 ease-out-emil active:scale-[0.98] flex items-center justify-between text-left cursor-pointer shadow-2xs ${
+                className={`w-full group p-2.5 sm:p-3 rounded-2xl border transition-[background-color,border-color,transform] duration-140 ease-out-emil active:scale-[0.98] flex items-center justify-between text-left cursor-pointer shadow-2xs ${
                   tab === 'register' && selectedRole === 'teacher'
                     ? 'bg-white border-[#2B6CB0] ring-2 ring-[#2B6CB0]/20'
                     : 'bg-white/80 hover:bg-white border-[#F2DECE] hover:border-[#2B6CB0]'
                 }`}
               >
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-[#F0F7FF] text-[#2B6CB0] flex items-center justify-center font-bold shrink-0 group-hover:scale-105 transition-transform duration-140">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-[#F0F7FF] text-[#2B6CB0] flex items-center justify-center font-bold shrink-0 group-hover:scale-105 transition-transform duration-140">
                     <UserCheck className="w-4 h-4" />
                   </div>
                   <div>
@@ -467,14 +467,14 @@ function LoginFormContent() {
               <button
                 type="button"
                 onClick={() => handleSelectRegistrationRole('admin')}
-                className={`w-full group p-3 rounded-2xl border transition-[background-color,border-color,transform] duration-140 ease-out-emil active:scale-[0.98] flex items-center justify-between text-left cursor-pointer shadow-2xs ${
+                className={`w-full group p-2.5 sm:p-3 rounded-2xl border transition-[background-color,border-color,transform] duration-140 ease-out-emil active:scale-[0.98] flex items-center justify-between text-left cursor-pointer shadow-2xs ${
                   tab === 'register' && selectedRole === 'admin'
                     ? 'bg-white border-[#6B46C1] ring-2 ring-[#6B46C1]/20'
                     : 'bg-white/80 hover:bg-white border-[#F2DECE] hover:border-[#6B46C1]'
                 }`}
               >
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-[#FAF5FF] text-[#6B46C1] flex items-center justify-center font-bold shrink-0 group-hover:scale-105 transition-transform duration-140">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-[#FAF5FF] text-[#6B46C1] flex items-center justify-center font-bold shrink-0 group-hover:scale-105 transition-transform duration-140">
                     <Shield className="w-4 h-4" />
                   </div>
                   <div>
@@ -491,7 +491,7 @@ function LoginFormContent() {
             </div>
 
             {/* Instant Access Benefits */}
-            <div className="bg-white/70 p-2.5 rounded-2xl border border-[#F2DECE] space-y-1">
+            <div className="bg-white/70 p-2 sm:p-2.5 rounded-2xl border border-[#F2DECE] space-y-1">
               <div className="flex items-center gap-1.5 text-[10px] font-bold text-[#161F38]">
                 <Check className="w-3 h-3 text-[#5C8519]" />
                 <span>Без ссылок на почту: вход сразу после отправки</span>

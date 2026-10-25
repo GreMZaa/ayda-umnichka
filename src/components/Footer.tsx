@@ -7,8 +7,8 @@ import { usePathname } from 'next/navigation';
 export default function Footer() {
   const pathname = usePathname();
 
-  // On homepage ('/'), footer is neatly integrated into the last fullpage slide!
-  if (pathname === '/') return null;
+  // On homepage ('/') and login ('/login'), footer is excluded to guarantee zero-scroll viewport
+  if (pathname === '/' || pathname === '/login') return null;
 
   return (
     <footer className="bg-white/80 border-t border-[#F4E4D3] py-6 text-center text-xs text-ink-500">
