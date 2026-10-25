@@ -21,7 +21,7 @@ import {
   EyeOff
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { getClientUserId, bindAuthUserWithSupabase, setClientUserId } from '@/lib/userSession';
+import { getClientUserId, bindAuthUserWithSupabase, setClientUserId, issueNewUserId } from '@/lib/userSession';
 
 // Validate redirect path to prevent Open Redirect (CWE-601)
 function getSafeRedirect(rawRedirect: string | null, fallback: string): string {
@@ -71,7 +71,8 @@ function LoginFormContent() {
           ? emailOrPhone.trim()
           : `${emailOrPhone.replace(/\D/g, '')}@aidaumnichka.ru`;
 
-        const publicId = cabinetId || getClientUserId();
+        // ID is strictly issued upon registration
+        const publicId = issueNewUserId();
 
         if (isSupabaseConfigured) {
           const { data: signUpData, error } = await supabase.auth.signUp({
@@ -109,11 +110,11 @@ function LoginFormContent() {
         document.cookie = `aida_auth_user_id=${encodeURIComponent(publicId)}; path=/; max-age=2592000; SameSite=Lax`;
         document.cookie = `aida_user_id=${encodeURIComponent(publicId)}; path=/; max-age=2592000; SameSite=Lax`;
 
-        setSuccessMessage('Регистрация прошла успешно! ID привязан к вашему аккаунту в Supabase.');
+        setSuccessMessage(`Регистрация прошла успешно! Вам присвоен уникальный ID: ${publicId}. Перенаправляем в личный кабинет...`);
         setTimeout(() => {
           const safeDest = getSafeRedirect(redirectParam, `/${publicId}`);
           router.push(safeDest);
-        }, 800);
+        }, 900);
       } else {
         // Login
         if (!emailOrPhone || !password) {
@@ -126,7 +127,7 @@ function LoginFormContent() {
           ? emailOrPhone.trim()
           : `${emailOrPhone.replace(/\D/g, '')}@aidaumnichka.ru`;
 
-        let targetId = cabinetId || getClientUserId();
+        let targetId = cabinetId || getClientUserId() || issueNewUserId();
 
         if (isSupabaseConfigured) {
           const { data: signInData, error } = await supabase.auth.signInWithPassword({
@@ -182,8 +183,9 @@ function LoginFormContent() {
     } else if (role === 'teacher') {
       document.cookie = `aida_auth_user_id=user-teacher-1; path=/; max-age=2592000; SameSite=Lax`;
     } else {
-      const cid = getClientUserId();
+      const cid = getClientUserId() || 'id700101';
       document.cookie = `aida_auth_user_id=${encodeURIComponent(cid)}; path=/; max-age=2592000; SameSite=Lax`;
+      document.cookie = `aida_user_id=${encodeURIComponent(cid)}; path=/; max-age=2592000; SameSite=Lax`;
     }
     const safeDest = getSafeRedirect(redirectParam, defaultPath);
     router.push(safeDest);
@@ -218,7 +220,7 @@ function LoginFormContent() {
                   <div>
                     <span className="font-black block text-xs">Вход в кабинет &apos;/{cabinetId}&apos;</span>
                     <span className="text-[#6B758E] text-[11px] leading-tight block mt-0.5">
-                      Для доступа к этому кабинету необходимо выполнить авторизацию через официальный вход.
+                      Для доступа к этому кабинету необходимо выполнить вход.
                     </span>
                   </div>
                 </div>
@@ -379,13 +381,20 @@ function LoginFormContent() {
                 </div>
 
                 {/* Submit Button */}
+                {tab === 'register' && (
+                  <div className="bg-[#FFF8F1] border border-[#F2DECE] p-3 rounded-2xl flex items-center gap-2.5 text-xs text-[#6B758E]">
+                    <Sparkles className="w-4 h-4 text-coralAccent shrink-0" />
+                    <span>Персональный ID кабинета (например, id123456) выдается сразу после завершения регистрации.</span>
+                  </div>
+                )}
+
                 <div className="pt-2">
                   <button
                     type="submit"
                     disabled={loading}
                     className="w-full bg-coralAccent hover:bg-coralAccent-hover text-white font-black text-xs sm:text-sm py-3 rounded-full shadow-xs transition-all flex items-center justify-center gap-2 active:scale-98 disabled:opacity-50 cursor-pointer"
                   >
-                    <span>{loading ? 'Секунду...' : tab === 'register' ? 'Создать кабинет' : 'Войти в кабинет'}</span>
+                    <span>{loading ? 'Секунду...' : tab === 'register' ? 'Зарегистрироваться и получить ID' : 'Войти в кабинет'}</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>

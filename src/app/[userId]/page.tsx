@@ -103,6 +103,7 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
               if (!isOwner) {
                 // If not authenticated as this user, block access and require login
                 setIsAccessBlocked(true);
+                router.replace(`/login?redirect=/${encodeURIComponent(routeUserId)}&cabinetId=${encodeURIComponent(routeUserId)}&auth_required=1`);
                 return;
               }
               setIsRegistered(true);

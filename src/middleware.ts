@@ -1,11 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-function generateRandomId(): string {
-  const num = Math.floor(100000 + Math.random() * 900000);
-  return `id${num}`;
-}
-
 // System paths that have dedicated page handlers or are public assets
 const SYSTEM_ROUTES = new Set([
   'admin',
@@ -22,8 +17,6 @@ const SYSTEM_ROUTES = new Set([
   'sitemap.xml',
 ]);
 
-const PUBLIC_ROOT_PATHS = new Set(['', '/', '/login', '/favicon.ico', '/icon.png', '/logo.svg']);
-
 export function middleware(request: NextRequest) {
   const host = request.headers.get('host') || '';
   const { pathname, search } = request.nextUrl;
@@ -31,33 +24,18 @@ export function middleware(request: NextRequest) {
   // Check if request is coming to the LK subdomain (e.g. lk-ayda-umnichka.vercel.app or lk.example.ru)
   const isLkSubdomain = host.startsWith('lk-') || host.startsWith('lk.');
 
-  // Current session cookies
-  let cookieUserId = request.cookies.get('aida_user_id')?.value;
+  // Current session cookies (Only present IF user has already registered/logged in!)
+  const cookieUserId = request.cookies.get('aida_user_id')?.value;
   const activeRole = request.cookies.get('aida_active_role')?.value;
   const authUserId = request.cookies.get('aida_auth_user_id')?.value;
-  let shouldSetCookie = false;
 
-  if (!cookieUserId) {
-    cookieUserId = generateRandomId();
-    shouldSetCookie = true;
-  }
-
-  const applySecurityAndCookies = (res: NextResponse) => {
-    // 1. User session cookie
-    if (shouldSetCookie) {
-      res.cookies.set('aida_user_id', cookieUserId, {
-        path: '/',
-        maxAge: 31536000,
-        sameSite: 'lax',
-      });
-    }
-
-    // 2. Delete any legacy agentation cookie
+  const applySecurityHeaders = (res: NextResponse) => {
+    // 1. Delete any legacy agentation cookie
     if (request.cookies.has('agentation')) {
       res.cookies.delete('agentation');
     }
 
-    // 3. Security Headers (Defense-in-depth: CWE-693)
+    // 2. Security Headers (Defense-in-depth: CWE-693)
     res.headers.set('X-Content-Type-Options', 'nosniff');
     res.headers.set('X-Frame-Options', 'DENY');
     res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
@@ -70,17 +48,27 @@ export function middleware(request: NextRequest) {
   // 1. ROOT PATH HANDLING
   // ─────────────────────────────────────────────────────────
   if (pathname === '/') {
-    // On LK subdomain, forward to user's personal ID
+    // On LK subdomain:
+    // If authenticated student, forward to their assigned personal ID
+    // If NOT authenticated, forward to /login (ID is only issued after registration!)
     if (isLkSubdomain) {
       const targetId = authUserId || cookieUserId;
-      const url = request.nextUrl.clone();
-      url.pathname = `/${targetId}`;
-      const response = NextResponse.redirect(url);
-      return applySecurityAndCookies(response);
+      if (targetId && activeRole) {
+        const url = request.nextUrl.clone();
+        url.pathname = `/${targetId}`;
+        const response = NextResponse.redirect(url);
+        return applySecurityHeaders(response);
+      }
+
+      // Guest / unregistered: send to official login/registration page
+      const loginUrl = new URL('/login', request.url);
+      const response = NextResponse.redirect(loginUrl);
+      return applySecurityHeaders(response);
     }
+
     // On main domain root, allow public landing
     const response = NextResponse.next();
-    return applySecurityAndCookies(response);
+    return applySecurityHeaders(response);
   }
 
   // ─────────────────────────────────────────────────────────
@@ -94,7 +82,7 @@ export function middleware(request: NextRequest) {
       loginUrl.searchParams.set('redirect', pathname);
       loginUrl.searchParams.set('error', 'forbidden');
       const response = NextResponse.redirect(loginUrl);
-      return applySecurityAndCookies(response);
+      return applySecurityHeaders(response);
     }
   }
 
@@ -105,17 +93,24 @@ export function middleware(request: NextRequest) {
       loginUrl.searchParams.set('redirect', pathname);
       loginUrl.searchParams.set('error', 'forbidden');
       const response = NextResponse.redirect(loginUrl);
-      return applySecurityAndCookies(response);
+      return applySecurityHeaders(response);
     }
   }
 
   // Generic /student: redirect to user's personal ID or require login
   if (pathname === '/student') {
     const targetId = authUserId || cookieUserId;
-    const url = request.nextUrl.clone();
-    url.pathname = `/${targetId}`;
-    const response = NextResponse.redirect(url);
-    return applySecurityAndCookies(response);
+    if (targetId && activeRole) {
+      const url = request.nextUrl.clone();
+      url.pathname = `/${targetId}`;
+      const response = NextResponse.redirect(url);
+      return applySecurityHeaders(response);
+    }
+
+    const loginUrl = new URL('/login', request.url);
+    loginUrl.searchParams.set('redirect', '/student');
+    const response = NextResponse.redirect(loginUrl);
+    return applySecurityHeaders(response);
   }
 
   // Messenger and Video Rooms: require authenticated role
@@ -125,37 +120,38 @@ export function middleware(request: NextRequest) {
       loginUrl.searchParams.set('redirect', pathname + search);
       loginUrl.searchParams.set('error', 'auth_required');
       const response = NextResponse.redirect(loginUrl);
-      return applySecurityAndCookies(response);
+      return applySecurityHeaders(response);
     }
   }
 
   // ─────────────────────────────────────────────────────────
   // 3. CABINET ID PROTECTION (IDOR / BOLA GUARD: CWE-639)
+  // "id должен выдаваться после регистрации"
   // "если в строке ввел id кабинета то в него можно было войти только через наш вход в лк"
   // ─────────────────────────────────────────────────────────
   const pathParts = pathname.split('/').filter(Boolean);
   if (pathParts.length === 1 && !SYSTEM_ROUTES.has(pathParts[0].toLowerCase())) {
     const requestedId = pathParts[0].toLowerCase();
     const isOwner =
-      cookieUserId?.toLowerCase() === requestedId ||
-      authUserId?.toLowerCase() === requestedId ||
-      activeRole === 'admin';
+      Boolean(activeRole) &&
+      (cookieUserId?.toLowerCase() === requestedId ||
+       authUserId?.toLowerCase() === requestedId ||
+       activeRole === 'admin');
 
-    // If caller does not own this cookie ID and is not authenticated as this user:
-    // They are entering another cabinet's ID directly in the browser address bar!
-    // Require logging in through our official login page!
+    // If caller does not own this cabinet ID or is not authenticated:
+    // Require logging in or registering through our official login page!
     if (!isOwner) {
       const loginUrl = new URL('/login', request.url);
       loginUrl.searchParams.set('redirect', `/${requestedId}`);
       loginUrl.searchParams.set('cabinetId', requestedId);
       loginUrl.searchParams.set('auth_required', '1');
       const response = NextResponse.redirect(loginUrl);
-      return applySecurityAndCookies(response);
+      return applySecurityHeaders(response);
     }
   }
 
   const response = NextResponse.next();
-  return applySecurityAndCookies(response);
+  return applySecurityHeaders(response);
 }
 
 export const config = {
