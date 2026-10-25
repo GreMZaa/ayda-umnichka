@@ -147,13 +147,13 @@ export default function HomePage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 items-center flex-1 my-auto relative z-10">
               
-              {/* Left Column: HD Mascot + Pill + Informative Overview Card */}
+              {/* Left Column: HD Mascot + Companion Feature Column + Informative Overview Card */}
               <div className="lg:col-span-6 space-y-4 sm:space-y-5">
                 
-                {/* Cat + Pill Row */}
-                <div className="flex items-end gap-3 sm:gap-4">
+                {/* Cat + Companion Feature Column (Completely fills the space beside the mascot) */}
+                <div className="flex items-stretch gap-3.5 sm:gap-4">
                   {/* Arched Organic Cat Mascot Frame with HD Generated Mascot */}
-                  <div className="w-36 h-44 sm:w-44 sm:h-52 lg:w-48 lg:h-56 rounded-[36px] sm:rounded-[40px] overflow-hidden relative shadow-sm border-2 border-white bg-[#FFF6EE] shrink-0">
+                  <div className="w-36 h-48 sm:w-44 sm:h-52 lg:w-48 lg:h-56 rounded-[36px] sm:rounded-[40px] overflow-hidden relative shadow-sm border-2 border-white bg-[#FFF6EE] shrink-0">
                     <Image
                       src="/images/mascot-center-hd.jpg"
                       alt="Кот-наставник центра АйДаУмничка (Тольятти)"
@@ -163,27 +163,57 @@ export default function HomePage() {
                     />
                   </div>
 
-                  {/* "КАК ПРОХОДИТ УРОК?" Pill Button */}
-                  <div className="pb-2 space-y-2">
-                    <button
-                      onClick={() => scrollToSlide(1)}
-                      className="inline-flex items-center gap-3 bg-[#FFFDFB] border border-[#161F38] rounded-full pl-5 pr-2 py-2 shadow-xs hover:bg-[#FFF5EC] transition-all group cursor-pointer"
-                    >
-                      <span className="text-[11px] font-black text-[#161F38] uppercase tracking-wider whitespace-nowrap">
-                        КАК ПРОХОДИТ УРОК?
-                      </span>
-                      <div className="w-8 h-8 rounded-full bg-[#EBF7D0] flex items-center justify-center p-1 relative shrink-0 group-hover:scale-105 transition-transform">
-                        <Image
-                          src="/images/puzzle-icon.png"
-                          alt="Пазл"
-                          fill
-                          className="object-contain p-1"
-                        />
-                      </div>
-                    </button>
+                  {/* Right Companion Panel — Fills the previous empty space with value and interactive pills */}
+                  <div className="flex-1 flex flex-col justify-between py-0.5 min-w-0">
+                    {/* "КАК ПРОХОДИТ УРОК?" Pill Button */}
+                    <div>
+                      <button
+                        onClick={() => scrollToSlide(1)}
+                        className="inline-flex items-center justify-between gap-2.5 bg-[#FFFDFB] border border-[#161F38] rounded-full pl-4 pr-1.5 py-1.5 shadow-xs hover:bg-[#FFF5EC] transition-all group cursor-pointer w-full sm:w-auto"
+                      >
+                        <span className="text-[10px] sm:text-[11px] font-black text-[#161F38] uppercase tracking-wider whitespace-nowrap">
+                          КАК ПРОХОДИТ УРОК?
+                        </span>
+                        <div className="w-7 h-7 rounded-full bg-[#EBF7D0] flex items-center justify-center p-1 relative shrink-0 group-hover:scale-105 transition-transform">
+                          <Image
+                            src="/images/puzzle-icon.png"
+                            alt="Пазл"
+                            fill
+                            className="object-contain p-0.5"
+                          />
+                        </div>
+                      </button>
+                    </div>
 
-                    <div className="text-[11px] text-[#6B758E] pl-2 font-medium hidden sm:block">
-                      Прямая P2P видеосвязь • Без сторонних серверов
+                    {/* 3 Interactive Highlight Bullets */}
+                    <div className="space-y-1.5 my-1.5">
+                      <div className="flex items-center gap-2 bg-[#FFF8F1] border border-[#F2DECE] px-3 py-1.5 rounded-xl shadow-2xs">
+                        <span className="text-xs shrink-0">🎨</span>
+                        <span className="text-[11px] font-bold text-[#161F38] truncate">
+                          Интерактивная доска для рисования
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 bg-[#FFF8F1] border border-[#F2DECE] px-3 py-1.5 rounded-xl shadow-2xs">
+                        <span className="text-xs shrink-0">⚡</span>
+                        <span className="text-[11px] font-bold text-[#161F38] truncate">
+                          Без Zoom и VPN • Запуск в 1 клик
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 bg-[#FFF8F1] border border-[#F2DECE] px-3 py-1.5 rounded-xl shadow-2xs">
+                        <span className="text-xs shrink-0">🎯</span>
+                        <span className="text-[11px] font-bold text-[#161F38] truncate">
+                          Репетитор под характер ребёнка
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Social Proof & Rating Badge */}
+                    <div className="flex items-center gap-2 text-[10px] font-extrabold text-[#161F38] bg-[#FFFBF7] border border-[#EADBCC] px-3 py-1 rounded-full shadow-2xs">
+                      <span className="text-amber-500 tracking-tighter">★★★★★</span>
+                      <span className="text-[#6B758E] font-medium">•</span>
+                      <span className="truncate">200+ учеников в Тольятти</span>
                     </div>
                   </div>
                 </div>
