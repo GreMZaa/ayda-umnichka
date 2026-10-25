@@ -268,9 +268,9 @@ export default function HomePage() {
             ═════════════════════════════════════════════════════════════ */}
         <section
           id="slide-onboarding"
-          className="snap-start snap-always w-full min-h-[calc(100dvh-5rem)] lg:h-[calc(100dvh-5rem)] flex items-center justify-center p-3 sm:p-5 lg:p-6"
+          className="snap-start snap-always w-full min-h-[calc(100dvh-5rem)] lg:h-[calc(100dvh-5rem)] flex items-center justify-center p-3 sm:p-5 lg:p-6 pb-6 sm:pb-8 lg:pb-10"
         >
-          <div className="max-w-7xl w-full min-h-full lg:max-h-[640px] bg-white rounded-[28px] sm:rounded-[36px] lg:rounded-[44px] p-4 sm:p-7 lg:p-10 border border-[#F2E0CF] shadow-[0_20px_50px_rgba(22,31,56,0.04)] flex flex-col justify-between overflow-visible lg:overflow-hidden relative">
+          <div className="max-w-7xl w-full min-h-full lg:max-h-[650px] bg-white rounded-[28px] sm:rounded-[36px] lg:rounded-[44px] p-4 sm:p-7 lg:p-10 pb-5 sm:pb-7 lg:pb-8 border border-[#F2E0CF] shadow-[0_20px_50px_rgba(22,31,56,0.04)] flex flex-col justify-between overflow-visible lg:overflow-hidden relative">
             <div className="absolute top-0 right-0 w-[55%] h-[60%] bg-[radial-gradient(circle_at_80%_20%,_rgba(255,225,205,0.45)_0%,_transparent_70%)] pointer-events-none" />
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 items-center flex-1 my-auto relative z-10">
@@ -338,7 +338,7 @@ export default function HomePage() {
             </div>
 
             {/* Enhanced Beautiful Footer with Direct Phone 8 995 485 46 67 */}
-            <div className="mt-4 pt-4 border-t border-[#F2E0CF] flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left relative z-10">
+            <div className="mt-5 sm:mt-6 pt-4 pb-2 sm:pb-3 border-t border-[#F2E0CF] flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left relative z-10">
               <div className="flex flex-col sm:flex-row items-center gap-3">
                 {/* Clickable Phone Number */}
                 <a
