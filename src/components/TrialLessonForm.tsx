@@ -72,9 +72,9 @@ export default function TrialLessonForm() {
   }
 
   return (
-    <div className="bg-white rounded-3xl p-5 sm:p-7 border border-[#F2E0CF] shadow-xs max-w-xl mx-auto w-full">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+    <div className="bg-white rounded-3xl p-4 sm:p-5 lg:p-6 border border-[#F2E0CF] shadow-xs max-w-xl mx-auto w-full">
+      <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-3.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {/* Parent Name */}
           <div className="space-y-1">
             <label className="text-xs font-extrabold text-[#161F38] block">
@@ -86,7 +86,7 @@ export default function TrialLessonForm() {
               value={parentName}
               onChange={(e) => setParentName(e.target.value)}
               placeholder="Например: Елена"
-              className="w-full bg-[#FFFBF7] border border-[#F2E0CF] rounded-2xl px-4 py-3 sm:py-2.5 text-base sm:text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent focus:ring-1 focus:ring-coralAccent"
+              className="w-full bg-[#FFFBF7] border border-[#F2E0CF] rounded-2xl px-3.5 py-2.5 sm:py-2 text-base sm:text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent focus:ring-1 focus:ring-coralAccent"
             />
           </div>
 
@@ -101,7 +101,7 @@ export default function TrialLessonForm() {
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="+7 (999) 000-00-00"
-              className="w-full bg-[#FFFBF7] border border-[#F2E0CF] rounded-2xl px-4 py-3 sm:py-2.5 text-base sm:text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent focus:ring-1 focus:ring-coralAccent font-mono"
+              className="w-full bg-[#FFFBF7] border border-[#F2E0CF] rounded-2xl px-3.5 py-2.5 sm:py-2 text-base sm:text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent focus:ring-1 focus:ring-coralAccent font-mono"
             />
           </div>
         </div>
@@ -117,7 +117,7 @@ export default function TrialLessonForm() {
             value={childName}
             onChange={(e) => setChildName(e.target.value)}
             placeholder="Например: Артём"
-            className="w-full bg-[#FFFBF7] border border-[#F2E0CF] rounded-2xl px-4 py-3 sm:py-2.5 text-base sm:text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent focus:ring-1 focus:ring-coralAccent"
+            className="w-full bg-[#FFFBF7] border border-[#F2E0CF] rounded-2xl px-3.5 py-2.5 sm:py-2 text-base sm:text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent focus:ring-1 focus:ring-coralAccent"
           />
         </div>
 
@@ -145,10 +145,10 @@ export default function TrialLessonForm() {
         </div>
 
         {/* Submit Button */}
-        <div className="pt-2">
+        <div className="pt-1.5">
           <button
             type="submit"
-            className="w-full bg-coralAccent hover:bg-coralAccent-hover text-white font-black text-xs sm:text-sm py-3.5 rounded-full shadow-sm transition-all flex items-center justify-center gap-2 active:scale-98 cursor-pointer"
+            className="w-full bg-coralAccent hover:bg-coralAccent-hover text-white font-black text-xs sm:text-sm py-3 rounded-full shadow-sm transition-all flex items-center justify-center gap-2 active:scale-98 cursor-pointer"
           >
             <span>Записаться на бесплатный урок</span>
             <Send className="w-4 h-4" />
@@ -156,7 +156,7 @@ export default function TrialLessonForm() {
         </div>
 
         {/* Trust Note */}
-        <div className="flex items-center justify-center gap-4 text-[10px] text-[#7C889E] font-medium pt-1">
+        <div className="flex items-center justify-center gap-4 text-[10px] text-[#7C889E] font-medium pt-0.5">
           <span className="flex items-center gap-1">
             <Clock className="w-3 h-3 text-[#5C8519]" />
             Длительность 25 минут

@@ -268,9 +268,9 @@ export default function HomePage() {
             ═════════════════════════════════════════════════════════════ */}
         <section
           id="slide-onboarding"
-          className="snap-start snap-always w-full min-h-[calc(100dvh-5rem)] lg:h-[calc(100dvh-5rem)] flex items-center justify-center p-3 sm:p-5 lg:p-6 pb-6 sm:pb-8 lg:pb-10"
+          className="snap-start snap-always w-full min-h-[calc(100dvh-5rem)] lg:h-[calc(100dvh-5rem)] flex items-center justify-center p-3 sm:p-5 lg:p-6 pb-8 sm:pb-12 lg:pb-14"
         >
-          <div className="max-w-7xl w-full min-h-full lg:max-h-[650px] bg-white rounded-[28px] sm:rounded-[36px] lg:rounded-[44px] p-4 sm:p-7 lg:p-10 pb-5 sm:pb-7 lg:pb-8 border border-[#F2E0CF] shadow-[0_20px_50px_rgba(22,31,56,0.04)] flex flex-col justify-between overflow-visible lg:overflow-hidden relative">
+          <div className="max-w-7xl w-full lg:max-h-[660px] bg-white rounded-[28px] sm:rounded-[36px] lg:rounded-[44px] p-4 sm:p-7 lg:p-10 pb-6 sm:pb-9 lg:pb-10 border border-[#F2E0CF] shadow-[0_20px_50px_rgba(22,31,56,0.04)] flex flex-col justify-between overflow-visible lg:overflow-hidden relative">
             <div className="absolute top-0 right-0 w-[55%] h-[60%] bg-[radial-gradient(circle_at_80%_20%,_rgba(255,225,205,0.45)_0%,_transparent_70%)] pointer-events-none" />
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 items-center flex-1 my-auto relative z-10">
@@ -293,10 +293,10 @@ export default function HomePage() {
               </div>
 
               {/* Right Column: Tutor Guidance & Trust Badges */}
-              <div className="lg:col-span-5 flex flex-col justify-between space-y-4">
-                <div className="bg-[#FFF8F1] p-4 sm:p-5 rounded-3xl border border-[#F2E2D0] flex items-center gap-4">
+              <div className="lg:col-span-5 flex flex-col justify-between space-y-3 sm:space-y-4">
+                <div className="bg-[#FFF8F1] p-3.5 sm:p-5 rounded-3xl border border-[#F2E2D0] flex items-center gap-3.5 sm:gap-4">
                   {/* HD Generated Tutor Image matching diagnostic/fun learning theme */}
-                  <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden relative border-2 border-white shadow-sm shrink-0 bg-white">
+                  <div className="w-16 h-16 sm:w-22 sm:h-22 rounded-2xl overflow-hidden relative border-2 border-white shadow-sm shrink-0 bg-white">
                     <Image
                       src="/images/tutor-intro-hd.jpg"
                       alt="Кот-педагог центра АйДаУмничка"
@@ -309,7 +309,7 @@ export default function HomePage() {
                   </p>
                 </div>
 
-                <div className="bg-[#FFFBF7] p-4 rounded-3xl border border-[#F2E0CF] space-y-2.5">
+                <div className="bg-[#FFFBF7] p-3.5 sm:p-4 rounded-3xl border border-[#F2E0CF] space-y-2">
                   <h4 className="text-xs font-black text-[#161F38] uppercase tracking-wider">
                     Что будет на вводном уроке:
                   </h4>
@@ -329,7 +329,7 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                <div className="text-center sm:text-left pt-1">
+                <div className="text-center sm:text-left pt-0.5">
                   <span className="text-[11px] font-bold text-[#8A95A8]">
                     📍 Центр «АйДаУмничка» • г. Тольятти
                   </span>
@@ -338,7 +338,7 @@ export default function HomePage() {
             </div>
 
             {/* Enhanced Beautiful Footer with Direct Phone 8 995 485 46 67 */}
-            <div className="mt-5 sm:mt-6 pt-4 pb-2 sm:pb-3 border-t border-[#F2E0CF] flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left relative z-10">
+            <div className="mt-4 sm:mt-5 pt-3.5 sm:pt-4 pb-2 sm:pb-3 border-t border-[#F2E0CF] flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left relative z-10">
               <div className="flex flex-col sm:flex-row items-center gap-3">
                 {/* Clickable Phone Number */}
                 <a
