@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useState, useEffect } from 'react';
-import { Pencil, Highlighter, Eraser, Trash2, Camera, Square, Circle, Minus, Download } from 'lucide-react';
+import { Pencil, Highlighter, Eraser, Trash2, Square, Circle, Minus, Download } from 'lucide-react';
 
 interface WhiteboardProps {
   onSaveSnapshot?: (dataUrl: string) => void;
@@ -10,7 +10,7 @@ interface WhiteboardProps {
 export default function Whiteboard({ onSaveSnapshot }: WhiteboardProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [tool, setTool] = useState<'pen' | 'highlighter' | 'eraser' | 'line' | 'rect' | 'circle'>('pen');
-  const [color, setColor] = useState<string>('#4F46E5');
+  const [color, setColor] = useState<string>('#F97A52'); // Warm coral default
   const [lineWidth, setLineWidth] = useState<number>(3);
   const [isDrawing, setIsDrawing] = useState<boolean>(false);
   const [startPos, setStartPos] = useState<{ x: number; y: number } | null>(null);
@@ -22,7 +22,6 @@ export default function Whiteboard({ onSaveSnapshot }: WhiteboardProps) {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Set high DPI canvas resolution
     const resizeCanvas = () => {
       const rect = canvas.parentElement?.getBoundingClientRect();
       if (rect) {
@@ -95,7 +94,6 @@ export default function Whiteboard({ onSaveSnapshot }: WhiteboardProps) {
       ctx.lineTo(coords.x, coords.y);
       ctx.stroke();
     } else if (savedImageData && startPos) {
-      // Shape preview mode
       ctx.putImageData(savedImageData, 0, 0);
       ctx.strokeStyle = color;
       ctx.globalAlpha = 1.0;
@@ -135,7 +133,6 @@ export default function Whiteboard({ onSaveSnapshot }: WhiteboardProps) {
     const dataUrl = canvas.toDataURL('image/png');
     if (onSaveSnapshot) onSaveSnapshot(dataUrl);
 
-    // Download snapshot
     const link = document.createElement('a');
     link.download = `urok-aidaumnichka-${Date.now()}.png`;
     link.href = dataUrl;
@@ -143,15 +140,15 @@ export default function Whiteboard({ onSaveSnapshot }: WhiteboardProps) {
   };
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-      {/* Whiteboard Toolbar */}
-      <div className="bg-slate-50 border-b border-slate-200 p-2 sm:p-3 flex flex-wrap items-center justify-between gap-2">
+    <div className="flex flex-col h-full bg-white rounded-[36px] border border-[#F2E3D5] shadow-sm overflow-hidden">
+      {/* Whiteboard Toolbar (Warm cream, pill buttons) */}
+      <div className="bg-[#FFF8F1] border-b border-[#F4E3D2] p-3 flex flex-wrap items-center justify-between gap-2">
         {/* Tools */}
-        <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
+        <div className="flex items-center gap-1 bg-white p-1 rounded-full border border-[#EADBCC] shadow-xs">
           <button
             onClick={() => setTool('pen')}
-            className={`p-2 rounded-lg text-xs font-medium transition-all ${
-              tool === 'pen' ? 'bg-brand-50 text-brand-700 shadow-sm' : 'text-slate-600 hover:bg-slate-100'
+            className={`p-2 rounded-full text-xs font-bold transition-all ${
+              tool === 'pen' ? 'bg-[#FFF7EE] text-coralAccent shadow-xs' : 'text-ink-600 hover:bg-[#FFF7EE]'
             }`}
             title="Карандаш"
           >
@@ -159,8 +156,8 @@ export default function Whiteboard({ onSaveSnapshot }: WhiteboardProps) {
           </button>
           <button
             onClick={() => setTool('highlighter')}
-            className={`p-2 rounded-lg text-xs font-medium transition-all ${
-              tool === 'highlighter' ? 'bg-brand-50 text-brand-700 shadow-sm' : 'text-slate-600 hover:bg-slate-100'
+            className={`p-2 rounded-full text-xs font-bold transition-all ${
+              tool === 'highlighter' ? 'bg-[#FFF7EE] text-coralAccent shadow-xs' : 'text-ink-600 hover:bg-[#FFF7EE]'
             }`}
             title="Маркер-выделитель"
           >
@@ -168,18 +165,18 @@ export default function Whiteboard({ onSaveSnapshot }: WhiteboardProps) {
           </button>
           <button
             onClick={() => setTool('eraser')}
-            className={`p-2 rounded-lg text-xs font-medium transition-all ${
-              tool === 'eraser' ? 'bg-brand-50 text-brand-700 shadow-sm' : 'text-slate-600 hover:bg-slate-100'
+            className={`p-2 rounded-full text-xs font-bold transition-all ${
+              tool === 'eraser' ? 'bg-[#FFF7EE] text-coralAccent shadow-xs' : 'text-ink-600 hover:bg-[#FFF7EE]'
             }`}
             title="Ластик"
           >
             <Eraser className="w-4 h-4" />
           </button>
-          <div className="w-[1px] h-5 bg-slate-200 mx-1" />
+          <div className="w-[1px] h-5 bg-[#EADBCC] mx-1" />
           <button
             onClick={() => setTool('line')}
-            className={`p-2 rounded-lg text-xs font-medium transition-all ${
-              tool === 'line' ? 'bg-brand-50 text-brand-700 shadow-sm' : 'text-slate-600 hover:bg-slate-100'
+            className={`p-2 rounded-full text-xs font-bold transition-all ${
+              tool === 'line' ? 'bg-[#FFF7EE] text-coralAccent shadow-xs' : 'text-ink-600 hover:bg-[#FFF7EE]'
             }`}
             title="Прямая линия"
           >
@@ -187,8 +184,8 @@ export default function Whiteboard({ onSaveSnapshot }: WhiteboardProps) {
           </button>
           <button
             onClick={() => setTool('rect')}
-            className={`p-2 rounded-lg text-xs font-medium transition-all ${
-              tool === 'rect' ? 'bg-brand-50 text-brand-700 shadow-sm' : 'text-slate-600 hover:bg-slate-100'
+            className={`p-2 rounded-full text-xs font-bold transition-all ${
+              tool === 'rect' ? 'bg-[#FFF7EE] text-coralAccent shadow-xs' : 'text-ink-600 hover:bg-[#FFF7EE]'
             }`}
             title="Прямоугольник"
           >
@@ -196,8 +193,8 @@ export default function Whiteboard({ onSaveSnapshot }: WhiteboardProps) {
           </button>
           <button
             onClick={() => setTool('circle')}
-            className={`p-2 rounded-lg text-xs font-medium transition-all ${
-              tool === 'circle' ? 'bg-brand-50 text-brand-700 shadow-sm' : 'text-slate-600 hover:bg-slate-100'
+            className={`p-2 rounded-full text-xs font-bold transition-all ${
+              tool === 'circle' ? 'bg-[#FFF7EE] text-coralAccent shadow-xs' : 'text-ink-600 hover:bg-[#FFF7EE]'
             }`}
             title="Круг"
           >
@@ -207,28 +204,28 @@ export default function Whiteboard({ onSaveSnapshot }: WhiteboardProps) {
 
         {/* Colors & Thickness */}
         <div className="flex items-center gap-2">
-          {/* Colors (Vibrant, kid-friendly, no black) */}
-          <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
-            {['#4F46E5', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6'].map((c) => (
+          {/* Colors */}
+          <div className="flex items-center gap-1.5 bg-white p-1.5 rounded-full border border-[#EADBCC] shadow-xs">
+            {['#F97A52', '#C5E87D', '#6366F1', '#EC4899', '#161F38'].map((c) => (
               <button
                 key={c}
                 onClick={() => setColor(c)}
                 style={{ backgroundColor: c }}
                 className={`w-6 h-6 rounded-full transition-transform ${
-                  color === c ? 'scale-125 ring-2 ring-offset-1 ring-slate-400' : 'hover:scale-110'
+                  color === c ? 'scale-125 ring-2 ring-offset-1 ring-ink-900' : 'hover:scale-110'
                 }`}
               />
             ))}
           </div>
 
           {/* Stroke Width */}
-          <div className="flex items-center gap-1 bg-white px-2 py-1 rounded-xl border border-slate-200 shadow-sm">
+          <div className="flex items-center gap-1 bg-white px-3 py-1.5 rounded-full border border-[#EADBCC] shadow-xs">
             {[2, 4, 8].map((w) => (
               <button
                 key={w}
                 onClick={() => setLineWidth(w)}
-                className={`px-2 py-0.5 text-xs font-bold rounded ${
-                  lineWidth === w ? 'bg-slate-800 text-white' : 'text-slate-600 hover:bg-slate-100'
+                className={`px-2.5 py-0.5 text-xs font-black rounded-full ${
+                  lineWidth === w ? 'bg-ink-900 text-white' : 'text-ink-600 hover:bg-[#FFF7EE]'
                 }`}
               >
                 {w === 2 ? 'Тонкий' : w === 4 ? 'Средний' : 'Толстый'}
@@ -238,10 +235,10 @@ export default function Whiteboard({ onSaveSnapshot }: WhiteboardProps) {
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
           <button
             onClick={clearCanvas}
-            className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors font-medium"
+            className="flex items-center gap-1 px-4 py-2 text-xs text-rose-700 bg-white hover:bg-rose-50 border border-rose-200 rounded-full font-bold transition-colors"
             title="Очистить доску"
           >
             <Trash2 className="w-3.5 h-3.5" />
@@ -249,7 +246,7 @@ export default function Whiteboard({ onSaveSnapshot }: WhiteboardProps) {
           </button>
           <button
             onClick={saveSnapshot}
-            className="flex items-center gap-1 px-3 py-1.5 text-xs text-white bg-brand-600 hover:bg-brand-700 rounded-lg transition-colors font-medium shadow-sm"
+            className="flex items-center gap-1.5 px-5 py-2 text-xs text-ink-900 bg-limeAccent hover:bg-limeAccent-hover rounded-full transition-all font-black shadow-xs"
             title="Сохранить снимок доски в историю урока"
           >
             <Download className="w-3.5 h-3.5" />
@@ -268,11 +265,10 @@ export default function Whiteboard({ onSaveSnapshot }: WhiteboardProps) {
           onMouseLeave={stopDraw}
           className="absolute inset-0 w-full h-full touch-none"
         />
-        <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur-sm border border-slate-200 rounded-lg px-2.5 py-1 text-[11px] text-slate-500 pointer-events-none shadow-sm">
+        <div className="absolute bottom-3 left-3 bg-[#FFF7EE]/95 border border-[#F4DEC6] rounded-full px-4 py-1 text-[11px] text-ink-600 font-bold pointer-events-none shadow-xs">
           Интерактивная доска «АйДаУмничка» • P2P Realtime
         </div>
       </div>
     </div>
   );
 }
-

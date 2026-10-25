@@ -2,11 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import BalanceWidget from '@/components/BalanceWidget';
 import VoiceRecorder from '@/components/VoiceRecorder';
 import { INITIAL_PROFILES, INITIAL_LESSONS, INITIAL_HOMEWORKS } from '@/lib/store';
 import { LessonSession, HomeworkItem } from '@/types';
-import { Video, Calendar, Clock, BookOpen, CheckCircle, ArrowRight, UserCheck, MessageSquare } from 'lucide-react';
+import { Video, Calendar, Clock, BookOpen, CheckCircle, UserCheck, MessageSquare, Sparkles } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 
 export default function StudentDashboard() {
@@ -41,86 +42,101 @@ export default function StudentDashboard() {
 
   return (
     <div className="space-y-8">
-      {/* Student Profile Header */}
-      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+      {/* Student Profile Card (Warm cream, pill badges, child avatar) */}
+      <div className="bg-white rounded-[32px] p-6 sm:p-8 border border-[#F2E3D5] shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-brand-100 border-2 border-brand-200 overflow-hidden flex items-center justify-center text-brand-700 font-bold text-xl">
-            {student.fullName[0]}
+          <div className="w-18 h-18 rounded-3xl overflow-hidden relative border-2 border-[#F4E3D2] shadow-sm shrink-0 w-16 h-16">
+            <Image
+              src="/images/child-avatar.png"
+              alt="Ученик Тимофей"
+              fill
+              className="object-cover"
+            />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl sm:text-2xl font-bold text-slate-800">{student.fullName}</h1>
-              <span className="text-[11px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
+              <h1 className="text-xl sm:text-2xl font-black text-ink-900">{student.fullName}</h1>
+              <span className="text-[11px] bg-limeAccent text-ink-900 font-extrabold px-3 py-0.5 rounded-full">
                 Онлайн
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-xs text-ink-500 mt-1">
               {student.studentGrade} • Центр «АйДаУмничка», {student.city}
             </p>
-            <p className="text-xs text-indigo-600 font-medium mt-0.5">
+            <p className="text-xs text-coralAccent font-bold mt-0.5">
               Преподаватель: {student.assignedTeacherName}
             </p>
           </div>
         </div>
 
-        {/* Quick Chat Link */}
+        {/* Action Link */}
         <Link
           href="/messenger"
-          className="inline-flex items-center gap-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all shadow-sm"
+          className="inline-flex items-center gap-2 bg-[#FFF7EE] hover:bg-[#FDEEDC] text-ink-900 border border-[#F4DEC6] px-5 py-2.5 rounded-full text-xs font-bold transition-all shadow-sm"
         >
-          <MessageSquare className="w-4 h-4" />
-          <span>Написать преподавателю</span>
+          <MessageSquare className="w-4 h-4 text-coralAccent" />
+          <span>Написать педагогу</span>
         </Link>
       </div>
 
       {/* Grid: Balance & Active Call */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Balance Card */}
-        <div className="md:col-span-1">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Balance Card from Reference */}
+        <div className="lg:col-span-5">
           <BalanceWidget balance={balance} studentName={student.fullName} />
         </div>
 
-        {/* Active Lesson Callout Card (Solid Emerald, No gradient) */}
-        <div className="md:col-span-2 bg-emerald-600 border border-emerald-700 rounded-3xl p-6 text-white shadow-md flex flex-col justify-between">
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <span className="w-3 h-3 rounded-full bg-solar-400 animate-ping" />
-              <span className="text-xs font-bold uppercase tracking-wider text-solar-300">
-                On-Demand Вызов на занятие
-              </span>
+        {/* Active Lesson Callout Card (Warm peach/coral with cat mascot) */}
+        <div className="lg:col-span-7 bg-[#FFF8F1] border-2 border-coralAccent/40 rounded-[32px] p-6 sm:p-8 flex flex-col justify-between shadow-sm relative overflow-hidden">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-2 bg-white px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest text-coralAccent border border-[#F2E2D0]">
+                <span className="w-2 h-2 rounded-full bg-coralAccent animate-pulse" />
+                <span>On-Demand звонок активен</span>
+              </div>
+              <h2 className="text-2xl font-black text-ink-900 tracking-tight leading-tight">
+                Светлана Васильевна <br />
+                <span className="text-coralAccent">приглашает на онлайн-урок!</span>
+              </h2>
+              <p className="text-xs sm:text-sm text-ink-500 max-w-md">
+                Тема: «Автоматизация звука [Р] в словах и скороговорках». Подключение напрямую в браузере в 1 клик.
+              </p>
             </div>
-            <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight">
-              Светлана Васильевна приглашает на урок!
-            </h2>
-            <p className="text-emerald-100 text-xs sm:text-sm mt-2 max-w-xl">
-              Тема: «Автоматизация звука [Р] в словах и скороговорках». Вход по прямой защищенной ссылке без установок ПО.
-            </p>
+
+            <div className="w-24 h-24 rounded-2xl overflow-hidden relative border-2 border-white shadow-md shrink-0 hidden sm:block">
+              <Image
+                src="/images/mascot-happy.png"
+                alt="Кот наставник"
+                fill
+                className="object-cover"
+              />
+            </div>
           </div>
 
           <div className="mt-6 flex flex-wrap items-center gap-3">
             <Link
               href="/room/room-logoped-timofey"
-              className="inline-flex items-center gap-2 bg-white text-emerald-900 hover:bg-emerald-50 px-6 py-3 rounded-xl font-bold text-sm shadow-md transition-all active:scale-95"
+              className="bg-limeAccent hover:bg-limeAccent-hover text-ink-900 font-extrabold px-6 py-3 rounded-full text-xs shadow-sm transition-all active:scale-95 flex items-center gap-2"
             >
-              <Video className="w-4 h-4 text-emerald-600 animate-pulse" />
+              <Video className="w-4 h-4 text-ink-900" />
               <span>Войти в активный урок (1 клик)</span>
             </Link>
-            <span className="text-xs text-emerald-100">
-              * Занятие спишется с баланса только по факту завершения урока
+            <span className="text-[11px] text-ink-400">
+              * Занятие спишется с баланса только по окончании урока
             </span>
           </div>
         </div>
       </div>
 
       {/* Homework Section */}
-      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm">
-        <div className="flex items-center justify-between mb-6">
+      <div className="bg-white rounded-[32px] p-6 sm:p-8 border border-[#F2E3D5] shadow-sm space-y-6">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <BookOpen className="w-5 h-5 text-brand-600" />
-            <h2 className="text-lg font-bold text-slate-800">Домашние задания</h2>
+            <BookOpen className="w-5 h-5 text-coralAccent" />
+            <h2 className="text-xl font-black text-ink-900">Домашние задания</h2>
           </div>
-          <span className="text-xs font-bold bg-brand-50 text-brand-700 px-3 py-1 rounded-full">
-            {homeworks.length} активных заданий
+          <span className="text-xs font-bold bg-[#FFF7EE] text-ink-800 px-3.5 py-1 rounded-full border border-[#F4DEC6]">
+            {homeworks.length} активное задание
           </span>
         </div>
 
@@ -128,28 +144,28 @@ export default function StudentDashboard() {
           {homeworks.map((hw) => (
             <div
               key={hw.id}
-              className="p-5 rounded-2xl border border-slate-200 hover:border-brand-300 transition-all bg-slate-50/50"
+              className="p-5 rounded-2xl border border-[#F4E3D2] bg-[#FFFAF5] hover:border-coralAccent transition-all"
             >
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-                <h3 className="font-bold text-base text-slate-800">{hw.title}</h3>
+                <h3 className="font-extrabold text-base text-ink-900">{hw.title}</h3>
                 <span
-                  className={`text-xs px-2.5 py-1 rounded-full font-semibold self-start sm:self-auto ${
+                  className={`text-xs px-3 py-1 rounded-full font-bold self-start sm:self-auto ${
                     hw.status === 'assigned'
-                      ? 'bg-amber-100 text-amber-800'
+                      ? 'bg-[#FEF3C7] text-[#92400E]'
                       : hw.status === 'submitted'
-                      ? 'bg-indigo-100 text-indigo-800'
-                      : 'bg-emerald-100 text-emerald-800'
+                      ? 'bg-limeAccent text-ink-900'
+                      : 'bg-emerald-100 text-emerald-900'
                   }`}
                 >
                   {hw.status === 'assigned' ? 'На выполнении' : hw.status === 'submitted' ? 'На проверке' : 'Проверено'}
                 </span>
               </div>
 
-              <p className="text-xs text-slate-600 leading-relaxed mb-4">{hw.taskDescription}</p>
+              <p className="text-xs text-ink-500 leading-relaxed mb-4">{hw.taskDescription}</p>
 
               {hw.studentSolutionText && (
-                <div className="mb-3 p-3 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <div className="mb-3 p-3 bg-white border border-[#F2E3D5] rounded-xl text-xs text-ink-800 flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
                   <span>{hw.studentSolutionText}</span>
                 </div>
               )}
@@ -164,7 +180,7 @@ export default function StudentDashboard() {
                   ) : (
                     <button
                       onClick={() => setRecordingHwId(hw.id)}
-                      className="inline-flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all"
+                      className="inline-flex items-center gap-2 bg-coralAccent hover:bg-coralAccent-hover text-white px-5 py-2.5 rounded-full text-xs font-bold shadow-sm transition-all"
                     >
                       <span>Записать голосовой ответ</span>
                     </button>
@@ -177,52 +193,52 @@ export default function StudentDashboard() {
       </div>
 
       {/* Past Lessons Archive */}
-      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm">
-        <div className="flex items-center justify-between mb-6">
+      <div className="bg-white rounded-[32px] p-6 sm:p-8 border border-[#F2E3D5] shadow-sm space-y-6">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <Calendar className="w-5 h-5 text-indigo-600" />
-            <h2 className="text-lg font-bold text-slate-800">История пройденных уроков</h2>
+            <Calendar className="w-5 h-5 text-ink-700" />
+            <h2 className="text-xl font-black text-ink-900">История пройденных уроков</h2>
           </div>
-          <span className="text-xs text-slate-500">Списано занятий: {lessons.length}</span>
+          <span className="text-xs font-semibold text-ink-400">Списано уроков: {lessons.length}</span>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-3">
           {lessons.map((lesson) => (
             <div
               key={lesson.id}
-              className="p-5 rounded-2xl border border-slate-200 bg-white flex flex-col md:flex-row md:items-center justify-between gap-4"
+              className="p-5 rounded-2xl border border-[#F4E3D2] bg-[#FFFDFB] flex flex-col md:flex-row md:items-center justify-between gap-4"
             >
               <div className="space-y-1.5">
                 <div className="flex items-center gap-2">
-                  <h4 className="font-bold text-sm text-slate-800">{lesson.topic}</h4>
-                  <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-mono">
+                  <h4 className="font-extrabold text-sm text-ink-900">{lesson.topic}</h4>
+                  <span className="text-[10px] bg-[#FDEEDC] text-coralAccent px-2 py-0.5 rounded-full font-mono font-bold">
                     {lesson.roomToken}
                   </span>
                 </div>
-                <p className="text-xs text-slate-500">
-                  Преподаватель: {lesson.teacherName} • Дата: {formatDate(lesson.createdAt)}
+                <p className="text-xs text-ink-500">
+                  Педагог: {lesson.teacherName} • Дата: {formatDate(lesson.createdAt)}
                 </p>
                 {lesson.teacherSummary && (
-                  <p className="text-xs text-slate-700 bg-slate-50 p-2.5 rounded-xl border border-slate-100 italic">
-                    Заметка педагога: «{lesson.teacherSummary}»
+                  <p className="text-xs text-ink-700 bg-[#FFF7EE] p-3 rounded-xl border border-[#F2E2D0] italic">
+                    Заметка логопеда: «{lesson.teacherSummary}»
                   </p>
                 )}
               </div>
 
               <div className="flex items-center gap-4 shrink-0">
                 <div className="text-right">
-                  <div className="flex items-center gap-1 text-xs font-bold text-slate-800">
-                    <Clock className="w-3.5 h-3.5 text-slate-500" />
+                  <div className="flex items-center gap-1 text-xs font-bold text-ink-900">
+                    <Clock className="w-3.5 h-3.5 text-coralAccent" />
                     <span>{lesson.durationMinutes || 45} мин.</span>
                   </div>
-                  <span className="text-[10px] text-emerald-600 font-semibold block mt-0.5">
+                  <span className="text-[10px] text-coralAccent font-extrabold block mt-0.5">
                     Урок списан (-1)
                   </span>
                 </div>
 
                 <Link
                   href={`/room/${lesson.roomToken}`}
-                  className="px-3 py-1.5 text-xs text-brand-600 hover:bg-brand-50 border border-brand-200 rounded-lg font-medium transition-colors"
+                  className="px-4 py-2 text-xs text-ink-800 bg-[#FFF7EE] hover:bg-[#FDEEDC] border border-[#F4DEC6] rounded-full font-bold transition-colors"
                 >
                   Архив доски
                 </Link>
@@ -234,4 +250,3 @@ export default function StudentDashboard() {
     </div>
   );
 }
-

@@ -2,10 +2,11 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import VoiceRecorder from '@/components/VoiceRecorder';
 import { INITIAL_MESSAGES } from '@/lib/store';
 import { ChatMessage } from '@/types';
-import { MessageCircle, Send, Paperclip, Video, Play, Pause, Bell, ArrowRight } from 'lucide-react';
+import { MessageCircle, Send, Video, Play, Pause, Bell, ArrowRight } from 'lucide-react';
 import { formatTime } from '@/lib/utils';
 
 export default function MessengerPage() {
@@ -55,33 +56,33 @@ export default function MessengerPage() {
   };
 
   return (
-    <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden h-[calc(100vh-140px)] min-h-[620px] grid grid-cols-1 md:grid-cols-3">
+    <div className="bg-white rounded-[36px] border border-[#F2E3D5] shadow-sm overflow-hidden h-[calc(100vh-140px)] min-h-[620px] grid grid-cols-1 md:grid-cols-3">
       {/* Left Chat List Column */}
-      <div className="border-r border-slate-200 bg-slate-50 flex flex-col">
-        <div className="p-4 border-b border-slate-200 bg-white">
-          <h2 className="font-bold text-base text-slate-800">Диалоги и Уведомления</h2>
-          <p className="text-xs text-slate-500">Мессенджер центра «АйДаУмничка»</p>
+      <div className="border-r border-[#F4E3D2] bg-[#FFF8F1] flex flex-col">
+        <div className="p-5 border-b border-[#F4E3D2] bg-white">
+          <h2 className="font-black text-base text-ink-900">Диалоги и Уведомления</h2>
+          <p className="text-xs text-ink-500">Мессенджер центра «АйДаУмничка»</p>
         </div>
 
-        <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
+        <div className="flex-1 overflow-y-auto divide-y divide-[#F7EBE0]">
           {/* Teacher Chat */}
           <button
             onClick={() => setActiveChat('teacher')}
             className={`w-full p-4 text-left transition-colors flex items-start gap-3 ${
-              activeChat === 'teacher' ? 'bg-indigo-50/70 border-l-4 border-brand-600' : 'hover:bg-slate-100/60'
+              activeChat === 'teacher' ? 'bg-[#FFF2E4] border-l-4 border-coralAccent' : 'hover:bg-white/80'
             }`}
           >
-            <div className="w-11 h-11 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-sm shrink-0">
+            <div className="w-11 h-11 rounded-2xl bg-white border border-[#F4DEC6] text-coralAccent flex items-center justify-center font-black text-sm shrink-0 shadow-xs">
               СВ
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between mb-0.5">
-                <h4 className="font-bold text-xs text-slate-800 truncate">
+                <h4 className="font-extrabold text-xs text-ink-900 truncate">
                   Светлана Васильевна (Логопед)
                 </h4>
-                <span className="text-[10px] text-slate-400">12:45</span>
+                <span className="text-[10px] text-ink-400">12:45</span>
               </div>
-              <p className="text-xs text-slate-500 truncate">
+              <p className="text-xs text-ink-500 truncate">
                 Приготовьте цветные карандаши для интерактивной доски...
               </p>
             </div>
@@ -91,20 +92,20 @@ export default function MessengerPage() {
           <button
             onClick={() => setActiveChat('system')}
             className={`w-full p-4 text-left transition-colors flex items-start gap-3 ${
-              activeChat === 'system' ? 'bg-indigo-50/70 border-l-4 border-brand-600' : 'hover:bg-slate-100/60'
+              activeChat === 'system' ? 'bg-[#FFF2E4] border-l-4 border-coralAccent' : 'hover:bg-white/80'
             }`}
           >
-            <div className="w-11 h-11 rounded-2xl bg-solar-100 text-solar-700 flex items-center justify-center font-bold text-sm shrink-0">
-              <Bell className="w-5 h-5 text-solar-600" />
+            <div className="w-11 h-11 rounded-2xl bg-[#FFF7EE] border border-[#F4DEC6] text-ink-900 flex items-center justify-center font-bold text-sm shrink-0">
+              <Bell className="w-5 h-5 text-coralAccent" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between mb-0.5">
-                <h4 className="font-bold text-xs text-slate-800 truncate">
+                <h4 className="font-extrabold text-xs text-ink-900 truncate">
                   Уведомления «АйДаУмничка»
                 </h4>
-                <span className="text-[10px] text-slate-400">Вчера</span>
+                <span className="text-[10px] text-ink-400">Вчера</span>
               </div>
-              <p className="text-xs text-slate-500 truncate">
+              <p className="text-xs text-ink-500 truncate">
                 Баланс пополнен на +8 занятий. Приятных уроков!
               </p>
             </div>
@@ -115,16 +116,16 @@ export default function MessengerPage() {
       {/* Right Chat Thread Column */}
       <div className="md:col-span-2 flex flex-col bg-white">
         {/* Header */}
-        <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+        <div className="p-4 sm:p-5 border-b border-[#F4E3D2] flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-brand-100 text-brand-700 flex items-center justify-center font-bold text-sm">
+            <div className="w-11 h-11 rounded-2xl bg-[#FFF7EE] border border-[#F4DEC6] text-coralAccent flex items-center justify-center font-black text-sm">
               {activeChat === 'teacher' ? 'СВ' : '🔔'}
             </div>
             <div>
-              <h3 className="font-bold text-sm text-slate-800">
+              <h3 className="font-black text-sm text-ink-900">
                 {activeChat === 'teacher' ? 'Светлана Васильевна Морозова' : 'Системный сервисный чат'}
               </h3>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[11px] text-ink-500">
                 {activeChat === 'teacher' ? 'Логопед-дефектолог • В сети' : 'Центр развития «АйДаУмничка»'}
               </p>
             </div>
@@ -133,7 +134,7 @@ export default function MessengerPage() {
           {activeChat === 'teacher' && (
             <Link
               href="/room/room-logoped-timofey"
-              className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-xl text-xs font-semibold shadow-sm transition-all"
+              className="inline-flex items-center gap-2 bg-limeAccent hover:bg-limeAccent-hover text-ink-900 px-4 py-2 rounded-full text-xs font-black shadow-xs transition-all"
             >
               <Video className="w-3.5 h-3.5" />
               <span>Войти в урок</span>
@@ -145,35 +146,35 @@ export default function MessengerPage() {
         <div className="flex-1 p-4 sm:p-6 overflow-y-auto space-y-4">
           {activeChat === 'system' ? (
             <div className="space-y-3">
-              <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-slate-800">
-                <div className="font-bold text-amber-900 mb-1">Пополнение абонемента</div>
+              <div className="p-4 rounded-2xl bg-[#FFF7EE] border border-[#F2E2D0] text-xs text-ink-800">
+                <div className="font-bold text-coralAccent mb-1">Пополнение абонемента</div>
                 Вам начислено +8 занятий по абонементу «Юный оратор». Текущий баланс: 6 уроков.
               </div>
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-800">
-                <div className="font-bold text-slate-800 mb-1">Урок успешно проведен</div>
+              <div className="p-4 rounded-2xl bg-[#F8FAFC] border border-slate-200 text-xs text-ink-800">
+                <div className="font-bold text-ink-900 mb-1">Урок успешно проведен</div>
                 Занятие «Автоматизация звука [Р]» завершено (45 мин). Списано 1 занятие с баланса.
               </div>
             </div>
           ) : (
             <>
-              {/* On-Demand Call Invite Card in Chat (Solid brand tint, no gradient) */}
-              <div className="p-4 rounded-2xl bg-brand-50 border-2 border-brand-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+              {/* On-Demand Call Invite Card in Chat */}
+              <div className="p-4 rounded-3xl bg-[#FFF8F1] border-2 border-coralAccent/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-brand-600 text-white flex items-center justify-center shrink-0">
+                  <div className="w-10 h-10 rounded-2xl bg-coralAccent text-white flex items-center justify-center shrink-0">
                     <Video className="w-5 h-5 animate-pulse" />
                   </div>
                   <div>
-                    <span className="text-[10px] font-bold text-brand-700 uppercase tracking-wider">
+                    <span className="text-[10px] font-extrabold text-coralAccent uppercase tracking-wider">
                       Приглашение на On-Demand урок
                     </span>
-                    <h4 className="text-xs font-bold text-slate-800">
+                    <h4 className="text-xs font-black text-ink-900">
                       Тема: Автоматизация звука [Р] в словах и скороговорках
                     </h4>
                   </div>
                 </div>
                 <Link
                   href="/room/room-logoped-timofey"
-                  className="inline-flex items-center gap-1 bg-brand-600 hover:bg-brand-700 text-white px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-sm shrink-0"
+                  className="inline-flex items-center gap-1.5 bg-limeAccent hover:bg-limeAccent-hover text-ink-900 px-4 py-2 rounded-full text-xs font-black transition-all shadow-xs shrink-0"
                 >
                   <span>Присоединиться</span>
                   <ArrowRight className="w-3.5 h-3.5" />
@@ -187,24 +188,24 @@ export default function MessengerPage() {
                     m.senderRole === 'student' ? 'items-end' : 'items-start'
                   }`}
                 >
-                  <div className="text-[10px] text-slate-400 mb-1 px-1">
+                  <div className="text-[10px] text-ink-400 mb-1 px-1 font-medium">
                     {m.senderName}
                   </div>
 
                   {m.type === 'voice' ? (
                     <div
-                      className={`p-3 rounded-2xl flex items-center gap-3 shadow-sm max-w-sm ${
+                      className={`p-3.5 rounded-3xl flex items-center gap-3 shadow-xs max-w-sm ${
                         m.senderRole === 'student'
-                          ? 'bg-brand-600 text-white rounded-br-none'
-                          : 'bg-slate-100 text-slate-800 rounded-bl-none'
+                          ? 'bg-coralAccent text-white rounded-br-none'
+                          : 'bg-[#FFF7EE] border border-[#F2E2D0] text-ink-900 rounded-bl-none'
                       }`}
                     >
                       <button
                         onClick={() => toggleVoicePlayback(m.id)}
                         className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
                           m.senderRole === 'student'
-                            ? 'bg-white text-brand-600 hover:bg-white/90'
-                            : 'bg-brand-600 text-white hover:bg-brand-700'
+                            ? 'bg-white text-coralAccent hover:bg-white/90'
+                            : 'bg-coralAccent text-white hover:bg-coralAccent-hover'
                         }`}
                       >
                         {playingVoiceId === m.id ? (
@@ -221,22 +222,22 @@ export default function MessengerPage() {
                               key={i}
                               style={{ height: `${h}%` }}
                               className={`w-1 rounded-full ${
-                                m.senderRole === 'student' ? 'bg-white/80' : 'bg-brand-500'
+                                m.senderRole === 'student' ? 'bg-white/80' : 'bg-coralAccent'
                               } ${playingVoiceId === m.id ? 'animate-pulse' : ''}`}
                             />
                           ))}
                         </div>
-                        <span className="text-[10px] opacity-80 block mt-1">
+                        <span className="text-[10px] opacity-80 block mt-1 font-medium">
                           Голосовое сообщение ({formatTime(m.voiceDurationSec || 15)})
                         </span>
                       </div>
                     </div>
                   ) : (
                     <div
-                      className={`p-3.5 rounded-2xl text-xs max-w-md leading-relaxed shadow-sm ${
+                      className={`p-4 rounded-3xl text-xs max-w-md leading-relaxed shadow-xs ${
                         m.senderRole === 'student'
-                          ? 'bg-brand-600 text-white rounded-br-none'
-                          : 'bg-slate-100 text-slate-800 rounded-bl-none'
+                          ? 'bg-coralAccent text-white rounded-br-none font-medium'
+                          : 'bg-[#FFF7EE] border border-[#F2E2D0] text-ink-800 rounded-bl-none font-medium'
                       }`}
                     >
                       {m.text}
@@ -250,7 +251,7 @@ export default function MessengerPage() {
 
         {/* Input Bar with Voice Recorder integration */}
         {activeChat === 'teacher' && (
-          <div className="p-3 border-t border-slate-200 bg-slate-50 space-y-2">
+          <div className="p-4 border-t border-[#F4E3D2] bg-[#FFF8F1] space-y-3">
             <div className="flex items-center gap-2">
               <VoiceRecorder onSendVoice={handleSendVoice} />
             </div>
@@ -260,12 +261,12 @@ export default function MessengerPage() {
                 type="text"
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                placeholder="Сообщение педагогу..."
-                className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500"
+                placeholder="Напишите сообщение педагогу..."
+                className="flex-1 bg-white border border-[#EADBCC] rounded-full px-5 py-2.5 text-xs text-ink-900 focus:outline-none focus:ring-2 focus:ring-coralAccent"
               />
               <button
                 type="submit"
-                className="p-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl shadow-sm transition-all"
+                className="w-10 h-10 bg-coralAccent hover:bg-coralAccent-hover text-white rounded-full flex items-center justify-center shadow-xs transition-all shrink-0"
               >
                 <Send className="w-4 h-4" />
               </button>

@@ -9,23 +9,44 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        cream: {
+          50: "#FFFCF8",
+          100: "#FFF7EE", // Base canvas background
+          200: "#FDEEDC",
+          300: "#F8DFBF",
+          400: "#F2C79E",
+        },
+        ink: {
+          900: "#161F38", // Deep primary navy text from reference
+          800: "#1E2A4B",
+          700: "#2B385D",
+          500: "#54607B", // Secondary text
+          400: "#7E8AA5",
+          200: "#D3D9E6",
+          100: "#EEF2F8",
+        },
+        limeAccent: {
+          DEFAULT: "#C5E87D", // The pill button green from top right
+          hover: "#B6DB6B",
+          light: "#EBF8CE",
+        },
+        coralAccent: {
+          DEFAULT: "#F97A52", // Warm peach/coral action button
+          hover: "#E86940",
+          light: "#FDEFEA",
+        },
         brand: {
           50: "#EEF2FF",
           100: "#E0E7FF",
-          200: "#C7D2FE",
-          300: "#A5B4FC",
-          400: "#818CF8",
           500: "#6366F1",
-          600: "#4F46E5", // Primary
+          600: "#4F46E5",
           700: "#4338CA",
-          800: "#3730A3",
-          900: "#312E81",
         },
-        solar: {
-          400: "#FBBF24",
-          500: "#F59E0B",
-          600: "#D97706",
-        },
+      },
+      borderRadius: {
+        '2xl': '20px',
+        '3xl': '28px',
+        '4xl': '36px',
       },
     },
   },

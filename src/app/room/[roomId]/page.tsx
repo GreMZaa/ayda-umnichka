@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import VideoCall from '@/components/VideoCall';
 import Whiteboard from '@/components/Whiteboard';
-import { MessageCircle, Send, CheckCircle2, Video, Layout } from 'lucide-react';
+import { MessageCircle, Send, Video, Layout } from 'lucide-react';
 
 interface InCallMessage {
   id: string;
@@ -28,7 +28,6 @@ export default function LessonRoomPage() {
     },
   ]);
   const [inputText, setInputText] = useState('');
-  const [isCompleted, setIsCompleted] = useState(false);
 
   const sendMessage = (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,8 +45,6 @@ export default function LessonRoomPage() {
   };
 
   const handleEndLesson = (durationSec: number) => {
-    setIsCompleted(true);
-
     // Deduct 1 lesson from balance
     const currentBalance = parseInt(localStorage.getItem('aida_student_balance') || '6', 10);
     const updatedBalance = Math.max(0, currentBalance - 1);
@@ -61,47 +58,47 @@ export default function LessonRoomPage() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-140px)] min-h-[620px] gap-4">
-      {/* Top Banner Bar */}
-      <div className="bg-white rounded-2xl px-5 py-3 border border-slate-200 shadow-sm flex items-center justify-between">
+      {/* Top Banner Bar (Warm cream, rounded-full pill buttons) */}
+      <div className="bg-white rounded-3xl px-6 py-3 border border-[#F2E3D5] shadow-sm flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-brand-100 text-brand-700 flex items-center justify-center font-bold text-xs">
+          <div className="w-9 h-9 rounded-2xl bg-[#FFF7EE] text-coralAccent border border-[#F4DEC6] flex items-center justify-center font-black text-xs">
             P2P
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-extrabold text-sm text-slate-800">
+              <span className="font-black text-sm text-ink-900">
                 Комната урока «АйДаУмничка» ({roomId})
               </span>
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="w-2.5 h-2.5 rounded-full bg-limeAccent animate-pulse" />
             </div>
-            <p className="text-[11px] text-slate-500">
-              Формат: 1-на-1 • Прямое шифрованное P2P соединение
+            <p className="text-[11px] text-ink-500 font-medium">
+              Формат: 1-на-1 • Прямое шифрованное WebRTC соединение внутри РФ
             </p>
           </div>
         </div>
 
-        {/* View Switcher Controls */}
-        <div className="flex items-center gap-2">
+        {/* View Switcher Controls in Pill style */}
+        <div className="flex items-center gap-2 bg-[#FFF7EE] p-1 rounded-full border border-[#F4DEC6]">
           <button
             onClick={() => setIsWhiteboardActive(false)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 ${
               !isWhiteboardActive
-                ? 'bg-brand-600 text-white shadow-sm'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                ? 'bg-white text-ink-900 shadow-sm'
+                : 'text-ink-600 hover:text-ink-900'
             }`}
           >
-            <Video className="w-3.5 h-3.5" />
+            <Video className="w-3.5 h-3.5 text-coralAccent" />
             <span>Видео (Главный)</span>
           </button>
           <button
             onClick={() => setIsWhiteboardActive(true)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 ${
               isWhiteboardActive
-                ? 'bg-brand-600 text-white shadow-sm'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                ? 'bg-white text-ink-900 shadow-sm'
+                : 'text-ink-600 hover:text-ink-900'
             }`}
           >
-            <Layout className="w-3.5 h-3.5" />
+            <Layout className="w-3.5 h-3.5 text-coralAccent" />
             <span>Интерактивная доска</span>
           </button>
         </div>
@@ -132,45 +129,45 @@ export default function LessonRoomPage() {
           )}
         </div>
 
-        {/* Right Area: In-Call Text Chat */}
-        <div className="hidden lg:flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden h-full">
-          <div className="p-3 border-b border-slate-200 bg-slate-50 flex items-center gap-2 text-xs font-bold text-slate-800">
-            <MessageCircle className="w-4 h-4 text-brand-600" />
+        {/* Right Area: In-Call Text Chat in warm card style */}
+        <div className="hidden lg:flex flex-col bg-white rounded-3xl border border-[#F2E3D5] shadow-sm overflow-hidden h-full">
+          <div className="p-4 border-b border-[#F4E3D2] bg-[#FFF7EE] flex items-center gap-2 text-xs font-black text-ink-900">
+            <MessageCircle className="w-4 h-4 text-coralAccent" />
             <span>Чат урока</span>
           </div>
 
           {/* Messages list */}
-          <div className="flex-1 p-3 overflow-y-auto space-y-2.5 text-xs">
+          <div className="flex-1 p-4 overflow-y-auto space-y-3 text-xs">
             {messages.map((m) => (
               <div
                 key={m.id}
-                className={`p-2.5 rounded-xl ${
+                className={`p-3 rounded-2xl ${
                   m.sender === 'Вы'
-                    ? 'bg-brand-50 border border-brand-100 ml-4'
-                    : 'bg-slate-100 mr-4'
+                    ? 'bg-[#FFF7EE] border border-[#F4DEC6] ml-4'
+                    : 'bg-[#F8FAFC] border border-slate-200 mr-4'
                 }`}
               >
-                <div className="flex items-center justify-between text-[10px] text-slate-500 mb-1">
-                  <span className="font-bold text-slate-800">{m.sender}</span>
+                <div className="flex items-center justify-between text-[10px] text-ink-400 mb-1">
+                  <span className="font-extrabold text-ink-900">{m.sender}</span>
                   <span>{m.time}</span>
                 </div>
-                <p className="text-slate-700 leading-relaxed">{m.text}</p>
+                <p className="text-ink-700 leading-relaxed font-medium">{m.text}</p>
               </div>
             ))}
           </div>
 
           {/* Message input */}
-          <form onSubmit={sendMessage} className="p-2.5 border-t border-slate-200 bg-slate-50 flex gap-2">
+          <form onSubmit={sendMessage} className="p-3 border-t border-[#F4E3D2] bg-[#FFF7EE] flex gap-2">
             <input
               type="text"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               placeholder="Написать сообщение..."
-              className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500"
+              className="flex-1 bg-white border border-[#EADBCC] rounded-full px-4 py-2 text-xs text-ink-900 focus:outline-none focus:ring-2 focus:ring-coralAccent"
             />
             <button
               type="submit"
-              className="p-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl transition-colors"
+              className="w-9 h-9 bg-coralAccent hover:bg-coralAccent-hover text-white rounded-full flex items-center justify-center transition-colors shadow-sm shrink-0"
             >
               <Send className="w-3.5 h-3.5" />
             </button>
