@@ -116,33 +116,25 @@ export default function LessonRoomPage() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-100px)] min-h-[580px] w-full">
-      {/* 100% Spacious Main Workspace — No squeezed sidebars */}
+      {/* 100% Spacious Main Workspace — WebRTC call stays continuously connected */}
       <div className="flex-1 w-full h-full relative overflow-hidden">
-        {isWhiteboardActive ? (
-          <>
-            <Whiteboard />
-            {/* Picture in Picture Video Preview with Live Camera while Whiteboard is active */}
-            <VideoCall
-              roomToken={roomId}
-              isTeacher={isTeacher}
-              participantName={participantName}
-              topic={topic}
-              isWhiteboardActive={true}
-              onToggleWhiteboard={() => setIsWhiteboardActive(false)}
-              onEndLesson={handleEndLesson}
-            />
-          </>
-        ) : (
+        {/* Interactive Whiteboard Canvas */}
+        <div className={`w-full h-full ${isWhiteboardActive ? 'block' : 'hidden'}`}>
+          <Whiteboard />
+        </div>
+
+        {/* VideoCall remains persistently mounted so WebRTC connection never drops */}
+        <div className={isWhiteboardActive ? 'contents' : 'w-full h-full'}>
           <VideoCall
             roomToken={roomId}
             isTeacher={isTeacher}
             participantName={participantName}
             topic={topic}
-            isWhiteboardActive={false}
-            onToggleWhiteboard={() => setIsWhiteboardActive(true)}
+            isWhiteboardActive={isWhiteboardActive}
+            onToggleWhiteboard={() => setIsWhiteboardActive(!isWhiteboardActive)}
             onEndLesson={handleEndLesson}
           />
-        )}
+        </div>
       </div>
     </div>
   );
