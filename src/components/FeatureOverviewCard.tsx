@@ -50,11 +50,11 @@ export default function FeatureOverviewCard() {
           RIGHT CONTENT: Educational Center Features
           ───────────────────────────────────────────────────────────── */}
       <div className="flex-1 min-w-0 space-y-2 w-full">
-        <div className="flex items-center justify-between">
-          <span className="text-[10px] font-black text-[#5C8519] uppercase tracking-widest bg-[#EEF8D5] px-2 py-0.5 rounded-full border border-[#DFEFC0]">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[10px] font-black text-[#5C8519] uppercase tracking-widest bg-[#EEF8D5] px-2.5 py-0.5 rounded-full border border-[#DFEFC0] shrink-0">
             КАК ПРОХОДИТ ОБУЧЕНИЕ
           </span>
-          <span className="text-[11px] font-extrabold text-coralAccent flex items-center gap-1">
+          <span className="text-[11px] font-extrabold text-coralAccent flex items-center gap-1 shrink-0">
             <Sparkles className="w-3.5 h-3.5" />
             Тольятти
           </span>
@@ -65,27 +65,27 @@ export default function FeatureOverviewCard() {
             Индивидуально и наглядно
           </h4>
           <p className="text-[11px] text-[#5A657C] leading-relaxed mt-0.5">
-            Уроки проходят онлайн в игровой форме. Никаких скучных лекций — ребенок увлечен и сразу видит результат.
+            Уроки проходят онлайн в игровой форме: ребенок увлечен и сразу видит результат.
           </p>
         </div>
 
-        {/* 4 Quick Clear Bullets for Parents */}
-        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 gap-x-2 gap-y-1.5 pt-1 text-[11px] text-[#161F38] font-bold">
-          <div className="flex items-center gap-1.5 truncate">
+        {/* Quick Clear Bullets for Parents (Full-width items, no truncation, perfectly readable) */}
+        <div className="grid grid-cols-1 gap-1.5 pt-1 text-[11px] text-[#161F38] font-bold">
+          <div className="flex items-center gap-2">
             <CheckCircle2 className="w-3.5 h-3.5 text-[#5C8519] shrink-0" />
-            <span>Уроки прямо на сайте (без Zoom)</span>
+            <span className="leading-tight">Уроки прямо на сайте (без Zoom и сторонних программ)</span>
           </div>
-          <div className="flex items-center gap-1.5 truncate">
+          <div className="flex items-center gap-2">
             <CheckCircle2 className="w-3.5 h-3.5 text-[#5C8519] shrink-0" />
-            <span>Интерактивная доска с играми</span>
+            <span className="leading-tight">Интерактивная доска с игровыми заданиями</span>
           </div>
-          <div className="flex items-center gap-1.5 truncate">
+          <div className="flex items-center gap-2">
             <CheckCircle2 className="w-3.5 h-3.5 text-[#5C8519] shrink-0" />
-            <span>Голосовые ответы логопеду</span>
+            <span className="leading-tight">Голосовые ответы и живой контакт с педагогом</span>
           </div>
-          <div className="flex items-center gap-1.5 truncate">
+          <div className="flex items-center gap-2">
             <CheckCircle2 className="w-3.5 h-3.5 text-[#5C8519] shrink-0" />
-            <span>Понятный баланс занятий</span>
+            <span className="leading-tight">Понятный баланс занятий и отчёты родителям</span>
           </div>
         </div>
       </div>
