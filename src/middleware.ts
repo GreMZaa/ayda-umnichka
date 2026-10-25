@@ -12,6 +12,7 @@ const SYSTEM_ROUTES = new Set([
   'api',
   'favicon.ico',
   'icon.png',
+  'logo.png',
   'logo.svg',
   'robots.txt',
   'sitemap.xml',
@@ -159,8 +160,8 @@ export const config = {
      * - api (API routes)
      * - _next/static (static files)
      * - _next/image (image optimization files)
-     * - favicon.ico, images, logos
+     * - favicon.ico, images, logos, static image files
      */
-    '/((?!api|_next/static|_next/image|images|favicon.ico|logo.svg).*)',
+    '/((?!api|_next/static|_next/image|images|favicon.ico|icon.png|logo.png|logo.svg|.*\\.(?:png|jpg|jpeg|gif|webp|svg|ico)$).*)',
   ],
 };

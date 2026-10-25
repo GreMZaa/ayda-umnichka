@@ -10,9 +10,13 @@ export const metadata: Metadata = {
   title: "АйДаУмничка — Детский развивающий центр (Тольятти)",
   description: "Образовательная онлайн-платформа детского центра «АйДаУмничка» в г. Тольятти: P2P видеоуроки, интерактивная доска, чаты и прозрачный учет баланса занятий.",
   icons: {
-    icon: '/logo.png',
-    shortcut: '/logo.png',
-    apple: '/logo.png',
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/icon.png', type: 'image/png' },
+      { url: '/logo.png', type: 'image/png' },
+    ],
+    shortcut: '/favicon.ico',
+    apple: '/icon.png',
   },
   openGraph: {
     title: "АйДаУмничка — Детский развивающий центр (Тольятти)",
@@ -37,6 +41,9 @@ export default function RootLayout({
   return (
     <html lang="ru" suppressHydrationWarning>
       <head>
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" type="image/png" href="/icon.png" />
+        <link rel="apple-touch-icon" href="/icon.png" />
         <script
           dangerouslySetInnerHTML={{
             __html: `
