@@ -96,10 +96,11 @@ export default function Navbar() {
             {/* Balance Pill like the card balance */}
             <Link
               href="/student"
+              suppressHydrationWarning
               className="hidden sm:flex items-center gap-2 bg-white border border-[#EADBCC] px-3.5 py-1.5 rounded-full text-xs font-bold text-ink-800 shadow-sm hover:border-coralAccent transition-all"
             >
               <Coins className="w-4 h-4 text-coralAccent" />
-              <span>Баланс: <strong className="text-ink-900">{balance}</strong> зан.</span>
+              <span suppressHydrationWarning>Баланс: <strong className="text-ink-900">{balance}</strong> зан.</span>
             </Link>
 
             {/* Signature Lime Pill Button from the reference design! */}

@@ -53,7 +53,7 @@ export default function BalanceWidget({ balance, studentName = 'Тимофей �
           <div className="text-[11px] font-extrabold text-coralAccent uppercase tracking-widest">
             Абонемент «АйДаУмничка»
           </div>
-          <h4 className="text-xl font-extrabold text-ink-900 tracking-tight leading-snug">
+          <h4 suppressHydrationWarning className="text-xl font-extrabold text-ink-900 tracking-tight leading-snug">
             Баланс: {balance} {balance === 1 ? 'занятие' : balance >= 2 && balance <= 4 ? 'занятия' : 'занятий'}
           </h4>
           <p className="text-xs text-ink-500 leading-relaxed">
