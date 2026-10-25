@@ -162,7 +162,7 @@ export default function HomePage() {
                   {/* Arched Organic Cat Mascot Frame with HD Generated Mascot */}
                   <div className="w-32 h-44 sm:w-44 sm:h-52 lg:w-48 lg:h-56 rounded-[30px] sm:rounded-[40px] overflow-hidden relative shadow-sm border-2 border-white bg-transparent shrink-0">
                     <Image
-                      src="/images/mascot-center-hd.png"
+                      src="/images/mascot-center-hd.jpg"
                       alt="Кот-наставник центра АйДаУмничка (Тольятти)"
                       fill
                       className="object-cover"
