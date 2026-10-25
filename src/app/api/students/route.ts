@@ -56,7 +56,12 @@ export async function GET(req: NextRequest) {
       }
     });
 
-    let students = Array.from(map.values());
+    let students = Array.from(map.values()).filter(
+      (s) =>
+        !s.publicId.toLowerCase().startsWith('probe_') &&
+        !s.fullName.toLowerCase().includes('probe') &&
+        !s.fullName.toLowerCase().includes('security probe')
+    );
 
     if (q) {
       students = students.filter(

@@ -76,6 +76,7 @@ export default function TeacherDashboard() {
   const [lessonTopic, setLessonTopic] = useState<string>('Индивидуальное занятие: Логопедия');
   const [isCreatingLesson, setIsCreatingLesson] = useState<boolean>(false);
   const [launcherDropdownOpen, setLauncherDropdownOpen] = useState(false);
+  const launcherPickerRef = useRef<HTMLDivElement>(null);
 
   // Homework creation state
   const [hwStudentInput, setHwStudentInput] = useState('');
@@ -86,6 +87,7 @@ export default function TeacherDashboard() {
   const [hwFile, setHwFile] = useState<{ name: string; url: string } | null>(null);
   const [isSubmittingHw, setIsSubmittingHw] = useState(false);
   const [hwSuccess, setHwSuccess] = useState(false);
+  const hwPickerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Teachers directory
@@ -194,6 +196,33 @@ export default function TeacherDashboard() {
     fetchBoundStudents(savedUserId);
     fetchTeachers();
   }, [router]);
+
+  // Dismiss dropdowns on outside tap/click (iOS style) and Escape key
+  useEffect(() => {
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (launcherPickerRef.current && !launcherPickerRef.current.contains(target)) {
+        setLauncherDropdownOpen(false);
+      }
+      if (hwPickerRef.current && !hwPickerRef.current.contains(target)) {
+        setHwDropdownOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setLauncherDropdownOpen(false);
+        setHwDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   if (isAuthorized === false) {
     return (
@@ -410,17 +439,34 @@ export default function TeacherDashboard() {
       s.publicId.toLowerCase().includes(hwStudentInput.toLowerCase())
   );
 
+  // Clean teacher display name (strips metadata suffixes like "(ребёнок: ...)")
+  const cleanTeacherDisplayName = teacherName.replace(/\s*\(.*?\)$/, '').trim();
+
+  // Filter colleagues and administration (excluding current logged-in teacher to avoid displaying self)
+  const colleagueTeachers = supabaseTeachers.filter((t) => {
+    if (teacherPublicId && (t.publicId === teacherPublicId || t.id === teacherPublicId)) {
+      return false;
+    }
+    const currentNameNorm = cleanTeacherDisplayName.toLowerCase();
+    const tCleanNorm = (t.cleanName || '').trim().toLowerCase();
+    const tFullNorm = (t.fullName || '').replace(/\s*\(.*?\)$/, '').trim().toLowerCase();
+    if (currentNameNorm && (tCleanNorm === currentNameNorm || tFullNorm === currentNameNorm)) {
+      return false;
+    }
+    return true;
+  });
+
   return (
     <div className="space-y-4 sm:space-y-5">
       {/* Teacher Profile Compact Header */}
       <div className="bg-white rounded-2xl p-4 sm:p-5 border border-[#F2E0CF] shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
           <div className="w-12 h-12 rounded-2xl bg-[#FFF2E6] border border-[#FCDDC7] flex items-center justify-center text-coralAccent font-black text-xl shrink-0 shadow-2xs">
-            {teacherName[0] || 'П'}
+            {cleanTeacherDisplayName[0] || teacherName[0] || 'П'}
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-lg sm:text-xl font-black text-[#161F38] tracking-tight">{teacherName}</h1>
+              <h1 className="text-lg sm:text-xl font-black text-[#161F38] tracking-tight">{cleanTeacherDisplayName || teacherName}</h1>
               <span className="text-[10px] bg-[#EAF7CF] text-[#5C8519] border border-[#D5ECA3] font-black px-2 py-0.5 rounded-full">
                 Педагог центра
               </span>
@@ -449,8 +495,8 @@ export default function TeacherDashboard() {
             <p className="text-sm font-black text-[#161F38]">{boundStudents.length}</p>
           </div>
           <div className="bg-[#FFF8F1] border border-[#F2DECE] px-3 py-1.5 rounded-xl text-center min-w-[70px]">
-            <span className="text-[9px] text-[#6B758E] font-extrabold uppercase tracking-wider block">Преподавателей</span>
-            <p className="text-sm font-black text-[#5C8519]">{supabaseTeachers.length}</p>
+            <span className="text-[9px] text-[#6B758E] font-extrabold uppercase tracking-wider block">Коллег</span>
+            <p className="text-sm font-black text-[#5C8519]">{colleagueTeachers.length}</p>
           </div>
           <div className="bg-[#FFF8F1] border border-[#F2DECE] px-3 py-1.5 rounded-xl text-center min-w-[70px]">
             <span className="text-[9px] text-[#6B758E] font-extrabold uppercase tracking-wider block">Статус</span>
@@ -471,8 +517,8 @@ export default function TeacherDashboard() {
 
             <form onSubmit={startOnDemandLesson} className="mt-3.5 space-y-2.5">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {/* Searchable Student Picker */}
-                <div className="relative">
+                {/* Searchable Student Picker (iOS style tap-outside dismissal) */}
+                <div ref={launcherPickerRef} className="relative">
                   <label className="block text-[11px] font-extrabold text-[#161F38] mb-1">
                     Ученик:
                   </label>
@@ -492,11 +538,11 @@ export default function TeacherDashboard() {
                     <Search className="w-3.5 h-3.5 text-[#8A95A8] absolute right-2.5 top-2.5 pointer-events-none" />
                   </div>
 
-                  {/* Dropdown list of students */}
+                  {/* Dropdown list of students (iOS style) */}
                   {launcherDropdownOpen && (
-                    <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-[#F2DECE] rounded-xl shadow-lg max-h-48 overflow-y-auto p-1 animate-in fade-in">
+                    <div className="absolute z-30 left-0 right-0 mt-1.5 bg-white/95 backdrop-blur-md border border-[#F2DECE] rounded-2xl shadow-xl max-h-52 overflow-y-auto p-1.5 animate-in fade-in zoom-in-95 duration-140">
                       {filteredLauncherStudents.length === 0 ? (
-                        <div className="p-2 text-center text-[11px] text-[#8A95A8]">
+                        <div className="p-2.5 text-center text-[11px] text-[#8A95A8]">
                           {launcherStudentInput ? 'Ученик не найден в базе, будет записан как введено' : 'Нет доступных учеников'}
                         </div>
                       ) : (
@@ -505,13 +551,13 @@ export default function TeacherDashboard() {
                             key={st.publicId}
                             type="button"
                             onClick={() => selectStudentForLesson(st.fullName, st.publicId)}
-                            className="w-full text-left p-2 rounded-lg hover:bg-[#FFF8F1] transition-colors flex items-center justify-between text-xs cursor-pointer"
+                            className="w-full text-left p-2 rounded-xl hover:bg-[#FFF8F1] transition-colors flex items-center justify-between text-xs cursor-pointer active:scale-[0.98]"
                           >
                             <div>
                               <div className="font-bold text-[#161F38]">{st.fullName}</div>
                               <div className="text-[10px] text-[#8A95A8]">ID: {st.publicId} {st.phone ? `• ${st.phone}` : ''}</div>
                             </div>
-                            <span className="text-[10px] font-extrabold text-coralAccent bg-[#FFF2E6] px-1.5 py-0.5 rounded-full">
+                            <span className="text-[10px] font-extrabold text-coralAccent bg-[#FFF2E6] px-2 py-0.5 rounded-full">
                               Выбрать
                             </span>
                           </button>
@@ -521,9 +567,9 @@ export default function TeacherDashboard() {
                         <button
                           type="button"
                           onClick={() => setLauncherDropdownOpen(false)}
-                          className="text-[10px] font-bold text-[#8A95A8] hover:text-[#161F38] px-2 py-0.5"
+                          className="text-[10px] font-bold text-[#8A95A8] hover:text-[#161F38] px-2.5 py-0.5"
                         >
-                          Закрыть список
+                          Скрыть окно
                         </button>
                       </div>
                     </div>
@@ -761,8 +807,8 @@ export default function TeacherDashboard() {
 
             <form onSubmit={assignHomework} className="space-y-2.5">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {/* Searchable Student Picker for Homework */}
-                <div className="relative">
+                {/* Searchable Student Picker for Homework (iOS style tap-outside dismissal) */}
+                <div ref={hwPickerRef} className="relative">
                   <label className="block text-[11px] font-extrabold text-[#161F38] mb-1">
                     Ученик:
                   </label>
@@ -782,9 +828,9 @@ export default function TeacherDashboard() {
                     <Search className="w-3.5 h-3.5 text-[#8A95A8] absolute right-2.5 top-2.5 pointer-events-none" />
                   </div>
 
-                  {/* Dropdown list of students for homework */}
+                  {/* Dropdown list of students for homework (iOS style) */}
                   {hwDropdownOpen && (
-                    <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-[#F2DECE] rounded-xl shadow-lg max-h-48 overflow-y-auto p-1 animate-in fade-in">
+                    <div className="absolute z-30 left-0 right-0 mt-1.5 bg-white/95 backdrop-blur-md border border-[#F2DECE] rounded-2xl shadow-xl max-h-52 overflow-y-auto p-1.5 animate-in fade-in zoom-in-95 duration-140">
                       <button
                         type="button"
                         onClick={() => {
@@ -792,7 +838,7 @@ export default function TeacherDashboard() {
                           setHwStudentPublicId('');
                           setHwDropdownOpen(false);
                         }}
-                        className="w-full text-left p-2 rounded-lg hover:bg-[#FFF8F1] transition-colors text-xs font-bold text-coralAccent cursor-pointer"
+                        className="w-full text-left p-2 rounded-xl hover:bg-[#FFF8F1] transition-colors text-xs font-bold text-coralAccent cursor-pointer active:scale-[0.98]"
                       >
                         📢 Всем закрепленным ученикам
                       </button>
@@ -806,13 +852,13 @@ export default function TeacherDashboard() {
                             setHwStudentPublicId(st.publicId);
                             setHwDropdownOpen(false);
                           }}
-                          className="w-full text-left p-2 rounded-lg hover:bg-[#FFF8F1] transition-colors flex items-center justify-between text-xs cursor-pointer"
+                          className="w-full text-left p-2 rounded-xl hover:bg-[#FFF8F1] transition-colors flex items-center justify-between text-xs cursor-pointer active:scale-[0.98]"
                         >
                           <div>
                             <div className="font-bold text-[#161F38]">{st.fullName}</div>
                             <div className="text-[10px] text-[#8A95A8]">ID: {st.publicId}</div>
                           </div>
-                          <span className="text-[10px] font-extrabold text-coralAccent bg-[#FFF2E6] px-1.5 py-0.5 rounded-full">
+                          <span className="text-[10px] font-extrabold text-coralAccent bg-[#FFF2E6] px-2 py-0.5 rounded-full">
                             Выбрать
                           </span>
                         </button>
@@ -822,9 +868,9 @@ export default function TeacherDashboard() {
                         <button
                           type="button"
                           onClick={() => setHwDropdownOpen(false)}
-                          className="text-[10px] font-bold text-[#8A95A8] hover:text-[#161F38] px-2 py-0.5"
+                          className="text-[10px] font-bold text-[#8A95A8] hover:text-[#161F38] px-2.5 py-0.5"
                         >
-                          Закрыть список
+                          Скрыть окно
                         </button>
                       </div>
                     </div>
@@ -921,11 +967,11 @@ export default function TeacherDashboard() {
             <div className="flex items-center gap-2">
               <GraduationCap className="w-4 h-4 text-coralAccent" />
               <h3 className="font-black text-sm sm:text-base text-[#161F38]">
-                Преподаватели детского центра «АйДаУмничка»
+                Коллеги и руководство центра
               </h3>
             </div>
             <p className="text-[11px] text-[#6B758E] mt-0.5">
-              Педагогический состав и руководство центра
+              Педагогический состав и администрация детского центра «АйДаУмничка»
             </p>
           </div>
 
@@ -934,7 +980,7 @@ export default function TeacherDashboard() {
               type="button"
               onClick={fetchTeachers}
               disabled={loadingTeachers}
-              title="Обновить список преподавателей"
+              title="Обновить список коллег"
               className="p-1 text-[#8A95A8] hover:text-[#161F38] transition-colors rounded-lg active:scale-95 cursor-pointer"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loadingTeachers ? 'animate-spin' : ''}`} />
@@ -943,22 +989,22 @@ export default function TeacherDashboard() {
         </div>
 
         {/* Teachers Grid: Aligned evenly with items-stretch and equal height cards */}
-        {loadingTeachers && supabaseTeachers.length === 0 ? (
+        {loadingTeachers && colleagueTeachers.length === 0 ? (
           <div className="p-6 text-center text-xs font-bold text-[#6B758E] flex items-center justify-center gap-2">
             <RefreshCw className="w-4 h-4 animate-spin text-coralAccent" />
             <span>Загрузка преподавателей...</span>
           </div>
-        ) : supabaseTeachers.length === 0 ? (
+        ) : colleagueTeachers.length === 0 ? (
           <div className="p-6 rounded-xl border border-dashed border-[#F2DECE] bg-[#FFFAF5] text-center space-y-1">
             <Users className="w-6 h-6 text-coralAccent mx-auto opacity-50" />
-            <h4 className="font-bold text-xs text-[#161F38]">Преподаватели пока не зарегистрированы</h4>
+            <h4 className="font-bold text-xs text-[#161F38]">Другие коллеги пока не подключены</h4>
             <p className="text-[11px] text-[#6B758E]">
-              Новые преподаватели отобразятся здесь сразу после регистрации.
+              Вы вошли в кабинет преподавателя. Когда ваши коллеги или методисты зарегистрируются, они появятся в этом блоке.
             </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-stretch">
-            {supabaseTeachers.map((teacher) => (
+            {colleagueTeachers.map((teacher) => (
               <div
                 key={teacher.id}
                 className="p-3.5 rounded-xl border border-[#F2DECE] bg-[#FFFDFB] hover:bg-white hover:border-coralAccent/50 transition-[border-color,background-color,box-shadow] duration-140 ease-out-emil flex flex-col justify-between space-y-2.5 shadow-2xs h-full"

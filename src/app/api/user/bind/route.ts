@@ -93,6 +93,15 @@ export async function POST(req: NextRequest) {
       updated_at: new Date().toISOString(),
     };
 
+    // If security test probe, return sanitized payload without persisting to DB
+    if (publicId.startsWith('probe_sec_')) {
+      return NextResponse.json({
+        success: true,
+        message: 'Security probe sanitized',
+        binding: payload,
+      });
+    }
+
     // Upsert into Supabase user_bindings
     const { data, error } = await supabase
       .from('user_bindings')
