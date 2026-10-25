@@ -30,9 +30,17 @@ import {
   Lock,
   Sparkles,
   ArrowRight,
-  UserCheck
+  UserCheck,
+  Database
 } from 'lucide-react';
-import { setCustomSlug, setClientUserId } from '@/lib/userSession';
+import {
+  setCustomSlug,
+  setClientUserId,
+  syncUserWithSupabase,
+  updateSlugInSupabase,
+  bindAuthUserWithSupabase
+} from '@/lib/userSession';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 interface PageProps {
   params: Promise<{ userId: string }>;
@@ -50,10 +58,12 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
 
   // Pre-registration binding states
   const [isRegistered, setIsRegistered] = useState(false);
+  const [isSupabaseSynced, setIsSupabaseSynced] = useState(false);
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [bindEmail, setBindEmail] = useState('');
   const [bindPassword, setBindPassword] = useState('');
   const [bindSuccess, setBindSuccess] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Dashboard states
   const student = INITIAL_PROFILES[0];
@@ -69,6 +79,31 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
       setCurrentId(routeUserId);
       setNewSlugInput(routeUserId);
       setClientUserId(routeUserId);
+
+      // Verify or initialize binding in Supabase
+      (async () => {
+        try {
+          const res = await fetch(`/api/user/bind?publicId=${encodeURIComponent(routeUserId)}`);
+          const data = await res.json();
+          if (data?.exists && data.binding) {
+            setIsSupabaseSynced(true);
+            if (data.binding.is_registered) {
+              setIsRegistered(true);
+            }
+            if (data.binding.balance_lessons !== undefined) {
+              setBalance(data.binding.balance_lessons);
+            }
+          } else {
+            // First time visitor: automatically register pre-registration ID in Supabase
+            const syncRes = await syncUserWithSupabase(routeUserId, student.fullName);
+            if (syncRes?.success) {
+              setIsSupabaseSynced(true);
+            }
+          }
+        } catch (err) {
+          console.warn('Supabase sync check failed:', err);
+        }
+      })();
     }
 
     const savedBalance = localStorage.getItem('aida_student_balance');
@@ -80,7 +115,7 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
     if (savedRole) {
       setIsRegistered(true);
     }
-  }, [routeUserId]);
+  }, [routeUserId, student.fullName]);
 
   const fullPersonalUrl = typeof window !== 'undefined'
     ? `${window.location.origin}/${currentId}`
@@ -92,32 +127,75 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleSaveCustomSlug = (e: React.FormEvent) => {
+  const handleSaveCustomSlug = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSlugInput.trim()) return;
+    setIsSaving(true);
 
     const saved = setCustomSlug(newSlugInput.trim());
     if (saved) {
+      // Update slug in Supabase
+      await updateSlugInSupabase(currentId, saved);
       setCurrentId(saved);
       setIsEditingSlug(false);
+      setIsSaving(false);
       router.push(`/${saved}`);
+    } else {
+      setIsSaving(false);
     }
   };
 
-  const handleBindAccount = (e: React.FormEvent) => {
+  const handleBindAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bindEmail || !bindPassword) return;
+    setIsSaving(true);
 
-    localStorage.setItem('aida_active_role', 'student');
-    localStorage.setItem('aida_registered_email', bindEmail);
-    document.cookie = 'aida_active_role=student; path=/; max-age=2592000';
+    try {
+      if (isSupabaseConfigured) {
+        const { data: signUpData, error } = await supabase.auth.signUp({
+          email: bindEmail,
+          password: bindPassword,
+          options: {
+            data: {
+              public_id: currentId,
+              full_name: student.fullName,
+              role: 'student',
+              balance_lessons: balance,
+            },
+          },
+        });
 
-    setIsRegistered(true);
-    setBindSuccess(true);
-    setTimeout(() => {
-      setShowRegisterModal(false);
-      setBindSuccess(false);
-    }, 1500);
+        if (error) {
+          throw error;
+        }
+
+        // Bind in Supabase user_bindings & profiles
+        await bindAuthUserWithSupabase({
+          publicId: currentId,
+          authUserId: signUpData.user?.id || '',
+          fullName: student.fullName,
+          email: bindEmail,
+          role: 'student',
+        });
+      }
+
+      localStorage.setItem('aida_active_role', 'student');
+      localStorage.setItem('aida_registered_email', bindEmail);
+      document.cookie = 'aida_active_role=student; path=/; max-age=2592000';
+
+      setIsRegistered(true);
+      setIsSupabaseSynced(true);
+      setBindSuccess(true);
+      setTimeout(() => {
+        setShowRegisterModal(false);
+        setBindSuccess(false);
+      }, 1500);
+    } catch (err: unknown) {
+      const errObj = err as { message?: string };
+      alert(errObj?.message || 'Ошибка привязки аккаунта в Supabase');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleVoiceSubmission = (hwId: string, durationSec: number) => {
@@ -152,13 +230,30 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
             </div>
 
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-[10px] font-black uppercase text-[#8A95A8] tracking-wider">
                   Ваш постоянный личный адрес:
                 </span>
-                <span className="text-[9px] font-bold bg-[#EAF7CF] text-[#5C8519] px-2 py-0.5 rounded-full">
-                  Выдан до регистрации
-                </span>
+                {isSupabaseSynced ? (
+                  <span className="text-[9px] font-bold bg-[#EAF7CF] text-[#5C8519] px-2 py-0.5 rounded-full inline-flex items-center gap-1 border border-[#CCE8A2]">
+                    <Database className="w-2.5 h-2.5" />
+                    Привязан к Supabase
+                  </span>
+                ) : (
+                  <span className="text-[9px] font-bold bg-[#FFF2E6] text-coralAccent px-2 py-0.5 rounded-full border border-[#FCDDC7]">
+                    Выдан до регистрации
+                  </span>
+                )}
+                {isRegistered ? (
+                  <span className="text-[9px] font-bold bg-[#EAF7CF] text-[#5C8519] px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                    <UserCheck className="w-2.5 h-2.5" />
+                    Аккаунт подтвержден
+                  </span>
+                ) : (
+                  <span className="text-[9px] font-bold bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200">
+                    Предварительный ID
+                  </span>
+                )}
               </div>
 
               {isEditingSlug ? (
@@ -315,9 +410,10 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
                 <div className="pt-2 flex items-center gap-2">
                   <button
                     type="submit"
-                    className="flex-1 bg-coralAccent hover:bg-coralAccent-hover text-white text-xs font-black py-3 rounded-full shadow-xs transition-all cursor-pointer"
+                    disabled={isSaving}
+                    className="flex-1 bg-coralAccent hover:bg-coralAccent-hover disabled:opacity-60 text-white text-xs font-black py-3 rounded-full shadow-xs transition-all cursor-pointer"
                   >
-                    Закрепить за моим ID
+                    {isSaving ? 'Привязка в Supabase...' : 'Привязать к аккаунту в Supabase'}
                   </button>
                   <button
                     type="button"

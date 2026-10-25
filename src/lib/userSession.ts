@@ -1,6 +1,6 @@
 /**
  * Utility to manage pre-registration and persistent user IDs
- * Format:
+ * Bound permanently to Supabase:
  * Default: id[6 random digits], e.g. "id749210"
  * Custom slug: e.g. "s.sharonovv" (like in VK)
  */
@@ -58,4 +58,75 @@ export function setCustomSlug(slug: string): string {
   localStorage.setItem(STORAGE_CUSTOM_SLUG, cleanSlug);
   setClientUserId(cleanSlug);
   return cleanSlug;
+}
+
+/**
+ * Synchronize pre-registration ID or vanity slug with Supabase database
+ */
+export async function syncUserWithSupabase(publicId: string, fullName?: string) {
+  if (!publicId) return null;
+
+  try {
+    const res = await fetch('/api/user/bind', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        publicId,
+        fullName: fullName || 'Гость платформы',
+        isRegistered: false,
+      }),
+    });
+    const data = await res.json();
+    return data;
+  } catch (err) {
+    console.warn('Could not sync user with Supabase:', err);
+    return null;
+  }
+}
+
+/**
+ * Rename or update custom slug in Supabase
+ */
+export async function updateSlugInSupabase(oldPublicId: string, newPublicId: string) {
+  try {
+    const res = await fetch('/api/user/bind', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        oldPublicId,
+        newPublicId,
+      }),
+    });
+    return await res.json();
+  } catch (err) {
+    console.warn('Could not update slug in Supabase:', err);
+    return { error: 'Failed to update in Supabase' };
+  }
+}
+
+/**
+ * Bind registered Supabase auth user with their unique public ID
+ */
+export async function bindAuthUserWithSupabase(params: {
+  publicId: string;
+  authUserId: string;
+  fullName: string;
+  email?: string;
+  phone?: string;
+  role?: string;
+}) {
+  try {
+    const res = await fetch('/api/user/bind', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...params,
+        isRegistered: true,
+      }),
+    });
+    return await res.json();
+  } catch (err) {
+    console.warn('Could not bind auth user in Supabase:', err);
+    return { error: 'Failed to bind in Supabase' };
+  }
 }

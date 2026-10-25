@@ -21,6 +21,7 @@ import {
   EyeOff
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { getClientUserId, bindAuthUserWithSupabase, setClientUserId } from '@/lib/userSession';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -56,12 +57,15 @@ export default function LoginPage() {
           ? emailOrPhone.trim()
           : `${emailOrPhone.replace(/\D/g, '')}@aidaumnichka.ru`;
 
+        const publicId = getClientUserId();
+
         if (isSupabaseConfigured) {
-          const { error } = await supabase.auth.signUp({
+          const { data: signUpData, error } = await supabase.auth.signUp({
             email,
             password,
             options: {
               data: {
+                public_id: publicId,
                 full_name: `${fullName}${childName ? ` (ребёнок: ${childName})` : ''}`,
                 role: 'student',
                 balance_lessons: 1, // 1 welcome lesson
@@ -72,6 +76,16 @@ export default function LoginPage() {
           if (error) {
             throw error;
           }
+
+          if (signUpData?.user) {
+            await bindAuthUserWithSupabase({
+              publicId,
+              authUserId: signUpData.user.id,
+              fullName: `${fullName}${childName ? ` (ребёнок: ${childName})` : ''}`,
+              email,
+              role: 'student',
+            });
+          }
         }
 
         // Save local active role
@@ -79,9 +93,9 @@ export default function LoginPage() {
         localStorage.setItem('aida_student_balance', '1');
         document.cookie = 'aida_active_role=student; path=/; max-age=2592000';
 
-        setSuccessMessage('Регистрация прошла успешно! Добро пожаловать.');
+        setSuccessMessage('Регистрация прошла успешно! ID привязан к вашему аккаунту в Supabase.');
         setTimeout(() => {
-          router.push('/student');
+          router.push(`/${publicId}`);
         }, 800);
       } else {
         // Login
@@ -95,14 +109,30 @@ export default function LoginPage() {
           ? emailOrPhone.trim()
           : `${emailOrPhone.replace(/\D/g, '')}@aidaumnichka.ru`;
 
+        let targetId = getClientUserId();
+
         if (isSupabaseConfigured) {
-          const { error } = await supabase.auth.signInWithPassword({
+          const { data: signInData, error } = await supabase.auth.signInWithPassword({
             email,
             password,
           });
 
           if (error && !error.message.includes('Invalid login credentials')) {
             throw error;
+          }
+
+          // If signed in, retrieve bound public_id from Supabase
+          if (signInData?.user) {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('public_id')
+              .eq('id', signInData.user.id)
+              .maybeSingle();
+
+            if (profile?.public_id) {
+              targetId = profile.public_id;
+              setClientUserId(targetId);
+            }
           }
         }
 
@@ -112,7 +142,7 @@ export default function LoginPage() {
 
         setSuccessMessage('Вход выполнен! Перенаправляем в личный кабинет...');
         setTimeout(() => {
-          router.push('/student');
+          router.push(`/${targetId}`);
         }, 500);
       }
     } catch (err: unknown) {
