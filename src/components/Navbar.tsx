@@ -56,9 +56,6 @@ export default function Navbar() {
             <div>
               <div className="flex items-center gap-1.5 sm:gap-2">
                 <span className="font-black text-lg sm:text-xl tracking-tight text-[#161F38]">АйДаУмничка</span>
-                <span className="text-[9px] sm:text-[10px] uppercase font-bold bg-[#FDEEDC] text-coralAccent px-1.5 sm:px-2 py-0.5 rounded-full border border-[#F4DEC6]">
-                  Тольятти
-                </span>
               </div>
               <p className="text-[11px] text-[#6B758E] hidden sm:block font-medium">
                 Онлайн-уроки и репетиторы
