@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+function generateRandomId(): string {
+  const num = Math.floor(100000 + Math.random() * 900000);
+  return `id${num}`;
+}
+
 export function middleware(request: NextRequest) {
   const host = request.headers.get('host') || '';
   const { pathname } = request.nextUrl;
@@ -8,28 +13,56 @@ export function middleware(request: NextRequest) {
   // Check if request is coming to the LK subdomain (e.g. lk-ayda-umnichka.vercel.app or lk.example.ru)
   const isLkSubdomain = host.startsWith('lk-') || host.startsWith('lk.');
 
-  if (isLkSubdomain) {
-    // If user opens root of the LK subdomain
-    if (pathname === '/') {
-      const activeRole = request.cookies.get('aida_active_role')?.value;
-      const url = request.nextUrl.clone();
+  // Check for pre-registration user ID
+  let userId = request.cookies.get('aida_user_id')?.value;
+  let shouldSetCookie = false;
 
-      if (activeRole === 'teacher') {
-        url.pathname = '/teacher';
-      } else if (activeRole === 'admin') {
-        url.pathname = '/admin';
-      } else if (activeRole === 'student') {
-        url.pathname = '/student';
-      } else {
-        // By default show the Login portal
-        url.pathname = '/login';
-      }
-
-      return NextResponse.rewrite(url);
-    }
+  if (!userId) {
+    userId = generateRandomId();
+    shouldSetCookie = true;
   }
 
-  return NextResponse.next();
+  // Handle root "/" on LK subdomain:
+  // Immediately redirect to user's personal ID in the address bar (e.g. /id749210 or /s.sharonovv)
+  if (isLkSubdomain && pathname === '/') {
+    const url = request.nextUrl.clone();
+    url.pathname = `/${userId}`;
+    const response = NextResponse.redirect(url);
+    if (shouldSetCookie) {
+      response.cookies.set('aida_user_id', userId, {
+        path: '/',
+        maxAge: 31536000,
+        sameSite: 'lax',
+      });
+    }
+    return response;
+  }
+
+  // If user navigates to generic "/student", forward to their personal ID URL
+  if (pathname === '/student') {
+    const url = request.nextUrl.clone();
+    url.pathname = `/${userId}`;
+    const response = NextResponse.redirect(url);
+    if (shouldSetCookie) {
+      response.cookies.set('aida_user_id', userId, {
+        path: '/',
+        maxAge: 31536000,
+        sameSite: 'lax',
+      });
+    }
+    return response;
+  }
+
+  // When visiting any dynamic /[userId], ensure the cookie is preserved
+  const response = NextResponse.next();
+  if (shouldSetCookie) {
+    response.cookies.set('aida_user_id', userId, {
+      path: '/',
+      maxAge: 31536000,
+      sameSite: 'lax',
+    });
+  }
+  return response;
 }
 
 export const config = {
