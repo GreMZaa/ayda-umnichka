@@ -46,15 +46,28 @@ export default function LessonRoomPage() {
 
     // 4. Save active lesson room state so user can re-enter from personal cabinet if navigated away
     try {
+      const existingStart = localStorage.getItem(`aida_lesson_started_${roomId}`);
+      const startTimestamp = existingStart ? parseInt(existingStart, 10) : Date.now();
+      if (!existingStart) {
+        localStorage.setItem(`aida_lesson_started_${roomId}`, String(startTimestamp));
+      }
+
       localStorage.setItem(
         'aida_active_lesson_room',
         JSON.stringify({
           roomId,
           topic: resolvedTopic,
           role: activeRole,
-          timestamp: Date.now(),
+          timestamp: startTimestamp,
         })
       );
+
+      // Notify database that room has started
+      fetch('/api/lessons', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'start_room', room_token: roomId }),
+      }).catch(() => {});
     } catch (_) {}
   }, [roomId, roleParam, topicParam]);
 
@@ -62,6 +75,19 @@ export default function LessonRoomPage() {
     // Clear active room state upon completion
     try {
       localStorage.removeItem('aida_active_lesson_room');
+      localStorage.removeItem(`aida_lesson_started_${roomId}`);
+
+      // Mark lesson as completed in database with real duration
+      fetch('/api/lessons', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_status',
+          room_token: roomId,
+          status: 'completed',
+          duration_minutes: Math.max(1, Math.round(durationSec / 60)),
+        }),
+      }).catch(() => {});
     } catch (_) {}
 
     // Deduct 1 lesson from student balance if student

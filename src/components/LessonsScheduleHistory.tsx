@@ -25,6 +25,8 @@ export interface LessonRecord {
   duration_minutes: number;
   status: 'pending' | 'active' | 'completed' | 'cancelled';
   created_at: string;
+  started_at?: string;
+  ended_at?: string;
 }
 
 interface StudentOption {
@@ -52,6 +54,54 @@ export default function LessonsScheduleHistory({
   const [lessons, setLessons] = useState<LessonRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [showScheduleForm, setShowScheduleForm] = useState(false);
+
+  // Live ticking state for active room elapsed duration
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const getLessonElapsedSeconds = (l: LessonRecord) => {
+    let startMs: number | null = null;
+    try {
+      const localRoomStart = localStorage.getItem(`aida_lesson_started_${l.room_token}`);
+      if (localRoomStart) {
+        startMs = parseInt(localRoomStart, 10);
+      }
+      if (!startMs) {
+        const savedActive = localStorage.getItem('aida_active_lesson_room');
+        if (savedActive) {
+          const parsed = JSON.parse(savedActive);
+          if (parsed?.roomId === l.room_token && parsed.timestamp) {
+            startMs = parsed.timestamp;
+          }
+        }
+      }
+    } catch (_) {}
+
+    if (!startMs && l.started_at && (l.status === 'active' || l.status === 'pending')) {
+      const parsedTime = new Date(l.started_at).getTime();
+      if (!isNaN(parsedTime)) {
+        startMs = parsedTime;
+      }
+    }
+
+    if (startMs) {
+      const elapsed = Math.max(0, Math.floor((now - startMs) / 1000));
+      // Cap at 4 hours max so old stale timestamps don't keep ticking forever
+      if (elapsed < 4 * 3600) {
+        return elapsed;
+      }
+    }
+    return null;
+  };
+
+  const formatElapsedTimer = (totalSec: number) => {
+    const mins = Math.floor(totalSec / 60);
+    const secs = totalSec % 60;
+    return `${mins}:${secs < 10 ? '0' : ''}${secs} мин`;
+  };
 
   // Form states
   const [formStudent, setFormStudent] = useState('');
@@ -328,72 +378,106 @@ export default function LessonsScheduleHistory({
               </p>
             </div>
           ) : (
-            <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
-              {upcomingLessons.map((l) => (
-                <div
-                  key={l.id}
-                  className="p-2.5 rounded-xl border border-[#F2DECE] bg-[#FFFDFB] hover:bg-white transition-colors space-y-1.5 shadow-2xs"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-black text-[#161F38] truncate">
-                          {role === 'student' ? (l.teacher_name || 'Преподаватель') : l.student_name}
-                        </span>
-                        <span className="text-[9px] font-bold bg-[#FFF2E6] text-coralAccent px-1.5 py-0.2 rounded-full shrink-0">
-                          {formatLessonTime(l.scheduled_for)}
-                        </span>
+            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+              {upcomingLessons.map((l) => {
+                const elapsedSec = getLessonElapsedSeconds(l);
+                const isRoomActive = elapsedSec !== null;
+
+                return (
+                  <div
+                    key={l.id}
+                    className="p-2.5 rounded-xl border border-[#F2DECE] bg-[#FFFDFB] hover:bg-white transition-colors space-y-1.5 shadow-2xs"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-black text-[#161F38] truncate">
+                            {role === 'student' ? (l.teacher_name || 'Преподаватель') : l.student_name}
+                          </span>
+                          {isRoomActive ? (
+                            <span className="inline-flex items-center gap-1.5 bg-[#EAF7CF] text-[#5C8519] border border-[#CCE8A2] px-2 py-0.5 rounded-full text-[10px] font-mono font-black animate-pulse">
+                              <span className="w-1.5 h-1.5 rounded-full bg-[#5C8519]" />
+                              <span>Идёт урок: {formatElapsedTimer(elapsedSec)}</span>
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-bold bg-[#FFF2E6] text-coralAccent px-1.5 py-0.2 rounded-full shrink-0">
+                              {formatLessonTime(l.scheduled_for)}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-[#6B758E] truncate mt-0.5">{l.topic}</p>
                       </div>
-                      <p className="text-[11px] text-[#6B758E] truncate mt-0.5">{l.topic}</p>
+
+                      <a
+                        href={`/room/${l.room_token}?role=${role}&topic=${encodeURIComponent(l.topic)}`}
+                        className={`text-[10px] font-black ${
+                          isRoomActive
+                            ? 'bg-[#5C8519] hover:bg-[#4E7214] text-white shadow-xs animate-pulse'
+                            : 'bg-coralAccent hover:bg-coralAccent-hover text-white'
+                        } px-3 py-1 rounded-full transition-colors cursor-pointer active:scale-95 flex items-center gap-1 shrink-0`}
+                      >
+                        <Video className="w-3 h-3" />
+                        <span>{isRoomActive ? 'Вернуться в урок' : 'Войти'}</span>
+                      </a>
                     </div>
 
-                    <a
-                      href={`/room/${l.room_token}?role=${role}&topic=${encodeURIComponent(l.topic)}`}
-                      className="text-[10px] font-black bg-coralAccent hover:bg-coralAccent-hover text-white px-2.5 py-1 rounded-full transition-colors cursor-pointer active:scale-95 flex items-center gap-1 shrink-0"
-                    >
-                      <Video className="w-3 h-3" />
-                      <span>Войти</span>
-                    </a>
-                  </div>
+                    {/* Status footer */}
+                    <div className="pt-1 border-t border-[#F8EDE1] flex items-center justify-between text-[10px]">
+                      {role === 'student' ? (
+                        <>
+                          <span className="text-[#8A95A8]">Статус:</span>
+                          {isRoomActive ? (
+                            <span className="inline-flex items-center gap-1.5 font-bold text-[#5C8519]">
+                              <span className="w-1.5 h-1.5 rounded-full bg-[#5C8519] animate-ping" />
+                              <span>В эфире • Идёт урок: <strong>{formatElapsedTimer(elapsedSec)}</strong></span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 font-bold text-[#5C8519]">
+                              <span className="w-1.5 h-1.5 rounded-full bg-[#5C8519] animate-pulse" />
+                              <span>Готов к подключению (45 мин)</span>
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[#8A95A8]">Статус:</span>
+                            {isRoomActive ? (
+                              <span className="text-[#5C8519] font-black flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-[#5C8519] animate-ping" />
+                                <span>Урок идёт: <strong>{formatElapsedTimer(elapsedSec)}</strong></span>
+                              </span>
+                            ) : (
+                              <span className="text-[#6B758E] font-medium">Ожидание начала (45 мин)</span>
+                            )}
+                          </div>
 
-                  {/* Status footer */}
-                  <div className="pt-1 border-t border-[#F8EDE1] flex items-center justify-between text-[10px]">
-                    {role === 'student' ? (
-                      <>
-                        <span className="text-[#8A95A8]">Статус:</span>
-                        <span className="inline-flex items-center gap-1 font-bold text-[#5C8519]">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#5C8519] animate-pulse" />
-                          <span>Готов к подключению (45 мин)</span>
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="text-[#8A95A8]">Отметить результат:</span>
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateStatus(l.id, 'completed')}
-                            className="inline-flex items-center gap-1 font-bold text-[#5C8519] bg-[#EAF7CF] hover:bg-[#DDF4B2] px-2 py-0.5 rounded-md transition-colors cursor-pointer active:scale-95"
-                            title="Отметить, что урок состоялся"
-                          >
-                            <CheckCircle2 className="w-3 h-3" />
-                            <span>Прошёл</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateStatus(l.id, 'cancelled')}
-                            className="inline-flex items-center gap-1 font-bold text-red-600 bg-red-50 hover:bg-red-100 px-2 py-0.5 rounded-md transition-colors cursor-pointer active:scale-95"
-                            title="Отметить, что урок не состоялся"
-                          >
-                            <XCircle className="w-3 h-3" />
-                            <span>Не прошёл</span>
-                          </button>
-                        </div>
-                      </>
-                    )}
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateStatus(l.id, 'completed')}
+                              className="inline-flex items-center gap-1 font-bold text-[#5C8519] bg-[#EAF7CF] hover:bg-[#DDF4B2] px-2 py-0.5 rounded-md transition-colors cursor-pointer active:scale-95"
+                              title="Отметить, что урок состоялся"
+                            >
+                              <CheckCircle2 className="w-3 h-3" />
+                              <span>Прошёл</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateStatus(l.id, 'cancelled')}
+                              className="inline-flex items-center gap-1 font-bold text-red-600 bg-red-50 hover:bg-red-100 px-2 py-0.5 rounded-md transition-colors cursor-pointer active:scale-95"
+                              title="Отметить, что урок не состоялся"
+                            >
+                              <XCircle className="w-3 h-3" />
+                              <span>Не прошёл</span>
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )
         ) : (

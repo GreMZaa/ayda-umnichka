@@ -53,24 +53,35 @@ export async function POST(req: NextRequest) {
       teacher_summary,
     } = body;
 
-    // 1. Update existing lesson status (e.g. mark passed/completed or missed/cancelled)
-    if (id && (action === 'update_status' || status)) {
-      const updates: any = {
-        status: status || 'completed',
-      };
+    // 1. Update existing lesson status (e.g. start room, mark passed/completed or missed/cancelled)
+    if ((id || room_token) && (action === 'update_status' || action === 'start_room' || status)) {
+      const updates: any = {};
+      if (status) {
+        updates.status = status;
+      }
+      if (action === 'start_room' || status === 'active') {
+        updates.status = 'active';
+        updates.started_at = new Date().toISOString();
+      }
       if (status === 'completed') {
+        updates.status = 'completed';
         updates.ended_at = new Date().toISOString();
+      }
+      if (duration_minutes) {
+        updates.duration_minutes = duration_minutes;
       }
       if (teacher_summary) {
         updates.teacher_summary = teacher_summary;
       }
 
-      const { data, error } = await supabase
-        .from('lessons')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single();
+      let q = supabase.from('lessons').update(updates);
+      if (id) {
+        q = q.eq('id', id);
+      } else if (room_token) {
+        q = q.eq('room_token', room_token);
+      }
+
+      const { data, error } = await q.select();
 
       if (error) {
         console.error('Error updating lesson in Supabase:', error);
