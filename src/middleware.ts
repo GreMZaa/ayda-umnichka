@@ -134,8 +134,7 @@ export function middleware(request: NextRequest) {
     const requestedId = pathParts[0].toLowerCase();
     const isOwner =
       cookieUserId?.toLowerCase() === requestedId ||
-      authUserId?.toLowerCase() === requestedId ||
-      activeRole === 'admin';
+      authUserId?.toLowerCase() === requestedId;
 
     // If caller does not own this cabinet ID or is not authenticated:
     // Require logging in or registering through our official login page!

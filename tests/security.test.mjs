@@ -29,7 +29,7 @@ describe('Security Suite: RBAC & Cabinet Protection Tests', () => {
       const res = await fetch(`${BASE_URL}/admin`, {
         redirect: 'manual',
         headers: {
-          Cookie: 'aida_active_role=admin; aida_user_id=director;'
+          Cookie: 'aida_active_role=admin; aida_user_id=admin_session;'
         }
       });
       assert.strictEqual(res.status, 200, 'Admin must receive 200 OK');

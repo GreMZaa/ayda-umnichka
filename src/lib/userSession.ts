@@ -1,7 +1,7 @@
 /**
  * Utility to manage user IDs issued strictly AFTER registration
  * Default: id[6 random digits], e.g. "id749210"
- * Custom slug: e.g. "s.sharonovv"
+ * Custom slug: e.g. "ivan.ivanov"
  */
 
 export const COOKIE_USER_ID = 'aida_user_id';
@@ -69,7 +69,7 @@ export function issueNewUserId(): string {
 }
 
 /**
- * Save custom vanity slug (e.g. s.sharonovv)
+ * Save custom vanity slug (e.g. ivan.ivanov)
  */
 export function setCustomSlug(slug: string): string {
   if (typeof window === 'undefined') return slug;

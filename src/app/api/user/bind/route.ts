@@ -126,7 +126,7 @@ export async function POST(req: NextRequest) {
 
 // PUT /api/user/bind
 // Body: { oldPublicId, newPublicId, fullName? }
-// Used to rename / change vanity handle (e.g. from id123456 to s.sharonovv)
+// Used to rename / change vanity handle (e.g. from id123456 to ivan.ivanov)
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();

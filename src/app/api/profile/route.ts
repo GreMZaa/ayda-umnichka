@@ -6,7 +6,7 @@ export async function GET() {
     center: {
       name: 'АйДаУмничка',
       city: 'Тольятти',
-      director: 'Администрация центра',
+      administration: 'Администрация центра',
     },
   });
 }

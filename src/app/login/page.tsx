@@ -37,7 +37,6 @@ function LoginFormContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectParam = searchParams.get('redirect');
-  const cabinetId = searchParams.get('cabinetId');
   const errorParam = searchParams.get('error');
 
   const [tab, setTab] = useState<'login' | 'register'>('login');
@@ -142,7 +141,7 @@ function LoginFormContent() {
           ? emailOrPhone.trim().toLowerCase()
           : `${emailOrPhone.replace(/\D/g, '')}@aidaumnichka.ru`;
 
-        let targetId = cabinetId || getClientUserId() || issueNewUserId();
+        let targetId = '';
         let userRole = 'student';
 
         if (isSupabaseConfigured) {
@@ -176,6 +175,10 @@ function LoginFormContent() {
               localStorage.setItem('aida_student_balance', binding.balance_lessons.toString());
             }
           }
+        }
+
+        if (!targetId) {
+          targetId = getClientUserId() || issueNewUserId();
         }
 
         // Save role and verified auth cookies

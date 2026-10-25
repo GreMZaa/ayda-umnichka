@@ -26,7 +26,8 @@ import {
   Sparkles,
   ArrowRight,
   UserCheck,
-  Database
+  Database,
+  AlertCircle
 } from 'lucide-react';
 import {
   setCustomSlug,
@@ -48,10 +49,11 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
   const [newSlugInput, setNewSlugInput] = useState(routeUserId);
   const [copied, setCopied] = useState(false);
 
-  // Cabinet status states
-  const [isRegistered, setIsRegistered] = useState(true);
-  const [isSupabaseSynced, setIsSupabaseSynced] = useState(false);
+  // Verification & Status states
+  const [isChecking, setIsChecking] = useState(true);
+  const [isNotFound, setIsNotFound] = useState(false);
   const [isAccessBlocked, setIsAccessBlocked] = useState(false);
+  const [isSupabaseSynced, setIsSupabaseSynced] = useState(false);
 
   // Dashboard states
   const [studentName, setStudentName] = useState<string>('Ученик');
@@ -62,59 +64,58 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
   const [viewMode, setViewMode] = useState<'desktop' | 'phone'>('desktop');
 
   useEffect(() => {
-    if (routeUserId) {
-      setCurrentId(routeUserId);
-      setNewSlugInput(routeUserId);
-      setClientUserId(routeUserId);
+    if (!routeUserId) return;
 
-      // Verify binding in Supabase and check ownership
-      (async () => {
-        try {
-          const activeAuthUser =
-            localStorage.getItem('aida_auth_user_id') ||
-            document.cookie.match(/(?:^|; )aida_auth_user_id=([^;]*)/)?.[1] ||
-            localStorage.getItem('aida_user_id') ||
-            document.cookie.match(/(?:^|; )aida_user_id=([^;]*)/)?.[1];
-          const activeRole =
-            localStorage.getItem('aida_active_role') ||
-            document.cookie.match(/(?:^|; )aida_active_role=([^;]*)/)?.[1];
+    setCurrentId(routeUserId);
+    setNewSlugInput(routeUserId);
 
-          const decodedAuth = activeAuthUser ? decodeURIComponent(activeAuthUser).toLowerCase() : '';
-          const isOwner = Boolean(activeRole) && (decodedAuth === routeUserId.toLowerCase() || activeRole === 'admin');
+    (async () => {
+      try {
+        setIsChecking(true);
 
-          if (!isOwner) {
-            setIsAccessBlocked(true);
-            router.replace(`/login?redirect=/${encodeURIComponent(routeUserId)}&cabinetId=${encodeURIComponent(routeUserId)}&auth_required=1`);
-            return;
-          }
+        // 1. Verify existence of cabinet in Supabase database
+        const res = await fetch(`/api/user/bind?publicId=${encodeURIComponent(routeUserId)}`);
+        const data = await res.json();
 
-          setIsRegistered(true);
-
-          const res = await fetch(`/api/user/bind?publicId=${encodeURIComponent(routeUserId)}`);
-          const data = await res.json();
-          if (data?.exists && data.binding) {
-            setIsSupabaseSynced(true);
-            if (data.binding.full_name) {
-              setStudentName(data.binding.full_name);
-            }
-            if (data.binding.balance_lessons !== undefined) {
-              setBalance(data.binding.balance_lessons);
-            }
-          }
-        } catch (err) {
-          console.warn('Supabase sync check failed:', err);
+        if (!data?.exists) {
+          // The requested cabinet DOES NOT EXIST in the system
+          setIsNotFound(true);
+          setIsChecking(false);
+          return;
         }
-      })();
-    }
 
-    const savedName = localStorage.getItem('aida_full_name');
-    if (savedName) setStudentName(savedName);
+        // 2. The cabinet exists: check session credentials & ownership
+        const activeAuthUser =
+          localStorage.getItem('aida_auth_user_id') ||
+          document.cookie.match(/(?:^|; )aida_auth_user_id=([^;]*)/)?.[1] ||
+          localStorage.getItem('aida_user_id') ||
+          document.cookie.match(/(?:^|; )aida_user_id=([^;]*)/)?.[1];
+        const activeRole =
+          localStorage.getItem('aida_active_role') ||
+          document.cookie.match(/(?:^|; )aida_active_role=([^;]*)/)?.[1];
 
-    const savedBalance = localStorage.getItem('aida_student_balance');
-    if (savedBalance) setBalance(parseInt(savedBalance, 10));
+        const decodedAuth = activeAuthUser ? decodeURIComponent(activeAuthUser).toLowerCase() : '';
+        const isOwner = Boolean(activeRole) && (decodedAuth === routeUserId.toLowerCase() || activeRole === 'admin');
 
-    const savedRole = localStorage.getItem('aida_active_role');
-    if (savedRole) setIsRegistered(true);
+        if (!isOwner) {
+          setIsAccessBlocked(true);
+          setIsChecking(false);
+          return;
+        }
+
+        setIsSupabaseSynced(true);
+        if (data.binding?.full_name) {
+          setStudentName(data.binding.full_name);
+        }
+        if (data.binding?.balance_lessons !== undefined) {
+          setBalance(data.binding.balance_lessons);
+        }
+      } catch (err) {
+        console.warn('Cabinet verification check error:', err);
+      } finally {
+        setIsChecking(false);
+      }
+    })();
   }, [routeUserId]);
 
   const fullPersonalUrl = typeof window !== 'undefined'
@@ -156,6 +157,58 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
     alert('Домашнее задание успешно отправлено на проверку преподавателю!');
   };
 
+  // Loading state
+  if (isChecking) {
+    return (
+      <div className="min-h-[50vh] flex items-center justify-center p-4">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-3 border-coralAccent border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs font-bold text-ink-500">Проверка кабинета...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 404: Cabinet Does Not Exist
+  if (isNotFound) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-[32px] p-6 sm:p-8 border border-[#F2DECE] shadow-lg text-center space-y-4 animate-in fade-in duration-300">
+          <div className="w-16 h-16 rounded-3xl bg-[#FFF2E6] text-coralAccent flex items-center justify-center mx-auto border border-[#FCDDC7]">
+            <AlertCircle className="w-8 h-8" />
+          </div>
+          <div className="space-y-1.5">
+            <span className="text-[10px] font-black text-coralAccent uppercase tracking-widest bg-[#FFF2E6] px-2.5 py-0.5 rounded-full border border-[#FCDDC7]">
+              Кабинет не найден
+            </span>
+            <h2 className="text-xl font-black text-[#161F38]">
+              Кабинет /{routeUserId} не существует
+            </h2>
+            <p className="text-xs text-[#6B758E] leading-relaxed">
+              Такой личный кабинет не зарегистрирован на платформе центра «АйДаУмничка». Личный адрес присваивается автоматически только после регистрации.
+            </p>
+          </div>
+          <div className="pt-2 flex flex-col gap-2">
+            <Link
+              href="/login"
+              className="inline-flex items-center justify-center gap-2 w-full bg-coralAccent hover:bg-coralAccent-hover text-white py-3 rounded-full text-xs font-black transition-[background-color,transform,box-shadow] duration-140 ease-out-emil active:scale-[0.97] shadow-xs cursor-pointer"
+            >
+              <span>Зарегистрироваться или войти</span>
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+            <Link
+              href="/"
+              className="text-xs font-bold text-[#8A95A8] hover:text-[#161F38] py-2 transition-colors"
+            >
+              Вернуться на главную страницу
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Protected / Unauthorized Access
   if (isAccessBlocked) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center p-4">
@@ -176,7 +229,7 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
           </div>
           <div className="pt-2">
             <Link
-              href={`/login?redirect=/${encodeURIComponent(routeUserId)}&cabinetId=${encodeURIComponent(routeUserId)}`}
+              href={`/login?redirect=/${encodeURIComponent(routeUserId)}`}
               className="inline-flex items-center justify-center gap-2 w-full bg-coralAccent hover:bg-coralAccent-hover text-white py-3 rounded-full text-xs font-black transition-[background-color,transform,box-shadow] duration-140 ease-out-emil active:scale-[0.97] shadow-xs cursor-pointer"
             >
               <span>Войти через форму входа</span>
@@ -224,7 +277,7 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
                       autoFocus
                       value={newSlugInput}
                       onChange={(e) => setNewSlugInput(e.target.value)}
-                      placeholder="s.sharonovv"
+                      placeholder="ivan.ivanov"
                       className="bg-transparent outline-none px-1 text-xs font-mono font-bold text-coralAccent w-32 sm:w-44"
                     />
                   </div>
@@ -250,7 +303,7 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
 
                   <button
                     onClick={() => setIsEditingSlug(true)}
-                    title="Задать красивый адрес (например: s.sharonovv)"
+                    title="Задать красивый адрес (например: ivan.ivanov)"
                     className="p-1.5 rounded-lg text-[#8A95A8] hover:text-[#161F38] hover:bg-[#FFF7EE] transition-colors duration-140 active:scale-90 cursor-pointer"
                   >
                     <Edit2 className="w-3.5 h-3.5" />
