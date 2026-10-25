@@ -87,8 +87,8 @@ export default function Navbar() {
             </div>
           </Link>
 
-          {/* Navigation Links — Hidden on /login page */}
-          {!isLogin && (
+          {/* Navigation Links — Hidden on /login and inside personal cabinets */}
+          {!isLogin && !isInsideLk && (
             <nav className="hidden md:flex items-center gap-6 lg:gap-8">
               {isHome ? (
                 <>
@@ -164,8 +164,8 @@ export default function Navbar() {
 
           {/* Right Section */}
           <div className="flex items-center gap-3">
-            {/* Balance Pill — Only visible when inside cabinet pages */}
-            {!isHome && !isLogin && (
+            {/* Balance Pill — Only visible for student */}
+            {isStudent && (
               <Link
                 href="/student"
                 suppressHydrationWarning
