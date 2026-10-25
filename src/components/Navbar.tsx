@@ -25,12 +25,12 @@ export default function Navbar() {
   const isInsideLk = isStudent || isTeacher || isAdmin;
 
   const [balance, setBalance] = useState<number>(6);
-  const [lkUrl, setLkUrl] = useState<string>('https://lk-ayda-umnichka.vercel.app');
+  const [lkUrl, setLkUrl] = useState<string>('https://lk-ayda-umnichka.vercel.app/login');
 
   useEffect(() => {
     const savedBalance = localStorage.getItem('aida_student_balance');
     if (savedBalance) setBalance(parseInt(savedBalance, 10));
-    setLkUrl(getLkUrl());
+    setLkUrl(getLkUrl('/login'));
   }, []);
 
   const handleLogout = () => {

@@ -36,11 +36,8 @@ import {
 import {
   setCustomSlug,
   setClientUserId,
-  syncUserWithSupabase,
   updateSlugInSupabase,
-  bindAuthUserWithSupabase
 } from '@/lib/userSession';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 interface PageProps {
   params: Promise<{ userId: string }>;
@@ -56,14 +53,10 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
   const [newSlugInput, setNewSlugInput] = useState(routeUserId);
   const [copied, setCopied] = useState(false);
 
-  // Pre-registration binding states
-  const [isRegistered, setIsRegistered] = useState(false);
+  // Cabinet status states
+  const [isRegistered, setIsRegistered] = useState(true);
   const [isSupabaseSynced, setIsSupabaseSynced] = useState(false);
   const [isAccessBlocked, setIsAccessBlocked] = useState(false);
-  const [showRegisterModal, setShowRegisterModal] = useState(false);
-  const [bindEmail, setBindEmail] = useState('');
-  const [bindPassword, setBindPassword] = useState('');
-  const [bindSuccess, setBindSuccess] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   // Dashboard states
@@ -81,41 +74,37 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
       setNewSlugInput(routeUserId);
       setClientUserId(routeUserId);
 
-      // Verify or initialize binding in Supabase
+      // Verify binding in Supabase and check ownership
       (async () => {
         try {
+          // Verify ownership: ID is strictly issued to registered users
+          const activeAuthUser =
+            localStorage.getItem('aida_auth_user_id') ||
+            document.cookie.match(/(?:^|; )aida_auth_user_id=([^;]*)/)?.[1] ||
+            localStorage.getItem('aida_user_id') ||
+            document.cookie.match(/(?:^|; )aida_user_id=([^;]*)/)?.[1];
+          const activeRole =
+            localStorage.getItem('aida_active_role') ||
+            document.cookie.match(/(?:^|; )aida_active_role=([^;]*)/)?.[1];
+
+          const decodedAuth = activeAuthUser ? decodeURIComponent(activeAuthUser).toLowerCase() : '';
+          const isOwner = Boolean(activeRole) && (decodedAuth === routeUserId.toLowerCase() || activeRole === 'admin');
+
+          if (!isOwner) {
+            // If not authenticated as this user, block access and require login
+            setIsAccessBlocked(true);
+            router.replace(`/login?redirect=/${encodeURIComponent(routeUserId)}&cabinetId=${encodeURIComponent(routeUserId)}&auth_required=1`);
+            return;
+          }
+
+          setIsRegistered(true);
+
           const res = await fetch(`/api/user/bind?publicId=${encodeURIComponent(routeUserId)}`);
           const data = await res.json();
           if (data?.exists && data.binding) {
             setIsSupabaseSynced(true);
-            if (data.binding.is_registered) {
-              // Verify ownership: must match authenticated user or admin
-              const activeAuthUser =
-                localStorage.getItem('aida_auth_user_id') ||
-                document.cookie.match(/(?:^|; )aida_auth_user_id=([^;]*)/)?.[1];
-              const activeRole =
-                localStorage.getItem('aida_active_role') ||
-                document.cookie.match(/(?:^|; )aida_active_role=([^;]*)/)?.[1];
-
-              const decodedAuth = activeAuthUser ? decodeURIComponent(activeAuthUser).toLowerCase() : '';
-              const isOwner = decodedAuth === routeUserId.toLowerCase() || activeRole === 'admin';
-
-              if (!isOwner) {
-                // If not authenticated as this user, block access and require login
-                setIsAccessBlocked(true);
-                router.replace(`/login?redirect=/${encodeURIComponent(routeUserId)}&cabinetId=${encodeURIComponent(routeUserId)}&auth_required=1`);
-                return;
-              }
-              setIsRegistered(true);
-            }
             if (data.binding.balance_lessons !== undefined) {
               setBalance(data.binding.balance_lessons);
-            }
-          } else {
-            // First time visitor: automatically register pre-registration ID in Supabase
-            const syncRes = await syncUserWithSupabase(routeUserId, student.fullName);
-            if (syncRes?.success) {
-              setIsSupabaseSynced(true);
             }
           }
         } catch (err) {
@@ -159,59 +148,6 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
       setIsSaving(false);
       router.push(`/${saved}`);
     } else {
-      setIsSaving(false);
-    }
-  };
-
-  const handleBindAccount = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!bindEmail || !bindPassword) return;
-    setIsSaving(true);
-
-    try {
-      if (isSupabaseConfigured) {
-        const { data: signUpData, error } = await supabase.auth.signUp({
-          email: bindEmail,
-          password: bindPassword,
-          options: {
-            data: {
-              public_id: currentId,
-              full_name: student.fullName,
-              role: 'student',
-              balance_lessons: balance,
-            },
-          },
-        });
-
-        if (error) {
-          throw error;
-        }
-
-        // Bind in Supabase user_bindings & profiles
-        await bindAuthUserWithSupabase({
-          publicId: currentId,
-          authUserId: signUpData.user?.id || '',
-          fullName: student.fullName,
-          email: bindEmail,
-          role: 'student',
-        });
-      }
-
-      localStorage.setItem('aida_active_role', 'student');
-      localStorage.setItem('aida_registered_email', bindEmail);
-      document.cookie = 'aida_active_role=student; path=/; max-age=2592000';
-
-      setIsRegistered(true);
-      setIsSupabaseSynced(true);
-      setBindSuccess(true);
-      setTimeout(() => {
-        setShowRegisterModal(false);
-        setBindSuccess(false);
-      }, 1500);
-    } catch (err: unknown) {
-      const errObj = err as { message?: string };
-      alert(errObj?.message || 'Ошибка привязки аккаунта в Supabase');
-    } finally {
       setIsSaving(false);
     }
   };
@@ -284,26 +220,16 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
                 <span className="text-[10px] font-black uppercase text-[#8A95A8] tracking-wider">
                   Ваш постоянный личный адрес:
                 </span>
-                {isSupabaseSynced ? (
+                {isSupabaseSynced && (
                   <span className="text-[9px] font-bold bg-[#EAF7CF] text-[#5C8519] px-2 py-0.5 rounded-full inline-flex items-center gap-1 border border-[#CCE8A2]">
                     <Database className="w-2.5 h-2.5" />
                     Привязан к Supabase
                   </span>
-                ) : (
-                  <span className="text-[9px] font-bold bg-[#FFF2E6] text-coralAccent px-2 py-0.5 rounded-full border border-[#FCDDC7]">
-                    Выдан до регистрации
-                  </span>
                 )}
-                {isRegistered ? (
-                  <span className="text-[9px] font-bold bg-[#EAF7CF] text-[#5C8519] px-2 py-0.5 rounded-full inline-flex items-center gap-1">
-                    <UserCheck className="w-2.5 h-2.5" />
-                    Аккаунт подтвержден
-                  </span>
-                ) : (
-                  <span className="text-[9px] font-bold bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200">
-                    Предварительный ID
-                  </span>
-                )}
+                <span className="text-[9px] font-bold bg-[#EAF7CF] text-[#5C8519] px-2 py-0.5 rounded-full inline-flex items-center gap-1 border border-[#CCE8A2]">
+                  <UserCheck className="w-2.5 h-2.5" />
+                  Выдан после регистрации
+                </span>
               </div>
 
               {isEditingSlug ? (
@@ -371,113 +297,14 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
               )}
             </button>
 
-            {!isRegistered ? (
-              <button
-                onClick={() => setShowRegisterModal(true)}
-                className="inline-flex items-center gap-1.5 bg-coralAccent hover:bg-coralAccent-hover text-white px-3.5 py-2 rounded-2xl text-xs font-black transition-all shadow-2xs cursor-pointer active:scale-95"
-              >
-                <Lock className="w-3.5 h-3.5" />
-                <span>Защитить паролем</span>
-              </button>
-            ) : (
-              <div className="inline-flex items-center gap-1.5 bg-[#EAF7CF] text-[#5C8519] border border-[#D5ECA6] px-3 py-1.5 rounded-2xl text-xs font-extrabold">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Защищен</span>
-              </div>
-            )}
-          </div>
-
-        </div>
-
-        {/* Pre-registration Explanation Notice */}
-        {!isRegistered && (
-          <div className="bg-[#FFFBF7] p-3 rounded-2xl border border-[#F4E3D2] flex items-center justify-between gap-3 text-xs text-[#6B758E]">
-            <p className="leading-relaxed">
-              💡 <strong>Ваш кабинет уже работает:</strong> этот адрес <span className="font-mono font-bold text-[#161F38]">/{currentId}</span> уникален и закреплен за вами. Сохраните ссылку в закладки или задайте пароль, чтобы входить с телефона и любого устройства.
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* ─────────────────────────────────────────────────────────────
-          2. PASSWORD BINDING MODAL
-          ───────────────────────────────────────────────────────────── */}
-      {showRegisterModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink-900/40 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="relative w-full max-w-md bg-white rounded-[32px] p-6 sm:p-7 shadow-2xl border border-[#F2E0CF] space-y-4">
-            <div className="space-y-1">
-              <span className="text-[10px] font-black text-coralAccent uppercase tracking-widest bg-[#FFF2E6] px-2.5 py-0.5 rounded-full border border-[#FCDDC7]">
-                ЗАКРЕПЛЕНИЕ ID: {currentId}
-              </span>
-              <h3 className="text-xl font-black text-[#161F38]">
-                Задайте пароль для кабинета
-              </h3>
-              <p className="text-xs text-[#6B758E] leading-relaxed">
-                Ваш текущий ID <span className="font-mono font-bold text-[#161F38]">/{currentId}</span> и 6 уроков на балансе будут навсегда привязаны к вашему аккаунту.
-              </p>
+            <div className="inline-flex items-center gap-1.5 bg-[#EAF7CF] text-[#5C8519] border border-[#D5ECA6] px-3.5 py-2 rounded-2xl text-xs font-extrabold shadow-2xs">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Кабинет защищен</span>
             </div>
-
-            {bindSuccess ? (
-              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-center space-y-2">
-                <CheckCircle className="w-8 h-8 text-emerald-600 mx-auto" />
-                <div className="text-sm font-black text-emerald-800">
-                  Аккаунт успешно закреплен!
-                </div>
-                <div className="text-xs text-emerald-700">
-                  Теперь вы можете входить по email и паролю с любого устройства.
-                </div>
-              </div>
-            ) : (
-              <form onSubmit={handleBindAccount} className="space-y-3">
-                <div className="space-y-1">
-                  <label className="text-xs font-extrabold text-[#161F38] block">
-                    Ваш Email или телефон:
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={bindEmail}
-                    onChange={(e) => setBindEmail(e.target.value)}
-                    placeholder="elena.smirnova@mail.ru"
-                    className="w-full bg-[#FFFBF7] border border-[#F2E0CF] rounded-2xl px-3.5 py-2.5 text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-extrabold text-[#161F38] block">
-                    Придумайте пароль:
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    value={bindPassword}
-                    onChange={(e) => setBindPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full bg-[#FFFBF7] border border-[#F2E0CF] rounded-2xl px-3.5 py-2.5 text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent font-mono"
-                  />
-                </div>
-
-                <div className="pt-2 flex items-center gap-2">
-                  <button
-                    type="submit"
-                    disabled={isSaving}
-                    className="flex-1 bg-coralAccent hover:bg-coralAccent-hover disabled:opacity-60 text-white text-xs font-black py-3 rounded-full shadow-xs transition-all cursor-pointer"
-                  >
-                    {isSaving ? 'Привязка в Supabase...' : 'Привязать к аккаунту в Supabase'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowRegisterModal(false)}
-                    className="text-xs font-bold text-[#8A95A8] hover:text-[#161F38] px-4 py-3"
-                  >
-                    Позже
-                  </button>
-                </div>
-              </form>
-            )}
           </div>
+
         </div>
-      )}
+      </div>
 
       {/* ─────────────────────────────────────────────────────────────
           3. VIEW SWITCHER (Desktop vs Mobile Reference)
