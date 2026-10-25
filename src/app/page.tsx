@@ -9,13 +9,11 @@ import {
   Video,
   ChevronDown,
   ChevronUp,
-  UserCheck,
-  Shield,
-  GraduationCap,
   Sparkles,
-  ArrowRight,
   CheckCircle2,
   PhoneCall,
+  Clock,
+  ShieldCheck,
 } from 'lucide-react';
 
 export default function HomePage() {
@@ -25,8 +23,6 @@ export default function HomePage() {
   const slides = [
     { id: 'hero', label: 'Главная', number: '01' },
     { id: 'trial-form', label: 'Запись на урок', number: '02' },
-    { id: 'progress', label: 'Прогресс', number: '03' },
-    { id: 'portals', label: 'Кабинеты', number: '04' },
   ];
 
   const scrollToSlide = (index: number) => {
@@ -129,7 +125,7 @@ export default function HomePage() {
       </nav>
 
       {/* ─────────────────────────────────────────────────────────────
-          SNAP-SCROLL CONTAINER
+          SNAP-SCROLL CONTAINER (2 Blocks)
           ───────────────────────────────────────────────────────────── */}
       <div
         ref={containerRef}
@@ -138,7 +134,7 @@ export default function HomePage() {
         style={{ scrollSnapType: 'y mandatory' }}
       >
         {/* ═════════════════════════════════════════════════════════════
-            SLIDE 1: HERO SECTION — Exact Match to Requested Copy & Single Button
+            SLIDE 1: HERO SECTION
             ═════════════════════════════════════════════════════════════ */}
         <section
           id="slide-hero"
@@ -270,7 +266,7 @@ export default function HomePage() {
         </section>
 
         {/* ═════════════════════════════════════════════════════════════
-            SLIDE 2: TRIAL LESSON FORM (Requested Form Layout)
+            SLIDE 2: TRIAL LESSON FORM (Requested Form Layout + Integrated Footer)
             ═════════════════════════════════════════════════════════════ */}
         <section
           id="slide-onboarding"
@@ -342,233 +338,11 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Slide Down Hint Button */}
-            <div className="flex items-center justify-center pt-2 relative z-10">
-              <button
-                onClick={() => scrollToSlide(2)}
-                className="flex items-center gap-2 text-[11px] font-bold text-[#6B758E] hover:text-coralAccent transition-colors group cursor-pointer"
-              >
-                <span>Листать дальше: успехи и пройденные темы</span>
-                <span className="inline-block animate-bounce text-coralAccent">↓</span>
-              </button>
-            </div>
-          </div>
-        </section>
-
-        {/* ═════════════════════════════════════════════════════════════
-            SLIDE 3: LESSONS PROGRESS (Успехи и прогресс)
-            ═════════════════════════════════════════════════════════════ */}
-        <section
-          id="slide-progress"
-          className="snap-start snap-always w-full h-[calc(100vh-5rem)] min-h-[calc(100vh-5rem)] max-h-[calc(100vh-5rem)] flex items-center justify-center p-3 sm:p-5 lg:p-6"
-        >
-          <div className="max-w-7xl w-full h-full max-h-[640px] bg-white rounded-[36px] sm:rounded-[44px] p-5 sm:p-8 lg:p-10 border border-[#F2E0CF] shadow-[0_20px_50px_rgba(22,31,56,0.04)] flex flex-col justify-between overflow-hidden relative">
-            <div className="absolute top-0 right-0 w-[55%] h-[60%] bg-[radial-gradient(circle_at_80%_20%,_rgba(255,225,205,0.45)_0%,_transparent_70%)] pointer-events-none" />
-
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 items-center flex-1 my-auto relative z-10">
-              {/* Left Column: Progress Headline */}
-              <div className="lg:col-span-5 space-y-3">
-                <span className="text-[10px] font-black text-coralAccent uppercase tracking-widest">
-                  Шаг 02 • Результаты
-                </span>
-                <h2 className="text-3xl sm:text-5xl font-black text-[#161F38] tracking-tight leading-tight">
-                  6 занятий <br />
-                  <span className="text-coralAccent font-extrabold text-2xl sm:text-4xl">
-                    успешно освоено
-                  </span>
-                </h2>
-
-                <p className="text-xs sm:text-sm text-[#6B758E] max-w-sm leading-relaxed">
-                  Тимофей освоил артикуляционную гимнастику и изолированный звук [Р]. Пора закрепить навык в интерактивной игре!
-                </p>
-
-                <div className="pt-2">
-                  <Link
-                    href="/student"
-                    className="inline-flex items-center gap-3 bg-[#FFF8F1] border border-[#EADBCC] rounded-full p-1.5 pr-4 shadow-2xs hover:border-coralAccent transition-colors"
-                  >
-                    <div className="w-9 h-9 rounded-full overflow-hidden relative border border-white shrink-0 bg-white">
-                      <Image
-                        src="/images/child-avatar.png"
-                        alt="Тимофей"
-                        fill
-                        className="object-cover"
-                      />
-                    </div>
-                    <span className="text-xs font-bold text-[#161F38]">
-                      Тимофей, давай начнем игру-урок! ➔
-                    </span>
-                  </Link>
-                </div>
-              </div>
-
-              {/* Right Column: Course cards & Happy Mascot */}
-              <div className="lg:col-span-7 bg-[#FFF8F1] p-5 sm:p-6 rounded-[28px] border border-[#F2E3D5] shadow-xs flex flex-col sm:flex-row items-center justify-between gap-5">
-                <div className="space-y-3 flex-1 w-full">
-                  <div>
-                    <span className="text-[10px] font-extrabold text-coralAccent uppercase tracking-widest">
-                      Успехи ученика
-                    </span>
-                    <h3 className="text-lg sm:text-xl font-black text-[#161F38] mt-0.5">
-                      Молодец, Тимофей!
-                    </h3>
-                    <p className="text-xs text-[#6B758E]">
-                      Курс артикуляции и звуков пройден на 75%
-                    </p>
-                  </div>
-
-                  {/* Course Card 1 */}
-                  <div className="p-3 bg-white rounded-2xl border border-[#F2E2D0] flex items-center justify-between">
-                    <div>
-                      <h4 className="text-xs font-bold text-[#161F38]">Постановка звука [Р]</h4>
-                      <p className="text-[11px] text-[#6B758E]">12 занятий • 5–7 лет</p>
-                    </div>
-                    <span className="text-xs font-extrabold text-coralAccent bg-[#FFF8F1] px-2.5 py-1 rounded-xl shadow-2xs">
-                      Активен
-                    </span>
-                  </div>
-
-                  {/* Course Card 2 */}
-                  <div className="p-3 bg-white rounded-2xl border border-[#F2E2D0] flex items-center justify-between">
-                    <div>
-                      <h4 className="text-xs font-bold text-[#161F38]">Подготовка к чтению</h4>
-                      <p className="text-[11px] text-[#6B758E]">24 занятия • 6–8 лет</p>
-                    </div>
-                    <span className="text-xs font-extrabold text-[#6B758E] bg-[#FFF8F1] px-2.5 py-1 rounded-xl">
-                      Следующий
-                    </span>
-                  </div>
-                </div>
-
-                {/* Mascot circle */}
-                <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-full overflow-hidden relative border-4 border-white shadow-sm shrink-0 bg-white">
-                  <Image
-                    src="/images/mascot-happy.png"
-                    alt="Счастливый кот"
-                    fill
-                    className="object-cover"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Slide Down Hint Button */}
-            <div className="flex items-center justify-center pt-2 relative z-10">
-              <button
-                onClick={() => scrollToSlide(3)}
-                className="flex items-center gap-2 text-[11px] font-bold text-[#6B758E] hover:text-coralAccent transition-colors group cursor-pointer"
-              >
-                <span>Листать дальше: разделы платформы и личные кабинеты</span>
-                <span className="inline-block animate-bounce text-coralAccent">↓</span>
-              </button>
-            </div>
-          </div>
-        </section>
-
-        {/* ═════════════════════════════════════════════════════════════
-            SLIDE 4: PORTALS & FOOTER (Личные кабинеты + Подвал)
-            ═════════════════════════════════════════════════════════════ */}
-        <section
-          id="slide-portals"
-          className="snap-start snap-always w-full h-[calc(100vh-5rem)] min-h-[calc(100vh-5rem)] max-h-[calc(100vh-5rem)] flex items-center justify-center p-3 sm:p-5 lg:p-6"
-        >
-          <div className="max-w-7xl w-full h-full max-h-[640px] bg-white rounded-[36px] sm:rounded-[44px] p-5 sm:p-8 border border-[#F2E0CF] shadow-[0_20px_50px_rgba(22,31,56,0.04)] flex flex-col justify-between overflow-hidden relative">
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <span className="text-[10px] font-black text-coralAccent uppercase tracking-widest">
-                    Шаг 03 • Доступ
-                  </span>
-                  <h2 className="text-xl sm:text-2xl font-black text-[#161F38] tracking-tight">
-                    Разделы платформы «АйДаУмничка»
-                  </h2>
-                </div>
-                <span className="text-xs text-[#6B758E] hidden sm:block">
-                  г. Тольятти • Детский центр
-                </span>
-              </div>
-
-              {/* 3 Portal Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Student Portal Card */}
-                <Link
-                  href="/student"
-                  className="group bg-[#FFF8F1] rounded-2xl p-4 sm:p-5 border border-[#F2E3D5] hover:border-coralAccent hover:shadow-md transition-all flex flex-col justify-between"
-                >
-                  <div>
-                    <div className="w-10 h-10 rounded-xl bg-white text-coralAccent flex items-center justify-center font-bold text-base mb-3 group-hover:scale-105 transition-transform shadow-2xs">
-                      <GraduationCap className="w-5 h-5" />
-                    </div>
-                    <h3 className="font-extrabold text-sm sm:text-base text-[#161F38] group-hover:text-coralAccent transition-colors">
-                      Личный кабинет Ученика
-                    </h3>
-                    <p className="text-[11px] text-[#6B758E] mt-1.5 leading-relaxed">
-                      Баланс занятий, вход в активный урок в 1 клик, домашние задания и отправка голосовых записей педагогу.
-                    </p>
-                  </div>
-                  <div className="mt-4 flex items-center justify-between pt-3 border-t border-[#F2DEC9]">
-                    <span className="text-[11px] font-extrabold text-coralAccent">Войти учеником</span>
-                    <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center text-[10px] text-coralAccent group-hover:translate-x-1 transition-transform">
-                      ➔
-                    </div>
-                  </div>
-                </Link>
-
-                {/* Teacher Portal Card */}
-                <Link
-                  href="/teacher"
-                  className="group bg-[#FFF8F1] rounded-2xl p-4 sm:p-5 border border-[#F2E3D5] hover:border-coralAccent hover:shadow-md transition-all flex flex-col justify-between"
-                >
-                  <div>
-                    <div className="w-10 h-10 rounded-xl bg-white text-[#161F38] flex items-center justify-center font-bold text-base mb-3 group-hover:scale-105 transition-transform shadow-2xs">
-                      <UserCheck className="w-5 h-5" />
-                    </div>
-                    <h3 className="font-extrabold text-sm sm:text-base text-[#161F38] group-hover:text-coralAccent transition-colors">
-                      Рабочее место Педагога
-                    </h3>
-                    <p className="text-[11px] text-[#6B758E] mt-1.5 leading-relaxed">
-                      Быстрый запуск On-Demand сессий без расписания, список учеников, заметки логопеда и интерактивная доска.
-                    </p>
-                  </div>
-                  <div className="mt-4 flex items-center justify-between pt-3 border-t border-[#F2DEC9]">
-                    <span className="text-[11px] font-extrabold text-[#161F38]">Кабинет педагога</span>
-                    <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center text-[10px] text-[#161F38] group-hover:translate-x-1 transition-transform">
-                      ➔
-                    </div>
-                  </div>
-                </Link>
-
-                {/* Admin Portal Card */}
-                <Link
-                  href="/admin"
-                  className="group bg-[#FFF8F1] rounded-2xl p-4 sm:p-5 border border-[#F2E3D5] hover:border-coralAccent hover:shadow-md transition-all flex flex-col justify-between"
-                >
-                  <div>
-                    <div className="w-10 h-10 rounded-xl bg-white text-[#161F38] flex items-center justify-center font-bold text-base mb-3 group-hover:scale-105 transition-transform shadow-2xs">
-                      <Shield className="w-5 h-5 text-[#161F38]" />
-                    </div>
-                    <h3 className="font-extrabold text-sm sm:text-base text-[#161F38] group-hover:text-coralAccent transition-colors">
-                      Панель Администратора
-                    </h3>
-                    <p className="text-[11px] text-[#6B758E] mt-1.5 leading-relaxed">
-                      Пополнение абонементов (+4, +8, +16 уроков), история списаний и статистика центра «АйДаУмничка» в Тольятти.
-                    </p>
-                  </div>
-                  <div className="mt-4 flex items-center justify-between pt-3 border-t border-[#F2DEC9]">
-                    <span className="text-[11px] font-extrabold text-[#161F38]">Управление</span>
-                    <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center text-[10px] text-[#161F38] group-hover:translate-x-1 transition-transform">
-                      ➔
-                    </div>
-                  </div>
-                </Link>
-              </div>
-            </div>
-
-            {/* Integrated Slide 4 Footer */}
-            <div className="pt-4 border-t border-[#F2E0CF] flex flex-col sm:flex-row items-center justify-between gap-2 text-center sm:text-left">
+            {/* Integrated Slide 2 Footer */}
+            <div className="pt-3 border-t border-[#F2E0CF] flex flex-col sm:flex-row items-center justify-between gap-2 text-center sm:text-left relative z-10">
               <div>
                 <p className="text-xs font-bold text-[#161F38]">
-                  © 2026 Детский центр развития речи и интеллекта «АйДаУмничка» (г. Тольятти)
+                  © 2026 Онлайн-уроки и репетиторы «АйДаУмничка» (г. Тольятти)
                 </p>
                 <p className="text-[10px] text-[#6B758E] mt-0.5">
                   Прямая P2P WebRTC видеосвязь без иностранных шлюзов • Устойчивость к белым спискам РФ • Уроки On-Demand

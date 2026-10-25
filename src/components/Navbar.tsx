@@ -45,7 +45,7 @@ export default function Navbar() {
                 </span>
               </div>
               <p className="text-[11px] text-[#6B758E] hidden sm:block font-medium">
-                Детский центр развития речи и интеллекта
+                Онлайн-уроки и репетиторы
               </p>
             </div>
           </Link>
@@ -64,19 +64,7 @@ export default function Navbar() {
                   onClick={() => navigateToSlide(1)}
                   className="text-sm font-semibold text-[#161F38]/80 hover:text-coralAccent transition-colors cursor-pointer"
                 >
-                  Запись на урок
-                </button>
-                <button
-                  onClick={() => navigateToSlide(2)}
-                  className="text-sm font-semibold text-[#161F38]/80 hover:text-coralAccent transition-colors cursor-pointer"
-                >
-                  Программа и успехи
-                </button>
-                <button
-                  onClick={() => navigateToSlide(3)}
-                  className="text-sm font-semibold text-[#161F38]/80 hover:text-coralAccent transition-colors cursor-pointer"
-                >
-                  Кабинеты
+                  Записаться на урок
                 </button>
               </>
             ) : (
