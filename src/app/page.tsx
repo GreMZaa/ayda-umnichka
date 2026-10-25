@@ -11,7 +11,7 @@ import {
   ChevronUp,
   Sparkles,
   CheckCircle2,
-  PhoneCall,
+  Phone,
   Clock,
   ShieldCheck,
 } from 'lucide-react';
@@ -297,15 +297,16 @@ export default function HomePage() {
               {/* Right Column: Tutor Guidance & Trust Badges */}
               <div className="lg:col-span-5 flex flex-col justify-between space-y-4">
                 <div className="bg-[#FFF8F1] p-4 sm:p-5 rounded-3xl border border-[#F2E2D0] flex items-center gap-4">
-                  <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden relative border border-white shadow-xs shrink-0 bg-white">
+                  {/* HD Generated Tutor Image matching diagnostic/fun learning theme */}
+                  <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden relative border-2 border-white shadow-sm shrink-0 bg-white">
                     <Image
-                      src="/images/mascot-study.png"
-                      alt="Кот-педагог"
+                      src="/images/tutor-intro-hd.jpg"
+                      alt="Кот-педагог центра АйДаУмничка"
                       fill
                       className="object-cover"
                     />
                   </div>
-                  <p className="text-xs text-[#161F38]/90 leading-relaxed">
+                  <p className="text-xs text-[#161F38]/90 leading-relaxed font-medium">
                     «На вводном занятии педагог легко найдет контакт с ребенком, определит текущий уровень и покажет, как интересно учиться онлайн!»
                   </p>
                 </div>
@@ -338,20 +339,33 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Integrated Slide 2 Footer */}
-            <div className="pt-3 border-t border-[#F2E0CF] flex flex-col sm:flex-row items-center justify-between gap-2 text-center sm:text-left relative z-10">
-              <div>
-                <p className="text-xs font-bold text-[#161F38]">
-                  © 2026 Онлайн-уроки и репетиторы «АйДаУмничка» (г. Тольятти)
-                </p>
-                <p className="text-[10px] text-[#6B758E] mt-0.5">
-                  Прямая P2P WebRTC видеосвязь без иностранных шлюзов • Устойчивость к белым спискам РФ • Уроки On-Demand
-                </p>
+            {/* Enhanced Beautiful Footer with Direct Phone 8 995 485 46 67 */}
+            <div className="mt-4 pt-4 border-t border-[#F2E0CF] flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left relative z-10">
+              <div className="flex flex-col sm:flex-row items-center gap-3">
+                {/* Clickable Phone Number */}
+                <a
+                  href="tel:89954854667"
+                  className="inline-flex items-center gap-2 bg-[#FFF8F1] hover:bg-[#FFF2E6] border border-[#F2DECE] px-3.5 py-1.5 rounded-full text-xs font-black text-[#161F38] shadow-2xs hover:border-coralAccent transition-all group"
+                >
+                  <div className="w-5 h-5 rounded-full bg-[#5C8519] text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                    <Phone className="w-3 h-3" />
+                  </div>
+                  <span className="tracking-wide">8 995 485 46 67</span>
+                </a>
+
+                <div>
+                  <p className="text-xs font-bold text-[#161F38]">
+                    © 2026 Онлайн-уроки и репетиторы «АйДаУмничка»
+                  </p>
+                  <p className="text-[10px] text-[#6B758E]">
+                    г. Тольятти • Защищенная P2P видеосвязь • Уроки On-Demand
+                  </p>
+                </div>
               </div>
 
               <button
                 onClick={() => scrollToSlide(0)}
-                className="text-[11px] font-bold text-coralAccent hover:underline flex items-center gap-1 cursor-pointer shrink-0"
+                className="inline-flex items-center gap-1.5 text-xs font-extrabold text-coralAccent hover:text-coralAccent-hover bg-[#FFF8F1] hover:bg-[#FFF2E6] border border-[#F2DECE] px-3.5 py-1.5 rounded-full transition-all cursor-pointer shadow-2xs"
               >
                 <span>Наверх к началу</span>
                 <span>↑</span>
