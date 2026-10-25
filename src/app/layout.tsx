@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import ContentWrapper from "@/components/ContentWrapper";
@@ -8,6 +8,14 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "АйДаУмничка — Детский развивающий центр (Тольятти)",
   description: "Образовательная онлайн-платформа детского центра «АйДаУмничка» в г. Тольятти: P2P видеоуроки, интерактивная доска, чаты и прозрачный учет баланса занятий.",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  viewportFit: "cover",
+  themeColor: "#FFF7EE",
 };
 
 export default function RootLayout({

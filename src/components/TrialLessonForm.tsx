@@ -86,7 +86,7 @@ export default function TrialLessonForm() {
               value={parentName}
               onChange={(e) => setParentName(e.target.value)}
               placeholder="Например: Елена"
-              className="w-full bg-[#FFFBF7] border border-[#F2E0CF] rounded-2xl px-4 py-2.5 text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent focus:ring-1 focus:ring-coralAccent"
+              className="w-full bg-[#FFFBF7] border border-[#F2E0CF] rounded-2xl px-4 py-3 sm:py-2.5 text-base sm:text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent focus:ring-1 focus:ring-coralAccent"
             />
           </div>
 
@@ -101,7 +101,7 @@ export default function TrialLessonForm() {
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="+7 (999) 000-00-00"
-              className="w-full bg-[#FFFBF7] border border-[#F2E0CF] rounded-2xl px-4 py-2.5 text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent focus:ring-1 focus:ring-coralAccent font-mono"
+              className="w-full bg-[#FFFBF7] border border-[#F2E0CF] rounded-2xl px-4 py-3 sm:py-2.5 text-base sm:text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent focus:ring-1 focus:ring-coralAccent font-mono"
             />
           </div>
         </div>
@@ -117,7 +117,7 @@ export default function TrialLessonForm() {
             value={childName}
             onChange={(e) => setChildName(e.target.value)}
             placeholder="Например: Артём"
-            className="w-full bg-[#FFFBF7] border border-[#F2E0CF] rounded-2xl px-4 py-2.5 text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent focus:ring-1 focus:ring-coralAccent"
+            className="w-full bg-[#FFFBF7] border border-[#F2E0CF] rounded-2xl px-4 py-3 sm:py-2.5 text-base sm:text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent focus:ring-1 focus:ring-coralAccent"
           />
         </div>
 

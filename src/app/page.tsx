@@ -76,11 +76,11 @@ export default function HomePage() {
   return (
     <div className="relative w-full h-[calc(100vh-5rem)] overflow-hidden bg-[#FFF7EE]">
       {/* ─────────────────────────────────────────────────────────────
-          MINIMALIST SLIDE NAVIGATOR (Right Edge)
+          MINIMALIST SLIDE NAVIGATOR (Visible on sm+ screens, hidden on mobile for clean touch space)
           ───────────────────────────────────────────────────────────── */}
       <nav
         aria-label="Навигация по экранам"
-        className="fixed right-3 sm:right-6 top-1/2 -translate-y-1/2 z-40 flex flex-col items-center gap-2 bg-white/70 backdrop-blur-md p-2 rounded-full border border-[#F4E3D2] shadow-sm"
+        className="hidden sm:flex fixed right-3 sm:right-6 top-1/2 -translate-y-1/2 z-40 flex-col items-center gap-2 bg-white/70 backdrop-blur-md p-2 rounded-full border border-[#F4E3D2] shadow-sm"
       >
         <button
           onClick={() => activeSlide > 0 && scrollToSlide(activeSlide - 1)}
@@ -138,9 +138,9 @@ export default function HomePage() {
             ═════════════════════════════════════════════════════════════ */}
         <section
           id="slide-hero"
-          className="snap-start snap-always w-full h-[calc(100vh-5rem)] min-h-[calc(100vh-5rem)] max-h-[calc(100vh-5rem)] flex items-center justify-center p-3 sm:p-5 lg:p-6"
+          className="snap-start snap-always w-full min-h-[calc(100dvh-5rem)] lg:h-[calc(100dvh-5rem)] flex items-center justify-center p-3 sm:p-5 lg:p-6"
         >
-          <div className="max-w-7xl w-full h-full max-h-[640px] bg-white rounded-[36px] sm:rounded-[44px] p-5 sm:p-8 lg:p-10 border border-[#F2E0CF] shadow-[0_20px_50px_rgba(22,31,56,0.04)] flex flex-col justify-between overflow-hidden relative">
+          <div className="max-w-7xl w-full min-h-full lg:max-h-[640px] bg-white rounded-[28px] sm:rounded-[36px] lg:rounded-[44px] p-4 sm:p-7 lg:p-10 border border-[#F2E0CF] shadow-[0_20px_50px_rgba(22,31,56,0.04)] flex flex-col justify-between overflow-visible lg:overflow-hidden relative">
             {/* Ambient Warm Gradient Glows */}
             <div className="absolute top-0 right-0 w-[55%] h-[70%] bg-[radial-gradient(circle_at_75%_25%,_rgba(255,225,205,0.55)_0%,_rgba(255,242,232,0.25)_45%,_transparent_75%)] pointer-events-none" />
             <div className="absolute bottom-0 left-0 w-[45%] h-[55%] bg-[radial-gradient(circle_at_20%_80%,_rgba(255,232,215,0.4)_0%,_transparent_65%)] pointer-events-none" />
@@ -153,7 +153,7 @@ export default function HomePage() {
                 {/* Cat + Companion Feature Column (Completely fills the space beside the mascot) */}
                 <div className="flex items-stretch gap-3.5 sm:gap-4">
                   {/* Arched Organic Cat Mascot Frame with HD Generated Mascot */}
-                  <div className="w-36 h-48 sm:w-44 sm:h-52 lg:w-48 lg:h-56 rounded-[36px] sm:rounded-[40px] overflow-hidden relative shadow-sm border-2 border-white bg-[#FFF6EE] shrink-0">
+                  <div className="w-32 h-44 sm:w-44 sm:h-52 lg:w-48 lg:h-56 rounded-[30px] sm:rounded-[40px] overflow-hidden relative shadow-sm border-2 border-white bg-[#FFF6EE] shrink-0">
                     <Image
                       src="/images/mascot-center-hd.jpg"
                       alt="Кот-наставник центра АйДаУмничка (Тольятти)"
@@ -169,12 +169,12 @@ export default function HomePage() {
                     <div>
                       <button
                         onClick={() => scrollToSlide(1)}
-                        className="inline-flex items-center justify-between gap-2.5 bg-[#FFFDFB] border border-[#161F38] rounded-full pl-4 pr-1.5 py-1.5 shadow-xs hover:bg-[#FFF5EC] transition-all group cursor-pointer w-full sm:w-auto"
+                        className="inline-flex items-center justify-between gap-2.5 bg-[#FFFDFB] border border-[#161F38] rounded-full pl-3.5 sm:pl-4 pr-1.5 py-1.5 shadow-xs hover:bg-[#FFF5EC] transition-all group cursor-pointer w-full sm:w-auto"
                       >
                         <span className="text-[10px] sm:text-[11px] font-black text-[#161F38] uppercase tracking-wider whitespace-nowrap">
                           КАК ПРОХОДИТ УРОК?
                         </span>
-                        <div className="w-7 h-7 rounded-full bg-[#EBF7D0] flex items-center justify-center p-1 relative shrink-0 group-hover:scale-105 transition-transform">
+                        <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-[#EBF7D0] flex items-center justify-center p-1 relative shrink-0 group-hover:scale-105 transition-transform">
                           <Image
                             src="/images/puzzle-icon.png"
                             alt="Пазл"
@@ -187,30 +187,30 @@ export default function HomePage() {
 
                     {/* 3 Interactive Highlight Bullets */}
                     <div className="space-y-1.5 my-1.5">
-                      <div className="flex items-center gap-2 bg-[#FFF8F1] border border-[#F2DECE] px-3 py-1.5 rounded-xl shadow-2xs">
+                      <div className="flex items-center gap-2 bg-[#FFF8F1] border border-[#F2DECE] px-2.5 sm:px-3 py-1.5 rounded-xl shadow-2xs">
                         <span className="text-xs shrink-0">🎨</span>
-                        <span className="text-[11px] font-bold text-[#161F38] truncate">
+                        <span className="text-[10px] sm:text-[11px] font-bold text-[#161F38] truncate">
                           Интерактивная доска для рисования
                         </span>
                       </div>
 
-                      <div className="flex items-center gap-2 bg-[#FFF8F1] border border-[#F2DECE] px-3 py-1.5 rounded-xl shadow-2xs">
+                      <div className="flex items-center gap-2 bg-[#FFF8F1] border border-[#F2DECE] px-2.5 sm:px-3 py-1.5 rounded-xl shadow-2xs">
                         <span className="text-xs shrink-0">⚡</span>
-                        <span className="text-[11px] font-bold text-[#161F38] truncate">
+                        <span className="text-[10px] sm:text-[11px] font-bold text-[#161F38] truncate">
                           Без Zoom и VPN • Запуск в 1 клик
                         </span>
                       </div>
 
-                      <div className="flex items-center gap-2 bg-[#FFF8F1] border border-[#F2DECE] px-3 py-1.5 rounded-xl shadow-2xs">
+                      <div className="flex items-center gap-2 bg-[#FFF8F1] border border-[#F2DECE] px-2.5 sm:px-3 py-1.5 rounded-xl shadow-2xs">
                         <span className="text-xs shrink-0">🎯</span>
-                        <span className="text-[11px] font-bold text-[#161F38] truncate">
+                        <span className="text-[10px] sm:text-[11px] font-bold text-[#161F38] truncate">
                           Репетитор под характер ребёнка
                         </span>
                       </div>
                     </div>
 
                     {/* Social Proof & Rating Badge */}
-                    <div className="flex items-center gap-2 text-[10px] font-extrabold text-[#161F38] bg-[#FFFBF7] border border-[#EADBCC] px-3 py-1 rounded-full shadow-2xs">
+                    <div className="flex items-center gap-2 text-[9px] sm:text-[10px] font-extrabold text-[#161F38] bg-[#FFFBF7] border border-[#EADBCC] px-2.5 sm:px-3 py-1 rounded-full shadow-2xs">
                       <span className="text-amber-500 tracking-tighter">★★★★★</span>
                       <span className="text-[#6B758E] font-medium">•</span>
                       <span className="truncate">200+ учеников в Тольятти</span>
@@ -223,21 +223,21 @@ export default function HomePage() {
               </div>
 
               {/* Right Column: Requested Headline & Single CTA Button */}
-              <div className="lg:col-span-6 space-y-6 lg:pl-2">
+              <div className="lg:col-span-6 space-y-4 sm:space-y-6 lg:pl-2">
                 
                 {/* Requested Headline: Онлайн-уроки с репетитором, где всё понятно и удобно. */}
                 <div>
                   <div className="text-[#161F38] tracking-tight">
-                    <div className="font-black text-4xl sm:text-5xl lg:text-[62px] leading-[1.02]">
+                    <div className="font-black text-3xl sm:text-5xl lg:text-[62px] leading-[1.02]">
                       Онлайн-уроки
                     </div>
-                    <div className="font-normal text-3xl sm:text-4xl lg:text-[46px] leading-[1.06] mt-1 text-[#161F38]/90">
+                    <div className="font-normal text-2xl sm:text-4xl lg:text-[46px] leading-[1.06] mt-1 text-[#161F38]/90">
                       с репетитором,
                     </div>
-                    <div className="font-black text-4xl sm:text-5xl lg:text-[60px] leading-[1.02] mt-1">
+                    <div className="font-black text-3xl sm:text-5xl lg:text-[60px] leading-[1.02] mt-1">
                       где всё понятно
                     </div>
-                    <div className="font-normal text-3xl sm:text-4xl lg:text-[46px] leading-[1.06] mt-1 text-[#161F38]/90">
+                    <div className="font-normal text-2xl sm:text-4xl lg:text-[46px] leading-[1.06] mt-1 text-[#161F38]/90">
                       и удобно.
                     </div>
                   </div>
@@ -249,13 +249,13 @@ export default function HomePage() {
                 </p>
 
                 {/* Exactly ONE CTA Button: Записаться на бесплатный пробный урок */}
-                <div className="pt-2">
+                <div className="pt-1 sm:pt-2">
                   <button
                     onClick={() => scrollToSlide(1)}
-                    className="w-full sm:w-auto bg-[#C5E87D] hover:bg-[#B6DC67] text-[#161F38] font-black text-sm sm:text-base px-8 py-4 rounded-full shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-3 active:scale-95 group cursor-pointer"
+                    className="w-full sm:w-auto bg-[#C5E87D] hover:bg-[#B6DC67] text-[#161F38] font-black text-xs sm:text-sm md:text-base px-6 sm:px-8 py-3.5 sm:py-4 rounded-full shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-3 active:scale-95 group cursor-pointer"
                   >
                     <span>Записаться на бесплатный пробный урок</span>
-                    <span className="w-7 h-7 rounded-full bg-white flex items-center justify-center text-xs group-hover:translate-x-1 transition-transform shadow-2xs">
+                    <span className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white flex items-center justify-center text-xs group-hover:translate-x-1 transition-transform shadow-2xs">
                       ➔
                     </span>
                   </button>
@@ -281,9 +281,9 @@ export default function HomePage() {
             ═════════════════════════════════════════════════════════════ */}
         <section
           id="slide-onboarding"
-          className="snap-start snap-always w-full h-[calc(100vh-5rem)] min-h-[calc(100vh-5rem)] max-h-[calc(100vh-5rem)] flex items-center justify-center p-3 sm:p-5 lg:p-6"
+          className="snap-start snap-always w-full min-h-[calc(100dvh-5rem)] lg:h-[calc(100dvh-5rem)] flex items-center justify-center p-3 sm:p-5 lg:p-6"
         >
-          <div className="max-w-7xl w-full h-full max-h-[640px] bg-white rounded-[36px] sm:rounded-[44px] p-5 sm:p-8 lg:p-10 border border-[#F2E0CF] shadow-[0_20px_50px_rgba(22,31,56,0.04)] flex flex-col justify-between overflow-hidden relative">
+          <div className="max-w-7xl w-full min-h-full lg:max-h-[640px] bg-white rounded-[28px] sm:rounded-[36px] lg:rounded-[44px] p-4 sm:p-7 lg:p-10 border border-[#F2E0CF] shadow-[0_20px_50px_rgba(22,31,56,0.04)] flex flex-col justify-between overflow-visible lg:overflow-hidden relative">
             <div className="absolute top-0 right-0 w-[55%] h-[60%] bg-[radial-gradient(circle_at_80%_20%,_rgba(255,225,205,0.45)_0%,_transparent_70%)] pointer-events-none" />
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 items-center flex-1 my-auto relative z-10">

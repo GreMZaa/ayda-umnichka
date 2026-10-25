@@ -40,11 +40,11 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 bg-[#FFF7EE]/95 backdrop-blur-md border-b border-[#F4E4D3]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-20">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-16 sm:h-20">
           {/* Brand Logo with Professional Vector Mark from logo-design */}
-          <Link href="/" className="flex items-center gap-3 group">
-            <div className="w-11 h-11 rounded-2xl overflow-hidden relative shadow-xs border border-white group-hover:scale-105 transition-transform shrink-0">
+          <Link href="/" className="flex items-center gap-2.5 sm:gap-3 group">
+            <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl overflow-hidden relative shadow-xs border border-white group-hover:scale-105 transition-transform shrink-0">
               <Image
                 src="/logo.svg"
                 alt="Логотип АйДаУмничка"
@@ -54,9 +54,9 @@ export default function Navbar() {
               />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="font-black text-xl tracking-tight text-[#161F38]">АйДаУмничка</span>
-                <span className="text-[10px] uppercase font-bold bg-[#FDEEDC] text-coralAccent px-2 py-0.5 rounded-full border border-[#F4DEC6]">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <span className="font-black text-lg sm:text-xl tracking-tight text-[#161F38]">АйДаУмничка</span>
+                <span className="text-[9px] sm:text-[10px] uppercase font-bold bg-[#FDEEDC] text-coralAccent px-1.5 sm:px-2 py-0.5 rounded-full border border-[#F4DEC6]">
                   Тольятти
                 </span>
               </div>
@@ -180,7 +180,7 @@ export default function Navbar() {
               // On landing page: Direct real link to LK subdomain (lk-[project].vercel.app)
               <a
                 href={lkUrl}
-                className="bg-[#C5E87D] hover:bg-[#B6DC67] text-[#161F38] font-black px-5 py-2.5 rounded-full text-xs tracking-tight transition-all shadow-xs flex items-center gap-2 active:scale-95 cursor-pointer"
+                className="bg-[#C5E87D] hover:bg-[#B6DC67] text-[#161F38] font-black px-3.5 py-2 sm:px-5 sm:py-2.5 rounded-full text-xs tracking-tight transition-all shadow-xs flex items-center gap-1.5 sm:gap-2 active:scale-95 cursor-pointer whitespace-nowrap"
               >
                 <LogIn className="w-3.5 h-3.5 text-[#161F38]" />
                 <span>Вход / Регистрация</span>
