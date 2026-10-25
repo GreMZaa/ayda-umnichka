@@ -25,13 +25,16 @@ export default function Navbar() {
   const isAdmin = pathname === '/admin';
   const isInsideLk = isStudent || isTeacher || isAdmin;
 
-  const [balance, setBalance] = useState<number>(6);
+  const [balance, setBalance] = useState<number>(0);
+  const [userName, setUserName] = useState<string>('');
   const [lkUrl, setLkUrl] = useState<string>('https://lk-ayda-umnichka.vercel.app/login');
   const [logoClicks, setLogoClicks] = useState(0);
 
   useEffect(() => {
     const savedBalance = localStorage.getItem('aida_student_balance');
     if (savedBalance) setBalance(parseInt(savedBalance, 10));
+    const savedName = localStorage.getItem('aida_full_name');
+    if (savedName) setUserName(savedName);
     setLkUrl(getLkUrl('/login'));
   }, []);
 
@@ -180,11 +183,13 @@ export default function Navbar() {
               <div className="flex items-center gap-2">
                 <div className="bg-white border border-[#F2DECE] text-[#161F38] font-extrabold px-3.5 py-2 rounded-full text-xs tracking-tight shadow-2xs flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-[#5C8519]" />
-                  <span>
-                    {isStudent
-                      ? 'Тимофей (Ученик)'
+                  <span suppressHydrationWarning>
+                    {userName
+                      ? userName
+                      : isStudent
+                      ? 'Кабинет Ученика'
                       : isTeacher
-                      ? 'Елена М. (Педагог)'
+                      ? 'Кабинет Педагога'
                       : 'Администратор'}
                   </span>
                 </div>

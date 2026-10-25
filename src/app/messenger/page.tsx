@@ -19,11 +19,14 @@ export default function MessengerPage() {
     e.preventDefault();
     if (!inputText.trim()) return;
 
+    const currentName = typeof window !== 'undefined' ? localStorage.getItem('aida_full_name') || 'Пользователь' : 'Пользователь';
+    const currentRole = typeof window !== 'undefined' ? (localStorage.getItem('aida_active_role') || 'student') as 'student' | 'teacher' | 'admin' : 'student';
+
     const newMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
-      senderId: 'user-student-1',
-      senderName: 'Тимофей (мама: Елена)',
-      senderRole: 'student',
+      senderId: typeof window !== 'undefined' ? localStorage.getItem('aida_auth_user_id') || 'me' : 'me',
+      senderName: currentName,
+      senderRole: currentRole,
       type: 'text',
       text: inputText.trim(),
       createdAt: new Date().toISOString(),
@@ -34,11 +37,14 @@ export default function MessengerPage() {
   };
 
   const handleSendVoice = (durationSec: number) => {
+    const currentName = typeof window !== 'undefined' ? localStorage.getItem('aida_full_name') || 'Пользователь' : 'Пользователь';
+    const currentRole = typeof window !== 'undefined' ? (localStorage.getItem('aida_active_role') || 'student') as 'student' | 'teacher' | 'admin' : 'student';
+
     const newMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
-      senderId: 'user-student-1',
-      senderName: 'Тимофей',
-      senderRole: 'student',
+      senderId: typeof window !== 'undefined' ? localStorage.getItem('aida_auth_user_id') || 'me' : 'me',
+      senderName: currentName,
+      senderRole: currentRole,
       type: 'voice',
       voiceDurationSec: durationSec,
       createdAt: new Date().toISOString(),
@@ -73,17 +79,17 @@ export default function MessengerPage() {
             }`}
           >
             <div className="w-11 h-11 rounded-2xl bg-white border border-[#F4DEC6] text-coralAccent flex items-center justify-center font-black text-sm shrink-0 shadow-xs">
-              СВ
+              💬
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between mb-0.5">
                 <h4 className="font-extrabold text-xs text-ink-900 truncate">
-                  Светлана Васильевна (Логопед)
+                  Преподаватель центра
                 </h4>
-                <span className="text-[10px] text-ink-400">12:45</span>
+                <span className="text-[10px] text-ink-400">В сети</span>
               </div>
               <p className="text-xs text-ink-500 truncate">
-                Приготовьте цветные карандаши для интерактивной доски...
+                {messages.length > 0 ? messages[messages.length - 1].text : 'Нажмите, чтобы начать диалог'}
               </p>
             </div>
           </button>
@@ -103,10 +109,10 @@ export default function MessengerPage() {
                 <h4 className="font-extrabold text-xs text-ink-900 truncate">
                   Уведомления «АйДаУмничка»
                 </h4>
-                <span className="text-[10px] text-ink-400">Вчера</span>
+                <span className="text-[10px] text-ink-400">Система</span>
               </div>
               <p className="text-xs text-ink-500 truncate">
-                Баланс пополнен на +8 занятий. Приятных уроков!
+                Важные системные уведомления и статус занятий
               </p>
             </div>
           </button>
@@ -119,67 +125,44 @@ export default function MessengerPage() {
         <div className="p-4 sm:p-5 border-b border-[#F4E3D2] flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-2xl bg-[#FFF7EE] border border-[#F4DEC6] text-coralAccent flex items-center justify-center font-black text-sm">
-              {activeChat === 'teacher' ? 'СВ' : '🔔'}
+              {activeChat === 'teacher' ? '💬' : '🔔'}
             </div>
             <div>
               <h3 className="font-black text-sm text-ink-900">
-                {activeChat === 'teacher' ? 'Светлана Васильевна Морозова' : 'Системный сервисный чат'}
+                {activeChat === 'teacher' ? 'Чат с преподавателем' : 'Системный сервисный чат'}
               </h3>
               <p className="text-[11px] text-ink-500">
-                {activeChat === 'teacher' ? 'Логопед-дефектолог • В сети' : 'Центр развития «АйДаУмничка»'}
+                {activeChat === 'teacher' ? 'Центр развития «АйДаУмничка»' : 'Уведомления платформы'}
               </p>
             </div>
           </div>
-
-          {activeChat === 'teacher' && (
-            <Link
-              href="/room/room-logoped-timofey"
-              className="inline-flex items-center gap-2 bg-limeAccent hover:bg-limeAccent-hover text-ink-900 px-4 py-2 rounded-full text-xs font-black shadow-xs transition-[background-color,transform,box-shadow] duration-140 ease-out-emil active:scale-[0.97] cursor-pointer"
-            >
-              <Video className="w-3.5 h-3.5" />
-              <span>Войти в урок</span>
-            </Link>
-          )}
         </div>
 
         {/* Message Thread */}
         <div className="flex-1 p-4 sm:p-6 overflow-y-auto space-y-4">
           {activeChat === 'system' ? (
             <div className="space-y-3">
-              <div className="p-4 rounded-2xl bg-[#FFF7EE] border border-[#F2E2D0] text-xs text-ink-800">
-                <div className="font-bold text-coralAccent mb-1">Пополнение абонемента</div>
-                Вам начислено +8 занятий по абонементу «Юный оратор». Текущий баланс: 6 уроков.
-              </div>
-              <div className="p-4 rounded-2xl bg-[#F8FAFC] border border-slate-200 text-xs text-ink-800">
-                <div className="font-bold text-ink-900 mb-1">Урок успешно проведен</div>
-                Занятие «Автоматизация звука [Р]» завершено (45 мин). Списано 1 занятие с баланса.
+              <div className="p-4 rounded-2xl bg-[#FFF7EE] border border-[#F2E2D0] text-xs text-ink-800 text-center py-8">
+                <Bell className="w-8 h-8 text-coralAccent mx-auto mb-2 opacity-60" />
+                <div className="font-bold text-ink-900 mb-1">Новых системных уведомлений нет</div>
+                <p className="text-[11px] text-ink-500">
+                  Здесь будут отображаться операции пополнения баланса и отчеты после проведенных занятий.
+                </p>
               </div>
             </div>
           ) : (
             <>
-              {/* On-Demand Call Invite Card in Chat */}
-              <div className="p-4 rounded-3xl bg-[#FFF8F1] border-2 border-coralAccent/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-coralAccent text-white flex items-center justify-center shrink-0">
-                    <Video className="w-5 h-5" />
+              {messages.length === 0 ? (
+                <div className="h-full min-h-[220px] flex flex-col items-center justify-center text-center p-6 space-y-2">
+                  <div className="w-12 h-12 rounded-2xl bg-[#FFF7EE] text-coralAccent border border-[#F2DECE] flex items-center justify-center text-xl">
+                    👋
                   </div>
-                  <div>
-                    <span className="text-[10px] font-extrabold text-coralAccent uppercase tracking-wider">
-                      Приглашение на On-Demand урок
-                    </span>
-                    <h4 className="text-xs font-black text-ink-900">
-                      Тема: Автоматизация звука [Р] в словах и скороговорках
-                    </h4>
-                  </div>
+                  <h4 className="font-black text-sm text-ink-900">Диалог пуст</h4>
+                  <p className="text-xs text-ink-500 max-w-sm">
+                    Напишите сообщение педагогу или отправьте голосовой ответ на домашнее задание.
+                  </p>
                 </div>
-                <Link
-                  href="/room/room-logoped-timofey"
-                  className="inline-flex items-center gap-1.5 bg-limeAccent hover:bg-limeAccent-hover text-ink-900 px-4 py-2 rounded-full text-xs font-black transition-[background-color,transform,box-shadow] duration-140 ease-out-emil active:scale-[0.97] shadow-xs shrink-0"
-                >
-                  <span>Присоединиться</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </Link>
-              </div>
+              ) : null}
 
               {messages.map((m) => (
                 <div

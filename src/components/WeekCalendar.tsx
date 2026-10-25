@@ -15,10 +15,10 @@ export default function WeekCalendar({ onSelectDay }: { onSelectDay?: (date: num
 
   const days: DayItem[] = [
     { name: 'Пн', date: 7, hasLesson: false },
-    { name: 'Вт', date: 8, hasLesson: true },
-    { name: 'Ср', date: 9, hasLesson: true, isToday: true },
+    { name: 'Вт', date: 8, hasLesson: false },
+    { name: 'Ср', date: 9, hasLesson: false, isToday: true },
     { name: 'Чт', date: 10, hasLesson: false },
-    { name: 'Пт', date: 11, hasLesson: true },
+    { name: 'Пт', date: 11, hasLesson: false },
     { name: 'Сб', date: 12, hasLesson: false },
   ];
 
@@ -90,10 +90,10 @@ export default function WeekCalendar({ onSelectDay }: { onSelectDay?: (date: num
       <div className="pt-2 border-t border-[#F7EBE0] flex items-center justify-between text-xs">
         <span className="text-ink-500 flex items-center gap-1.5 font-medium">
           <Sparkles className="w-3.5 h-3.5 text-coralAccent" />
-          {selectedDate === 9 ? 'Сегодня: 1 урок в 14:00' : 'Уроков не запланировано'}
+          Уроков не запланировано
         </span>
         <span className="text-[11px] font-extrabold text-coralAccent bg-[#FFF7EE] px-3 py-1 rounded-full border border-[#F4DEC6]">
-          {selectedDate === 9 ? 'Онлайн-урок [Р]' : 'Свободный день'}
+          Свободный день
         </span>
       </div>
     </div>

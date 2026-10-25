@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, use } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import BalanceWidget from '@/components/BalanceWidget';
 import VoiceRecorder from '@/components/VoiceRecorder';
@@ -10,16 +9,12 @@ import WeekCalendar from '@/components/WeekCalendar';
 import BadgesGrid from '@/components/BadgesGrid';
 import SpeechTrainer from '@/components/SpeechTrainer';
 import PhoneMockup from '@/components/PhoneMockup';
-import { INITIAL_PROFILES, INITIAL_LESSONS, INITIAL_HOMEWORKS } from '@/lib/store';
 import { LessonSession, HomeworkItem } from '@/types';
 import {
   Video,
-  Calendar,
   Clock,
   BookOpen,
   CheckCircle,
-  MessageSquare,
-  Bell,
   Smartphone,
   Monitor,
   Link as LinkIcon,
@@ -57,18 +52,16 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
   const [isRegistered, setIsRegistered] = useState(true);
   const [isSupabaseSynced, setIsSupabaseSynced] = useState(false);
   const [isAccessBlocked, setIsAccessBlocked] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
 
   // Dashboard states
-  const student = INITIAL_PROFILES[0];
-  const [balance, setBalance] = useState<number>(student.balanceLessons);
-  const [lessons, setLessons] = useState<LessonSession[]>(INITIAL_LESSONS);
-  const [homeworks, setHomeworks] = useState<HomeworkItem[]>(INITIAL_HOMEWORKS);
+  const [studentName, setStudentName] = useState<string>('Ученик');
+  const [balance, setBalance] = useState<number>(0);
+  const [lessons, setLessons] = useState<LessonSession[]>([]);
+  const [homeworks, setHomeworks] = useState<HomeworkItem[]>([]);
   const [recordingHwId, setRecordingHwId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'desktop' | 'phone'>('desktop');
 
   useEffect(() => {
-    // Sync current ID into cookies and localStorage
     if (routeUserId) {
       setCurrentId(routeUserId);
       setNewSlugInput(routeUserId);
@@ -77,7 +70,6 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
       // Verify binding in Supabase and check ownership
       (async () => {
         try {
-          // Verify ownership: ID is strictly issued to registered users
           const activeAuthUser =
             localStorage.getItem('aida_auth_user_id') ||
             document.cookie.match(/(?:^|; )aida_auth_user_id=([^;]*)/)?.[1] ||
@@ -91,7 +83,6 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
           const isOwner = Boolean(activeRole) && (decodedAuth === routeUserId.toLowerCase() || activeRole === 'admin');
 
           if (!isOwner) {
-            // If not authenticated as this user, block access and require login
             setIsAccessBlocked(true);
             router.replace(`/login?redirect=/${encodeURIComponent(routeUserId)}&cabinetId=${encodeURIComponent(routeUserId)}&auth_required=1`);
             return;
@@ -103,6 +94,9 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
           const data = await res.json();
           if (data?.exists && data.binding) {
             setIsSupabaseSynced(true);
+            if (data.binding.full_name) {
+              setStudentName(data.binding.full_name);
+            }
             if (data.binding.balance_lessons !== undefined) {
               setBalance(data.binding.balance_lessons);
             }
@@ -113,20 +107,19 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
       })();
     }
 
+    const savedName = localStorage.getItem('aida_full_name');
+    if (savedName) setStudentName(savedName);
+
     const savedBalance = localStorage.getItem('aida_student_balance');
-    if (savedBalance) {
-      setBalance(parseInt(savedBalance, 10));
-    }
+    if (savedBalance) setBalance(parseInt(savedBalance, 10));
 
     const savedRole = localStorage.getItem('aida_active_role');
-    if (savedRole) {
-      setIsRegistered(true);
-    }
-  }, [routeUserId, student.fullName]);
+    if (savedRole) setIsRegistered(true);
+  }, [routeUserId]);
 
   const fullPersonalUrl = typeof window !== 'undefined'
     ? `${window.location.origin}/${currentId}`
-    : `https://lk-ayda-umnichka.vercel.app/${currentId}`;
+    : `https://ayda-umnichka.vercel.app/${currentId}`;
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(fullPersonalUrl);
@@ -137,18 +130,13 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
   const handleSaveCustomSlug = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSlugInput.trim()) return;
-    setIsSaving(true);
 
     const saved = setCustomSlug(newSlugInput.trim());
     if (saved) {
-      // Update slug in Supabase
       await updateSlugInSupabase(currentId, saved);
       setCurrentId(saved);
       setIsEditingSlug(false);
-      setIsSaving(false);
       router.push(`/${saved}`);
-    } else {
-      setIsSaving(false);
     }
   };
 
@@ -202,14 +190,9 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
 
   return (
     <div className="space-y-6">
-      {/* ─────────────────────────────────────────────────────────────
-          1. PERSONAL ADDRESS BAR & PRE-REGISTRATION STATUS BANNER
-          (Exact match with user requirement: ID in the URL bar like vk.ru/s.sharonovv)
-          ───────────────────────────────────────────────────────────── */}
+      {/* 1. Address Bar & Status */}
       <div className="bg-white rounded-3xl p-4 sm:p-5 border border-[#F2DECE] shadow-xs space-y-3.5">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
-          
-          {/* Personal URL Badge */}
           <div className="flex items-center gap-2.5 flex-wrap">
             <div className="w-8 h-8 rounded-xl bg-[#FFF2E6] text-coralAccent flex items-center justify-center shrink-0">
               <LinkIcon className="w-4 h-4" />
@@ -265,7 +248,6 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
                     {fullPersonalUrl}
                   </span>
 
-                  {/* Edit custom alias button */}
                   <button
                     onClick={() => setIsEditingSlug(true)}
                     title="Задать красивый адрес (например: s.sharonovv)"
@@ -278,7 +260,6 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
             </div>
           </div>
 
-          {/* Action Buttons: Copy link & Protect Account */}
           <div className="flex items-center gap-2 w-full md:w-auto justify-end">
             <button
               onClick={handleCopyLink}
@@ -302,24 +283,20 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
               <span>Кабинет защищен</span>
             </div>
           </div>
-
         </div>
       </div>
 
-      {/* ─────────────────────────────────────────────────────────────
-          3. VIEW SWITCHER (Desktop vs Mobile Reference)
-          ───────────────────────────────────────────────────────────── */}
+      {/* 2. View Switcher */}
       <div className="flex items-center justify-between bg-white rounded-2xl px-5 py-3 border border-[#F2E3D5] shadow-xs">
         <div className="flex items-center gap-2">
           <span className="text-xs font-black text-ink-900 uppercase tracking-wider">
             Кабинет Ученика
           </span>
           <span className="text-[10px] bg-limeAccent text-ink-900 font-extrabold px-2.5 py-0.5 rounded-full">
-            АйДаУмничка
+            {studentName}
           </span>
         </div>
 
-        {/* Toggle between standard desktop view and mobile phone inspiration mockup */}
         <div className="flex items-center gap-1.5 bg-[#FFF7EE] p-1 rounded-full border border-[#F4DEC6]">
           <button
             onClick={() => setViewMode('desktop')}
@@ -337,7 +314,7 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
             }`}
           >
             <Smartphone className="w-3.5 h-3.5 text-coralAccent" />
-            <span>📱 Мобильный референс</span>
+            <span>📱 Мобильный вид</span>
           </button>
         </div>
       </div>
@@ -348,58 +325,79 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
           <PhoneMockup title="Личный кабинет">
             <div className="flex items-center justify-between pb-2 border-b border-[#F4DEC6]">
               <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-full overflow-hidden relative border border-[#EADBCC]">
-                  <Image src="/images/child-avatar.png" alt="Тимофей" fill className="object-cover" />
+                <div className="w-10 h-10 rounded-full bg-[#FFF2E6] border border-[#FCDDC7] flex items-center justify-center font-black text-sm text-coralAccent">
+                  {studentName[0] || 'У'}
                 </div>
                 <div>
-                  <h4 className="font-black text-xs text-ink-900">Тимофей Смирнов</h4>
-                  <span className="text-[10px] text-coralAccent font-bold">★ 320 XP • ID: {currentId}</span>
+                  <h4 className="font-black text-xs text-ink-900">{studentName}</h4>
+                  <span className="text-[10px] text-coralAccent font-bold">★ ID: {currentId}</span>
                 </div>
-              </div>
-              <div className="w-8 h-8 rounded-full bg-[#FFF7EE] border border-[#F4DEC6] flex items-center justify-center text-ink-800">
-                <Bell className="w-4 h-4" />
               </div>
             </div>
 
             <WeekCalendar />
-            <BalanceWidget balance={balance} studentName={student.fullName} />
+            <BalanceWidget balance={balance} studentName={studentName} />
           </PhoneMockup>
         </div>
       ) : (
         /* Desktop Mode */
         <div className="space-y-8">
-          <BalanceWidget balance={balance} studentName={student.fullName} />
+          <BalanceWidget balance={balance} studentName={studentName} />
 
-          {/* Next Lesson Box */}
-          <div className="bg-white rounded-[32px] p-6 sm:p-8 border border-[#F2E3D5] shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#5C8519] animate-pulse" />
-                <span className="text-xs font-extrabold text-[#5C8519] uppercase tracking-wider">
-                  Ближайший онлайн-урок
+          {/* Lessons Box */}
+          {lessons.length === 0 ? (
+            <div className="bg-white rounded-[32px] p-6 sm:p-8 border border-[#F2E3D5] shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+              <div className="space-y-1.5">
+                <span className="text-xs font-extrabold text-[#8A95A8] uppercase tracking-wider">
+                  Онлайн-уроки
                 </span>
+                <h3 className="text-xl sm:text-2xl font-black text-ink-900 tracking-tight">
+                  У вас пока нет запланированных уроков
+                </h3>
+                <p className="text-xs text-ink-500">
+                  Запишитесь на вводный онлайн-урок или свяжитесь с центром для выбора времени.
+                </p>
               </div>
-              <h3 className="text-xl sm:text-2xl font-black text-ink-900 tracking-tight">
-                {lessons[0]?.topic || 'Индивидуальное занятие с логопедом'}
-              </h3>
-              <p className="text-xs text-ink-500 flex items-center gap-4">
-                <span className="flex items-center gap-1.5">
-                  <Clock className="w-4 h-4 text-coralAccent" />
-                  45 минут • Старт по готовности
-                </span>
-                <span>•</span>
-                <span>Педагог: <strong>{student.assignedTeacherName}</strong></span>
-              </p>
-            </div>
 
-            <Link
-              href={`/room/${lessons[0]?.roomToken || 'room-demo'}?role=student&topic=${encodeURIComponent(lessons[0]?.topic || 'Урок')}`}
-              className="bg-coralAccent hover:bg-coralAccent-hover text-white font-black text-xs sm:text-sm px-6 py-4 rounded-full shadow-xs transition-[background-color,transform,box-shadow] duration-140 ease-out-emil flex items-center gap-2.5 active:scale-[0.97] cursor-pointer whitespace-nowrap"
-            >
-              <Video className="w-4 h-4" />
-              <span>Войти в урок (P2P видео)</span>
-            </Link>
-          </div>
+              <Link
+                href="/#slide-onboarding"
+                className="bg-[#C5E87D] hover:bg-[#B6DC67] text-[#161F38] font-black text-xs sm:text-sm px-6 py-3.5 rounded-full shadow-xs transition-[background-color,transform,box-shadow] duration-140 ease-out-emil flex items-center gap-2 active:scale-[0.97] cursor-pointer whitespace-nowrap"
+              >
+                <span>Записаться на урок</span>
+                <span>➔</span>
+              </Link>
+            </div>
+          ) : (
+            <div className="bg-white rounded-[32px] p-6 sm:p-8 border border-[#F2E3D5] shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#5C8519] animate-pulse" />
+                  <span className="text-xs font-extrabold text-[#5C8519] uppercase tracking-wider">
+                    Ближайший онлайн-урок
+                  </span>
+                </div>
+                <h3 className="text-xl sm:text-2xl font-black text-ink-900 tracking-tight">
+                  {lessons[0].topic}
+                </h3>
+                <p className="text-xs text-ink-500 flex items-center gap-4">
+                  <span className="flex items-center gap-1.5">
+                    <Clock className="w-4 h-4 text-coralAccent" />
+                    45 минут
+                  </span>
+                  <span>•</span>
+                  <span>Педагог: <strong>{lessons[0].teacherName}</strong></span>
+                </p>
+              </div>
+
+              <Link
+                href={`/room/${lessons[0].roomToken}?role=student&topic=${encodeURIComponent(lessons[0].topic)}`}
+                className="bg-coralAccent hover:bg-coralAccent-hover text-white font-black text-xs sm:text-sm px-6 py-4 rounded-full shadow-xs transition-[background-color,transform,box-shadow] duration-140 ease-out-emil flex items-center gap-2.5 active:scale-[0.97] cursor-pointer whitespace-nowrap"
+              >
+                <Video className="w-4 h-4" />
+                <span>Войти в урок (P2P видео)</span>
+              </Link>
+            </div>
+          )}
 
           {/* Homework and Speech Trainer Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -414,33 +412,43 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
                 </span>
               </div>
 
-              {homeworks.map((hw) => (
-                <div key={hw.id} className="bg-white p-5 rounded-3xl border border-[#F2E0CF] shadow-xs space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <h4 className="font-extrabold text-sm text-ink-900">{hw.title}</h4>
-                    <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-[#FFF2E6] text-coralAccent shrink-0">
-                      Срок: 26 октября
-                    </span>
-                  </div>
-                  <p className="text-xs text-ink-600 leading-relaxed">{hw.taskDescription}</p>
-
-                  <div className="pt-2 border-t border-[#F8EFE7]">
-                    {recordingHwId === hw.id ? (
-                      <VoiceRecorder
-                        onSendVoice={(duration) => handleVoiceSubmission(hw.id, duration)}
-                        onCancel={() => setRecordingHwId(null)}
-                      />
-                    ) : (
-                      <button
-                        onClick={() => setRecordingHwId(hw.id)}
-                        className="w-full bg-[#FFF7EE] hover:bg-[#FDEEDC] text-coralAccent border border-[#F4DEC6] font-bold text-xs py-2.5 rounded-2xl transition-[background-color,border-color,transform] duration-140 ease-out-emil active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
-                      >
-                        <span>Записать голосовой ответ педагогу</span>
-                      </button>
-                    )}
-                  </div>
+              {homeworks.length === 0 ? (
+                <div className="p-8 text-center rounded-3xl border border-dashed border-[#F4DEC6] bg-white text-xs text-ink-500 space-y-2">
+                  <CheckCircle className="w-8 h-8 text-[#5C8519] mx-auto opacity-70" />
+                  <h4 className="font-bold text-sm text-ink-900">Все задания выполнены</h4>
+                  <p className="text-xs text-ink-500">
+                    Новые упражнения от преподавателя появятся здесь после проведения урока.
+                  </p>
                 </div>
-              ))}
+              ) : (
+                homeworks.map((hw) => (
+                  <div key={hw.id} className="bg-white p-5 rounded-3xl border border-[#F2E0CF] shadow-xs space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <h4 className="font-extrabold text-sm text-ink-900">{hw.title}</h4>
+                      <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-[#FFF2E6] text-coralAccent shrink-0">
+                        Активно
+                      </span>
+                    </div>
+                    <p className="text-xs text-ink-600 leading-relaxed">{hw.taskDescription}</p>
+
+                    <div className="pt-2 border-t border-[#F8EFE7]">
+                      {recordingHwId === hw.id ? (
+                        <VoiceRecorder
+                          onSendVoice={(duration) => handleVoiceSubmission(hw.id, duration)}
+                          onCancel={() => setRecordingHwId(null)}
+                        />
+                      ) : (
+                        <button
+                          onClick={() => setRecordingHwId(hw.id)}
+                          className="w-full bg-[#FFF7EE] hover:bg-[#FDEEDC] text-coralAccent border border-[#F4DEC6] font-bold text-xs py-2.5 rounded-2xl transition-[background-color,border-color,transform] duration-140 ease-out-emil active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          <span>Записать голосовой ответ педагогу</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
 
             <div className="lg:col-span-6 space-y-4">

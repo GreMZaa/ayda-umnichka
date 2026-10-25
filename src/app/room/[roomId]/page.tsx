@@ -16,17 +16,10 @@ interface InCallMessage {
 export default function LessonRoomPage() {
   const params = useParams();
   const router = useRouter();
-  const roomId = (params?.roomId as string) || 'demo-live-room';
+  const roomId = (params?.roomId as string) || 'live-room';
 
   const [isWhiteboardActive, setIsWhiteboardActive] = useState(false);
-  const [messages, setMessages] = useState<InCallMessage[]>([
-    {
-      id: '1',
-      sender: 'Светлана Васильевна',
-      text: 'Здравствуйте, Тимофей! Начинаем занятие. Открываю онлайн-доску для выполнения артикуляционной сказки.',
-      time: '14:02',
-    },
-  ]);
+  const [messages, setMessages] = useState<InCallMessage[]>([]);
   const [inputText, setInputText] = useState('');
 
   const sendMessage = (e: React.FormEvent) => {
@@ -46,12 +39,12 @@ export default function LessonRoomPage() {
 
   const handleEndLesson = (durationSec: number) => {
     // Deduct 1 lesson from balance
-    const currentBalance = parseInt(localStorage.getItem('aida_student_balance') || '6', 10);
+    const currentBalance = parseInt(localStorage.getItem('aida_student_balance') || '0', 10);
     const updatedBalance = Math.max(0, currentBalance - 1);
     localStorage.setItem('aida_student_balance', updatedBalance.toString());
 
     setTimeout(() => {
-      alert(`Урок успешно завершен! Длительность: ${Math.round(durationSec / 60)} мин. Списано 1 занятие с баланса ученика. Оставшийся баланс: ${updatedBalance}`);
+      alert(`Урок успешно завершен! Длительность: ${Math.round(durationSec / 60)} мин.`);
       router.push('/student');
     }, 1500);
   };

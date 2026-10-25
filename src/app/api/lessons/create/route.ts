@@ -11,7 +11,7 @@ export async function POST(request: Request) {
       success: true,
       lesson_id: `lesson-${Date.now()}`,
       room_token: roomToken,
-      student_id: student_id || 'user-student-1',
+      student_id: student_id || null,
       topic: topic || 'Индивидуальное занятие',
       join_url: `https://app.aidaumnichka.ru/room/${roomToken}`,
       status: 'pending',

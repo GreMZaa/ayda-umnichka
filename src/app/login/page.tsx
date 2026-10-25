@@ -116,7 +116,9 @@ function LoginFormContent() {
         }
 
         // 3. Save local active role and verified auth user ID
+        const displayName = `${fullName}${childName ? ` (ребёнок: ${childName})` : ''}`.trim();
         localStorage.setItem('aida_active_role', selectedRole);
+        localStorage.setItem('aida_full_name', displayName);
         localStorage.setItem('aida_student_balance', selectedRole === 'student' ? '1' : '0');
         document.cookie = `aida_active_role=${selectedRole}; path=/; max-age=2592000; SameSite=Lax`;
         document.cookie = `aida_auth_user_id=${encodeURIComponent(publicId)}; path=/; max-age=2592000; SameSite=Lax`;
@@ -156,7 +158,7 @@ function LoginFormContent() {
           if (signInData?.user) {
             const { data: binding } = await supabase
               .from('user_bindings')
-              .select('public_id, role')
+              .select('public_id, role, full_name, balance_lessons')
               .eq('auth_user_id', signInData.user.id)
               .maybeSingle();
 
@@ -166,6 +168,12 @@ function LoginFormContent() {
             }
             if (binding?.role) {
               userRole = binding.role;
+            }
+            if (binding?.full_name) {
+              localStorage.setItem('aida_full_name', binding.full_name);
+            }
+            if (binding?.balance_lessons !== undefined) {
+              localStorage.setItem('aida_student_balance', binding.balance_lessons.toString());
             }
           }
         }
@@ -289,7 +297,7 @@ function LoginFormContent() {
                         required
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
-                        placeholder="Елена Смирнова"
+                        placeholder="Иван Иванов"
                         className="w-full bg-[#FFFBF7] border border-[#F2E0CF] rounded-xl px-3 py-1.5 text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent"
                       />
                     </div>
@@ -301,7 +309,7 @@ function LoginFormContent() {
                         type="text"
                         value={childName}
                         onChange={(e) => setChildName(e.target.value)}
-                        placeholder={selectedRole === 'teacher' ? 'Логопед-дефектолог' : 'Тимофей (6 лет)'}
+                        placeholder={selectedRole === 'teacher' ? 'Логопед-дефектолог' : 'Артём (6 лет)'}
                         className="w-full bg-[#FFFBF7] border border-[#F2E0CF] rounded-xl px-3 py-1.5 text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent"
                       />
                     </div>

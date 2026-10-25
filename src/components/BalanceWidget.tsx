@@ -11,8 +11,8 @@ interface BalanceWidgetProps {
 }
 
 export default function BalanceWidget({
-  balance = 6,
-  studentName = 'Тимофей Смирнов',
+  balance = 0,
+  studentName = 'Ученик',
   className = '',
 }: BalanceWidgetProps) {
   const maxLessons = 8;

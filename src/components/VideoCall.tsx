@@ -16,11 +16,12 @@ interface VideoCallProps {
 export default function VideoCall({
   roomToken,
   isTeacher = false,
-  participantName = 'Светлана Васильевна (Преподаватель)',
+  participantName,
   onEndLesson,
   onToggleWhiteboard,
   isWhiteboardActive = false,
 }: VideoCallProps) {
+  const resolvedParticipantName = participantName || (isTeacher ? 'Ученик' : 'Преподаватель');
   const [micActive, setMicActive] = useState(true);
   const [camActive, setCamActive] = useState(true);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
@@ -90,7 +91,7 @@ export default function VideoCall({
         <div className="relative aspect-video bg-[#FFFDFB] flex items-center justify-center">
           <div className="text-center p-3">
             <div className="w-12 h-12 rounded-full bg-[#FFF7EE] border border-[#F4DEC6] flex items-center justify-center mx-auto mb-1 text-coralAccent font-black">
-              {participantName[0]}
+              {resolvedParticipantName[0]}
             </div>
             <p className="text-[11px] text-ink-500 font-bold">P2P видеоканал активен</p>
           </div>
@@ -126,15 +127,15 @@ export default function VideoCall({
         <div className="relative rounded-3xl overflow-hidden bg-white border-2 border-[#F2E3D5] flex items-center justify-center shadow-xs">
           <div className="text-center p-6">
             <div className="w-24 h-24 rounded-3xl bg-[#FFF7EE] border-2 border-[#F4DEC6] flex items-center justify-center mx-auto mb-3 text-coralAccent text-3xl font-black shadow-xs">
-              {participantName[0]}
+              {resolvedParticipantName[0]}
             </div>
-            <h3 className="text-ink-900 font-black text-base">{participantName}</h3>
+            <h3 className="text-ink-900 font-black text-base">{resolvedParticipantName}</h3>
             <p className="text-xs text-ink-500 mt-1 font-medium">
               {isTeacher ? 'Ученик на связи • Отличное качество P2P' : 'Преподаватель центра «АйДаУмничка»'}
             </p>
           </div>
           <div className="absolute bottom-3 left-3 bg-white/95 border border-[#EADBCC] px-3.5 py-1.5 rounded-full text-ink-900 text-xs font-black shadow-xs">
-            {participantName}
+            {resolvedParticipantName}
           </div>
         </div>
 

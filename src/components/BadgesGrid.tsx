@@ -11,7 +11,7 @@ export default function BadgesGrid() {
       desc: 'Поставил изолированный звук [Р]',
       color: 'bg-[#FEF3C7] text-[#92400E] border-[#FDE68A]',
       icon: '🦁',
-      unlocked: true,
+      unlocked: false,
     },
     {
       id: 'b2',
@@ -19,7 +19,7 @@ export default function BadgesGrid() {
       desc: 'Выполнил 5 ДЗ подряд без пропусков',
       color: 'bg-[#EBF8CE] text-ink-900 border-[#C5E87D]',
       icon: '⭐',
-      unlocked: true,
+      unlocked: false,
     },
     {
       id: 'b3',
@@ -27,7 +27,7 @@ export default function BadgesGrid() {
       desc: 'Проговорил 10 чистоговорок',
       color: 'bg-[#FDEEE9] text-coralAccent border-[#F5A57A]',
       icon: '🎤',
-      unlocked: true,
+      unlocked: false,
     },
     {
       id: 'b4',
@@ -41,26 +41,26 @@ export default function BadgesGrid() {
 
   return (
     <div className="bg-white rounded-[32px] p-6 sm:p-7 border border-[#F2E3D5] shadow-xs space-y-6">
-      {/* Streak Banner directly inspired by Reference Image 2 */}
-      <div className="bg-[#FBBF24] p-4 sm:p-5 rounded-2xl flex items-center justify-between text-ink-900 shadow-xs relative overflow-hidden">
+      {/* Streak Banner */}
+      <div className="bg-[#FFF8F1] border border-[#F4E3D2] p-4 sm:p-5 rounded-2xl flex items-center justify-between text-ink-900 shadow-xs relative overflow-hidden">
         <div className="flex items-center gap-3.5 z-10">
-          <div className="w-12 h-12 rounded-2xl bg-white/90 flex items-center justify-center text-2xl shadow-xs shrink-0">
+          <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-2xl shadow-xs shrink-0 border border-[#F2DECE]">
             🔥
           </div>
           <div>
-            <span className="text-[10px] font-black uppercase tracking-wider text-ink-900/70">
+            <span className="text-[10px] font-black uppercase tracking-wider text-coralAccent">
               Ударный режим
             </span>
-            <h4 className="text-xl sm:text-2xl font-black text-ink-900 leading-tight">
-              6 уроков подряд!
+            <h4 className="text-lg sm:text-xl font-black text-ink-900 leading-tight">
+              0 уроков • Начните обучение
             </h4>
           </div>
         </div>
 
         <div className="text-right z-10 hidden sm:block">
-          <span className="text-xs font-bold text-ink-900/80 block">Отличный темп</span>
-          <span className="text-xs font-black bg-white px-3 py-1 rounded-full text-ink-900 shadow-2xs">
-            +50 XP бонус
+          <span className="text-xs font-bold text-ink-500 block">Пройдите первый урок</span>
+          <span className="text-xs font-black bg-limeAccent text-ink-900 px-3 py-1 rounded-full shadow-2xs">
+            +50 XP за старт
           </span>
         </div>
       </div>
