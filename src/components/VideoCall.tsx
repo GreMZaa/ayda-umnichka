@@ -50,9 +50,16 @@ export default function VideoCall({
   onToggleWhiteboard,
   isWhiteboardActive = false,
 }: VideoCallProps) {
+  // Helper to clean technical metadata from participant name
+  const cleanDisplayName = (name: string): string => {
+    if (!name) return '';
+    return name.replace(/\s*\(.*?\)$/, '').trim();
+  };
+
   // Resolve participant label based on role
-  const resolvedParticipantName =
-    participantName || (isTeacher ? 'Ученик центра' : 'Василина Владимировна (Педагог)');
+  const rawParticipant =
+    participantName || (isTeacher ? 'Ученик центра' : 'Василина Владимировна');
+  const resolvedParticipantName = cleanDisplayName(rawParticipant);
 
   const [micActive, setMicActive] = useState(true);
   const [camActive, setCamActive] = useState(true);
@@ -612,51 +619,51 @@ export default function VideoCall({
     );
   }
 
-  // Full Video Workspace (100% spacious, no squeezed sidebars)
+  // Full Video Workspace (100% spacious, responsive on mobile & desktop)
   return (
-    <div className="relative flex flex-col h-full bg-[#FFF8F1] rounded-[32px] overflow-hidden border border-[#F4E3D2] shadow-sm min-h-[520px]">
+    <div className="relative flex flex-col h-full bg-[#FFF8F1] rounded-2xl sm:rounded-[32px] overflow-hidden border border-[#F4E3D2] shadow-sm min-h-[460px]">
       {/* Header Info Bar */}
-      <div className="absolute top-3.5 left-4 right-4 z-20 flex items-center justify-between pointer-events-none">
-        <div className="flex items-center gap-2 bg-white/95 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-[#EADBCC] text-[#161F38] text-xs shadow-xs pointer-events-auto">
+      <div className="absolute top-2.5 sm:top-3.5 left-2.5 sm:left-4 right-2.5 sm:right-4 z-20 flex items-center justify-between gap-1.5 sm:gap-2 pointer-events-none">
+        <div className="flex items-center gap-1.5 sm:gap-2 bg-white/95 backdrop-blur-md px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-full border border-[#EADBCC] text-[#161F38] text-[11px] sm:text-xs shadow-xs pointer-events-auto min-w-0 max-w-[55%] sm:max-w-none">
           <span
-            className={`w-2.5 h-2.5 rounded-full ${
+            className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full ${
               hasRemoteStream ? 'bg-[#5C8519] animate-pulse' : 'bg-amber-400 animate-ping'
-            }`}
+            } shrink-0`}
           />
-          <span className="font-mono font-black">{formatTime(callDuration)}</span>
-          <span className="text-[#EADBCC]">|</span>
-          <span className="text-[#6B758E] font-bold truncate max-w-[200px] sm:max-w-md">
+          <span className="font-mono font-black shrink-0">{formatTime(callDuration)}</span>
+          <span className="text-[#EADBCC] shrink-0">|</span>
+          <span className="text-[#6B758E] font-bold truncate">
             {topic || `Комната: ${roomToken}`}
           </span>
-          <span className="text-[#EADBCC] hidden sm:inline">|</span>
+          <span className="text-[#EADBCC] hidden md:inline">|</span>
           <span
-            className={`text-[10px] font-bold hidden sm:inline-flex items-center gap-1 ${
+            className={`text-[10px] font-bold hidden md:inline-flex items-center gap-1 ${
               hasRemoteStream ? 'text-[#5C8519]' : 'text-amber-600'
             }`}
           >
             <Wifi className="w-3 h-3" />
-            <span>{hasRemoteStream ? 'Связь установлена (P2P)' : 'Ожидание собеседника...'}</span>
+            <span>{hasRemoteStream ? 'Связь P2P' : 'Ожидание...'}</span>
           </span>
         </div>
 
         {/* Action Controls in Top Right */}
-        <div className="flex items-center gap-2 pointer-events-auto">
+        <div className="flex items-center gap-1 sm:gap-2 pointer-events-auto shrink-0">
           {/* Swap Video View (Student <-> Teacher) */}
           <button
             type="button"
             onClick={() => setIsSwapped(!isSwapped)}
-            className="inline-flex items-center gap-1.5 bg-white/95 backdrop-blur-md border border-[#EADBCC] text-[#161F38] hover:border-coralAccent font-extrabold text-xs px-3 py-1.5 rounded-full shadow-xs transition-colors cursor-pointer active:scale-95"
-            title="Поменять камеры / вид местами"
+            className="p-1.5 sm:px-3 sm:py-1.5 bg-white/95 backdrop-blur-md border border-[#EADBCC] text-[#161F38] hover:border-coralAccent font-extrabold text-xs rounded-full shadow-xs transition-colors cursor-pointer active:scale-95 flex items-center gap-1.5"
+            title="Поменять камеры местами"
           >
             <ArrowLeftRight className="w-3.5 h-3.5 text-coralAccent" />
-            <span className="hidden sm:inline">Поменять камеры</span>
+            <span className="hidden sm:inline">Поменять</span>
           </button>
 
           {/* Camera Flip (Mobile / Front & Rear) */}
           <button
             type="button"
             onClick={toggleCameraFacing}
-            className="inline-flex items-center gap-1.5 bg-white/95 backdrop-blur-md border border-[#EADBCC] text-[#161F38] hover:border-coralAccent font-extrabold text-xs px-3 py-1.5 rounded-full shadow-xs transition-colors cursor-pointer active:scale-95"
+            className="p-1.5 sm:px-3 sm:py-1.5 bg-white/95 backdrop-blur-md border border-[#EADBCC] text-[#161F38] hover:border-coralAccent font-extrabold text-xs rounded-full shadow-xs transition-colors cursor-pointer active:scale-95 flex items-center gap-1.5"
             title="Переключить камеру (селфи / основная)"
           >
             <RefreshCw className="w-3.5 h-3.5 text-coralAccent" />
@@ -667,21 +674,21 @@ export default function VideoCall({
           <button
             type="button"
             onClick={togglePictureInPicture}
-            className="inline-flex items-center gap-1.5 bg-white/95 backdrop-blur-md border border-[#EADBCC] text-[#161F38] hover:border-coralAccent font-extrabold text-xs px-3 py-1.5 rounded-full shadow-xs transition-colors cursor-pointer active:scale-95"
+            className="p-1.5 sm:px-3 sm:py-1.5 bg-white/95 backdrop-blur-md border border-[#EADBCC] text-[#161F38] hover:border-coralAccent font-extrabold text-xs rounded-full shadow-xs transition-colors cursor-pointer active:scale-95 flex items-center gap-1.5"
             title="Окно поверх всех приложений (как в Telegram/VK)"
           >
             <ExternalLink className="w-3.5 h-3.5 text-coralAccent" />
-            <span className="hidden sm:inline">Поверх всех окон</span>
+            <span className="hidden sm:inline">Поверх окон</span>
           </button>
         </div>
       </div>
 
-      {/* Main Video Streams Grid (Takes 100% available space) */}
-      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 p-4 pt-14 pb-20 h-full">
+      {/* Main Video Streams Grid (Responsive on phones & desktops) */}
+      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-4 p-2.5 sm:p-4 pt-12 sm:pt-14 pb-20 sm:pb-24 h-full min-h-0">
         {/* Tile 1: Remote Participant (Real Live Video & Audio Stream) */}
         <div
           onClick={() => setIsSwapped(!isSwapped)}
-          className={`relative rounded-3xl overflow-hidden bg-[#161F38] border-2 border-[#F2E3D5] flex items-center justify-center shadow-xs transition-all duration-200 cursor-pointer ${
+          className={`relative rounded-2xl sm:rounded-3xl overflow-hidden bg-[#161F38] border-2 border-[#F2E3D5] flex items-center justify-center shadow-xs transition-all duration-200 cursor-pointer min-h-[160px] h-full ${
             isSwapped ? 'order-2 md:order-2' : 'order-1 md:order-1'
           }`}
           title="Нажмите, чтобы поменять местами"
@@ -696,42 +703,38 @@ export default function VideoCall({
 
           {/* Waiting Placeholder when remote participant has not yet connected */}
           {!hasRemoteStream && (
-            <div className="text-center p-6 text-white animate-in fade-in select-none">
-              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-white/10 border-2 border-white/20 flex items-center justify-center mx-auto mb-3 text-coralAccent text-3xl font-black shadow-xs">
-                {resolvedParticipantName[0]}
+            <div className="text-center p-3 sm:p-6 text-white animate-in fade-in select-none max-w-[90%]">
+              <div className="w-14 h-14 sm:w-20 sm:h-20 rounded-2xl sm:rounded-3xl bg-white/10 border-2 border-white/20 flex items-center justify-center mx-auto mb-2 sm:mb-3 text-coralAccent text-2xl sm:text-3xl font-black shadow-xs">
+                {resolvedParticipantName[0] || 'П'}
               </div>
-              <h3 className="text-white font-black text-base">{resolvedParticipantName}</h3>
-              <p className="text-xs text-[#EADBCC] mt-1 font-medium">
+              <h3 className="text-white font-black text-sm sm:text-base leading-tight">
+                {resolvedParticipantName}
+              </h3>
+              <p className="text-[11px] sm:text-xs text-[#EADBCC] mt-1 font-medium">
                 {isTeacher
                   ? 'Ожидание подключения ученика...'
-                  : 'Ожидание подключения преподавателя...'}
+                  : 'Педагог центра «АйДаУмничка» • Ожидание подключения...'}
               </p>
-              <div className="mt-3.5 inline-flex items-center gap-2 bg-white/10 px-3.5 py-1.5 rounded-full text-[11px] font-bold text-white/90">
-                <span className="w-2 h-2 rounded-full bg-coralAccent animate-ping" />
-                <span>Прямой WebRTC P2P видео- и аудиоканал</span>
+              <div className="mt-2.5 inline-flex items-center gap-1.5 bg-white/10 px-3 py-1 rounded-full text-[10px] sm:text-[11px] font-bold text-white/90">
+                <span className="w-1.5 h-1.5 rounded-full bg-coralAccent animate-ping" />
+                <span>Прямой WebRTC канал</span>
               </div>
             </div>
           )}
 
-          {/* Remote Participant Status Badge */}
-          <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-md border border-white/20 px-3.5 py-1.5 rounded-full text-white text-xs font-black shadow-xs flex items-center gap-1.5">
-            <span
-              className={`w-2 h-2 rounded-full ${
-                hasRemoteStream ? 'bg-[#5C8519] animate-pulse' : 'bg-amber-400'
-              }`}
-            />
-            <span>{resolvedParticipantName}</span>
-            {hasRemoteStream ? (
-              <span className="text-[10px] text-[#A6E044] font-bold">• В эфире</span>
-            ) : (
-              <span className="text-[10px] text-[#FCDDC7] font-bold">• Ожидание</span>
-            )}
-          </div>
+          {/* Remote Participant Status Badge — only shown over live video to prevent layout collision */}
+          {hasRemoteStream && (
+            <div className="absolute bottom-2.5 left-2.5 sm:bottom-3 sm:left-3 bg-black/60 backdrop-blur-md border border-white/20 px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-full text-white text-[10px] sm:text-xs font-black shadow-xs flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-[#5C8519] animate-pulse" />
+              <span className="truncate max-w-[120px] sm:max-w-none">{resolvedParticipantName}</span>
+              <span className="text-[9px] sm:text-[10px] text-[#A6E044] font-bold">• В эфире</span>
+            </div>
+          )}
         </div>
 
         {/* Tile 2: Local User Camera Stream (Muted to prevent echo) */}
         <div
-          className={`relative rounded-3xl overflow-hidden bg-[#161F38] border-2 border-[#F2E3D5] flex items-center justify-center shadow-xs transition-all duration-200 ${
+          className={`relative rounded-2xl sm:rounded-3xl overflow-hidden bg-[#161F38] border-2 border-[#F2E3D5] flex items-center justify-center shadow-xs transition-all duration-200 min-h-[160px] h-full ${
             isSwapped ? 'order-1 md:order-1' : 'order-2 md:order-2'
           }`}
         >
@@ -746,37 +749,37 @@ export default function VideoCall({
               }`}
             />
           ) : (
-            <div className="text-center p-6 text-white/70">
-              <VideoOff className="w-12 h-12 mx-auto mb-2 opacity-60" />
+            <div className="text-center p-4 sm:p-6 text-white/70">
+              <VideoOff className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-2 opacity-60" />
               <p className="text-xs font-bold">Камера отключена</p>
             </div>
           )}
 
           {/* Local user badge: Correctly reflects teacher vs student */}
-          <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-md border border-white/20 px-3.5 py-1.5 rounded-full text-white text-xs font-black shadow-xs flex items-center gap-2">
+          <div className="absolute bottom-2.5 left-2.5 sm:bottom-3 sm:left-3 bg-black/60 backdrop-blur-md border border-white/20 px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-full text-white text-[10px] sm:text-xs font-black shadow-xs flex items-center gap-1.5">
             <span>Вы ({isTeacher ? 'Преподаватель' : 'Ученик'})</span>
-            {!micActive && <MicOff className="w-3.5 h-3.5 text-rose-400" />}
+            {!micActive && <MicOff className="w-3 h-3 text-rose-400" />}
           </div>
 
-          {/* Quick camera switch pill inside local tile */}
+          {/* Quick camera switch button inside local tile */}
           <button
             type="button"
             onClick={toggleCameraFacing}
-            className="absolute top-3 right-3 bg-black/60 hover:bg-black/80 backdrop-blur-md text-white p-2 rounded-xl transition-colors cursor-pointer"
+            className="absolute top-2.5 right-2.5 sm:top-3 sm:right-3 bg-black/60 hover:bg-black/80 backdrop-blur-md text-white p-1.5 sm:p-2 rounded-xl transition-colors cursor-pointer"
             title="Сменить камеру"
           >
-            <Camera className="w-4 h-4 text-coralAccent" />
+            <Camera className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-coralAccent" />
           </button>
         </div>
       </div>
 
       {/* Bottom Floating Control Bar */}
-      <div className="absolute bottom-3.5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 sm:gap-2.5 bg-white/95 backdrop-blur-md px-4 sm:px-5 py-2.5 rounded-full border border-[#EADBCC] shadow-xl">
+      <div className="absolute bottom-2 sm:bottom-3.5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 sm:gap-2.5 bg-white/95 backdrop-blur-md px-3 sm:px-5 py-2 sm:py-2.5 rounded-full border border-[#EADBCC] shadow-xl max-w-[96%]">
         {/* Mic Toggle */}
         <button
           type="button"
           onClick={toggleMic}
-          className={`p-2.5 sm:p-3 rounded-full transition-transform active:scale-90 cursor-pointer ${
+          className={`p-2 sm:p-3 rounded-full transition-transform active:scale-90 cursor-pointer ${
             micActive
               ? 'bg-[#FFF7EE] hover:bg-[#FDEEDC] text-[#161F38]'
               : 'bg-rose-100 text-rose-700 border border-rose-300'
@@ -794,7 +797,7 @@ export default function VideoCall({
         <button
           type="button"
           onClick={toggleCam}
-          className={`p-2.5 sm:p-3 rounded-full transition-transform active:scale-90 cursor-pointer ${
+          className={`p-2 sm:p-3 rounded-full transition-transform active:scale-90 cursor-pointer ${
             camActive
               ? 'bg-[#FFF7EE] hover:bg-[#FDEEDC] text-[#161F38]'
               : 'bg-rose-100 text-rose-700 border border-rose-300'
@@ -812,7 +815,7 @@ export default function VideoCall({
         <button
           type="button"
           onClick={toggleScreenShare}
-          className={`p-2.5 sm:p-3 rounded-full transition-transform active:scale-90 cursor-pointer ${
+          className={`p-2 sm:p-3 rounded-full transition-transform active:scale-90 cursor-pointer ${
             isScreenSharing
               ? 'bg-[#EAF7CF] text-[#5C8519] border border-[#CCE8A2]'
               : 'bg-[#FFF7EE] hover:bg-[#FDEEDC] text-[#161F38]'
@@ -827,8 +830,8 @@ export default function VideoCall({
           <button
             type="button"
             onClick={onToggleWhiteboard}
-            className="bg-[#EAF7CF] hover:bg-[#DDF4B2] text-[#5C8519] border border-[#CCE8A2] rounded-full transition-transform active:scale-95 flex items-center gap-1.5 font-black text-xs px-4 py-2.5 shadow-2xs cursor-pointer"
-            title="Переключить на интерактивную доску"
+            className="bg-[#EAF7CF] hover:bg-[#DDF4B2] text-[#5C8519] border border-[#CCE8A2] rounded-full transition-transform active:scale-95 flex items-center gap-1.5 font-black text-xs px-3 sm:px-4 py-2 sm:py-2.5 shadow-2xs cursor-pointer"
+            title="Интерактивная доска"
           >
             <Layout className="w-4 h-4 text-[#5C8519]" />
             <span className="hidden sm:inline">Интерактивная доска</span>
@@ -839,10 +842,10 @@ export default function VideoCall({
         <button
           type="button"
           onClick={handleEnd}
-          className="bg-coralAccent hover:bg-coralAccent-hover text-white rounded-full transition-transform active:scale-95 flex items-center gap-1.5 font-black text-xs px-4 sm:px-5 py-2.5 shadow-xs cursor-pointer"
+          className="bg-coralAccent hover:bg-coralAccent-hover text-white rounded-full transition-transform active:scale-95 flex items-center gap-1.5 font-black text-xs px-3.5 sm:px-5 py-2 sm:py-2.5 shadow-xs cursor-pointer whitespace-nowrap shrink-0"
           title="Завершить занятие"
         >
-          <PhoneOff className="w-4 h-4" />
+          <PhoneOff className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           <span>Завершить урок</span>
         </button>
       </div>

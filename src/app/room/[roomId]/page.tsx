@@ -41,7 +41,7 @@ export default function LessonRoomPage() {
     if (teacherFlag) {
       setParticipantName('Ученик центра');
     } else {
-      setParticipantName('Василина Владимировна (Педагог)');
+      setParticipantName('Василина Владимировна');
     }
 
     // 4. Save active lesson room state so user can re-enter from personal cabinet if navigated away
@@ -115,7 +115,7 @@ export default function LessonRoomPage() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-100px)] min-h-[580px] w-full">
+    <div className="flex flex-col h-[calc(100dvh-72px)] sm:h-[calc(100vh-100px)] min-h-[480px] w-full">
       {/* 100% Spacious Main Workspace — WebRTC call stays continuously connected */}
       <div className="flex-1 w-full h-full relative overflow-hidden">
         {/* Interactive Whiteboard Canvas */}
