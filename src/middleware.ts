@@ -22,12 +22,6 @@ export function middleware(request: NextRequest) {
     shouldSetCookie = true;
   }
 
-  // Check for agentation query parameter
-  const agentationParam = request.nextUrl.searchParams.get('agentation');
-  const hasAgentation = request.nextUrl.searchParams.has('agentation');
-  const enableAgentation = agentationParam === '1' || agentationParam === 'true' || (hasAgentation && agentationParam !== '0' && agentationParam !== 'false');
-  const disableAgentation = agentationParam === '0' || agentationParam === 'false';
-
   const applyCookies = (res: NextResponse) => {
     if (shouldSetCookie) {
       res.cookies.set('aida_user_id', userId, {
@@ -36,13 +30,8 @@ export function middleware(request: NextRequest) {
         sameSite: 'lax',
       });
     }
-    if (enableAgentation) {
-      res.cookies.set('agentation', '1', {
-        path: '/',
-        maxAge: 2592000,
-        sameSite: 'lax',
-      });
-    } else if (disableAgentation) {
+    // Delete any legacy agentation cookie to ensure regular site has no leftover
+    if (request.cookies.has('agentation')) {
       res.cookies.delete('agentation');
     }
   };
