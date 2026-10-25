@@ -7,10 +7,61 @@ import { Wifi, ArrowRight, Sparkles, AlertTriangle } from 'lucide-react';
 interface BalanceWidgetProps {
   balance: number;
   studentName?: string;
+  compact?: boolean;
 }
 
-export default function BalanceWidget({ balance, studentName = 'Тимофей Смирнов' }: BalanceWidgetProps) {
+export default function BalanceWidget({ balance, studentName = 'Тимофей Смирнов', compact = false }: BalanceWidgetProps) {
   const isLowBalance = balance <= 1;
+
+  if (compact) {
+    return (
+      <div className="bg-white rounded-2xl p-3 sm:p-4 shadow-sm border border-[#F2E3D5] flex flex-col justify-between">
+        <div className="flex items-center gap-3">
+          {/* Compact Card */}
+          <div className="w-36 sm:w-44 h-22 sm:h-24 rounded-xl bg-[#FDBA96] p-2.5 text-ink-900 shadow-xs border border-[#F5A57A] flex flex-col justify-between relative overflow-hidden select-none shrink-0">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center -space-x-1.5">
+                <div className="w-4 h-4 rounded-full bg-[#FA9669]/90 border border-white/40" />
+                <div className="w-4 h-4 rounded-full bg-[#FFE3D1]/80 border border-white/40" />
+              </div>
+              <Wifi className="w-3 h-3 text-ink-900/70 rotate-90" />
+            </div>
+            <div className="font-mono text-[10px] tracking-wider font-extrabold text-ink-900/90">
+              4149 •••• 8745
+            </div>
+            <div className="flex items-end justify-between text-[9px] font-bold text-ink-900/80">
+              <span className="truncate max-w-[80px]">{studentName}</span>
+              <span>07/26</span>
+            </div>
+          </div>
+
+          {/* Compact Lesson Balance Info */}
+          <div className="flex-1 min-w-0 space-y-1">
+            <div className="text-[10px] font-black text-coralAccent uppercase tracking-wider">
+              Абонемент
+            </div>
+            <h4 suppressHydrationWarning className="text-sm sm:text-base font-extrabold text-ink-900 tracking-tight leading-tight">
+              Баланс: {balance} {balance === 1 ? 'занятие' : balance >= 2 && balance <= 4 ? 'занятия' : 'занятий'}
+            </h4>
+            <div className="flex items-center gap-2 pt-0.5">
+              <div className="flex-1 bg-[#FDEEDC] h-1.5 rounded-full overflow-hidden">
+                <div
+                  className="bg-coralAccent h-full rounded-full transition-all duration-500"
+                  style={{ width: `${Math.min(100, (balance / 8) * 100)}%` }}
+                />
+              </div>
+              <span className="text-[10px] font-bold text-ink-700 whitespace-nowrap">
+                {balance}/8
+              </span>
+            </div>
+            <p className="text-[10px] text-ink-500 truncate">
+              Автоматическое списание после P2P урока
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white rounded-[32px] p-5 sm:p-6 shadow-sm border border-[#F2E3D5] flex flex-col justify-between">
