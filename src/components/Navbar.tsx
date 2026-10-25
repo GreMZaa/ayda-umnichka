@@ -18,6 +18,7 @@ import { getLkUrl } from '@/lib/lkUrl';
 export default function Navbar() {
   const pathname = usePathname();
   const isHome = pathname === '/';
+  const isLogin = pathname === '/login';
   const isStudent = pathname === '/student';
   const isTeacher = pathname === '/teacher';
   const isAdmin = pathname === '/admin';
@@ -31,6 +32,12 @@ export default function Navbar() {
     if (savedBalance) setBalance(parseInt(savedBalance, 10));
     setLkUrl(getLkUrl());
   }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('aida_active_role');
+    document.cookie = 'aida_active_role=; path=/; max-age=0';
+    window.location.href = '/login';
+  };
 
   const navigateToSlide = (index: number) => {
     if (typeof window !== 'undefined') {
@@ -139,7 +146,7 @@ export default function Navbar() {
           {/* Right Section */}
           <div className="flex items-center gap-3">
             {/* Balance Pill — Only visible when inside cabinet pages */}
-            {!isHome && (
+            {!isHome && !isLogin && (
               <Link
                 href="/student"
                 suppressHydrationWarning
@@ -153,7 +160,7 @@ export default function Navbar() {
             )}
 
             {isInsideLk ? (
-              // Inside LK: Shows active role pill and navigation back to main site
+              // Inside LK: Shows active role pill, logout, and navigation back to main site
               <div className="flex items-center gap-2">
                 <div className="bg-white border border-[#F2DECE] text-[#161F38] font-extrabold px-3.5 py-2 rounded-full text-xs tracking-tight shadow-2xs flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-[#5C8519]" />
@@ -166,13 +173,29 @@ export default function Navbar() {
                   </span>
                 </div>
 
-                <Link
-                  href="/"
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  title="Сменить роль или выйти"
+                  className="text-xs font-bold text-[#8A95A8] hover:text-coralAccent px-2.5 py-1.5 rounded-full hover:bg-white border border-transparent hover:border-[#F2DECE] transition-all cursor-pointer"
+                >
+                  Выйти
+                </button>
+
+                <a
+                  href="https://ayda-umnichka.vercel.app"
                   className="hidden sm:inline-flex text-xs font-semibold text-[#8A95A8] hover:text-[#161F38] px-2 py-1 transition-colors"
                 >
                   На сайт →
-                </Link>
+                </a>
               </div>
+            ) : isLogin ? (
+              <a
+                href="https://ayda-umnichka.vercel.app"
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#161F38] bg-white border border-[#EADBCC] px-4 py-2 rounded-full hover:border-coralAccent transition-all shadow-xs"
+              >
+                <span>← На главную</span>
+              </a>
             ) : (
               // On landing page: Direct real link to LK subdomain (lk-[project].vercel.app)
               <a
