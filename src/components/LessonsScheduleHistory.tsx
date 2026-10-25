@@ -36,11 +36,17 @@ interface StudentOption {
 interface LessonsScheduleHistoryProps {
   onStartLesson?: (roomToken: string, topic: string) => void;
   availableStudents?: StudentOption[];
+  role?: 'teacher' | 'student';
+  studentPublicId?: string;
+  studentName?: string;
 }
 
 export default function LessonsScheduleHistory({
   onStartLesson,
   availableStudents = [],
+  role = 'teacher',
+  studentPublicId,
+  studentName,
 }: LessonsScheduleHistoryProps) {
   const [activeTab, setActiveTab] = useState<'upcoming' | 'history'>('upcoming');
   const [lessons, setLessons] = useState<LessonRecord[]>([]);
@@ -56,7 +62,10 @@ export default function LessonsScheduleHistory({
   const fetchLessons = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/lessons', { cache: 'no-store' });
+      const url = role === 'student' && studentPublicId
+        ? `/api/lessons?studentPublicId=${encodeURIComponent(studentPublicId)}`
+        : '/api/lessons';
+      const res = await fetch(url, { cache: 'no-store' });
       const data = await res.json();
       if (data?.lessons) {
         setLessons(data.lessons);
@@ -70,7 +79,7 @@ export default function LessonsScheduleHistory({
 
   useEffect(() => {
     fetchLessons();
-  }, []);
+  }, [studentPublicId, role]);
 
   const handleCreateScheduledLesson = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,10 +137,22 @@ export default function LessonsScheduleHistory({
     }
   };
 
-  const upcomingLessons = lessons.filter(
+  const relevantLessons = role === 'student'
+    ? lessons.filter((l) => {
+        if (studentPublicId && l.student_public_id && l.student_public_id.toLowerCase() === studentPublicId.toLowerCase()) return true;
+        if (studentName) {
+          const sNorm = studentName.replace(/\s*\(.*?\)$/, '').trim().toLowerCase();
+          const lNorm = (l.student_name || '').replace(/\s*\(.*?\)$/, '').trim().toLowerCase();
+          if (sNorm && (lNorm.includes(sNorm) || sNorm.includes(lNorm))) return true;
+        }
+        return false;
+      })
+    : lessons;
+
+  const upcomingLessons = relevantLessons.filter(
     (l) => l.status === 'pending' || l.status === 'active'
   );
-  const historyLessons = lessons.filter(
+  const historyLessons = relevantLessons.filter(
     (l) => l.status === 'completed' || l.status === 'cancelled'
   );
 
@@ -163,14 +184,16 @@ export default function LessonsScheduleHistory({
             <h3 className="font-black text-sm sm:text-base text-[#161F38]">Уроки и история</h3>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setShowScheduleForm(!showScheduleForm)}
-            className="inline-flex items-center gap-1 text-[11px] font-black bg-[#FFF2E6] hover:bg-[#FFE3CC] text-coralAccent border border-[#FCDDC7] px-2.5 py-1 rounded-full transition-colors duration-140 cursor-pointer active:scale-95 shrink-0"
-          >
-            <Plus className="w-3 h-3" />
-            <span>{showScheduleForm ? 'Отмена' : 'Запланировать'}</span>
-          </button>
+          {role !== 'student' && (
+            <button
+              type="button"
+              onClick={() => setShowScheduleForm(!showScheduleForm)}
+              className="inline-flex items-center gap-1 text-[11px] font-black bg-[#FFF2E6] hover:bg-[#FFE3CC] text-coralAccent border border-[#FCDDC7] px-2.5 py-1 rounded-full transition-colors duration-140 cursor-pointer active:scale-95 shrink-0"
+            >
+              <Plus className="w-3 h-3" />
+              <span>{showScheduleForm ? 'Отмена' : 'Запланировать'}</span>
+            </button>
+          )}
         </div>
 
         {/* Tab Switcher */}
@@ -299,7 +322,9 @@ export default function LessonsScheduleHistory({
               <Calendar className="w-6 h-6 text-coralAccent mx-auto opacity-50" />
               <h4 className="font-bold text-xs text-[#161F38]">Нет запланированных уроков</h4>
               <p className="text-[11px] text-[#6B758E]">
-                Запланируйте занятие через кнопку выше или начните мгновенный урок слева.
+                {role === 'student'
+                  ? 'Преподаватель центра назначит время урока в вашем кабинете.'
+                  : 'Запланируйте занятие через кнопку выше или начните мгновенный урок слева.'}
               </p>
             </div>
           ) : (
@@ -313,7 +338,7 @@ export default function LessonsScheduleHistory({
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
                         <span className="text-xs font-black text-[#161F38] truncate">
-                          {l.student_name}
+                          {role === 'student' ? (l.teacher_name || 'Преподаватель') : l.student_name}
                         </span>
                         <span className="text-[9px] font-bold bg-[#FFF2E6] text-coralAccent px-1.5 py-0.2 rounded-full shrink-0">
                           {formatLessonTime(l.scheduled_for)}
@@ -323,7 +348,7 @@ export default function LessonsScheduleHistory({
                     </div>
 
                     <a
-                      href={`/room/${l.room_token}?role=teacher&topic=${encodeURIComponent(l.topic)}`}
+                      href={`/room/${l.room_token}?role=${role}&topic=${encodeURIComponent(l.topic)}`}
                       className="text-[10px] font-black bg-coralAccent hover:bg-coralAccent-hover text-white px-2.5 py-1 rounded-full transition-colors cursor-pointer active:scale-95 flex items-center gap-1 shrink-0"
                     >
                       <Video className="w-3 h-3" />
@@ -331,29 +356,41 @@ export default function LessonsScheduleHistory({
                     </a>
                   </div>
 
-                  {/* Mark passed / cancelled status */}
+                  {/* Status footer */}
                   <div className="pt-1 border-t border-[#F8EDE1] flex items-center justify-between text-[10px]">
-                    <span className="text-[#8A95A8]">Отметить результат:</span>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => handleUpdateStatus(l.id, 'completed')}
-                        className="inline-flex items-center gap-1 font-bold text-[#5C8519] bg-[#EAF7CF] hover:bg-[#DDF4B2] px-2 py-0.5 rounded-md transition-colors cursor-pointer active:scale-95"
-                        title="Отметить, что урок состоялся"
-                      >
-                        <CheckCircle2 className="w-3 h-3" />
-                        <span>Прошёл</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleUpdateStatus(l.id, 'cancelled')}
-                        className="inline-flex items-center gap-1 font-bold text-red-600 bg-red-50 hover:bg-red-100 px-2 py-0.5 rounded-md transition-colors cursor-pointer active:scale-95"
-                        title="Отметить, что урок не состоялся"
-                      >
-                        <XCircle className="w-3 h-3" />
-                        <span>Не прошёл</span>
-                      </button>
-                    </div>
+                    {role === 'student' ? (
+                      <>
+                        <span className="text-[#8A95A8]">Статус:</span>
+                        <span className="inline-flex items-center gap-1 font-bold text-[#5C8519]">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#5C8519] animate-pulse" />
+                          <span>Готов к подключению (45 мин)</span>
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-[#8A95A8]">Отметить результат:</span>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateStatus(l.id, 'completed')}
+                            className="inline-flex items-center gap-1 font-bold text-[#5C8519] bg-[#EAF7CF] hover:bg-[#DDF4B2] px-2 py-0.5 rounded-md transition-colors cursor-pointer active:scale-95"
+                            title="Отметить, что урок состоялся"
+                          >
+                            <CheckCircle2 className="w-3 h-3" />
+                            <span>Прошёл</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateStatus(l.id, 'cancelled')}
+                            className="inline-flex items-center gap-1 font-bold text-red-600 bg-red-50 hover:bg-red-100 px-2 py-0.5 rounded-md transition-colors cursor-pointer active:scale-95"
+                            title="Отметить, что урок не состоялся"
+                          >
+                            <XCircle className="w-3 h-3" />
+                            <span>Не прошёл</span>
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               ))}

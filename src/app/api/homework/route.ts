@@ -34,6 +34,33 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+
+    // 1. Solution submission action
+    if (body.action === 'submit_solution') {
+      const { id, student_solution_text } = body;
+      if (!id) {
+        return NextResponse.json({ error: 'Missing homework id' }, { status: 400 });
+      }
+
+      const { data, error } = await supabase
+        .from('homework')
+        .update({
+          status: 'submitted',
+          student_solution_text: student_solution_text || 'Аудиоответ отправлен педагогу',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true, homework: data });
+    }
+
+    // 2. Homework assignment creation
     const {
       title,
       task_description,
