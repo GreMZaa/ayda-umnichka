@@ -158,6 +158,11 @@ describe('Security Suite: RBAC & Cabinet Protection Tests', () => {
       const body = await res.json();
       assert.strictEqual(body.binding.role, 'student', 'Role must remain student, not escalate to admin');
       assert.strictEqual(body.binding.balance_lessons, 0, 'Balance must remain 0, not tamperable by client');
+
+      // Clean up probe record immediately
+      try {
+        await fetch(`${BASE_URL}/api/user/bind?publicId=${probeId}`, { method: 'DELETE' });
+      } catch (_) {}
     });
   });
 

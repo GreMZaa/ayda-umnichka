@@ -201,3 +201,23 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const publicId = searchParams.get('publicId')?.trim();
+    if (!publicId) {
+      return NextResponse.json({ error: 'Missing publicId' }, { status: 400 });
+    }
+
+    // Only allow deletion of security probe records
+    if (!publicId.startsWith('probe_sec_')) {
+      return NextResponse.json({ error: 'Deletion restricted' }, { status: 403 });
+    }
+
+    await supabase.from('user_bindings').delete().eq('public_id', publicId);
+    return NextResponse.json({ success: true });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
