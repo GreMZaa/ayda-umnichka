@@ -123,12 +123,11 @@ function LoginFormContent() {
         document.cookie = `aida_auth_user_id=${encodeURIComponent(publicId)}; path=/; max-age=2592000; SameSite=Lax`;
         document.cookie = `aida_user_id=${encodeURIComponent(publicId)}; path=/; max-age=2592000; SameSite=Lax`;
 
-        setSuccessMessage(`Регистрация успешна! Присвоен ID: ${publicId}. Входим...`);
         setTimeout(() => {
-          const fallback = selectedRole === 'teacher' ? '/teacher' : `/${publicId}`;
+          const fallback = selectedRole === 'teacher' ? `/teacher?id=${publicId}` : `/${publicId}`;
           const safeDest = getSafeRedirect(redirectParam, fallback);
           router.push(safeDest);
-        }, 700);
+        }, 500);
       } else {
         // Login
         if (!emailOrPhone || !password) {
@@ -187,9 +186,13 @@ function LoginFormContent() {
         document.cookie = `aida_auth_user_id=${encodeURIComponent(targetId)}; path=/; max-age=2592000; SameSite=Lax`;
         document.cookie = `aida_user_id=${encodeURIComponent(targetId)}; path=/; max-age=2592000; SameSite=Lax`;
 
-        setSuccessMessage('Вход выполнен! Перенаправляем в личный кабинет...');
         setTimeout(() => {
-          const fallback = userRole === 'teacher' ? '/teacher' : userRole === 'admin' ? '/admin' : `/${targetId}`;
+          const fallback =
+            userRole === 'teacher'
+              ? `/teacher?id=${targetId}`
+              : userRole === 'admin'
+              ? '/admin'
+              : `/${targetId}`;
           const safeDest = getSafeRedirect(redirectParam, fallback);
           router.push(safeDest);
         }, 500);
@@ -197,7 +200,6 @@ function LoginFormContent() {
     } catch (err: unknown) {
       const errObj = err as { message?: string };
       setErrorMessage(errObj?.message || 'Ошибка авторизации. Попробуйте еще раз.');
-    } finally {
       setLoading(false);
     }
   };
@@ -274,13 +276,6 @@ function LoginFormContent() {
                 <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
                   <span className="leading-tight">{errorMessage}</span>
-                </div>
-              )}
-
-              {successMessage && (
-                <div className="mb-2 p-2 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-                  <span className="leading-tight">{successMessage}</span>
                 </div>
               )}
 
@@ -364,16 +359,23 @@ function LoginFormContent() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full bg-coralAccent hover:bg-coralAccent-hover text-white font-black text-xs sm:text-sm py-2 sm:py-2.5 rounded-full shadow-xs transition-[background-color,transform,box-shadow] duration-140 ease-out-emil flex items-center justify-center gap-2 active:scale-[0.97] disabled:opacity-50 cursor-pointer"
+                    className="w-full bg-coralAccent hover:bg-coralAccent-hover text-white font-black text-xs sm:text-sm py-2.5 rounded-full shadow-xs transition-[background-color,transform,box-shadow] duration-140 ease-out-emil flex items-center justify-center gap-2 active:scale-[0.97] disabled:opacity-85 cursor-pointer"
                   >
-                    <span>
-                      {loading
-                        ? 'Секунду...'
-                        : tab === 'register'
-                        ? `Зарегистрировать (${selectedRole === 'student' ? 'Ученик' : 'Педагог'})`
-                        : 'Войти в личный кабинет'}
-                    </span>
-                    <ArrowRight className="w-3.5 h-3.5" />
+                    {loading ? (
+                      <>
+                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin shrink-0" />
+                        <span>Выполняется вход...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>
+                          {tab === 'register'
+                            ? `Зарегистрировать (${selectedRole === 'student' ? 'Ученик' : 'Педагог'})`
+                            : 'Войти в личный кабинет'}
+                        </span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </>
+                    )}
                   </button>
                 </div>
               </form>

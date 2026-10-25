@@ -104,6 +104,12 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
           return;
         }
 
+        // If authenticated user is a teacher, route to teacher cabinet with their ID
+        if (data.binding?.role === 'teacher' || activeRole === 'teacher') {
+          router.replace(`/teacher?id=${encodeURIComponent(routeUserId)}`);
+          return;
+        }
+
         setIsSupabaseSynced(true);
         if (data.binding?.full_name) {
           setStudentName(data.binding.full_name);

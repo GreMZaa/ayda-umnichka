@@ -19,7 +19,9 @@ import {
   Mail,
   Paperclip,
   X,
-  Search
+  Search,
+  Copy,
+  Check
 } from 'lucide-react';
 import type { TeacherRecord } from '@/app/api/teachers/route';
 
@@ -45,6 +47,16 @@ export default function TeacherDashboard() {
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
   const [teacherName, setTeacherName] = useState<string>('Преподаватель');
   const [teacherPublicId, setTeacherPublicId] = useState<string>('id179017');
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const copyCabinetLink = () => {
+    if (typeof window !== 'undefined') {
+      const fullUrl = `${window.location.origin}/teacher?id=${teacherPublicId}`;
+      navigator.clipboard.writeText(fullUrl);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    }
+  };
 
   // Supabase Students state
   const [supabaseStudents, setSupabaseStudents] = useState<SupabaseStudent[]>([]);
@@ -159,6 +171,11 @@ export default function TeacherDashboard() {
       document.cookie.match(/(?:^|; )aida_auth_user_id=([^;]*)/)?.[1] ||
       'id179017';
     setTeacherPublicId(savedUserId);
+
+    // Keep personal ID in URL address bar
+    if (typeof window !== 'undefined' && !window.location.search.includes('id=')) {
+      window.history.replaceState(null, '', `/teacher?id=${savedUserId}`);
+    }
 
     fetchSupabaseStudents();
     fetchBoundStudents(savedUserId);
@@ -389,11 +406,23 @@ export default function TeacherDashboard() {
             {teacherName[0] || 'П'}
           </div>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-lg sm:text-xl font-black text-[#161F38] tracking-tight">{teacherName}</h1>
               <span className="text-[10px] bg-[#EAF7CF] text-[#5C8519] border border-[#D5ECA3] font-black px-2 py-0.5 rounded-full">
                 Педагог центра
               </span>
+              <span className="text-[10px] bg-[#FFF2E6] text-coralAccent border border-[#FCDDC7] font-extrabold px-2 py-0.5 rounded-full">
+                ★ ID: {teacherPublicId}
+              </span>
+              <button
+                type="button"
+                onClick={copyCabinetLink}
+                className="inline-flex items-center gap-1 text-[10px] text-[#8A95A8] hover:text-[#161F38] bg-[#FFF8F1] hover:bg-[#FFF2E6] border border-[#F2DECE] px-2 py-0.5 rounded-lg transition-colors cursor-pointer"
+                title="Скопировать постоянную ссылку на кабинет"
+              >
+                {copiedLink ? <Check className="w-3 h-3 text-[#5C8519]" /> : <Copy className="w-3 h-3 text-[#8A95A8]" />}
+                <span>{copiedLink ? 'Скопировано!' : 'Ссылка'}</span>
+              </button>
             </div>
             <p className="text-[11px] text-[#6B758E] mt-0.5">
               Детский развивающий центр «АйДаУмничка», г. Тольятти • Онлайн-кабинет занятий
