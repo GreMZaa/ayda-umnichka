@@ -18,6 +18,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Пожалуйста, заполните все обязательные поля' }, { status: 400 });
     }
 
+    // Admin registration is strictly forbidden
+    if (role === 'admin') {
+      return NextResponse.json({ error: 'Регистрация с ролью Администратора запрещена' }, { status: 403 });
+    }
+
     const cleanPublicId = publicId.trim().toLowerCase();
     const displayName = `${fullName}${childName ? ` (ребёнок: ${childName})` : ''}`.trim();
     const balance = role === 'student' ? 1 : 0; // 1 welcome lesson

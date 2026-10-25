@@ -40,7 +40,7 @@ function LoginFormContent() {
   const errorParam = searchParams.get('error');
 
   const [tab, setTab] = useState<'login' | 'register'>('login');
-  const [selectedRole, setSelectedRole] = useState<'student' | 'teacher' | 'admin'>('student');
+  const [selectedRole, setSelectedRole] = useState<'student' | 'teacher'>('student');
   
   // Form states
   const [emailOrPhone, setEmailOrPhone] = useState('');
@@ -52,8 +52,8 @@ function LoginFormContent() {
   const [errorMessage, setErrorMessage] = useState(errorParam === 'forbidden' ? 'Доступ ограничен. Войдите с соответствующими правами.' : '');
   const [successMessage, setSuccessMessage] = useState('');
 
-  // Select registration role from the right block
-  const handleSelectRegistrationRole = (role: 'student' | 'teacher' | 'admin') => {
+  // Select registration role from the right block (admin registration is strictly forbidden)
+  const handleSelectRegistrationRole = (role: 'student' | 'teacher') => {
     setSelectedRole(role);
     setTab('register');
     setErrorMessage('');
@@ -123,9 +123,9 @@ function LoginFormContent() {
         document.cookie = `aida_auth_user_id=${encodeURIComponent(publicId)}; path=/; max-age=2592000; SameSite=Lax`;
         document.cookie = `aida_user_id=${encodeURIComponent(publicId)}; path=/; max-age=2592000; SameSite=Lax`;
 
-        setSuccessMessage(`Регистрация в Supabase успешна (без подтверждения почты)! Присвоен ID: ${publicId}. Входим...`);
+        setSuccessMessage(`Регистрация успешна! Присвоен ID: ${publicId}. Входим...`);
         setTimeout(() => {
-          const fallback = selectedRole === 'teacher' ? '/teacher' : selectedRole === 'admin' ? '/admin' : `/${publicId}`;
+          const fallback = selectedRole === 'teacher' ? '/teacher' : `/${publicId}`;
           const safeDest = getSafeRedirect(redirectParam, fallback);
           router.push(safeDest);
         }, 700);
@@ -210,7 +210,7 @@ function LoginFormContent() {
           {/* Left Column: Interactive Supabase Auth Form */}
           <div className="lg:col-span-7 p-4 sm:p-5 lg:p-6 flex flex-col justify-between">
             <div>
-              {/* Back Link & Tag */}
+              {/* Back Link */}
               <div className="flex items-center justify-between pb-1.5">
                 <a
                   href="https://ayda-umnichka.vercel.app"
@@ -219,9 +219,6 @@ function LoginFormContent() {
                   <span>←</span>
                   <span>На главную</span>
                 </a>
-                <span className="text-[10px] font-black text-coralAccent uppercase tracking-widest bg-[#FFF2E6] px-2.5 py-0.5 rounded-full border border-[#FCDDC7]">
-                  SUPABASE AUTH
-                </span>
               </div>
 
               {/* Title */}
@@ -231,7 +228,7 @@ function LoginFormContent() {
                 </h1>
                 <p className="text-[11px] text-[#6B758E]">
                   {tab === 'register'
-                    ? `Создание кабинета: ${selectedRole === 'student' ? 'Ученик (+1 урок)' : selectedRole === 'teacher' ? 'Педагог' : 'Администратор'} • Без подтверждения почты`
+                    ? `Создание кабинета: ${selectedRole === 'student' ? 'Ученик (+1 урок)' : 'Педагог'}`
                     : 'Онлайн-занятия, интерактивная доска, баланс и связь с педагогом'}
                 </p>
               </div>
@@ -363,7 +360,7 @@ function LoginFormContent() {
                 </div>
 
                 {/* Submit Button */}
-                <div className="pt-0.5">
+                <div className="pt-1">
                   <button
                     type="submit"
                     disabled={loading}
@@ -373,7 +370,7 @@ function LoginFormContent() {
                       {loading
                         ? 'Секунду...'
                         : tab === 'register'
-                        ? `Зарегистрировать (${selectedRole === 'student' ? 'Ученик' : selectedRole === 'teacher' ? 'Педагог' : 'Админ'})`
+                        ? `Зарегистрировать (${selectedRole === 'student' ? 'Ученик' : 'Педагог'})`
                         : 'Войти в личный кабинет'}
                     </span>
                     <ArrowRight className="w-3.5 h-3.5" />
@@ -381,45 +378,41 @@ function LoginFormContent() {
                 </div>
               </form>
             </div>
-
-            <p className="text-[10px] text-[#8A95A8] text-center pt-1.5">
-              ⚡ Подтверждение почты отключено • Мгновенный доступ через Supabase
-            </p>
           </div>
 
-          {/* Right Column: Registration Buttons Block */}
-          <div className="lg:col-span-5 bg-[#FFF8F1] p-4 sm:p-5 lg:p-6 border-t lg:border-t-0 lg:border-l border-[#F2DECE] flex flex-col justify-between space-y-3">
+          {/* Right Column: Registration Role Picker */}
+          <div className="lg:col-span-5 bg-[#FFF8F1] p-4 sm:p-5 lg:p-6 border-t lg:border-t-0 lg:border-l border-[#F2DECE] flex flex-col justify-center space-y-3">
             
             {/* Header */}
             <div className="space-y-0.5">
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-black text-[#5C8519] uppercase tracking-wider bg-[#EAF7CF] px-2 py-0.5 rounded-full border border-[#D5ECA3] flex items-center gap-1">
                   <Zap className="w-3 h-3 text-[#5C8519]" />
-                  БЫСТРАЯ РЕГИСТРАЦИЯ
+                  РЕГИСТРАЦИЯ
                 </span>
               </div>
               <h3 className="text-sm sm:text-base font-black text-[#161F38] leading-snug">
                 Кнопки регистрации
               </h3>
               <p className="text-[10px] sm:text-[11px] text-[#6B758E] leading-relaxed">
-                Нажмите нужную кнопку, чтобы зарегистрироваться без подтверждения почты:
+                Выберите роль для создания личного кабинета:
               </p>
             </div>
 
             {/* Quick Registration Buttons */}
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               {/* Button 1: Student Registration */}
               <button
                 type="button"
                 onClick={() => handleSelectRegistrationRole('student')}
-                className={`w-full group p-2.5 sm:p-3 rounded-2xl border transition-[background-color,border-color,transform] duration-140 ease-out-emil active:scale-[0.98] flex items-center justify-between text-left cursor-pointer shadow-2xs ${
+                className={`w-full group p-3 rounded-2xl border transition-[background-color,border-color,transform] duration-140 ease-out-emil active:scale-[0.98] flex items-center justify-between text-left cursor-pointer shadow-2xs ${
                   tab === 'register' && selectedRole === 'student'
                     ? 'bg-white border-coralAccent ring-2 ring-coralAccent/20'
                     : 'bg-white/80 hover:bg-white border-[#F2DECE] hover:border-coralAccent'
                 }`}
               >
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl bg-[#FFF2E6] text-coralAccent flex items-center justify-center font-bold shrink-0 group-hover:scale-105 transition-transform duration-140">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-[#FFF2E6] text-coralAccent flex items-center justify-center font-bold shrink-0 group-hover:scale-105 transition-transform duration-140">
                     <GraduationCap className="w-4 h-4" />
                   </div>
                   <div>
@@ -441,14 +434,14 @@ function LoginFormContent() {
               <button
                 type="button"
                 onClick={() => handleSelectRegistrationRole('teacher')}
-                className={`w-full group p-2.5 sm:p-3 rounded-2xl border transition-[background-color,border-color,transform] duration-140 ease-out-emil active:scale-[0.98] flex items-center justify-between text-left cursor-pointer shadow-2xs ${
+                className={`w-full group p-3 rounded-2xl border transition-[background-color,border-color,transform] duration-140 ease-out-emil active:scale-[0.98] flex items-center justify-between text-left cursor-pointer shadow-2xs ${
                   tab === 'register' && selectedRole === 'teacher'
                     ? 'bg-white border-[#2B6CB0] ring-2 ring-[#2B6CB0]/20'
                     : 'bg-white/80 hover:bg-white border-[#F2DECE] hover:border-[#2B6CB0]'
                 }`}
               >
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl bg-[#F0F7FF] text-[#2B6CB0] flex items-center justify-center font-bold shrink-0 group-hover:scale-105 transition-transform duration-140">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-[#F0F7FF] text-[#2B6CB0] flex items-center justify-center font-bold shrink-0 group-hover:scale-105 transition-transform duration-140">
                     <UserCheck className="w-4 h-4" />
                   </div>
                   <div>
@@ -462,44 +455,6 @@ function LoginFormContent() {
                 </div>
                 <ArrowRight className="w-3.5 h-3.5 text-[#2B6CB0] group-hover:translate-x-1 transition-transform duration-140" />
               </button>
-
-              {/* Button 3: Admin Registration */}
-              <button
-                type="button"
-                onClick={() => handleSelectRegistrationRole('admin')}
-                className={`w-full group p-2.5 sm:p-3 rounded-2xl border transition-[background-color,border-color,transform] duration-140 ease-out-emil active:scale-[0.98] flex items-center justify-between text-left cursor-pointer shadow-2xs ${
-                  tab === 'register' && selectedRole === 'admin'
-                    ? 'bg-white border-[#6B46C1] ring-2 ring-[#6B46C1]/20'
-                    : 'bg-white/80 hover:bg-white border-[#F2DECE] hover:border-[#6B46C1]'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl bg-[#FAF5FF] text-[#6B46C1] flex items-center justify-center font-bold shrink-0 group-hover:scale-105 transition-transform duration-140">
-                    <Shield className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-black text-[#161F38]">
-                      Регистрация Руководителя
-                    </div>
-                    <div className="text-[10px] text-[#6B758E]">
-                      Панель управления учениками и балансами
-                    </div>
-                  </div>
-                </div>
-                <ArrowRight className="w-3.5 h-3.5 text-[#6B46C1] group-hover:translate-x-1 transition-transform duration-140" />
-              </button>
-            </div>
-
-            {/* Instant Access Benefits */}
-            <div className="bg-white/70 p-2 sm:p-2.5 rounded-2xl border border-[#F2DECE] space-y-1">
-              <div className="flex items-center gap-1.5 text-[10px] font-bold text-[#161F38]">
-                <Check className="w-3 h-3 text-[#5C8519]" />
-                <span>Без ссылок на почту: вход сразу после отправки</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-[10px] font-bold text-[#161F38]">
-                <Check className="w-3 h-3 text-[#5C8519]" />
-                <span>Присвоение персонального ID в базе Supabase</span>
-              </div>
             </div>
 
           </div>
