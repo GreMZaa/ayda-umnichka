@@ -259,6 +259,31 @@ export default function VideoCall({
     return () => clearInterval(timer);
   }, [hasRemoteStream, roomToken, callDuration]);
 
+  // WebRTC PeerConnection management & stream helpers
+  const cameraPromiseRef = useRef<Promise<MediaStream | null> | null>(null);
+
+  const resetPeerConnection = () => {
+    if (pcRef.current) {
+      try {
+        pcRef.current.close();
+      } catch (_) {}
+      pcRef.current = null;
+    }
+    candidateQueueRef.current = [];
+  };
+
+  const ensureLocalStream = async (): Promise<MediaStream | null> => {
+    if (streamRef.current && streamRef.current.active) {
+      return streamRef.current;
+    }
+    if (cameraPromiseRef.current) {
+      return await cameraPromiseRef.current;
+    }
+    const p = startCamera();
+    cameraPromiseRef.current = p;
+    return await p;
+  };
+
   // WebRTC PeerConnection factory
   const getOrCreatePeerConnection = (stream: MediaStream): RTCPeerConnection => {
     if (pcRef.current && pcRef.current.signalingState !== 'closed') {
@@ -318,6 +343,14 @@ export default function VideoCall({
       } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
         setConnectionStatus('waiting');
         setHasRemoteStream(false);
+        // Automatically attempt reconnection
+        if (channelRef.current) {
+          channelRef.current.send({
+            type: 'broadcast',
+            event: 'user-joined',
+            payload: { senderId: myPeerIdRef.current, isTeacher },
+          });
+        }
       }
     };
 
@@ -425,7 +458,7 @@ export default function VideoCall({
   };
 
   // Start local camera & microphone (Selfie camera only)
-  const startCamera = async () => {
+  const startCamera = async (): Promise<MediaStream | null> => {
     try {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
@@ -482,8 +515,13 @@ export default function VideoCall({
           payload: { senderId: myPeerIdRef.current, isTeacher },
         });
       }
+
+      return stream;
     } catch (err) {
       console.warn('WebRTC camera preview error:', err);
+      return null;
+    } finally {
+      cameraPromiseRef.current = null;
     }
   };
 
@@ -503,22 +541,58 @@ export default function VideoCall({
       .on('broadcast', { event: 'user-joined' }, async ({ payload }) => {
         if (payload?.senderId === myPeerIdRef.current) return;
         console.log('[WebRTC] Peer joined room:', payload);
+
+        // 1. Immediately acknowledge presence so newcomer knows we are already in the room!
+        if (channelRef.current) {
+          channelRef.current.send({
+            type: 'broadcast',
+            event: 'user-here',
+            payload: {
+              senderId: myPeerIdRef.current,
+              isTeacher,
+            },
+          });
+        }
+
+        // 2. Reset old peer connection to negotiate clean session
+        resetPeerConnection();
         setConnectionStatus('connecting');
 
-        // Teacher initiates the offer when a peer joins
-        if (streamRef.current && isTeacher) {
-          const pc = getOrCreatePeerConnection(streamRef.current);
-          await createAndSendOffer(pc);
-        } else if (streamRef.current && !isTeacher) {
-          // Student can also create peer connection ready for offer
-          getOrCreatePeerConnection(streamRef.current);
+        // 3. Teacher initiates the offer when a peer joins
+        if (isTeacher) {
+          const stream = await ensureLocalStream();
+          if (stream) {
+            const pc = getOrCreatePeerConnection(stream);
+            await createAndSendOffer(pc);
+          }
+        }
+      })
+      .on('broadcast', { event: 'user-here' }, async ({ payload }) => {
+        if (payload?.senderId === myPeerIdRef.current) return;
+        console.log('[WebRTC] Peer is already in room (user-here):', payload);
+
+        // Reset old peer connection to negotiate clean session
+        resetPeerConnection();
+        setConnectionStatus('connecting');
+
+        // If I am the teacher and just joined/rejoined, send offer to the peer who was already waiting
+        if (isTeacher) {
+          const stream = await ensureLocalStream();
+          if (stream) {
+            const pc = getOrCreatePeerConnection(stream);
+            await createAndSendOffer(pc);
+          }
         }
       })
       .on('broadcast', { event: 'offer' }, async ({ payload }) => {
         if (payload?.senderId === myPeerIdRef.current) return;
-        if (payload?.sdp && streamRef.current) {
+        if (payload?.sdp) {
+          console.log('[WebRTC] Received SDP offer, answering...');
           setConnectionStatus('connecting');
-          await handleRemoteOffer(payload.sdp, streamRef.current);
+          const stream = await ensureLocalStream();
+          if (stream) {
+            await handleRemoteOffer(payload.sdp, stream);
+          }
         }
       })
       .on('broadcast', { event: 'answer' }, async ({ payload }) => {
@@ -598,6 +672,8 @@ export default function VideoCall({
       })
       .on('broadcast', { event: 'user-left' }, ({ payload }) => {
         if (payload?.senderId === myPeerIdRef.current) return;
+        console.log('[WebRTC] Peer left room:', payload);
+        resetPeerConnection();
         setHasRemoteStream(false);
         setConnectionStatus('waiting');
       })
@@ -625,10 +701,7 @@ export default function VideoCall({
         supabase.removeChannel(channel);
       } catch (_) {}
 
-      if (pcRef.current) {
-        pcRef.current.close();
-        pcRef.current = null;
-      }
+      resetPeerConnection();
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
       }
@@ -638,6 +711,23 @@ export default function VideoCall({
       remoteStreamRef.current = null;
     };
   }, [roomToken, isTeacher]);
+
+  // Periodic presence ping while waiting for peer (auto-reconnects smoothly on page reload)
+  useEffect(() => {
+    if (!roomToken || hasRemoteStream) return;
+
+    const interval = setInterval(() => {
+      if (channelRef.current && !hasRemoteStream) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'user-joined',
+          payload: { senderId: myPeerIdRef.current, isTeacher },
+        });
+      }
+    }, 3500);
+
+    return () => clearInterval(interval);
+  }, [roomToken, hasRemoteStream, isTeacher]);
 
   // Re-bind video srcObject if ref attaches or mode switches
   useEffect(() => {
