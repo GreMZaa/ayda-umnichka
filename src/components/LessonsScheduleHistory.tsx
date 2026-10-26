@@ -266,12 +266,14 @@ export default function LessonsScheduleHistory({
   };
 
   return (
-    <div className="bg-white rounded-2xl p-4 sm:p-5 border border-[#F2E0CF] shadow-xs flex flex-col justify-between h-full space-y-3.5">
+    <div className="bg-white rounded-3xl p-4 sm:p-5 border-t-4 border-t-coralAccent border-x border-b border-[#F0DCCD] shadow-xs flex flex-col justify-between h-full space-y-3.5 hover:shadow-sm transition-shadow">
       <div className="space-y-3">
         {/* Header with Title and Tabs */}
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-coralAccent" />
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-[#FFF2E6] text-coralAccent border border-[#FCDDC7] flex items-center justify-center shrink-0 shadow-2xs">
+              <Calendar className="w-4 h-4" />
+            </div>
             <h3 className="font-black text-sm sm:text-base text-[#161F38]">Уроки и история</h3>
           </div>
 
@@ -288,7 +290,7 @@ export default function LessonsScheduleHistory({
         </div>
 
         {/* Tab Switcher */}
-        <div className="flex items-center bg-[#FFF8F1] p-1 rounded-xl border border-[#F2DECE]">
+        <div className="flex items-center bg-[#F8EFE7] p-1.5 rounded-2xl border border-[#EADBCC]">
           <button
             type="button"
             onClick={() => setActiveTab('upcoming')}
