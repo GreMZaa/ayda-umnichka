@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
@@ -12,6 +12,9 @@ import {
   MessageCircle,
   Coins,
   ChevronDown,
+  LogOut,
+  ExternalLink,
+  LayoutDashboard,
 } from 'lucide-react';
 import { getLkUrl } from '@/lib/lkUrl';
 
@@ -38,6 +41,29 @@ export default function Navbar() {
   const [userId, setUserId] = useState<string>('');
   const [lkUrl, setLkUrl] = useState<string>('https://lk-ayda-umnichka.vercel.app/login');
   const [logoClicks, setLogoClicks] = useState(0);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handlePointerDown = (event: PointerEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+        setProfileOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setProfileOpen(false);
+      }
+    };
+    if (profileOpen) {
+      document.addEventListener('pointerdown', handlePointerDown);
+      document.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [profileOpen]);
 
   useEffect(() => {
     const updateFromStorage = () => {
@@ -96,6 +122,23 @@ export default function Navbar() {
       window.dispatchEvent(new CustomEvent('aida-navigate-slide', { detail: index }));
     }
   };
+
+  const displayName =
+    cleanDisplayName(userName) ||
+    (isStudent ? 'Ученик' : isTeacher ? 'Преподаватель' : 'Администратор');
+  const roleLabel = isTeacher
+    ? 'Педагог центра'
+    : isAdmin
+    ? 'Администратор'
+    : 'Ученик';
+  const initialLetter = displayName ? displayName[0].toUpperCase() : 'П';
+  const myCabinetUrl = isTeacher
+    ? `/teacher?id=${userId || 'id179017'}`
+    : isAdmin
+    ? '/admin'
+    : userId
+    ? `/${userId}`
+    : '/student';
 
   return (
     <header className="sticky top-0 z-50 bg-[#FFF7EE]/95 backdrop-blur-md border-b border-[#F4E4D3]">
@@ -231,35 +274,153 @@ export default function Navbar() {
                 <span>Личный кабинет</span>
               </Link>
             ) : isInsideLk ? (
-              // Inside LK: Shows active role pill, logout, and navigation back to main site
-              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-                <div className="bg-white border border-[#F2DECE] text-[#161F38] font-extrabold px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-full text-xs tracking-tight shadow-2xs flex items-center gap-1.5 max-w-[125px] sm:max-w-[200px] shrink truncate whitespace-nowrap">
-                  <span className="w-2 h-2 rounded-full bg-[#5C8519] shrink-0" />
-                  <span className="truncate whitespace-nowrap" suppressHydrationWarning>
-                    {cleanDisplayName(userName) ||
-                      (isStudent
-                        ? 'Кабинет Ученика'
-                        : isTeacher
-                        ? 'Кабинет Педагога'
-                        : 'Администратор')}
-                  </span>
+              // Inside LK: Modern Messenger shortcut & Interactive Profile Capsule with Popover
+              <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                {/* Messenger Quick Access Pill */}
+                <Link
+                  href="/messenger"
+                  title="Мессенджер и чаты"
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black transition-all duration-140 border shadow-2xs active:scale-95 cursor-pointer ${
+                    pathname === '/messenger'
+                      ? 'bg-coralAccent text-white border-coralAccent shadow-xs shadow-orange-500/20'
+                      : 'bg-white text-[#161F38] border-[#EADBCC] hover:border-coralAccent hover:text-coralAccent'
+                  }`}
+                >
+                  <MessageCircle className="w-3.5 h-3.5 text-coralAccent" />
+                  <span className="hidden md:inline">Чаты</span>
+                </Link>
+
+                {/* Modern User Profile Menu */}
+                <div className="relative" ref={profileMenuRef}>
+                  <button
+                    type="button"
+                    onClick={() => setProfileOpen((prev) => !prev)}
+                    className="flex items-center gap-2 pl-1 pr-2.5 py-1 rounded-full bg-white border border-[#EADBCC] hover:border-coralAccent/60 hover:shadow-xs shadow-2xs transition-[border-color,box-shadow,transform] duration-140 active:scale-[0.98] cursor-pointer select-none"
+                    title="Меню профиля"
+                  >
+                    {/* Avatar Circle with role gradient + online green dot */}
+                    <div className="relative shrink-0">
+                      <div
+                        className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-black text-xs text-white shadow-2xs ${
+                          isAdmin
+                            ? 'bg-gradient-to-tr from-indigo-500 to-purple-600'
+                            : isTeacher
+                            ? 'bg-gradient-to-tr from-[#FF6B4A] to-[#FFA259]'
+                            : 'bg-gradient-to-tr from-[#5C8519] to-[#8BC34A]'
+                        }`}
+                      >
+                        {initialLetter}
+                      </div>
+                      <span className="w-2.5 h-2.5 rounded-full absolute -bottom-0.5 -right-0.5 border-2 border-white bg-[#5C8519]" />
+                    </div>
+
+                    {/* User Info & Role (visible on sm+) */}
+                    <div className="hidden sm:flex flex-col items-start text-left min-w-0 max-w-[130px] md:max-w-[170px]">
+                      <span
+                        className="text-xs font-black text-[#161F38] truncate w-full leading-tight"
+                        suppressHydrationWarning
+                      >
+                        {displayName}
+                      </span>
+                      <span
+                        className="text-[10px] text-[#8A95A8] font-bold leading-tight truncate w-full"
+                        suppressHydrationWarning
+                      >
+                        {roleLabel}
+                      </span>
+                    </div>
+
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 text-[#8A95A8] transition-transform duration-200 shrink-0 ${
+                        profileOpen ? 'rotate-180 text-coralAccent' : ''
+                      }`}
+                    />
+                  </button>
+
+                  {/* Modern Floating Dropdown Popover */}
+                  {profileOpen && (
+                    <div className="absolute right-0 top-full mt-2 w-64 bg-white/95 backdrop-blur-md rounded-2xl border border-[#F0DCCD] shadow-xl p-2 z-50 animate-in fade-in zoom-in-95 duration-140 space-y-1">
+                      {/* User Header Card */}
+                      <div className="p-2.5 bg-gradient-to-r from-[#FFFBF7] to-[#FFF4EA] rounded-xl border border-[#F6E6D8]">
+                        <div className="flex items-center gap-2.5">
+                          <div
+                            className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-sm text-white shrink-0 shadow-2xs ${
+                              isAdmin
+                                ? 'bg-gradient-to-tr from-indigo-500 to-purple-600'
+                                : isTeacher
+                                ? 'bg-gradient-to-tr from-[#FF6B4A] to-[#FFA259]'
+                                : 'bg-gradient-to-tr from-[#5C8519] to-[#8BC34A]'
+                            }`}
+                          >
+                            {initialLetter}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-xs font-black text-[#161F38] truncate">
+                              {displayName}
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                              <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-full bg-[#EAF7CF] text-[#5C8519] border border-[#CCE8A2]">
+                                {roleLabel}
+                              </span>
+                              {userId && (
+                                <span className="text-[9px] text-[#8A95A8] font-mono">
+                                  {userId}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Dropdown Navigation Actions */}
+                      <div className="pt-1 space-y-0.5">
+                        <Link
+                          href={myCabinetUrl}
+                          onClick={() => setProfileOpen(false)}
+                          className="flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-[#161F38] hover:bg-[#FFF7EE] hover:text-coralAccent rounded-xl transition-colors cursor-pointer"
+                        >
+                          <LayoutDashboard className="w-4 h-4 text-coralAccent shrink-0" />
+                          <span>Личный кабинет</span>
+                        </Link>
+
+                        <Link
+                          href="/messenger"
+                          onClick={() => setProfileOpen(false)}
+                          className="flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-[#161F38] hover:bg-[#FFF7EE] hover:text-coralAccent rounded-xl transition-colors cursor-pointer"
+                        >
+                          <MessageCircle className="w-4 h-4 text-[#5C8519] shrink-0" />
+                          <span>Сообщения и чаты</span>
+                        </Link>
+
+                        <a
+                          href="https://ayda-umnichka.vercel.app"
+                          className="flex items-center justify-between px-3 py-2 text-xs font-bold text-[#6B758E] hover:bg-[#FFF7EE] hover:text-[#161F38] rounded-xl transition-colors"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <ExternalLink className="w-4 h-4 text-[#8A95A8] shrink-0" />
+                            <span>Перейти на сайт</span>
+                          </div>
+                          <span className="text-[10px] text-[#8A95A8]">↗</span>
+                        </a>
+                      </div>
+
+                      <div className="border-t border-[#F4E4D3] my-1" />
+
+                      {/* Logout Action */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProfileOpen(false);
+                          handleLogout();
+                        }}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50 rounded-xl transition-colors cursor-pointer text-left"
+                      >
+                        <LogOut className="w-4 h-4 text-red-500 shrink-0" />
+                        <span>Выйти из аккаунта</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
-
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  title="Сменить роль или выйти"
-                  className="text-xs font-bold text-[#8A95A8] hover:text-coralAccent px-2 py-1.5 sm:px-2.5 sm:py-1.5 rounded-full hover:bg-white border border-transparent hover:border-[#F2DECE] transition-colors duration-140 cursor-pointer active:scale-95 whitespace-nowrap shrink-0"
-                >
-                  Выйти
-                </button>
-
-                <a
-                  href="https://ayda-umnichka.vercel.app"
-                  className="hidden sm:inline-flex text-xs font-semibold text-[#8A95A8] hover:text-[#161F38] px-2 py-1 transition-colors duration-140 whitespace-nowrap"
-                >
-                  На сайт →
-                </a>
               </div>
             ) : isLogin ? (
               <a
