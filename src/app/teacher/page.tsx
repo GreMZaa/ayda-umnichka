@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import LessonsScheduleHistory from '@/components/LessonsScheduleHistory';
@@ -534,6 +534,26 @@ export default function TeacherDashboard() {
     currentStudentPage * STUDENTS_PER_PAGE
   );
 
+  // Bound students formatted for lesson scheduling dropdown (strictly only students assigned to this teacher)
+  const boundStudentOptions = useMemo(() => {
+    const seen = new Set<string>();
+    return boundStudents
+      .map((st) => {
+        const info = getCleanStudentInfo(st);
+        return {
+          publicId: info.publicId || st.publicId || '',
+          fullName: info.displayName || st.fullName,
+          phone: st.phone,
+        };
+      })
+      .filter((st) => {
+        const key = st.publicId || st.fullName;
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+  }, [boundStudents]);
+
   return (
     <div className="space-y-4 sm:space-y-5">
       {/* Teacher Profile Header — Distinct Warm Hero Card */}
@@ -587,7 +607,7 @@ export default function TeacherDashboard() {
             onStartLesson={(token, topic) => {
               router.push(`/room/${token}?role=teacher&topic=${encodeURIComponent(topic)}`);
             }}
-            availableStudents={supabaseStudents}
+            availableStudents={boundStudentOptions}
           />
         </div>
 

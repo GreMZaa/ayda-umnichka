@@ -201,7 +201,7 @@ export default function LessonsScheduleHistory({
     try {
       setIsSubmitting(true);
       const selectedStudentObj = availableStudents.find(
-        (s) => s.fullName === formStudent || s.publicId === formStudent
+        (s) => s.publicId === formStudent || s.fullName === formStudent
       );
 
       const res = await fetch('/api/lessons', {
@@ -210,7 +210,7 @@ export default function LessonsScheduleHistory({
         body: JSON.stringify({
           topic: formTopic,
           student_name: selectedStudentObj?.fullName || formStudent || 'Ученик центра',
-          student_public_id: selectedStudentObj?.publicId || null,
+          student_public_id: selectedStudentObj?.publicId || (formStudent.startsWith('id') ? formStudent : null),
           teacher_name: teacherName || 'Преподаватель',
           scheduled_for: formDateTime,
           status: 'pending',
@@ -419,24 +419,26 @@ export default function LessonsScheduleHistory({
                   <select
                     value={formStudent}
                     onChange={(e) => setFormStudent(e.target.value)}
+                    required
                     className="w-full bg-white border border-[#EADBCC] rounded-lg px-2.5 py-1.5 text-xs text-[#161F38] focus:outline-none focus:border-coralAccent"
                   >
                     <option value="">Выберите ученика из списка</option>
                     {availableStudents.map((s) => (
-                      <option key={s.publicId} value={s.fullName}>
-                        {s.fullName} ({s.publicId})
+                      <option key={s.publicId || s.fullName} value={s.publicId || s.fullName}>
+                        {s.fullName}{s.publicId ? ` (${s.publicId})` : ''}
                       </option>
                     ))}
                   </select>
                 ) : (
-                  <input
-                    type="text"
-                    value={formStudent}
-                    onChange={(e) => setFormStudent(e.target.value)}
-                    placeholder="ФИО ученика"
-                    required
-                    className="w-full bg-white border border-[#EADBCC] rounded-lg px-2.5 py-1.5 text-xs text-[#161F38] focus:outline-none focus:border-coralAccent"
-                  />
+                  <div className="p-2.5 rounded-lg bg-[#FFF2E2] border border-[#FAD6B5] text-xs text-[#9B5115] space-y-1">
+                    <div className="font-bold flex items-center gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0 text-[#E26928]" />
+                      <span>Нет закрепленных учеников</span>
+                    </div>
+                    <p className="text-[11px] leading-relaxed">
+                      Чтобы запланировать онлайн-урок, сначала прикрепите ученика в блоке «Закрепленные ученики» справа.
+                    </p>
+                  </div>
                 )}
               </div>
 
@@ -478,8 +480,8 @@ export default function LessonsScheduleHistory({
               </button>
               <button
                 type="submit"
-                disabled={isSubmitting}
-                className="text-xs font-black bg-coralAccent hover:bg-coralAccent-hover text-white px-4 py-1.5 rounded-full shadow-2xs active:scale-95 cursor-pointer disabled:opacity-50"
+                disabled={isSubmitting || availableStudents.length === 0 || !formStudent}
+                className="text-xs font-black bg-coralAccent hover:bg-coralAccent-hover text-white px-4 py-1.5 rounded-full shadow-2xs active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? 'Сохранение...' : 'Запланировать'}
               </button>
