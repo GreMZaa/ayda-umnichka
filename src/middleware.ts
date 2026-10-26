@@ -10,6 +10,12 @@ const SYSTEM_ROUTES = new Set([
   'messenger',
   'room',
   'api',
+  'sw.js',
+  'manifest.json',
+  'manifest.webmanifest',
+  'icon-192.png',
+  'icon-512.png',
+  'apple-touch-icon.png',
   'favicon.ico',
   'icon.png',
   'logo.png',
@@ -162,6 +168,6 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico, images, logos, static image files
      */
-    '/((?!api|_next/static|_next/image|images|favicon.ico|icon.png|logo.png|logo.svg|.*\\.(?:png|jpg|jpeg|gif|webp|svg|ico)$).*)',
+    '/((?!api|_next/static|_next/image|images|favicon.ico|icon.png|logo.png|logo.svg|sw.js|manifest.json|manifest.webmanifest|.*\\.(?:png|jpg|jpeg|gif|webp|svg|ico)$).*)',
   ],
 };

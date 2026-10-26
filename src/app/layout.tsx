@@ -3,20 +3,30 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import ContentWrapper from "@/components/ContentWrapper";
 import AgentationToolbar from "@/components/AgentationToolbar";
+import PwaRegistrar from "@/components/PwaRegistrar";
 import "./globals.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://ayda-umnichka.vercel.app'),
   title: "АйДаУмничка — Детский развивающий центр (Тольятти)",
   description: "Образовательная онлайн-платформа детского центра «АйДаУмничка» в г. Тольятти: P2P видеоуроки, интерактивная доска, чаты и прозрачный учет баланса занятий.",
+  applicationName: "АйДаУмничка",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "АйДаУмничка",
+  },
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: 'any' },
-      { url: '/icon.png', type: 'image/png' },
-      { url: '/logo.png', type: 'image/png' },
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
     ],
     shortcut: '/favicon.ico',
-    apple: '/icon.png',
+    apple: [
+      { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
   },
   openGraph: {
     title: "АйДаУмничка — Детский развивающий центр (Тольятти)",
@@ -42,8 +52,14 @@ export default function RootLayout({
     <html lang="ru" suppressHydrationWarning>
       <head>
         <link rel="icon" href="/favicon.ico" sizes="any" />
-        <link rel="icon" type="image/png" href="/icon.png" />
-        <link rel="apple-touch-icon" href="/icon.png" />
+        <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="АйДаУмничка" />
+        <meta name="application-name" content="АйДаУмничка" />
+        <meta name="mobile-web-app-capable" content="yes" />
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -94,6 +110,7 @@ export default function RootLayout({
         <ContentWrapper>{children}</ContentWrapper>
         <Footer />
         <AgentationToolbar />
+        <PwaRegistrar />
       </body>
     </html>
   );
