@@ -136,7 +136,72 @@ export default function VideoCall({
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
+  const chatMessagesContainerRef = useRef<HTMLDivElement | null>(null);
   const chatInputRef = useRef<HTMLInputElement | null>(null);
+  const [visualViewportState, setVisualViewportState] = useState<{
+    height: number;
+    offsetTop: number;
+  } | null>(null);
+
+  const scrollChatToBottom = (smooth = true) => {
+    if (chatMessagesContainerRef.current) {
+      chatMessagesContainerRef.current.scrollTo({
+        top: chatMessagesContainerRef.current.scrollHeight,
+        behavior: smooth ? 'smooth' : 'auto',
+      });
+    }
+  };
+
+  // Pin chat to visual viewport on mobile (prevents iOS keyboard from displacing top header & camera PiP)
+  useEffect(() => {
+    if (!isChatOpen) return;
+
+    const updateViewport = () => {
+      if (typeof window !== 'undefined' && window.visualViewport) {
+        setVisualViewportState({
+          height: window.visualViewport.height,
+          offsetTop: window.visualViewport.offsetTop,
+        });
+        if (window.scrollY !== 0 || window.scrollX !== 0) {
+          window.scrollTo(0, 0);
+        }
+      }
+    };
+
+    updateViewport();
+
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+    if (vv) {
+      vv.addEventListener('resize', updateViewport);
+      vv.addEventListener('scroll', updateViewport);
+    }
+    window.addEventListener('scroll', updateViewport);
+
+    // Prevent background body bounce/scrolling while chat is active
+    const prevOverflow = document.body.style.overflow;
+    const prevPosition = document.body.style.position;
+    const prevWidth = document.body.style.width;
+    const prevHeight = document.body.style.height;
+
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.width = '100%';
+    document.body.style.height = '100%';
+
+    return () => {
+      if (vv) {
+        vv.removeEventListener('resize', updateViewport);
+        vv.removeEventListener('scroll', updateViewport);
+      }
+      window.removeEventListener('scroll', updateViewport);
+
+      document.body.style.overflow = prevOverflow;
+      document.body.style.position = prevPosition;
+      document.body.style.width = prevWidth;
+      document.body.style.height = prevHeight;
+      window.scrollTo(0, 0);
+    };
+  }, [isChatOpen]);
 
   // Detect iOS / iPhone for screen sharing capability & mobile default orientation
   useEffect(() => {
@@ -825,7 +890,7 @@ export default function VideoCall({
             return open;
           });
           setTimeout(() => {
-            chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+            scrollChatToBottom(true);
           }, 50);
         }
       })
@@ -1352,7 +1417,7 @@ export default function VideoCall({
     }
 
     setTimeout(() => {
-      chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      scrollChatToBottom(true);
     }, 50);
   };
 
@@ -1360,8 +1425,7 @@ export default function VideoCall({
     setIsChatOpen(true);
     setUnreadChatCount(0);
     setTimeout(() => {
-      document.getElementById('lesson-chat-section')?.scrollIntoView({ behavior: 'smooth' });
-      chatInputRef.current?.focus();
+      scrollChatToBottom(false);
     }, 60);
   };
 
@@ -2077,9 +2141,19 @@ export default function VideoCall({
 
         {/* 7. Full-Screen VK Chat with Floating Video Call PiP */}
         {isChatOpen && (
-          <div className="absolute inset-0 z-50 bg-[#0A0E1A] flex flex-col animate-in fade-in duration-200">
+          <div
+            style={
+              visualViewportState
+                ? {
+                    height: `${visualViewportState.height}px`,
+                    top: `${visualViewportState.offsetTop}px`,
+                  }
+                : undefined
+            }
+            className="fixed inset-x-0 top-0 z-50 bg-[#0A0E1A] flex flex-col h-[100dvh] max-h-[100dvh] overflow-hidden overscroll-none animate-in fade-in duration-200 select-auto"
+          >
             {/* VK Messenger Header */}
-            <div className="h-14 sm:h-16 px-3 sm:px-4 bg-[#111726]/90 backdrop-blur-md border-b border-white/10 flex items-center justify-between z-30 shrink-0">
+            <div className="h-14 sm:h-16 px-3 sm:px-4 bg-[#111726]/95 backdrop-blur-md border-b border-white/10 flex items-center justify-between z-30 shrink-0 sticky top-0">
               <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                 <button
                   type="button"
@@ -2119,7 +2193,7 @@ export default function VideoCall({
             {/* Floating Video Call Mini-Window (PiP) in Top Right — Exactly like VK! */}
             <div
               onClick={() => setIsChatOpen(false)}
-              className="absolute top-16 right-3 sm:top-20 sm:right-6 z-40 w-32 xs:w-36 sm:w-44 aspect-[3/4] rounded-2xl sm:rounded-3xl overflow-hidden border-2 border-white/30 shadow-2xl bg-black/85 backdrop-blur-md cursor-pointer transition-transform duration-200 hover:scale-105 active:scale-95 group"
+              className="absolute top-16 right-3 sm:top-20 sm:right-6 z-40 w-28 xs:w-32 sm:w-44 aspect-[3/4] rounded-2xl sm:rounded-3xl overflow-hidden border-2 border-white/30 shadow-2xl bg-black/85 backdrop-blur-md cursor-pointer transition-transform duration-200 hover:scale-105 active:scale-95 group shrink-0"
               title="Нажмите, чтобы вернуться к видеозвонку"
             >
               {/* Remote Video Stream */}
@@ -2176,7 +2250,10 @@ export default function VideoCall({
             </div>
 
             {/* Chat Messages Body */}
-            <div className="flex-1 p-3 sm:p-5 overflow-y-auto space-y-3 bg-[#0A0E1A] bg-radial from-[#121929] to-[#0A0E1A]">
+            <div
+              ref={chatMessagesContainerRef}
+              className="flex-1 p-3 sm:p-5 overflow-y-auto overscroll-contain space-y-3 bg-[#0A0E1A] bg-radial from-[#121929] to-[#0A0E1A] touch-pan-y"
+            >
               {chatMessages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-center text-white/50 p-6">
                   <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-coralAccent mb-3">
@@ -2315,8 +2392,22 @@ export default function VideoCall({
                 type="text"
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
+                onFocus={() => {
+                  if (typeof window !== 'undefined') {
+                    window.scrollTo(0, 0);
+                    document.body.scrollTop = 0;
+                    document.documentElement.scrollTop = 0;
+                    setTimeout(() => {
+                      window.scrollTo(0, 0);
+                      scrollChatToBottom(false);
+                    }, 50);
+                    setTimeout(() => {
+                      window.scrollTo(0, 0);
+                    }, 250);
+                  }
+                }}
                 placeholder="Сообщение..."
-                className="flex-1 bg-white/10 hover:bg-white/15 focus:bg-white/20 border border-white/10 focus:border-blue-400 rounded-full px-4 py-2.5 text-sm text-white placeholder-white/40 outline-none transition-all"
+                className="flex-1 bg-white/10 hover:bg-white/15 focus:bg-white/20 border border-white/10 focus:border-blue-400 rounded-full px-4 py-2.5 text-base sm:text-sm text-white placeholder-white/40 outline-none transition-all"
               />
               <button
                 type="submit"
