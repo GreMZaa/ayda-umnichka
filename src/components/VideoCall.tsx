@@ -18,18 +18,33 @@ import {
   Send,
   X,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Volume2,
+  VolumeX,
+  Paperclip,
+  FileText,
+  Download,
+  Loader2,
 } from 'lucide-react';
 import { formatTime } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 
-interface ChatMessage {
+export interface ChatAttachment {
+  name: string;
+  url: string;
+  type: string;
+  size: number;
+  isImage?: boolean;
+}
+
+export interface ChatMessage {
   id: string;
   senderId: string;
   senderName: string;
   senderRole: 'teacher' | 'student';
   text: string;
   time: string;
+  attachment?: ChatAttachment;
 }
 
 interface VideoCallProps {
@@ -83,14 +98,65 @@ export default function VideoCall({
   const [callDuration, setCallDuration] = useState(0);
   const [isPipActive, setIsPipActive] = useState(false);
   const [isPipMinimized, setIsPipMinimized] = useState(false);
+  const [isIPhone, setIsIPhone] = useState(false);
+  const [isDeafened, setIsDeafened] = useState(false);
 
   // Lesson In-Call Chat states
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [isChatOpen, setIsChatOpen] = useState(true);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const [attachedFile, setAttachedFile] = useState<{
+    name: string;
+    url: string;
+    type: string;
+    size: number;
+    isImage?: boolean;
+  } | null>(null);
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
   const chatInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Detect iOS / iPhone for screen sharing capability
+  useEffect(() => {
+    if (typeof navigator !== 'undefined') {
+      const ua = navigator.userAgent || '';
+      const isApple = /iPhone|iPod/.test(ua) || (/iPad/.test(ua) && navigator.maxTouchPoints > 1);
+      setIsIPhone(isApple);
+    }
+  }, []);
+
+  // Sync deafen state to remote video & audio tracks
+  useEffect(() => {
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.muted = isDeafened;
+    }
+    if (remoteStreamRef.current) {
+      remoteStreamRef.current.getAudioTracks().forEach((track) => {
+        track.enabled = !isDeafened && remoteMicActive;
+      });
+    }
+  }, [isDeafened, remoteMicActive]);
+
+  // Load chat history from Supabase on mount/roomToken change
+  useEffect(() => {
+    if (!roomToken) return;
+    let isCancelled = false;
+
+    fetch(`/api/room/messages?roomToken=${encodeURIComponent(roomToken)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (!isCancelled && Array.isArray(data?.messages)) {
+          setChatMessages(data.messages);
+        }
+      })
+      .catch((err) => console.warn('Could not load room messages:', err));
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [roomToken]);
 
   // WebRTC P2P states
   const [hasRemoteStream, setHasRemoteStream] = useState(false);
@@ -145,11 +211,12 @@ export default function VideoCall({
       }
 
       if (event.track.kind === 'audio') {
-        event.track.enabled = remoteMicActive;
+        event.track.enabled = !isDeafened && remoteMicActive;
       }
 
       if (remoteVideoRef.current && remoteVideoRef.current.srcObject !== remoteStreamRef.current) {
         remoteVideoRef.current.srcObject = remoteStreamRef.current;
+        remoteVideoRef.current.muted = isDeafened;
         remoteVideoRef.current.play().catch(() => {});
       }
       setHasRemoteStream(true);
@@ -420,8 +487,11 @@ export default function VideoCall({
         }
       })
       .on('broadcast', { event: 'chat-message' }, ({ payload }) => {
-        if (payload?.id && payload?.text) {
-          setChatMessages((prev) => [...prev, payload]);
+        if (payload?.id && (payload?.text || payload?.attachment)) {
+          setChatMessages((prev) => {
+            if (prev.some((m) => m.id === payload.id)) return prev;
+            return [...prev, payload];
+          });
           setIsChatOpen((open) => {
             if (!open) {
               setUnreadChatCount((count) => count + 1);
@@ -787,10 +857,111 @@ export default function VideoCall({
     }
   };
 
-  const handleSendMessage = (e?: React.FormEvent) => {
+  // Toggle deafen (Заглушить динамики как в ВК)
+  const toggleDeafen = () => {
+    setIsDeafened((prev) => !prev);
+  };
+
+  // Client-side image compression: downscales max 1280px and converts to 72% JPEG
+  const compressImage = async (file: File): Promise<File> => {
+    if (!file.type.startsWith('image/')) return file;
+    if (file.type === 'image/svg+xml' || file.type === 'image/gif') return file;
+
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          let width = img.width;
+          let height = img.height;
+          const maxDim = 1280;
+
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(file);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob(
+            (blob) => {
+              if (!blob || blob.size >= file.size) {
+                resolve(file);
+              } else {
+                const compressed = new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), {
+                  type: 'image/jpeg',
+                  lastModified: Date.now(),
+                });
+                resolve(compressed);
+              }
+            },
+            'image/jpeg',
+            0.72
+          );
+        };
+        img.onerror = () => resolve(file);
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => resolve(file);
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const originalFile = files[0];
+    e.target.value = '';
+
+    try {
+      setIsUploadingAttachment(true);
+      const processedFile = await compressImage(originalFile);
+
+      const formData = new FormData();
+      formData.append('file', processedFile);
+
+      const res = await fetch('/api/room/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Ошибка при загрузке файла');
+      }
+
+      setAttachedFile({
+        name: data.name || originalFile.name,
+        url: data.url,
+        type: data.type || originalFile.type,
+        size: data.size || processedFile.size,
+        isImage: Boolean(data.isImage),
+      });
+    } catch (err: any) {
+      console.error('File upload error:', err);
+      alert(err.message || 'Не удалось прикрепить файл');
+    } finally {
+      setIsUploadingAttachment(false);
+    }
+  };
+
+  const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const trimmed = chatInput.trim();
-    if (!trimmed) return;
+    if (!trimmed && !attachedFile) return;
 
     const now = new Date();
     const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -801,17 +972,31 @@ export default function VideoCall({
       senderRole: isTeacher ? 'teacher' : 'student',
       text: trimmed,
       time: timeStr,
+      attachment: attachedFile ? { ...attachedFile } : undefined,
     };
 
     setChatMessages((prev) => [...prev, msg]);
     setChatInput('');
+    setAttachedFile(null);
 
+    // 1. Broadcast to peer via Supabase Realtime
     if (channelRef.current) {
       channelRef.current.send({
         type: 'broadcast',
         event: 'chat-message',
         payload: msg,
       });
+    }
+
+    // 2. Persist in Supabase DB
+    try {
+      await fetch('/api/room/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomToken, message: msg }),
+      });
+    } catch (err) {
+      console.warn('Failed to persist message in Supabase:', err);
     }
 
     setTimeout(() => {
@@ -1085,23 +1270,6 @@ export default function VideoCall({
               </div>
             </div>
           )}
-
-          {/* Remote Participant Status Badge — only shown over live video to prevent layout collision */}
-          {hasRemoteStream && (
-            <div className="absolute bottom-2.5 left-2.5 sm:bottom-3 sm:left-3 bg-black/60 backdrop-blur-md border border-white/20 px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-full text-white text-[10px] sm:text-xs font-black shadow-xs flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-[#5C8519] animate-pulse" />
-              <span className="truncate max-w-[120px] sm:max-w-none">{resolvedParticipantName}</span>
-              <span className="text-[9px] sm:text-[10px] text-[#A6E044] font-bold">
-                {isRemoteScreenSharing ? '• Демонстрация экрана' : '• В эфире'}
-              </span>
-              {!remoteMicActive && (
-                <span className="flex items-center gap-1 text-[9px] sm:text-[10px] text-rose-300 font-bold bg-rose-900/60 px-1.5 py-0.5 rounded-full ml-1">
-                  <MicOff className="w-2.5 h-2.5" />
-                  <span>Выкл.</span>
-                </span>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Tile 2: Local User Camera Stream (Muted to prevent echo, Selfie Front Camera) */}
@@ -1125,16 +1293,6 @@ export default function VideoCall({
               <p className="text-xs font-bold">Камера отключена</p>
             </div>
           )}
-
-          {/* Local user badge: Correctly reflects teacher vs student */}
-          <div className="absolute bottom-2.5 left-2.5 sm:bottom-3 sm:left-3 bg-black/60 backdrop-blur-md border border-white/20 px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-full text-white text-[10px] sm:text-xs font-black shadow-xs flex items-center gap-1.5">
-            <span>{isScreenSharing ? '🖥️ Ваш экран' : `Вы (${isTeacher ? 'Преподаватель' : 'Ученик'})`}</span>
-            {!micActive && (
-              <span title="Микрофон выключен">
-                <MicOff className="w-3 h-3 text-rose-400" />
-              </span>
-            )}
-          </div>
         </div>
       </div>
 
@@ -1176,19 +1334,39 @@ export default function VideoCall({
           )}
         </button>
 
-        {/* Screen Share */}
+        {/* Speakers Deafen Toggle (Заглушить динамики как в ВК) */}
         <button
           type="button"
-          onClick={toggleScreenShare}
+          onClick={toggleDeafen}
           className={`p-2 sm:p-3 rounded-full transition-transform active:scale-90 cursor-pointer ${
-            isScreenSharing
-              ? 'bg-[#EAF7CF] text-[#5C8519] border border-[#CCE8A2]'
+            isDeafened
+              ? 'bg-rose-100 text-rose-700 border border-rose-300'
               : 'bg-[#FFF7EE] hover:bg-[#FDEEDC] text-[#161F38]'
           }`}
-          title="Демонстрация экрана"
+          title={isDeafened ? 'Включить динамики' : 'Заглушить динамики (отключить звук собеседника)'}
         >
-          <Monitor className="w-4 h-4 sm:w-5 sm:h-5" />
+          {isDeafened ? (
+            <VolumeX className="w-4 h-4 sm:w-5 sm:h-5 text-rose-600" />
+          ) : (
+            <Volume2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#161F38]" />
+          )}
         </button>
+
+        {/* Screen Share — hidden on iOS / iPhone */}
+        {!isIPhone && (
+          <button
+            type="button"
+            onClick={toggleScreenShare}
+            className={`p-2 sm:p-3 rounded-full transition-transform active:scale-90 cursor-pointer ${
+              isScreenSharing
+                ? 'bg-[#EAF7CF] text-[#5C8519] border border-[#CCE8A2]'
+                : 'bg-[#FFF7EE] hover:bg-[#FDEEDC] text-[#161F38]'
+            }`}
+            title="Демонстрация экрана"
+          >
+            <Monitor className="w-4 h-4 sm:w-5 sm:h-5" />
+          </button>
+        )}
 
         {/* Whiteboard Switch */}
         {onToggleWhiteboard && (
@@ -1202,26 +1380,6 @@ export default function VideoCall({
             <span className="hidden sm:inline">Интерактивная доска</span>
           </button>
         )}
-
-        {/* Chat Shortcut Button */}
-        <button
-          type="button"
-          onClick={handleChatButtonClick}
-          className={`relative p-2 sm:px-3.5 sm:py-2.5 rounded-full transition-transform active:scale-95 cursor-pointer flex items-center gap-1.5 font-bold text-xs ${
-            isChatOpen
-              ? 'bg-coralAccent text-white shadow-2xs'
-              : 'bg-[#FFF7EE] hover:bg-[#FDEEDC] text-[#161F38]'
-          }`}
-          title="Перейти к чату урока снизу"
-        >
-          <MessageSquare className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
-          <span className="hidden sm:inline">Чат</span>
-          {unreadChatCount > 0 && (
-            <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center animate-pulse">
-              {unreadChatCount}
-            </span>
-          )}
-        </button>
 
         {/* End Call — ONLY visible for teacher! */}
         {isTeacher && (
@@ -1259,9 +1417,6 @@ export default function VideoCall({
                 title={hasRemoteStream ? 'Собеседник на связи' : 'Ожидание собеседника'}
               />
             </div>
-            <p className="text-[10px] text-[#6B758E] font-medium truncate">
-              {topic || 'Индивидуальное занятие'} • {resolvedParticipantName}
-            </p>
           </div>
         </div>
 
@@ -1279,7 +1434,7 @@ export default function VideoCall({
       {isChatOpen && (
         <>
           {/* Messages List */}
-          <div className="h-56 sm:h-64 p-3 sm:p-4 overflow-y-auto space-y-2 text-xs bg-[#FFFDFB]">
+          <div className="h-56 sm:h-64 p-3 sm:p-4 overflow-y-auto space-y-2.5 text-xs bg-[#FFFDFB]">
             {chatMessages.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center text-[#8A95A8] p-4">
                 <div className="w-12 h-12 rounded-2xl bg-[#FFF7EE] border border-[#F4E3D2] flex items-center justify-center text-coralAccent/60 mb-2">
@@ -1287,7 +1442,7 @@ export default function VideoCall({
                 </div>
                 <p className="text-xs font-black text-[#161F38]">Сообщений пока нет</p>
                 <p className="text-[11px] text-[#8A95A8] max-w-xs mt-0.5">
-                  Здесь можно обмениваться быстрыми сообщениями, текстом и ответами во время занятия
+                  Здесь можно обмениваться быстрыми сообщениями, фото и файлами во время занятия
                 </p>
               </div>
             ) : (
@@ -1309,7 +1464,43 @@ export default function VideoCall({
                           : 'bg-[#FFF7EE] text-[#161F38] border border-[#F4E3D2] rounded-bl-xs'
                       }`}
                     >
-                      {msg.text}
+                      {/* Attached media / document if present */}
+                      {msg.attachment && (
+                        <div className="mb-1.5">
+                          {msg.attachment.isImage ? (
+                            <a
+                              href={msg.attachment.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="block overflow-hidden rounded-xl border border-black/10 hover:opacity-95 transition-opacity"
+                            >
+                              <img
+                                src={msg.attachment.url}
+                                alt={msg.attachment.name}
+                                className="max-h-48 w-auto object-cover rounded-xl"
+                                loading="lazy"
+                              />
+                            </a>
+                          ) : (
+                            <a
+                              href={msg.attachment.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              download={msg.attachment.name}
+                              className={`flex items-center gap-2 p-2 rounded-xl text-xs font-bold transition-colors ${
+                                isMe
+                                  ? 'bg-white/20 text-white hover:bg-white/30'
+                                  : 'bg-[#FFF0E2] text-coralAccent hover:bg-[#FFE6D0]'
+                              }`}
+                            >
+                              <FileText className="w-4 h-4 shrink-0" />
+                              <span className="truncate max-w-[150px]">{msg.attachment.name}</span>
+                              <Download className="w-3.5 h-3.5 ml-auto shrink-0 opacity-70" />
+                            </a>
+                          )}
+                        </div>
+                      )}
+                      {msg.text && <div>{msg.text}</div>}
                     </div>
                   </div>
                 );
@@ -1318,8 +1509,57 @@ export default function VideoCall({
             <div ref={chatBottomRef} />
           </div>
 
+          {/* Attached file preview chip prior to sending */}
+          {attachedFile && (
+            <div className="px-3 py-1.5 bg-[#FFF0E2] border-t border-[#F2DECE] flex items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-2 truncate">
+                {attachedFile.isImage ? (
+                  <img
+                    src={attachedFile.url}
+                    alt=""
+                    className="w-7 h-7 object-cover rounded-md border border-[#F4E3D2]"
+                  />
+                ) : (
+                  <FileText className="w-4 h-4 text-coralAccent shrink-0" />
+                )}
+                <span className="font-bold text-[#161F38] truncate">{attachedFile.name}</span>
+                <span className="text-[10px] text-[#8A95A8]">
+                  ({Math.round(attachedFile.size / 1024)} КБ)
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAttachedFile(null)}
+                className="p-1 text-[#8A95A8] hover:text-rose-500 rounded-lg cursor-pointer transition-colors"
+                title="Удалить прикрепленный файл"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
           {/* Chat Input Bar */}
           <form onSubmit={handleSendMessage} className="p-2.5 sm:p-3 bg-white border-t border-[#F2DECE] flex items-center gap-1.5">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileSelect}
+              accept="image/*,.pdf,.doc,.docx,.txt"
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploadingAttachment}
+              className="p-2 sm:p-2.5 text-[#6B758E] hover:text-coralAccent hover:bg-[#FFF7EE] rounded-full transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+              title="Прикрепить файл или фото (автоматически сжимается)"
+            >
+              {isUploadingAttachment ? (
+                <Loader2 className="w-4 h-4 animate-spin text-coralAccent" />
+              ) : (
+                <Paperclip className="w-4 h-4" />
+              )}
+            </button>
             <input
               ref={chatInputRef}
               type="text"
@@ -1330,7 +1570,7 @@ export default function VideoCall({
             />
             <button
               type="submit"
-              disabled={!chatInput.trim()}
+              disabled={(!chatInput.trim() && !attachedFile) || isUploadingAttachment}
               className="bg-coralAccent hover:bg-coralAccent-hover disabled:opacity-40 text-white p-2.5 rounded-full transition-transform active:scale-95 cursor-pointer shadow-2xs shrink-0"
               title="Отправить"
             >
