@@ -1571,7 +1571,7 @@ export default function VideoCall({
         }}
       />
       {/* VK Calls Layout */}
-      <div className="relative w-full h-[100dvh] bg-[#0A0E1A] overflow-hidden select-none">
+      <div className="relative w-full h-[100dvh] bg-[#FFF7EE] overflow-hidden select-none">
         {/* Banner if browser autoplay policy blocked sound until interaction */}
         {isAudioAutoplayBlocked && hasRemoteStream && !isDeafened && (
           <div
@@ -1607,7 +1607,7 @@ export default function VideoCall({
         )}
 
         {/* 1. Main Fullscreen Video (Remote by default, or Local if isSwapped) */}
-        <div className="absolute inset-0 w-full h-full overflow-hidden bg-[#0A0E1A]">
+        <div className="absolute inset-0 w-full h-full overflow-hidden bg-[#FFF7EE]">
           {!isSwapped ? (
             /* Main View: Remote stream */
             <>
@@ -1621,25 +1621,25 @@ export default function VideoCall({
               />
 
               {(!hasRemoteStream || !remoteCamActive) && (
-                <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-radial from-[#1e293b] via-[#0f172a] to-[#0A0E1A]">
+                <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-[#FFFDFB] via-[#FFF7EE] to-[#FFEFE0]">
                   <div className="relative mb-4">
-                    <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gradient-to-tr from-[#3b5998] to-[#6389e8] text-white flex items-center justify-center text-3xl sm:text-4xl font-black shadow-2xl border-2 border-white/20">
+                    <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gradient-to-tr from-[#FF6B4A] to-[#FFA259] text-white flex items-center justify-center text-3xl sm:text-4xl font-black shadow-xl shadow-orange-500/15 border-4 border-white">
                       <span>{resolvedParticipantName[0] || 'П'}</span>
                     </div>
                     {hasRemoteStream && (
-                      <div className="absolute bottom-1 right-1 w-6 h-6 rounded-full bg-black/70 backdrop-blur-md border border-white/20 flex items-center justify-center">
+                      <div className="absolute bottom-1 right-1 w-7 h-7 rounded-full bg-white border border-[#F2DECE] shadow-sm flex items-center justify-center">
                         {!remoteMicActive ? (
-                          <MicOff className="w-3.5 h-3.5 text-rose-400" />
+                          <MicOff className="w-4 h-4 text-rose-500" />
                         ) : (
-                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                          <span className="w-2.5 h-2.5 rounded-full bg-[#5C8519] animate-pulse" />
                         )}
                       </div>
                     )}
                   </div>
-                  <h3 className="text-white font-extrabold text-lg sm:text-xl tracking-tight">
+                  <h3 className="text-[#161F38] font-black text-xl sm:text-2xl tracking-tight">
                     {resolvedParticipantName}
                   </h3>
-                  <p className="text-white/60 text-xs sm:text-sm mt-1">
+                  <p className="text-[#6B758E] font-medium text-xs sm:text-sm mt-1">
                     {hasRemoteStream ? 'Камера выключена' : 'Ожидание подключения собеседника...'}
                   </p>
                 </div>
@@ -1658,11 +1658,11 @@ export default function VideoCall({
                 } ${facingMode === 'user' ? '-scale-x-100' : ''} ${!camActive ? 'hidden' : 'block'}`}
               />
               {!camActive && (
-                <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-radial from-[#1e293b] via-[#0f172a] to-[#0A0E1A]">
-                  <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gradient-to-tr from-coralAccent to-rose-600 text-white flex items-center justify-center text-3xl sm:text-4xl font-black shadow-2xl border-2 border-white/20 mb-4">
+                <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-[#FFFDFB] via-[#FFF7EE] to-[#FFEFE0]">
+                  <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gradient-to-tr from-[#FF6B4A] to-[#FFA259] text-white flex items-center justify-center text-3xl sm:text-4xl font-black shadow-xl shadow-orange-500/15 border-4 border-white mb-4">
                     <span>Вы</span>
                   </div>
-                  <h3 className="text-white font-extrabold text-lg sm:text-xl">Ваша камера выключена</h3>
+                  <h3 className="text-[#161F38] font-black text-xl sm:text-2xl">Ваша камера выключена</h3>
                 </div>
               )}
             </>
@@ -1738,9 +1738,9 @@ export default function VideoCall({
           </div>
         </div>
 
-        {/* 3. Floating Top Bar (VK Calls Style) */}
+        {/* 3. Floating Top Bar */}
         <div className="absolute top-0 left-0 right-0 z-40 p-3 sm:p-5 flex items-center justify-between pointer-events-none">
-          {/* Top Left: Chat, Participants, Whiteboard */}
+          {/* Top Left: Chat, Participants, Whiteboard, and Timer Counter (all grouped together on the left) */}
           <div className="pointer-events-auto flex items-center gap-2">
             <button
               type="button"
@@ -1776,16 +1776,16 @@ export default function VideoCall({
                 <LayoutGrid className="w-5 h-5" />
               </button>
             )}
-          </div>
 
-          {/* Top Center: Timer */}
-          <div className="pointer-events-auto flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/15 text-white text-xs font-mono font-bold shadow-lg">
-            <span
-              className={`w-2 h-2 rounded-full ${
-                hasRemoteStream ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
-              }`}
-            />
-            <span>{formatTime(callDuration)}</span>
+            {/* Timer Counter placed right next to the left buttons */}
+            <div className="flex items-center gap-2 px-3.5 py-2 sm:py-2.5 rounded-full bg-black/40 backdrop-blur-md border border-white/15 text-white text-xs font-mono font-bold shadow-lg">
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  hasRemoteStream ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
+                }`}
+              />
+              <span>{formatTime(callDuration)}</span>
+            </div>
           </div>
 
           {/* Top Right: Minimize / Return */}
@@ -1820,14 +1820,22 @@ export default function VideoCall({
 
           {/* 5 Main Action Circles */}
           <div className="flex items-center justify-center gap-3.5 sm:gap-6 w-full max-w-md pointer-events-auto">
-            {/* 1. Flip Camera (Сменить камеру) */}
+            {/* 1. Speakers / Deafen Toggle (Выключить / включить динамики) */}
             <button
               type="button"
-              onClick={handleFlipCamera}
-              className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-white/20 hover:bg-white/30 text-white backdrop-blur-md border border-white/20 flex items-center justify-center transition-all active:scale-90 shadow-xl cursor-pointer"
-              title="Сменить камеру (фронтальная / основная)"
+              onClick={toggleDeafen}
+              className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full backdrop-blur-md border flex items-center justify-center transition-all active:scale-90 shadow-xl cursor-pointer ${
+                isDeafened
+                  ? 'bg-rose-600 hover:bg-rose-700 border-rose-400 text-white'
+                  : 'bg-white/20 hover:bg-white/30 border-white/20 text-white'
+              }`}
+              title={isDeafened ? 'Включить звук собеседника' : 'Выключить динамики (заглушить звук)'}
             >
-              <RefreshCw className="w-5 h-5 sm:w-6 sm:h-6" />
+              {isDeafened ? (
+                <VolumeX className="w-5 h-5 sm:w-6 sm:h-6" />
+              ) : (
+                <Volume2 className="w-5 h-5 sm:w-6 sm:h-6" />
+              )}
             </button>
 
             {/* 2. Video Toggle */}
@@ -1955,6 +1963,18 @@ export default function VideoCall({
                   <span>Доска урока</span>
                 </button>
               )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  handleFlipCamera();
+                  setIsDrawerOpen(false);
+                }}
+                className="flex items-center gap-2 p-3 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/10 text-xs font-bold text-white transition-all text-left"
+              >
+                <RefreshCw className="w-4 h-4 shrink-0" />
+                <span>Сменить камеру</span>
+              </button>
 
               <button
                 type="button"

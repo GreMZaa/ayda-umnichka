@@ -189,7 +189,7 @@ export default function LessonRoomPage() {
   };
 
   return (
-    <div className="flex flex-col w-full h-[100dvh] relative overflow-hidden bg-[#0A0E1A]">
+    <div className="flex flex-col w-full h-[100dvh] relative overflow-hidden bg-[#FFF7EE]">
       {/* 100% Immersive Full-Screen Workspace — WebRTC call stays continuously connected */}
       <div className="w-full h-full relative overflow-hidden flex flex-col">
         {/* Interactive Whiteboard Canvas */}
