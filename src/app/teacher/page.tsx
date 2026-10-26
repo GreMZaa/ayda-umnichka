@@ -1065,7 +1065,7 @@ export default function TeacherDashboard() {
                   </span>
 
                   <a
-                    href="/messenger"
+                    href={`/messenger?id=${teacherPublicId}`}
                     className="font-bold text-coralAccent hover:text-coralAccent-hover flex items-center gap-0.5 cursor-pointer active:scale-95"
                   >
                     <span>Чат</span>

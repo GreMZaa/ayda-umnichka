@@ -35,6 +35,7 @@ import {
   LogOut,
   User,
   ShieldCheck,
+  MessageCircle,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
@@ -75,6 +76,7 @@ export default function MessengerPage() {
   const router = useRouter();
 
   // Current session states
+  const [currentPublicId, setCurrentPublicId] = useState<string>('');
   const [currentUser, setCurrentUser] = useState<{
     id: string;
     publicId: string;
@@ -122,14 +124,21 @@ export default function MessengerPage() {
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   // 1. Initial Load & Polling from Supabase API
-  const fetchMessengerData = async (silent = false) => {
+  const fetchMessengerData = async (silent = false, explicitId?: string, explicitRole?: string) => {
     try {
       if (!silent) setIsLoading(true);
-      const res = await fetch('/api/messenger');
+      const targetId = explicitId || currentPublicId || 'id179017';
+      const params = new URLSearchParams({ userId: targetId });
+      if (explicitRole) params.set('role', explicitRole);
+
+      const res = await fetch(`/api/messenger?${params.toString()}`);
       const data = await res.json();
 
       if (data.success) {
         setCurrentUser(data.currentUser);
+        if (data.currentUser?.publicId) {
+          setCurrentPublicId(data.currentUser.publicId);
+        }
         setConversations(data.conversations || []);
 
         // Default to first conversation if none selected
@@ -145,11 +154,55 @@ export default function MessengerPage() {
   };
 
   useEffect(() => {
-    fetchMessengerData();
+    let urlId = '';
+    let urlRole = '';
+    if (typeof window !== 'undefined') {
+      let raw = window.location.search || '';
+      if (raw.indexOf('?', 1) !== -1) {
+        raw = '?' + raw.slice(1).replace(/\?/g, '&');
+      }
+      const sp = new URLSearchParams(raw);
+      urlId = sp.get('id') || sp.get('userId') || '';
+      urlRole = sp.get('role') || '';
+    }
 
-    // Poll every 4 seconds for fresh messages and unread counts
+    const savedRole =
+      urlRole ||
+      localStorage.getItem('aida_active_role') ||
+      document.cookie.match(/(?:^|; )aida_active_role=([^;]*)/)?.[1] ||
+      '';
+
+    const savedUserId =
+      urlId ||
+      localStorage.getItem('aida_auth_user_id') ||
+      localStorage.getItem('aida_user_id') ||
+      document.cookie.match(/(?:^|; )aida_auth_user_id=([^;]*)/)?.[1] ||
+      (savedRole === 'student' ? 'id571210' : 'id179017');
+
+    setCurrentPublicId(savedUserId);
+
+    // Keep personal ID in browser URL address bar: /messenger?id=...
+    if (typeof window !== 'undefined') {
+      let raw = window.location.search || '';
+      if (raw.indexOf('?', 1) !== -1) {
+        raw = '?' + raw.slice(1).replace(/\?/g, '&');
+      }
+      const sp = new URLSearchParams(raw);
+      if (!sp.get('id')) {
+        sp.set('id', savedUserId);
+      }
+      const newQuery = sp.toString();
+      const currentQuery = window.location.search.replace(/^\?/, '');
+      if (newQuery && currentQuery !== newQuery) {
+        window.history.replaceState(null, '', `/messenger?${newQuery}`);
+      }
+    }
+
+    fetchMessengerData(false, savedUserId, savedRole);
+
+    // Poll every 4 seconds for fresh messages from Supabase
     const interval = setInterval(() => {
-      fetchMessengerData(true);
+      fetchMessengerData(true, savedUserId, savedRole);
     }, 4000);
 
     return () => clearInterval(interval);
@@ -472,9 +525,16 @@ export default function MessengerPage() {
                 )}
               </div>
 
-              <h1 className="font-black text-lg text-[#161F38] tracking-tight">
-                Мессенджер
-              </h1>
+              <div>
+                <h1 className="font-black text-lg text-[#161F38] tracking-tight leading-tight">
+                  Мессенджер
+                </h1>
+                {(currentUser?.publicId || currentPublicId) && (
+                  <span className="text-[10px] bg-[#FFF0E2] text-coralAccent border border-[#FCDDC7] font-extrabold px-2 py-0.5 rounded-full inline-block mt-0.5 shadow-2xs">
+                    ★ ID: {currentUser?.publicId || currentPublicId}
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Quick Actions (Call room & New chat) */}
@@ -811,34 +871,33 @@ export default function MessengerPage() {
                   </span>
                 </div>
 
-                {/* System Call Log Cards (Exactly matching screenshot: "📞 Входящий звонок. Завершён • 0:40") */}
-                <div className="flex justify-start">
-                  <div className="bg-white/95 border border-[#F2DECE] rounded-2xl p-3 shadow-xs max-w-sm flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-[#EAF7CF] border border-[#CCE8A2] text-[#5C8519] flex items-center justify-center shrink-0">
-                      <PhoneIncoming className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 className="font-extrabold text-xs text-[#161F38] flex items-center gap-1">
-                        <span>Входящий видеоурок</span>
-                      </h4>
-                      <p className="text-[11px] text-[#6B758E]">Завершён • 45 мин • 12:00</p>
-                    </div>
-                  </div>
-                </div>
-
                 {/* Messages from Supabase */}
-                {activeConversation.messages.map((msg) => {
-                  const isMe = msg.sender_id === currentUser?.id;
+                {activeConversation.messages.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-center space-y-2">
+                    <div className="w-12 h-12 rounded-2xl bg-[#FFF2E6] text-coralAccent flex items-center justify-center border border-[#FCDDC7] shadow-2xs">
+                      <MessageCircle className="w-6 h-6" />
+                    </div>
+                    <p className="font-black text-sm text-[#161F38]">Сообщений пока нет</p>
+                    <p className="text-xs text-[#8A95A8] max-w-xs">
+                      Напишите первое сообщение {activeConversation.contact.fullName}. Все сообщения и файлы синхронизируются в базе данных Supabase.
+                    </p>
+                  </div>
+                ) : (
+                  activeConversation.messages.map((msg) => {
+                    const isMe =
+                      msg.sender_id === currentUser?.id ||
+                      (currentUser?.role === 'teacher' && msg.sender_id === 'c51ef5b0-3bc0-456f-bd31-7dbba439846c') ||
+                      (currentUser?.role === 'student' && msg.sender_id === '6fb2d0a9-0f80-428d-8539-3272303360a0');
 
-                  return (
-                    <div
-                      key={msg.id}
-                      className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
-                    >
-                      <div className="flex items-center gap-1 text-[10px] text-[#8E99AF] mb-0.5 px-1 font-semibold">
-                        <span>{isMe ? 'Вы' : activeConversation.contact.fullName}</span>
-                        <span>• {formatMsgTime(msg.created_at)}</span>
-                      </div>
+                    return (
+                      <div
+                        key={msg.id}
+                        className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
+                      >
+                        <div className="flex items-center gap-1 text-[10px] text-[#8E99AF] mb-0.5 px-1 font-semibold">
+                          <span>{isMe ? 'Вы' : activeConversation.contact.fullName}</span>
+                          <span>• {formatMsgTime(msg.created_at)}</span>
+                        </div>
 
                       <div
                         className={`px-4 py-2.5 rounded-2xl max-w-[85%] sm:max-w-[70%] break-words text-sm shadow-xs transition-all ${
@@ -932,7 +991,7 @@ export default function MessengerPage() {
                       </div>
                     </div>
                   );
-                })}
+                }))}
 
                 <div ref={messagesEndRef} />
               </div>

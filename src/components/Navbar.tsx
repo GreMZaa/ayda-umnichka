@@ -140,6 +140,8 @@ export default function Navbar() {
     ? `/${userId}`
     : '/student';
 
+  const myMessengerUrl = `/messenger?id=${userId || (isTeacher ? 'id179017' : 'id571210')}`;
+
   return (
     <header className="sticky top-0 z-50 bg-[#FFF7EE]/95 backdrop-blur-md border-b border-[#F4E4D3]">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
@@ -225,7 +227,7 @@ export default function Navbar() {
                     Админка
                   </Link>
                   <Link
-                    href="/messenger"
+                    href={myMessengerUrl}
                     className={`text-sm font-semibold transition-colors flex items-center gap-1.5 ${
                       pathname === '/messenger'
                         ? 'text-[#161F38] font-bold underline underline-offset-8 decoration-coralAccent decoration-2'
@@ -278,7 +280,7 @@ export default function Navbar() {
               <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                 {/* Messenger Quick Access Pill */}
                 <Link
-                  href="/messenger"
+                  href={myMessengerUrl}
                   title="Мессенджер и чаты"
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black transition-all duration-140 border shadow-2xs active:scale-95 cursor-pointer ${
                     pathname === '/messenger'
@@ -384,7 +386,7 @@ export default function Navbar() {
                         </Link>
 
                         <Link
-                          href="/messenger"
+                          href={myMessengerUrl}
                           onClick={() => setProfileOpen(false)}
                           className="flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-[#161F38] hover:bg-[#FFF7EE] hover:text-coralAccent rounded-xl transition-colors cursor-pointer"
                         >

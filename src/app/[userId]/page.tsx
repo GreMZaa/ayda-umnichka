@@ -572,7 +572,7 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
         <div className="pt-2 border-t border-[#F8EDE1] flex items-center justify-between text-[11px] text-[#6B758E]">
           <span>Статус: <strong className="text-[#5C8519]">Кабинет подключен</strong></span>
           <Link
-            href="/messenger"
+            href={`/messenger?id=${routeUserId}`}
             className="inline-flex items-center gap-1 font-bold text-coralAccent hover:text-coralAccent-hover text-xs"
           >
             <MessageCircle className="w-3.5 h-3.5" />
