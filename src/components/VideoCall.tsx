@@ -365,7 +365,16 @@ export default function VideoCall({
   const channelRef = useRef<any>(null);
   const candidateQueueRef = useRef<RTCIceCandidateInit[]>([]);
   const myPeerIdRef = useRef<string>(
-    `peer_${isTeacher ? 'teacher' : 'student'}_${Math.random().toString(36).slice(2, 9)}`
+    typeof window !== 'undefined' && window.sessionStorage
+      ? window.sessionStorage.getItem(`webrtc_peer_${roomToken}_${isTeacher ? 'teacher' : 'student'}`) ||
+        (() => {
+          const id = `peer_${isTeacher ? 'teacher' : 'student'}_${Math.random().toString(36).slice(2, 9)}`;
+          try {
+            window.sessionStorage.setItem(`webrtc_peer_${roomToken}_${isTeacher ? 'teacher' : 'student'}`, id);
+          } catch (_) {}
+          return id;
+        })()
+      : `peer_${isTeacher ? 'teacher' : 'student'}_${Math.random().toString(36).slice(2, 9)}`
   );
 
   // Duration clock — ONLY starts counting when both participants are connected in the room, and continues across reloads!
@@ -2379,14 +2388,28 @@ export default function VideoCall({
                 </div>
               ) : (
                 chatMessages.map((msg) => {
-                  const isMe = msg.senderId === myPeerIdRef.current;
+                  const myRole = isTeacher ? 'teacher' : 'student';
+                  const isMe =
+                    msg.senderId === myPeerIdRef.current ||
+                    msg.senderRole === myRole ||
+                    (typeof msg.senderId === 'string' && msg.senderId.startsWith(`peer_${myRole}_`)) ||
+                    (msg.senderRole === undefined && msg.senderName === (isTeacher ? 'Преподаватель' : 'Ученик'));
+
+                  const senderDisplayName = isMe
+                    ? 'Вы'
+                    : msg.senderRole === 'teacher'
+                    ? 'Преподаватель'
+                    : msg.senderRole === 'student'
+                    ? 'Ученик'
+                    : msg.senderName || (isTeacher ? 'Ученик' : 'Преподаватель');
+
                   return (
                     <div
                       key={msg.id}
                       className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
                     >
                       <div className="flex items-center gap-1 text-[10px] text-[#6B758E] mb-0.5 px-1">
-                        <span className="font-semibold">{isMe ? 'Вы' : msg.senderName}</span>
+                        <span className="font-semibold">{senderDisplayName}</span>
                         <span>• {msg.time}</span>
                       </div>
                       <div
