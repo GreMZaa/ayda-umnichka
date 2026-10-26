@@ -839,7 +839,7 @@ export default function VideoCall({
     }
   };
 
-  // PiP (Picture in Picture) mode when Whiteboard is open
+  // PiP (Picture in Picture) mode when Whiteboard is open — strictly displays the REMOTE participant (student or teacher)
   if (isWhiteboardActive) {
     return (
       <div className="fixed bottom-6 right-6 z-40 w-72 sm:w-80 bg-white rounded-3xl shadow-2xl border-2 border-coralAccent overflow-hidden text-ink-900 animate-in slide-in-from-bottom-4">
@@ -870,43 +870,71 @@ export default function VideoCall({
           </div>
         </div>
 
-        {/* Real Live Video in PiP Container (Shows remote student or remote teacher while drawing) */}
+        {/* Real Live Video of Remote Peer ( собеседник: ученик или учитель ) */}
         <div className="relative aspect-video bg-[#161F38] flex items-center justify-center overflow-hidden">
-          {hasRemoteStream ? (
-            <video
-              ref={(el) => {
-                if (el && remoteVideoRef.current && el.srcObject !== remoteVideoRef.current.srcObject) {
+          {/* Live Video element for remote stream */}
+          <video
+            ref={(el) => {
+              if (el) {
+                if (remoteStreamRef.current && el.srcObject !== remoteStreamRef.current) {
+                  el.srcObject = remoteStreamRef.current;
+                } else if (remoteVideoRef.current?.srcObject && el.srcObject !== remoteVideoRef.current.srcObject) {
                   el.srcObject = remoteVideoRef.current.srcObject;
                 }
-              }}
-              autoPlay
-              playsInline
-              className="w-full h-full object-cover"
-            />
-          ) : camActive ? (
-            <video
-              ref={pipVideoRef}
-              autoPlay
-              playsInline
-              muted
-              className="w-full h-full object-cover scale-x-[-1]"
-            />
-          ) : (
-            <div className="text-center p-3 text-white">
-              <VideoOff className="w-8 h-8 mx-auto mb-1 opacity-70" />
-              <p className="text-[10px] font-bold">Камера выключена</p>
+                el.play().catch(() => {});
+              }
+            }}
+            autoPlay
+            playsInline
+            controls={false}
+            className={`w-full h-full ${isRemoteScreenSharing ? 'object-contain bg-black' : 'object-cover'} ${
+              hasRemoteStream && remoteCamActive ? 'block' : 'hidden'
+            }`}
+          />
+
+          {/* Remote peer camera turned off placeholder */}
+          {hasRemoteStream && !remoteCamActive && (
+            <div className="absolute inset-0 bg-[#161F38] flex flex-col items-center justify-center p-3 text-center z-10">
+              <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center text-coralAccent text-xl font-black mb-1.5 shadow-xs">
+                {resolvedParticipantName[0] || 'П'}
+              </div>
+              <p className="text-white text-xs font-black">{resolvedParticipantName}</p>
+              <p className="text-white/60 text-[10px] mt-0.5">Камера собеседника выключена</p>
+            </div>
+          )}
+
+          {/* Waiting for remote peer to connect */}
+          {!hasRemoteStream && (
+            <div className="absolute inset-0 bg-[#161F38] flex flex-col items-center justify-center p-3 text-center text-white z-10 select-none">
+              <div className="w-12 h-12 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center text-coralAccent text-xl font-black mb-1.5 shadow-xs">
+                {resolvedParticipantName[0] || 'П'}
+              </div>
+              <h4 className="text-white font-black text-xs leading-tight">
+                {resolvedParticipantName}
+              </h4>
+              <p className="text-[10px] text-[#EADBCC] mt-1 font-medium">
+                {isTeacher ? 'Ожидание подключения ученика...' : 'Ожидание педагога...'}
+              </p>
+              <div className="mt-2 inline-flex items-center gap-1 bg-white/10 px-2.5 py-0.5 rounded-full text-[9px] font-bold text-white/90">
+                <span className="w-1.5 h-1.5 rounded-full bg-coralAccent animate-ping" />
+                <span>Канал связи</span>
+              </div>
             </div>
           )}
 
           {/* Time Pill */}
-          <div className="absolute bottom-2 left-2 flex items-center gap-1.5 bg-black/60 backdrop-blur-md text-white px-2 py-0.5 rounded-full text-[10px] font-mono font-bold shadow-xs">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#5C8519] animate-pulse" />
-            <span>{formatTime(callDuration)}</span>
+          <div className="absolute bottom-2 left-2 flex items-center gap-1.5 bg-black/60 backdrop-blur-md text-white px-2 py-0.5 rounded-full text-[10px] font-mono font-bold shadow-xs z-20">
+            <span className={`w-1.5 h-1.5 rounded-full ${hasRemoteStream ? 'bg-[#5C8519] animate-pulse' : 'bg-amber-400'}`} />
+            <span>{hasRemoteStream ? formatTime(callDuration) : '00:00 (Ожидание)'}</span>
           </div>
 
-          {/* Role badge in PiP */}
-          <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-md text-white px-2 py-0.5 rounded-full text-[9px] font-bold">
-            {hasRemoteStream ? resolvedParticipantName : `Вы (${isTeacher ? 'Преподаватель' : 'Ученик'})`}
+          {/* Remote Peer name badge in PiP — strictly the other person */}
+          <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-md text-white px-2.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1.5 shadow-xs z-20">
+            <span className={`w-1.5 h-1.5 rounded-full ${hasRemoteStream ? 'bg-[#5C8519] animate-pulse' : 'bg-amber-400'}`} />
+            <span className="truncate max-w-[140px]">{resolvedParticipantName}</span>
+            {!remoteMicActive && hasRemoteStream && (
+              <MicOff className="w-2.5 h-2.5 text-rose-300 ml-0.5" />
+            )}
           </div>
         </div>
       </div>
