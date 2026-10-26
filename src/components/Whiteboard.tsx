@@ -13,13 +13,15 @@ import {
   ZoomIn,
   ZoomOut,
   RotateCcw,
+  X,
 } from 'lucide-react';
 
 interface WhiteboardProps {
   onSaveSnapshot?: (dataUrl: string) => void;
+  onClose?: () => void;
 }
 
-export default function Whiteboard({ onSaveSnapshot }: WhiteboardProps) {
+export default function Whiteboard({ onSaveSnapshot, onClose }: WhiteboardProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -407,6 +409,17 @@ export default function Whiteboard({ onSaveSnapshot }: WhiteboardProps) {
             >
               <Download className="w-3.5 h-3.5" />
             </button>
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-2.5 py-1 text-xs text-white bg-coralAccent hover:bg-coralAccent-hover rounded-full font-black shadow-2xs transition-transform active:scale-90 cursor-pointer flex items-center gap-1 shrink-0"
+                title="Выйти из доски и вернуться к видео"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>Выйти</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -470,6 +483,17 @@ export default function Whiteboard({ onSaveSnapshot }: WhiteboardProps) {
               <Download className="w-3.5 h-3.5" />
               <span>Сохранить снимок</span>
             </button>
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex items-center gap-1.5 px-4 sm:px-5 py-1.5 sm:py-2 text-xs text-white bg-coralAccent hover:bg-coralAccent-hover rounded-full transition-all active:scale-[0.97] font-black shadow-xs cursor-pointer"
+                title="Выйти из доски и вернуться к видео"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>Выйти из доски</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
