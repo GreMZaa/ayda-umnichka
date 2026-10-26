@@ -90,6 +90,27 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
 
+      // If room row didn't exist yet (e.g. quick room or entered via direct URL), create it now
+      if ((!data || data.length === 0) && room_token) {
+        const { data: inserted, error: insertError } = await supabase
+          .from('lessons')
+          .insert({
+            room_token,
+            topic: topic?.trim() || 'Индивидуальное занятие',
+            status: 'active',
+            started_at: body.started_at || new Date().toISOString(),
+            student_name: student_name || 'Ученик',
+            teacher_name: teacher_name || 'Преподаватель',
+          })
+          .select();
+
+        if (insertError) {
+          console.error('Error inserting initial lesson row:', insertError);
+        } else {
+          return NextResponse.json({ success: true, lesson: inserted });
+        }
+      }
+
       return NextResponse.json({ success: true, lesson: data });
     }
 

@@ -133,10 +133,17 @@ export default function VideoCall({
     }
   }, []);
 
-  // Sync deafen state to remote video & audio tracks
+  // WebRTC Audio element & playback unlock states
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [isAudioAutoplayBlocked, setIsAudioAutoplayBlocked] = useState(false);
+
+  // Sync deafen state to remote audio & video tracks
   useEffect(() => {
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.muted = isDeafened;
+    }
     if (remoteVideoRef.current) {
-      remoteVideoRef.current.muted = isDeafened;
+      remoteVideoRef.current.muted = true; // Video element is always muted; audio is handled by dedicated <audio>
     }
     if (remoteStreamRef.current) {
       remoteStreamRef.current.getAudioTracks().forEach((track) => {
@@ -146,6 +153,47 @@ export default function VideoCall({
   }, [isDeafened, remoteMicActive]);
 
   const timerStartTimeRef = useRef<number | null>(null);
+
+  // Synchronize start timestamp across peers and Supabase so both devices match down to the second
+  const syncTimerWithTimestamp = (peerStartMs: number | null | undefined) => {
+    if (!peerStartMs || isNaN(peerStartMs) || peerStartMs <= 0) return;
+
+    // Use the earliest start timestamp so neither participant has a lagging timer
+    const currentStart = timerStartTimeRef.current;
+    const authoritativeStart =
+      currentStart && currentStart > 0 ? Math.min(currentStart, peerStartMs) : peerStartMs;
+
+    if (timerStartTimeRef.current !== authoritativeStart) {
+      timerStartTimeRef.current = authoritativeStart;
+      try {
+        localStorage.setItem(`aida_lesson_started_${roomToken}`, String(authoritativeStart));
+      } catch (_) {}
+      const elapsed = Math.max(0, Math.floor((Date.now() - authoritativeStart) / 1000));
+      setCallDuration(elapsed);
+    }
+  };
+
+  // User gesture unlock for audio (iOS/Safari requirement)
+  useEffect(() => {
+    const unlockAudio = () => {
+      if (remoteAudioRef.current && remoteStreamRef.current) {
+        if (remoteAudioRef.current.paused) {
+          remoteAudioRef.current
+            .play()
+            .then(() => setIsAudioAutoplayBlocked(false))
+            .catch(() => {});
+        }
+      }
+    };
+
+    window.addEventListener('click', unlockAudio, { passive: true });
+    window.addEventListener('touchstart', unlockAudio, { passive: true });
+
+    return () => {
+      window.removeEventListener('click', unlockAudio);
+      window.removeEventListener('touchstart', unlockAudio);
+    };
+  }, []);
 
   // Initialize or restore timer from localStorage immediately upon mount
   useEffect(() => {
@@ -180,15 +228,7 @@ export default function VideoCall({
         if (data?.startedAt && data.status !== 'completed') {
           const serverStartMs = new Date(data.startedAt).getTime();
           if (!isNaN(serverStartMs) && serverStartMs > 0) {
-            // Keep the earliest reliable start time
-            if (!timerStartTimeRef.current || timerStartTimeRef.current > serverStartMs) {
-              timerStartTimeRef.current = serverStartMs;
-              try {
-                localStorage.setItem(`aida_lesson_started_${roomToken}`, String(serverStartMs));
-              } catch (_) {}
-            }
-            const elapsed = Math.max(0, Math.floor((Date.now() - timerStartTimeRef.current) / 1000));
-            setCallDuration(elapsed);
+            syncTimerWithTimestamp(serverStartMs);
           }
         }
       })
@@ -259,6 +299,23 @@ export default function VideoCall({
     return () => clearInterval(timer);
   }, [hasRemoteStream, roomToken, callDuration]);
 
+  // Keep remote audio element updated with remoteStreamRef
+  useEffect(() => {
+    if (remoteAudioRef.current && remoteStreamRef.current) {
+      if (remoteAudioRef.current.srcObject !== remoteStreamRef.current) {
+        remoteAudioRef.current.srcObject = remoteStreamRef.current;
+      }
+      remoteAudioRef.current.muted = isDeafened;
+      remoteAudioRef.current
+        .play()
+        .then(() => setIsAudioAutoplayBlocked(false))
+        .catch((err) => {
+          console.warn('[WebRTC] Audio autoPlay blocked by policy:', err);
+          setIsAudioAutoplayBlocked(true);
+        });
+    }
+  }, [hasRemoteStream, isDeafened, remoteMicActive, isWhiteboardActive, isPipMinimized]);
+
   // WebRTC PeerConnection management & stream helpers
   const cameraPromiseRef = useRef<Promise<MediaStream | null> | null>(null);
 
@@ -300,7 +357,7 @@ export default function VideoCall({
 
     // Handle remote tracks (audio & video from student or teacher)
     pc.ontrack = (event) => {
-      console.log('[WebRTC] Received remote track:', event.track.kind);
+      console.log('[WebRTC] Received remote track:', event.track.kind, event.track.id);
       if (!remoteStreamRef.current) {
         remoteStreamRef.current = event.streams[0] || new MediaStream();
       }
@@ -312,11 +369,30 @@ export default function VideoCall({
         event.track.enabled = !isDeafened && remoteMicActive;
       }
 
-      if (remoteVideoRef.current && remoteVideoRef.current.srcObject !== remoteStreamRef.current) {
-        remoteVideoRef.current.srcObject = remoteStreamRef.current;
-        remoteVideoRef.current.muted = isDeafened;
+      // 1. Dedicated audio element for crystal-clear sound that never pauses
+      if (remoteAudioRef.current) {
+        if (remoteAudioRef.current.srcObject !== remoteStreamRef.current) {
+          remoteAudioRef.current.srcObject = remoteStreamRef.current;
+        }
+        remoteAudioRef.current.muted = isDeafened;
+        remoteAudioRef.current
+          .play()
+          .then(() => setIsAudioAutoplayBlocked(false))
+          .catch((err) => {
+            console.warn('[WebRTC] Remote audio autoPlay blocked, waiting for user gesture:', err);
+            setIsAudioAutoplayBlocked(true);
+          });
+      }
+
+      // 2. Video element (muted so browser never blocks video playback)
+      if (remoteVideoRef.current) {
+        if (remoteVideoRef.current.srcObject !== remoteStreamRef.current) {
+          remoteVideoRef.current.srcObject = remoteStreamRef.current;
+        }
+        remoteVideoRef.current.muted = true;
         remoteVideoRef.current.play().catch(() => {});
       }
+
       setHasRemoteStream(true);
       setConnectionStatus('connected');
     };
@@ -406,7 +482,10 @@ export default function VideoCall({
         }
       }
 
-      const answer = await pc.createAnswer();
+      const answer = await pc.createAnswer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: true,
+      } as any);
       await pc.setLocalDescription(answer);
 
       if (channelRef.current) {
@@ -464,18 +543,27 @@ export default function VideoCall({
         streamRef.current.getTracks().forEach((track) => track.stop());
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'user',
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: 'user',
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
+      } catch (err) {
+        console.warn('getUserMedia strict audio constraints fallback:', err);
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user' },
+          audio: true,
+        });
+      }
 
       // Preserve current microphone and camera states
       stream.getAudioTracks().forEach((track) => {
@@ -512,7 +600,11 @@ export default function VideoCall({
         channelRef.current.send({
           type: 'broadcast',
           event: 'user-joined',
-          payload: { senderId: myPeerIdRef.current, isTeacher },
+          payload: {
+            senderId: myPeerIdRef.current,
+            isTeacher,
+            startedAt: timerStartTimeRef.current,
+          },
         });
       }
 
@@ -542,6 +634,9 @@ export default function VideoCall({
         if (payload?.senderId === myPeerIdRef.current) return;
         console.log('[WebRTC] Peer joined room:', payload);
 
+        // Sync timer start with peer if available
+        syncTimerWithTimestamp(payload?.startedAt);
+
         // 1. Immediately acknowledge presence so newcomer knows we are already in the room!
         if (channelRef.current) {
           channelRef.current.send({
@@ -550,8 +645,18 @@ export default function VideoCall({
             payload: {
               senderId: myPeerIdRef.current,
               isTeacher,
+              startedAt: timerStartTimeRef.current,
             },
           });
+
+          // Also explicitly share active timer timestamp if already running
+          if (timerStartTimeRef.current) {
+            channelRef.current.send({
+              type: 'broadcast',
+              event: 'timer-started',
+              payload: { startedAt: timerStartTimeRef.current },
+            });
+          }
         }
 
         // 2. Reset old peer connection to negotiate clean session
@@ -570,6 +675,9 @@ export default function VideoCall({
       .on('broadcast', { event: 'user-here' }, async ({ payload }) => {
         if (payload?.senderId === myPeerIdRef.current) return;
         console.log('[WebRTC] Peer is already in room (user-here):', payload);
+
+        // Sync timer start with peer if available
+        syncTimerWithTimestamp(payload?.startedAt);
 
         // Reset old peer connection to negotiate clean session
         resetPeerConnection();
@@ -652,15 +760,7 @@ export default function VideoCall({
       })
       .on('broadcast', { event: 'timer-started' }, ({ payload }) => {
         if (payload?.startedAt) {
-          const peerStart = Number(payload.startedAt);
-          if (!timerStartTimeRef.current || timerStartTimeRef.current > peerStart) {
-            timerStartTimeRef.current = peerStart;
-            try {
-              localStorage.setItem(`aida_lesson_started_${roomToken}`, String(peerStart));
-            } catch (_) {}
-            const elapsed = Math.max(0, Math.floor((Date.now() - peerStart) / 1000));
-            setCallDuration(elapsed);
-          }
+          syncTimerWithTimestamp(Number(payload.startedAt));
         }
       })
       .on('broadcast', { event: 'lesson-ended' }, ({ payload }) => {
@@ -686,6 +786,7 @@ export default function VideoCall({
             payload: {
               senderId: myPeerIdRef.current,
               isTeacher,
+              startedAt: timerStartTimeRef.current,
             },
           });
         }
@@ -721,7 +822,11 @@ export default function VideoCall({
         channelRef.current.send({
           type: 'broadcast',
           event: 'user-joined',
-          payload: { senderId: myPeerIdRef.current, isTeacher },
+          payload: {
+            senderId: myPeerIdRef.current,
+            isTeacher,
+            startedAt: timerStartTimeRef.current,
+          },
         });
       }
     }, 3500);
@@ -1214,138 +1319,212 @@ export default function VideoCall({
   if (isWhiteboardActive) {
     if (isPipMinimized) {
       return (
-        <div
-          onClick={() => setIsPipMinimized(false)}
-          className="fixed bottom-3 right-3 sm:bottom-6 sm:right-6 z-40 bg-white/95 backdrop-blur-md rounded-full shadow-2xl border-2 border-coralAccent p-1.5 flex items-center gap-2 cursor-pointer hover:scale-105 active:scale-95 transition-transform"
-          title="Нажмите, чтобы развернуть видео собеседника"
-        >
-          <div className="w-9 h-9 rounded-full bg-[#161F38] text-white flex items-center justify-center font-black text-xs shrink-0 overflow-hidden relative border border-coralAccent/40">
-            {hasRemoteStream && remoteCamActive ? (
-              <video
-                ref={(el) => {
-                  if (el) {
-                    if (remoteStreamRef.current && el.srcObject !== remoteStreamRef.current) {
-                      el.srcObject = remoteStreamRef.current;
+        <>
+          <audio
+            ref={remoteAudioRef}
+            autoPlay
+            playsInline
+            controls={false}
+            style={{
+              position: 'fixed',
+              top: -9999,
+              left: -9999,
+              width: 1,
+              height: 1,
+              opacity: 0,
+              pointerEvents: 'none',
+            }}
+          />
+          <div
+            onClick={() => setIsPipMinimized(false)}
+            className="fixed bottom-3 right-3 sm:bottom-6 sm:right-6 z-40 bg-white/95 backdrop-blur-md rounded-full shadow-2xl border-2 border-coralAccent p-1.5 flex items-center gap-2 cursor-pointer hover:scale-105 active:scale-95 transition-transform"
+            title="Нажмите, чтобы развернуть видео собеседника"
+          >
+            <div className="w-9 h-9 rounded-full bg-[#161F38] text-white flex items-center justify-center font-black text-xs shrink-0 overflow-hidden relative border border-coralAccent/40">
+              {hasRemoteStream && remoteCamActive ? (
+                <video
+                  ref={(el) => {
+                    if (el) {
+                      if (remoteStreamRef.current && el.srcObject !== remoteStreamRef.current) {
+                        el.srcObject = remoteStreamRef.current;
+                      }
+                      el.play().catch(() => {});
                     }
-                    el.play().catch(() => {});
-                  }
-                }}
-                autoPlay
-                playsInline
-                muted
-                className="w-full h-full object-cover"
+                  }}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span>{resolvedParticipantName[0] || 'П'}</span>
+              )}
+            </div>
+            <div className="pr-2 flex items-center gap-1.5">
+              <span className="text-xs font-black text-[#161F38] truncate max-w-[90px] sm:max-w-none">
+                {resolvedParticipantName}
+              </span>
+              <span
+                className={`w-2 h-2 rounded-full ${hasRemoteStream ? 'bg-[#5C8519] animate-pulse' : 'bg-amber-400'}`}
               />
-            ) : (
-              <span>{resolvedParticipantName[0] || 'П'}</span>
-            )}
+            </div>
           </div>
-          <div className="pr-2 flex items-center gap-1.5">
-            <span className="text-xs font-black text-[#161F38] truncate max-w-[90px] sm:max-w-none">
-              {resolvedParticipantName}
-            </span>
-            <span
-              className={`w-2 h-2 rounded-full ${hasRemoteStream ? 'bg-[#5C8519] animate-pulse' : 'bg-amber-400'}`}
-            />
-          </div>
-        </div>
+        </>
       );
     }
 
     return (
-      <div className="fixed bottom-3 right-3 sm:bottom-6 sm:right-6 z-40 w-44 xs:w-52 sm:w-80 bg-white rounded-2xl sm:rounded-3xl shadow-2xl border-2 border-coralAccent overflow-hidden text-ink-900 animate-in slide-in-from-bottom-2">
-        <div className="p-1.5 sm:p-2.5 bg-[#FFF7EE] flex items-center justify-between text-xs border-b border-[#F4E3D2] font-black">
-          <div className="flex items-center gap-1 sm:gap-1.5 truncate">
-            <span
-              className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${
-                hasRemoteStream ? 'bg-[#5C8519] animate-pulse' : 'bg-amber-400'
-              } shrink-0`}
-            />
-            <span className="truncate text-[#161F38] text-[10px] sm:text-[11px] font-black">{resolvedParticipantName}</span>
-          </div>
-          <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
-            {/* Minimize to small pill */}
-            <button
-              type="button"
-              onClick={() => setIsPipMinimized(true)}
-              className="p-1 hover:bg-[#FDEEDC] rounded-md text-[#161F38] cursor-pointer"
-              title="Свернуть видео, чтобы освободить доску"
-            >
-              <Minimize2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={togglePictureInPicture}
-              className="p-1 hover:bg-[#FDEEDC] rounded-md text-[#161F38] hidden sm:block cursor-pointer"
-              title="Поверх всех окон (как в Telegram/VK)"
-            >
-              <ExternalLink className="w-3.5 h-3.5 text-coralAccent" />
-            </button>
-            <button
-              type="button"
-              onClick={onToggleWhiteboard}
-              className="p-1 hover:bg-[#FDEEDC] rounded-md text-[#161F38] cursor-pointer"
-              title="Развернуть видео на весь экран"
-            >
-              <Maximize2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Real Live Video of Remote Peer ( собеседник: ученик или учитель ) */}
-        <div className="relative aspect-video bg-[#161F38] flex items-center justify-center overflow-hidden">
-          {/* Live Video element for remote stream */}
-          <video
-            ref={(el) => {
-              if (el) {
-                if (remoteStreamRef.current && el.srcObject !== remoteStreamRef.current) {
-                  el.srcObject = remoteStreamRef.current;
-                } else if (remoteVideoRef.current?.srcObject && el.srcObject !== remoteVideoRef.current.srcObject) {
-                  el.srcObject = remoteVideoRef.current.srcObject;
-                }
-                el.play().catch(() => {});
-              }
-            }}
-            autoPlay
-            playsInline
-            controls={false}
-            className={`w-full h-full ${isRemoteScreenSharing ? 'object-contain bg-black' : 'object-cover'} ${
-              hasRemoteStream && remoteCamActive ? 'block' : 'hidden'
-            }`}
-          />
-
-          {/* Remote peer camera turned off or waiting placeholder — clean without text clutter */}
-          {(!hasRemoteStream || !remoteCamActive) && (
-            <div className="absolute inset-0 bg-[#161F38] flex items-center justify-center p-2 select-none z-10">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-coralAccent text-lg sm:text-xl font-black shadow-inner">
-                {resolvedParticipantName[0] || 'П'}
-              </div>
+      <>
+        <audio
+          ref={remoteAudioRef}
+          autoPlay
+          playsInline
+          controls={false}
+          style={{
+            position: 'fixed',
+            top: -9999,
+            left: -9999,
+            width: 1,
+            height: 1,
+            opacity: 0,
+            pointerEvents: 'none',
+          }}
+        />
+        <div className="fixed bottom-3 right-3 sm:bottom-6 sm:right-6 z-40 w-44 xs:w-52 sm:w-80 bg-white rounded-2xl sm:rounded-3xl shadow-2xl border-2 border-coralAccent overflow-hidden text-ink-900 animate-in slide-in-from-bottom-2">
+          <div className="p-1.5 sm:p-2.5 bg-[#FFF7EE] flex items-center justify-between text-xs border-b border-[#F4E3D2] font-black">
+            <div className="flex items-center gap-1 sm:gap-1.5 truncate">
+              <span
+                className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${
+                  hasRemoteStream ? 'bg-[#5C8519] animate-pulse' : 'bg-amber-400'
+                } shrink-0`}
+              />
+              <span className="truncate text-[#161F38] text-[10px] sm:text-[11px] font-black">{resolvedParticipantName}</span>
             </div>
-          )}
-
-          {/* Time Pill */}
-          <div className="absolute bottom-1.5 left-1.5 sm:bottom-2 sm:left-2 flex items-center gap-1 bg-black/60 backdrop-blur-md text-white px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-bold shadow-xs z-20">
-            <span className={`w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full ${hasRemoteStream ? 'bg-[#5C8519] animate-pulse' : 'bg-amber-400'}`} />
-            <span>{formatTime(callDuration)}</span>
+            <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+              {/* Minimize to small pill */}
+              <button
+                type="button"
+                onClick={() => setIsPipMinimized(true)}
+                className="p-1 hover:bg-[#FDEEDC] rounded-md text-[#161F38] cursor-pointer"
+                title="Свернуть видео, чтобы освободить доску"
+              >
+                <Minimize2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={togglePictureInPicture}
+                className="p-1 hover:bg-[#FDEEDC] rounded-md text-[#161F38] hidden sm:block cursor-pointer"
+                title="Поверх всех окон (как в Telegram/VK)"
+              >
+                <ExternalLink className="w-3.5 h-3.5 text-coralAccent" />
+              </button>
+              <button
+                type="button"
+                onClick={onToggleWhiteboard}
+                className="p-1 hover:bg-[#FDEEDC] rounded-md text-[#161F38] cursor-pointer"
+                title="Развернуть видео на весь экран"
+              >
+                <Maximize2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+              </button>
+            </div>
           </div>
 
-          {/* Remote Peer name badge in PiP — strictly the other person */}
-          <div className="absolute top-1.5 left-1.5 sm:top-2 sm:left-2 bg-black/60 backdrop-blur-md text-white px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold flex items-center gap-1 shadow-xs z-20">
-            <span className={`w-1.5 h-1.5 rounded-full ${hasRemoteStream ? 'bg-[#5C8519] animate-pulse' : 'bg-amber-400'}`} />
-            <span className="truncate max-w-[100px] sm:max-w-[140px]">{resolvedParticipantName}</span>
-            {!remoteMicActive && hasRemoteStream && (
-              <MicOff className="w-2.5 h-2.5 text-rose-300 ml-0.5" />
+          {/* Real Live Video of Remote Peer ( собеседник: ученик или учитель ) */}
+          <div className="relative aspect-video bg-[#161F38] flex items-center justify-center overflow-hidden">
+            {/* Live Video element for remote stream */}
+            <video
+              ref={(el) => {
+                if (el) {
+                  if (remoteStreamRef.current && el.srcObject !== remoteStreamRef.current) {
+                    el.srcObject = remoteStreamRef.current;
+                  } else if (remoteVideoRef.current?.srcObject && el.srcObject !== remoteVideoRef.current.srcObject) {
+                    el.srcObject = remoteVideoRef.current.srcObject;
+                  }
+                  el.play().catch(() => {});
+                }
+              }}
+              autoPlay
+              playsInline
+              muted
+              controls={false}
+              className={`w-full h-full ${isRemoteScreenSharing ? 'object-contain bg-black' : 'object-cover'} ${
+                hasRemoteStream && remoteCamActive ? 'block' : 'hidden'
+              }`}
+            />
+
+            {/* Remote peer camera turned off or waiting placeholder — clean without text clutter */}
+            {(!hasRemoteStream || !remoteCamActive) && (
+              <div className="absolute inset-0 bg-[#161F38] flex items-center justify-center p-2 select-none z-10">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-coralAccent text-lg sm:text-xl font-black shadow-inner">
+                  {resolvedParticipantName[0] || 'П'}
+                </div>
+              </div>
             )}
+
+            {/* Time Pill */}
+            <div className="absolute bottom-1.5 left-1.5 sm:bottom-2 sm:left-2 flex items-center gap-1 bg-black/60 backdrop-blur-md text-white px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-bold shadow-xs z-20">
+              <span className={`w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full ${hasRemoteStream ? 'bg-[#5C8519] animate-pulse' : 'bg-amber-400'}`} />
+              <span>{formatTime(callDuration)}</span>
+            </div>
+
+            {/* Remote Peer name badge in PiP — strictly the other person */}
+            <div className="absolute top-1.5 left-1.5 sm:top-2 sm:left-2 bg-black/60 backdrop-blur-md text-white px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold flex items-center gap-1 shadow-xs z-20">
+              <span className={`w-1.5 h-1.5 rounded-full ${hasRemoteStream ? 'bg-[#5C8519] animate-pulse' : 'bg-amber-400'}`} />
+              <span className="truncate max-w-[100px] sm:max-w-[140px]">{resolvedParticipantName}</span>
+              {!remoteMicActive && hasRemoteStream && (
+                <MicOff className="w-2.5 h-2.5 text-rose-300 ml-0.5" />
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      </>
     );
   }
 
   // Full Video Workspace (100% spacious, responsive on mobile & desktop)
   return (
-    <div className="flex flex-col gap-3 sm:gap-4 w-full">
-      {/* 1. Main Video Workspace Card */}
-      <div className="relative flex flex-col bg-[#FFF8F1] rounded-2xl sm:rounded-[32px] overflow-hidden border border-[#F4E3D2] shadow-sm">
+    <>
+      <audio
+        ref={remoteAudioRef}
+        autoPlay
+        playsInline
+        controls={false}
+        style={{
+          position: 'fixed',
+          top: -9999,
+          left: -9999,
+          width: 1,
+          height: 1,
+          opacity: 0,
+          pointerEvents: 'none',
+        }}
+      />
+      <div className="flex flex-col gap-3 sm:gap-4 w-full">
+        {/* Banner if browser autoplay policy blocked sound until interaction */}
+        {isAudioAutoplayBlocked && hasRemoteStream && !isDeafened && (
+          <div
+            onClick={() => {
+              if (remoteAudioRef.current) {
+                remoteAudioRef.current
+                  .play()
+                  .then(() => setIsAudioAutoplayBlocked(false))
+                  .catch(() => {});
+              }
+            }}
+            className="p-2.5 bg-gradient-to-r from-amber-500 to-coralAccent text-white font-bold text-xs sm:text-sm rounded-2xl flex items-center justify-between shadow-md cursor-pointer animate-pulse active:scale-98 transition-all"
+          >
+            <div className="flex items-center gap-2">
+              <Volume2 className="w-4 h-4 shrink-0" />
+              <span>Нажмите сюда, чтобы включить звук собеседника 🔊</span>
+            </div>
+            <span className="bg-white/20 hover:bg-white/30 px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider">
+              Включить
+            </span>
+          </div>
+        )}
+
+        {/* 1. Main Video Workspace Card */}
+        <div className="relative flex flex-col bg-[#FFF8F1] rounded-2xl sm:rounded-[32px] overflow-hidden border border-[#F4E3D2] shadow-sm">
         {/* Top Header Info Bar — Minimal, clean, without text clutter */}
         <div className="p-2 sm:p-2.5 bg-white/95 backdrop-blur-md border-b border-[#F4E3D2] flex items-center justify-between">
           <div className="flex items-center gap-2 bg-[#FFF7EE] px-3 py-1 rounded-full border border-[#EADBCC] text-[#161F38] text-xs shadow-2xs">
@@ -1407,12 +1586,13 @@ export default function VideoCall({
                 : 'aspect-[4/3] sm:aspect-video min-h-[190px] sm:min-h-[260px] w-full'
             }`}
           >
-            {/* Live Video from Remote Peer (unmuted so sound plays) */}
+            {/* Live Video from Remote Peer (muted so browser never blocks video stream; audio is played by <audio>) */}
             <video
               ref={remoteVideoRef}
               autoPlay
               playsInline
               controls={false}
+              muted
               autoPictureInPicture
               onLoadedMetadata={(e) => {
                 const v = e.currentTarget;
@@ -1756,5 +1936,6 @@ export default function VideoCall({
       )}
     </div>
   </div>
+  </>
   );
 }
