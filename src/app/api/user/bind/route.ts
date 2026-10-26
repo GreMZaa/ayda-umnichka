@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { supabaseServer } from '@/lib/supabaseServer';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 // GET /api/user/bind?publicId=id749210
 export async function GET(req: NextRequest) {
@@ -11,31 +15,47 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Missing publicId' }, { status: 400 });
     }
 
+    const client = supabaseServer || supabase;
+
     // 1. Check user_bindings table
-    const { data: binding, error: bindingError } = await supabase
+    const { data: binding, error: bindingError } = await client
       .from('user_bindings')
       .select('*')
-      .eq('public_id', publicId)
+      .ilike('public_id', publicId)
       .maybeSingle();
 
     if (bindingError) {
       console.error('Supabase user_bindings error:', bindingError);
     }
 
+    // 2. Also check profiles table for fresh balance_lessons
+    const { data: profile } = await client
+      .from('profiles')
+      .select('*')
+      .ilike('public_id', publicId)
+      .maybeSingle();
+
     if (binding) {
+      // Ensure balance_lessons is resolved from either table (favoring positive or latest)
+      const resolvedBalance = typeof binding.balance_lessons === 'number'
+        ? binding.balance_lessons
+        : typeof profile?.balance_lessons === 'number'
+        ? profile.balance_lessons
+        : 0;
+
       return NextResponse.json({
         exists: true,
         source: 'user_bindings',
-        binding,
+        binding: {
+          ...binding,
+          balance_lessons: resolvedBalance,
+        },
+      }, {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+        },
       });
     }
-
-    // 2. Check profiles table as fallback
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('public_id', publicId)
-      .maybeSingle();
 
     if (profile) {
       return NextResponse.json({
@@ -47,13 +67,21 @@ export async function GET(req: NextRequest) {
           full_name: profile.full_name,
           role: profile.role,
           phone: profile.phone,
-          balance_lessons: profile.balance_lessons,
+          balance_lessons: profile.balance_lessons ?? 0,
           is_registered: true,
+        },
+      }, {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
         },
       });
     }
 
-    return NextResponse.json({ exists: false, publicId });
+    return NextResponse.json({ exists: false, publicId }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+      },
+    });
   } catch (error) {
     console.error('API /api/user/bind GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

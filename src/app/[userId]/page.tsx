@@ -77,8 +77,10 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
     try {
       setIsChecking(true);
 
-      // 1. Verify existence of cabinet in Supabase database
-      const res = await fetch(`/api/user/bind?publicId=${encodeURIComponent(uid)}`);
+      // 1. Verify existence of cabinet in Supabase database (no-store to avoid stale balance)
+      const res = await fetch(`/api/user/bind?publicId=${encodeURIComponent(uid)}`, {
+        cache: 'no-store',
+      });
       const data = await res.json();
 
       if (!data?.exists) {

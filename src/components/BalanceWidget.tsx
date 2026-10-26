@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import {
@@ -13,8 +13,10 @@ import {
   Clock,
   MessageCircle,
   PlusCircle,
-  HelpCircle
+  HelpCircle,
+  RefreshCw
 } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 interface BalanceWidgetProps {
   balance: number;
@@ -29,9 +31,85 @@ export default function BalanceWidget({
   studentPublicId = '',
   className = '',
 }: BalanceWidgetProps) {
+  const [liveBalance, setLiveBalance] = useState<number>(balance);
+  const [isLoadingBalance, setIsLoadingBalance] = useState<boolean>(false);
+
+  useEffect(() => {
+    setLiveBalance(balance);
+  }, [balance]);
+
+  // Direct fetch and live Realtime subscription to Supabase balance
+  useEffect(() => {
+    if (!studentPublicId) return;
+
+    const fetchLiveBalanceFromSupabase = async () => {
+      try {
+        setIsLoadingBalance(true);
+        // 1. Direct query to Supabase user_bindings table
+        const { data: binding } = await supabase
+          .from('user_bindings')
+          .select('balance_lessons')
+          .ilike('public_id', studentPublicId)
+          .maybeSingle();
+
+        if (binding && typeof binding.balance_lessons === 'number') {
+          setLiveBalance(binding.balance_lessons);
+          try {
+            localStorage.setItem('aida_student_balance', String(binding.balance_lessons));
+            window.dispatchEvent(new Event('aida-user-updated'));
+          } catch (_) {}
+          return;
+        }
+
+        // 2. Fallback to profiles table
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('balance_lessons')
+          .ilike('public_id', studentPublicId)
+          .maybeSingle();
+
+        if (profile && typeof profile.balance_lessons === 'number') {
+          setLiveBalance(profile.balance_lessons);
+          try {
+            localStorage.setItem('aida_student_balance', String(profile.balance_lessons));
+            window.dispatchEvent(new Event('aida-user-updated'));
+          } catch (_) {}
+        }
+      } catch (err) {
+        console.warn('BalanceWidget Supabase fetch error:', err);
+      } finally {
+        setIsLoadingBalance(false);
+      }
+    };
+
+    fetchLiveBalanceFromSupabase();
+
+    // Live subscription to postgres_changes on user_bindings
+    const channel = supabase
+      .channel(`widget-balance-sync-${studentPublicId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'user_bindings', filter: `public_id=eq.${studentPublicId}` },
+        (payload: any) => {
+          if (payload.new && typeof payload.new.balance_lessons === 'number') {
+            setLiveBalance(payload.new.balance_lessons);
+            try {
+              localStorage.setItem('aida_student_balance', String(payload.new.balance_lessons));
+              window.dispatchEvent(new Event('aida-user-updated'));
+            } catch (_) {}
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [studentPublicId]);
+
   const maxLessons = 8;
-  const progressPercent = Math.min(100, Math.max(0, (balance / maxLessons) * 100));
-  const isLowBalance = balance <= 1;
+  const progressPercent = Math.min(100, Math.max(0, (liveBalance / maxLessons) * 100));
+  const isLowBalance = liveBalance <= 1;
 
   // Format card number with student ID suffix
   const formattedId = studentPublicId
@@ -160,17 +238,17 @@ export default function BalanceWidget({
             </span>
             <div className="flex items-baseline gap-1.5 mt-0.5">
               <span className="text-2xl font-black text-[#5C8519] leading-none">
-                {balance}
+                {liveBalance}
               </span>
               <span className="text-xs font-black text-[#161F38]">
-                {getBalanceEnding(balance)}
+                {getBalanceEnding(liveBalance)}
               </span>
             </div>
           </div>
 
           <div className="text-right">
             <span className="text-[10px] font-extrabold text-coralAccent bg-[#FFF2E6] border border-[#FCDDC7] px-2.5 py-1 rounded-full inline-block">
-              {balance} из {maxLessons} уроков
+              {liveBalance} из {maxLessons} уроков
             </span>
           </div>
         </div>

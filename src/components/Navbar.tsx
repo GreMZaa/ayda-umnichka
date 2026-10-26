@@ -17,6 +17,7 @@ import {
   LayoutDashboard,
 } from 'lucide-react';
 import { getLkUrl } from '@/lib/lkUrl';
+import { supabase } from '@/lib/supabase';
 
 // Helper to clean technical registration suffixes like (ребёнок: ...) from display name
 const cleanDisplayName = (name: string): string => {
@@ -96,6 +97,68 @@ export default function Navbar() {
       window.removeEventListener('aida-user-updated', updateFromStorage);
     };
   }, []);
+
+  // Real-time Supabase sync for student balance
+  useEffect(() => {
+    const pathPart = pathname.match(/^\/([^/?#]+)/)?.[1];
+    const isSpecialPath = ['admin', 'teacher', 'student', 'login', 'messenger', 'room', 'api'].includes(pathPart || '');
+    const activePublicId = (!isSpecialPath && pathPart)
+      ? pathPart
+      : userId ||
+        (typeof window !== 'undefined'
+          ? localStorage.getItem('aida_auth_user_id') ||
+            localStorage.getItem('aida_user_id') ||
+            document.cookie.match(/(?:^|; )aida_auth_user_id=([^;]*)/)?.[1]
+          : null);
+
+    if (!activePublicId) return;
+
+    const fetchBalanceFromSupabase = async () => {
+      try {
+        const { data } = await supabase
+          .from('user_bindings')
+          .select('balance_lessons, full_name, role')
+          .ilike('public_id', activePublicId)
+          .maybeSingle();
+
+        if (data) {
+          if (typeof data.balance_lessons === 'number') {
+            setBalance(data.balance_lessons);
+            localStorage.setItem('aida_student_balance', String(data.balance_lessons));
+          }
+          if (data.full_name) {
+            setUserName(data.full_name);
+            localStorage.setItem('aida_full_name', cleanDisplayName(data.full_name));
+          }
+          if (data.role) {
+            setUserRole(data.role);
+          }
+        }
+      } catch (err) {
+        console.warn('Navbar Supabase fetch error:', err);
+      }
+    };
+
+    fetchBalanceFromSupabase();
+
+    const channel = supabase
+      .channel(`navbar-balance-${activePublicId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'user_bindings', filter: `public_id=eq.${activePublicId}` },
+        (payload: any) => {
+          if (payload.new && typeof payload.new.balance_lessons === 'number') {
+            setBalance(payload.new.balance_lessons);
+            localStorage.setItem('aida_student_balance', String(payload.new.balance_lessons));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [pathname, userId]);
 
   if (isRoom) return null;
 
