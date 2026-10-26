@@ -1,14 +1,28 @@
 'use client';
 
 import React, { useRef, useState, useEffect } from 'react';
-import { Pencil, Highlighter, Eraser, Trash2, Square, Circle, Minus, Download } from 'lucide-react';
+import {
+  Pencil,
+  Highlighter,
+  Eraser,
+  Trash2,
+  Square,
+  Circle,
+  Minus,
+  Download,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
+} from 'lucide-react';
 
 interface WhiteboardProps {
   onSaveSnapshot?: (dataUrl: string) => void;
 }
 
 export default function Whiteboard({ onSaveSnapshot }: WhiteboardProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
   const [tool, setTool] = useState<'pen' | 'highlighter' | 'eraser' | 'line' | 'rect' | 'circle'>('pen');
   const [color, setColor] = useState<string>('#F97A52'); // Warm coral default
   const [lineWidth, setLineWidth] = useState<number>(3);
@@ -16,6 +30,16 @@ export default function Whiteboard({ onSaveSnapshot }: WhiteboardProps) {
   const [startPos, setStartPos] = useState<{ x: number; y: number } | null>(null);
   const [savedImageData, setSavedImageData] = useState<ImageData | null>(null);
 
+  // Zoom & Pan states for smooth pinch-to-zoom on mobile and touch devices
+  const [zoom, setZoom] = useState<number>(1);
+  const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  const initialPinchDistRef = useRef<number | null>(null);
+  const initialZoomRef = useRef<number>(1);
+  const lastCenterRef = useRef<{ x: number; y: number } | null>(null);
+  const isPinchingRef = useRef<boolean>(false);
+
+  // Resize canvas to match actual container dimensions with high fidelity
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -23,38 +47,75 @@ export default function Whiteboard({ onSaveSnapshot }: WhiteboardProps) {
     if (!ctx) return;
 
     const resizeCanvas = () => {
-      const rect = canvas.parentElement?.getBoundingClientRect();
-      if (rect && rect.width > 0 && rect.height > 0) {
-        let prevData: ImageData | null = null;
-        if (canvas.width > 0 && canvas.height > 0) {
-          try {
-            prevData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          } catch (_) {}
+      const container = containerRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        const targetWidth = Math.round(rect.width);
+        const targetHeight = Math.round(rect.height);
+
+        // Only resize if dimensions have meaningfully changed
+        if (canvas.width === targetWidth && canvas.height === targetHeight) {
+          return;
         }
 
-        canvas.width = rect.width;
-        canvas.height = rect.height;
+        // Backup existing drawing
+        let prevCanvas: HTMLCanvasElement | null = null;
+        if (canvas.width > 0 && canvas.height > 0) {
+          prevCanvas = document.createElement('canvas');
+          prevCanvas.width = canvas.width;
+          prevCanvas.height = canvas.height;
+          const prevCtx = prevCanvas.getContext('2d');
+          if (prevCtx) {
+            prevCtx.drawImage(canvas, 0, 0);
+          }
+        }
+
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        if (prevData) {
-          ctx.putImageData(prevData, 0, 0);
+        if (prevCanvas && prevCanvas.width > 0 && prevCanvas.height > 0) {
+          ctx.drawImage(prevCanvas, 0, 0);
         }
       }
     };
 
+    // Run immediately
     resizeCanvas();
+
+    // ResizeObserver watches container visibility changes (e.g. switching tabs from video to whiteboard)
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined' && containerRef.current) {
+      ro = new ResizeObserver(() => {
+        resizeCanvas();
+      });
+      ro.observe(containerRef.current);
+    }
+
     window.addEventListener('resize', resizeCanvas);
-    return () => window.removeEventListener('resize', resizeCanvas);
+    return () => {
+      if (ro) ro.disconnect();
+      window.removeEventListener('resize', resizeCanvas);
+    };
   }, []);
 
+  // Compute exact pixel coordinate on the canvas bitmap regardless of screen scale, zoom, or pan
   const getCoordinates = (clientX: number, clientY: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return { x: 0, y: 0 };
+
+    // Ratio between canvas bitmap pixels and rendered bounding client rect
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+
     return {
-      x: clientX - rect.left,
-      y: clientY - rect.top,
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY,
     };
   };
 
@@ -127,8 +188,9 @@ export default function Whiteboard({ onSaveSnapshot }: WhiteboardProps) {
     setSavedImageData(null);
   };
 
-  // Mouse Handlers
+  // Mouse Handlers (Desktop)
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (e.button !== 0) return;
     const coords = getCoordinates(e.clientX, e.clientY);
     startDrawingAt(coords.x, coords.y);
   };
@@ -138,19 +200,102 @@ export default function Whiteboard({ onSaveSnapshot }: WhiteboardProps) {
     drawAt(coords.x, coords.y);
   };
 
-  // Touch Handlers for smartphones (iOS & Android)
+  // Touch Handlers for smartphones (iOS & Android) with Pinch-to-Zoom & Pan support!
   const handleTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
-    if (e.touches[0]) {
+    // 2 fingers: Pinch-to-zoom / Pan gesture!
+    if (e.touches.length === 2) {
+      isPinchingRef.current = true;
+      setIsDrawing(false);
+      setStartPos(null);
+
+      const t0 = e.touches[0];
+      const t1 = e.touches[1];
+      const dist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+      initialPinchDistRef.current = dist;
+      initialZoomRef.current = zoom;
+      lastCenterRef.current = {
+        x: (t0.clientX + t1.clientX) / 2,
+        y: (t0.clientY + t1.clientY) / 2,
+      };
+      return;
+    }
+
+    // 1 finger: Draw with active tool!
+    if (e.touches.length === 1 && !isPinchingRef.current) {
       const coords = getCoordinates(e.touches[0].clientX, e.touches[0].clientY);
       startDrawingAt(coords.x, coords.y);
     }
   };
 
   const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
-    if (e.touches[0]) {
+    // 2 fingers: Zoom & Pan calculation!
+    if (e.touches.length === 2) {
+      isPinchingRef.current = true;
+      if (isDrawing) {
+        setIsDrawing(false);
+        setStartPos(null);
+      }
+
+      const t0 = e.touches[0];
+      const t1 = e.touches[1];
+      const currentDist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+      const currentCenter = {
+        x: (t0.clientX + t1.clientX) / 2,
+        y: (t0.clientY + t1.clientY) / 2,
+      };
+
+      // 1. Zoom computation (clamped between 0.5x and 4.0x)
+      if (initialPinchDistRef.current && initialPinchDistRef.current > 0) {
+        const factor = currentDist / initialPinchDistRef.current;
+        const newZoom = Math.min(4.0, Math.max(0.5, initialZoomRef.current * factor));
+        setZoom(Number(newZoom.toFixed(2)));
+      }
+
+      // 2. Pan computation
+      if (lastCenterRef.current) {
+        const dx = currentCenter.x - lastCenterRef.current.x;
+        const dy = currentCenter.y - lastCenterRef.current.y;
+        setPan((prev) => ({
+          x: prev.x + dx,
+          y: prev.y + dy,
+        }));
+      }
+      lastCenterRef.current = currentCenter;
+      return;
+    }
+
+    // 1 finger: draw stroke
+    if (e.touches.length === 1 && !isPinchingRef.current) {
       const coords = getCoordinates(e.touches[0].clientX, e.touches[0].clientY);
       drawAt(coords.x, coords.y);
     }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (e.touches.length < 2) {
+      initialPinchDistRef.current = null;
+      lastCenterRef.current = null;
+      setTimeout(() => {
+        isPinchingRef.current = false;
+      }, 80);
+    }
+    if (e.touches.length === 0) {
+      stopDraw();
+    }
+  };
+
+  // Zoom Action Helpers
+  const handleZoomIn = () => {
+    setZoom((z) => Math.min(4.0, Number((z * 1.25).toFixed(2))));
+  };
+
+  const handleZoomOut = () => {
+    setZoom((z) => Math.max(0.5, Number((z * 0.8).toFixed(2))));
+  };
+
+  const handleResetZoom = () => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
   };
 
   const clearCanvas = () => {
@@ -329,24 +474,77 @@ export default function Whiteboard({ onSaveSnapshot }: WhiteboardProps) {
         </div>
       </div>
 
-      {/* Canvas Area with full mouse & touch drawing support */}
-      <div className="relative flex-1 bg-white cursor-crosshair overflow-hidden min-h-[300px]">
-        <canvas
-          ref={canvasRef}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={stopDraw}
-          onMouseLeave={stopDraw}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={stopDraw}
-          onTouchCancel={stopDraw}
-          className="absolute inset-0 w-full h-full touch-none select-none"
-        />
+      {/* Canvas Area with full mouse & touch drawing support + Pinch-to-Zoom & Pan */}
+      <div
+        ref={containerRef}
+        className="relative flex-1 bg-[#FAF6F2] cursor-crosshair overflow-hidden min-h-[350px] touch-none select-none"
+      >
+        {/* Floating Zoom & Pan Control Pill */}
+        <div className="absolute top-2.5 right-2.5 z-20 flex items-center gap-1 bg-white/95 backdrop-blur-md px-2 py-1 rounded-full border border-[#EADBCC] shadow-sm select-none">
+          <button
+            type="button"
+            onClick={handleZoomOut}
+            className="p-1 rounded-full text-[#161F38] hover:bg-[#FFF7EE] active:scale-90 transition-transform cursor-pointer"
+            title="Уменьшить масштаб (жест 2 пальцами)"
+          >
+            <ZoomOut className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={handleResetZoom}
+            className="px-2 py-0.5 text-[10px] font-black text-[#161F38] hover:text-coralAccent active:scale-95 transition-colors cursor-pointer"
+            title="Сбросить масштаб (100%)"
+          >
+            {Math.round(zoom * 100)}%
+          </button>
+          <button
+            type="button"
+            onClick={handleZoomIn}
+            className="p-1 rounded-full text-[#161F38] hover:bg-[#FFF7EE] active:scale-90 transition-transform cursor-pointer"
+            title="Приблизить масштаб (жест 2 пальцами)"
+          >
+            <ZoomIn className="w-3.5 h-3.5" />
+          </button>
+          {zoom !== 1 || pan.x !== 0 || pan.y !== 0 ? (
+            <button
+              type="button"
+              onClick={handleResetZoom}
+              className="p-1 text-[#8A95A8] hover:text-coralAccent rounded-full transition-colors cursor-pointer"
+              title="Сбросить позицию и зум"
+            >
+              <RotateCcw className="w-3 h-3" />
+            </button>
+          ) : null}
+        </div>
 
-        {/* Small desktop-only watermark */}
+        {/* Transformable Canvas Surface */}
+        <div
+          style={{
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+            transformOrigin: '0 0',
+            width: '100%',
+            height: '100%',
+            transition: isPinchingRef.current ? 'none' : 'transform 100ms ease-out',
+          }}
+          className="relative w-full h-full"
+        >
+          <canvas
+            ref={canvasRef}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={stopDraw}
+            onMouseLeave={stopDraw}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onTouchCancel={handleTouchEnd}
+            className="w-full h-full bg-white shadow-2xs touch-none select-none block"
+          />
+        </div>
+
+        {/* Desktop & Tablet Watermark */}
         <div className="absolute bottom-2 left-2 bg-[#FFF7EE]/95 border border-[#F4DEC6] rounded-full px-3 py-0.5 text-[10px] text-ink-600 font-bold pointer-events-none shadow-2xs hidden sm:block">
-          Интерактивная доска «АйДаУмничка» • P2P Realtime
+          Интерактивная доска «АйДаУмничка» • Масштабирование 2 пальцами
         </div>
       </div>
     </div>
