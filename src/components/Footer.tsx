@@ -7,8 +7,8 @@ import { usePathname } from 'next/navigation';
 export default function Footer() {
   const pathname = usePathname();
 
-  // On homepage ('/'), login ('/login'), and room ('/room/*'), footer is excluded to preserve full focus on lesson
-  if (pathname === '/' || pathname === '/login' || pathname?.startsWith('/room')) return null;
+  // On homepage ('/'), login ('/login'), room ('/room/*'), and messenger ('/messenger'), footer is excluded for full workspace focus
+  if (pathname === '/' || pathname === '/login' || pathname?.startsWith('/room') || pathname === '/messenger') return null;
 
   return (
     <footer className="bg-white/80 border-t border-[#F4E4D3] py-6 text-center text-xs text-ink-500">

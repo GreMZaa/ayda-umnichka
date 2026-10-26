@@ -8,8 +8,9 @@ export default function ContentWrapper({ children }: { children: React.ReactNode
   const isHome = pathname === '/';
   const isLogin = pathname === '/login';
   const isRoom = pathname.startsWith('/room');
+  const isMessenger = pathname === '/messenger';
 
-  if (isHome || isLogin || isRoom) {
+  if (isHome || isLogin || isRoom || isMessenger) {
     return (
       <main className="flex-1 w-full overflow-hidden flex flex-col">
         {children}
