@@ -180,6 +180,14 @@ export default function TeacherDashboard() {
       const data = await res.json();
       if (data?.teachers) {
         setSupabaseTeachers(data.teachers);
+        const me = (data.teachers as TeacherRecord[]).find((t) => t.publicId === teacherPublicId);
+        if (me?.cleanName) {
+          setTeacherName(me.cleanName);
+          try {
+            localStorage.setItem('aida_full_name', me.cleanName);
+            window.dispatchEvent(new Event('aida-user-updated'));
+          } catch (_) {}
+        }
       }
     } catch (err) {
       console.warn('Failed to load teachers:', err);
@@ -274,6 +282,16 @@ export default function TeacherDashboard() {
       document.cookie.match(/(?:^|; )aida_auth_user_id=([^;]*)/)?.[1] ||
       'id179017';
     setTeacherPublicId(savedUserId);
+
+    try {
+      localStorage.setItem('aida_active_role', 'teacher');
+      localStorage.setItem('aida_auth_user_id', savedUserId);
+      localStorage.setItem('aida_user_id', savedUserId);
+      document.cookie = `aida_active_role=teacher; path=/; max-age=2592000; SameSite=Lax`;
+      document.cookie = `aida_auth_user_id=${savedUserId}; path=/; max-age=2592000; SameSite=Lax`;
+      document.cookie = `aida_user_id=${savedUserId}; path=/; max-age=2592000; SameSite=Lax`;
+      window.dispatchEvent(new Event('aida-user-updated'));
+    } catch (_) {}
 
     // Keep personal ID in URL address bar while strictly preserving all other query parameters (e.g. agentation=1)
     if (typeof window !== 'undefined') {

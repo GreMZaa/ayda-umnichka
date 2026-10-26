@@ -186,38 +186,52 @@ export default function Navbar() {
     }
   };
 
+  let currentUrlId = '';
+  if (typeof window !== 'undefined') {
+    const sp = new URLSearchParams(window.location.search);
+    currentUrlId = sp.get('id') || sp.get('userId') || '';
+  }
+
+  const effectiveTeacherId =
+    (pathname.startsWith('/teacher') && (currentUrlId || (userId?.startsWith('id1') ? userId : 'id179017'))) ||
+    'id179017';
+
+  const effectiveUserId = pathname.startsWith('/teacher')
+    ? effectiveTeacherId
+    : pathname.startsWith('/admin')
+    ? (currentUrlId || 'admin_head')
+    : currentUrlId || userId || (isTeacher ? 'id179017' : 'id571210');
+
+  const effectiveRole = pathname.startsWith('/teacher')
+    ? 'teacher'
+    : pathname.startsWith('/admin')
+    ? 'admin'
+    : userRole || (effectiveUserId?.startsWith('id17') || effectiveUserId?.startsWith('id18') ? 'teacher' : 'student');
+
+  const isActuallyTeacher = effectiveRole === 'teacher';
+  const isActuallyAdmin = effectiveRole === 'admin';
+
   const displayName =
     cleanDisplayName(userName) ||
-    (isStudent ? 'Ученик' : isTeacher ? 'Преподаватель' : 'Администратор');
-  const roleLabel = isTeacher
+    (isActuallyTeacher ? 'Преподаватель' : isActuallyAdmin ? 'Администратор' : 'Ученик');
+  const roleLabel = isActuallyTeacher
     ? 'Педагог центра'
-    : isAdmin
+    : isActuallyAdmin
     ? 'Администратор'
     : 'Ученик';
-  const initialLetter = displayName ? displayName[0].toUpperCase() : 'П';
-  const myCabinetUrl = isTeacher
-    ? `/teacher?id=${userId || 'id179017'}`
-    : isAdmin
+  const initialLetter = displayName ? displayName[0].toUpperCase() : (isActuallyTeacher ? 'П' : 'У');
+  const myCabinetUrl = isActuallyTeacher
+    ? `/teacher?id=${effectiveUserId}`
+    : isActuallyAdmin
     ? '/admin'
-    : userId
-    ? `/${userId}`
-    : '/student';
+    : `/${effectiveUserId}`;
 
-  const myMessengerUrl = `/messenger?id=${userId || (isTeacher ? 'id179017' : 'id571210')}`;
+  const myMessengerUrl = `/messenger?id=${effectiveUserId}&role=${effectiveRole}`;
 
-  const isActuallyTeacher =
-    userRole === 'teacher' ||
-    pathname.startsWith('/teacher') ||
-    userId === 'id179017' ||
-    userId === 'id180457';
-  const isActuallyAdmin =
-    userRole === 'admin' ||
-    pathname.startsWith('/admin') ||
-    userId === 'admin_head';
   const showStudentBalance =
     !isActuallyTeacher &&
     !isActuallyAdmin &&
-    userRole === 'student' &&
+    effectiveRole === 'student' &&
     !isRoom &&
     !pathname.startsWith('/messenger') &&
     pathname !== '/' &&

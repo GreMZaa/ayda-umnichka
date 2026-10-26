@@ -141,6 +141,20 @@ export default function MessengerPage() {
         setCurrentUser(data.currentUser);
         if (data.currentUser?.publicId) {
           setCurrentPublicId(data.currentUser.publicId);
+          try {
+            localStorage.setItem('aida_user_id', data.currentUser.publicId);
+            localStorage.setItem('aida_auth_user_id', data.currentUser.publicId);
+            document.cookie = `aida_user_id=${data.currentUser.publicId}; path=/; max-age=2592000; SameSite=Lax`;
+            document.cookie = `aida_auth_user_id=${data.currentUser.publicId}; path=/; max-age=2592000; SameSite=Lax`;
+            if (data.currentUser.role) {
+              localStorage.setItem('aida_active_role', data.currentUser.role);
+              document.cookie = `aida_active_role=${data.currentUser.role}; path=/; max-age=2592000; SameSite=Lax`;
+            }
+            if (data.currentUser.fullName) {
+              localStorage.setItem('aida_full_name', data.currentUser.fullName);
+            }
+            window.dispatchEvent(new Event('aida-user-updated'));
+          } catch (_) {}
         }
         setConversations(data.conversations || []);
 
@@ -188,6 +202,8 @@ export default function MessengerPage() {
 
     const savedRole =
       urlRole ||
+      (urlId?.startsWith('id17') || urlId?.startsWith('id18') ? 'teacher' : '') ||
+      (urlId?.startsWith('id57') ? 'student' : '') ||
       localStorage.getItem('aida_active_role') ||
       document.cookie.match(/(?:^|; )aida_active_role=([^;]*)/)?.[1] ||
       '';
@@ -200,6 +216,19 @@ export default function MessengerPage() {
       (savedRole === 'student' ? 'id571210' : 'id179017');
 
     setCurrentPublicId(savedUserId);
+
+    try {
+      if (savedRole) {
+        localStorage.setItem('aida_active_role', savedRole);
+        document.cookie = `aida_active_role=${savedRole}; path=/; max-age=2592000; SameSite=Lax`;
+      }
+      if (savedUserId) {
+        localStorage.setItem('aida_user_id', savedUserId);
+        localStorage.setItem('aida_auth_user_id', savedUserId);
+        document.cookie = `aida_user_id=${savedUserId}; path=/; max-age=2592000; SameSite=Lax`;
+        document.cookie = `aida_auth_user_id=${savedUserId}; path=/; max-age=2592000; SameSite=Lax`;
+      }
+    } catch (_) {}
 
     // Keep personal ID in browser URL address bar: /messenger?id=...
     if (typeof window !== 'undefined') {
