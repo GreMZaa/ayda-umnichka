@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Mic,
   MicOff,
@@ -26,6 +27,9 @@ import {
   Download,
   Loader2,
   Smartphone,
+  RefreshCw,
+  Hand,
+  LayoutGrid,
 } from 'lucide-react';
 import { formatTime } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
@@ -78,6 +82,8 @@ export default function VideoCall({
   onToggleWhiteboard,
   isWhiteboardActive = false,
 }: VideoCallProps) {
+  const router = useRouter();
+
   // Helper to clean technical metadata from participant name
   const cleanDisplayName = (name: string): string => {
     if (!name) return '';
@@ -102,12 +108,21 @@ export default function VideoCall({
   const [isIPhone, setIsIPhone] = useState(false);
   const [isDeafened, setIsDeafened] = useState(false);
   // Vertical / Portrait orientation for mobile phone video calls & screens
-  const [isVerticalMode, setIsVerticalMode] = useState(false);
+  const [isVerticalMode, setIsVerticalMode] = useState(true);
+
+  // VK-Style Video Call States
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
+  const facingModeRef = useRef<'user' | 'environment'>('user');
+  const [isHandRaised, setIsHandRaised] = useState(false);
+  const [peerHandNotification, setPeerHandNotification] = useState<string | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isParticipantsOpen, setIsParticipantsOpen] = useState(false);
+  const [areControlsVisible, setAreControlsVisible] = useState(true);
 
   // Lesson In-Call Chat states
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
-  const [isChatOpen, setIsChatOpen] = useState(true);
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
   const [attachedFile, setAttachedFile] = useState<{
     name: string;
@@ -536,9 +551,10 @@ export default function VideoCall({
     }
   };
 
-  // Start local camera & microphone (Selfie camera only)
-  const startCamera = async (): Promise<MediaStream | null> => {
+  // Start local camera & microphone (supports flipping between selfie and rear camera)
+  const startCamera = async (targetFacing?: 'user' | 'environment'): Promise<MediaStream | null> => {
     try {
+      const mode = targetFacing || facingModeRef.current;
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
       }
@@ -547,7 +563,7 @@ export default function VideoCall({
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
-            facingMode: 'user',
+            facingMode: mode,
             width: { ideal: 1280 },
             height: { ideal: 720 },
           },
@@ -560,7 +576,7 @@ export default function VideoCall({
       } catch (err) {
         console.warn('getUserMedia strict audio constraints fallback:', err);
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'user' },
+          video: { facingMode: mode },
           audio: true,
         });
       }
@@ -575,8 +591,11 @@ export default function VideoCall({
 
       streamRef.current = stream;
 
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
+      // Update local preview depending on swapped state
+      if (isSwapped) {
+        if (remoteVideoRef.current) remoteVideoRef.current.srcObject = stream;
+      } else {
+        if (localVideoRef.current) localVideoRef.current.srcObject = stream;
       }
       if (pipVideoRef.current) {
         pipVideoRef.current.srcObject = stream;
@@ -614,6 +633,46 @@ export default function VideoCall({
       return null;
     } finally {
       cameraPromiseRef.current = null;
+    }
+  };
+
+  // Flip between front/selfie camera and back/rear camera (VK style)
+  const handleFlipCamera = async () => {
+    const nextFacing = facingMode === 'user' ? 'environment' : 'user';
+    setFacingMode(nextFacing);
+    facingModeRef.current = nextFacing;
+    await startCamera(nextFacing);
+  };
+
+  // Raise / lower hand in video call (VK style)
+  const handleRaiseHand = () => {
+    const next = !isHandRaised;
+    setIsHandRaised(next);
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'peer-hand-raise',
+        payload: {
+          senderId: myPeerIdRef.current,
+          senderName: isTeacher ? 'Преподаватель' : 'Ученик',
+          isRaised: next,
+        },
+      });
+    }
+  };
+
+  // Minimize or return to personal cabinet
+  const handleMinimizeOrReturn = () => {
+    if (confirm('Вернуться в личный кабинет? (Урок продолжится, вы сможете вернуться через кабинет)')) {
+      const savedUserId =
+        localStorage.getItem('aida_auth_user_id') ||
+        localStorage.getItem('aida_user_id') ||
+        '';
+      if (isTeacher) {
+        router.push(`/teacher?id=${savedUserId || 'id179017'}`);
+      } else {
+        router.push(savedUserId ? `/${savedUserId}` : '/student');
+      }
     }
   };
 
@@ -739,6 +798,16 @@ export default function VideoCall({
         if (typeof payload?.camActive === 'boolean') {
           console.log('[WebRTC] Remote peer camera status changed:', payload.camActive);
           setRemoteCamActive(payload.camActive);
+        }
+      })
+      .on('broadcast', { event: 'peer-hand-raise' }, ({ payload }) => {
+        if (payload?.senderId === myPeerIdRef.current) return;
+        if (payload?.isRaised) {
+          const name = payload?.senderName || 'Собеседник';
+          setPeerHandNotification(`${name} поднял(а) руку ✋`);
+          setTimeout(() => setPeerHandNotification(null), 6000);
+        } else {
+          setPeerHandNotification(null);
         }
       })
       .on('broadcast', { event: 'chat-message' }, ({ payload }) => {
@@ -1499,7 +1568,8 @@ export default function VideoCall({
           pointerEvents: 'none',
         }}
       />
-      <div className="flex flex-col gap-3 sm:gap-4 w-full">
+      {/* VK Calls Layout */}
+      <div className="relative w-full h-[100dvh] bg-[#0A0E1A] overflow-hidden select-none">
         {/* Banner if browser autoplay policy blocked sound until interaction */}
         {isAudioAutoplayBlocked && hasRemoteStream && !isDeafened && (
           <div
@@ -1511,431 +1581,655 @@ export default function VideoCall({
                   .catch(() => {});
               }
             }}
-            className="p-2.5 bg-gradient-to-r from-amber-500 to-coralAccent text-white font-bold text-xs sm:text-sm rounded-2xl flex items-center justify-between shadow-md cursor-pointer animate-pulse active:scale-98 transition-all"
+            className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-gradient-to-r from-amber-500 to-rose-500 text-white font-bold text-xs rounded-full flex items-center gap-2 shadow-2xl cursor-pointer animate-pulse active:scale-95"
           >
-            <div className="flex items-center gap-2">
-              <Volume2 className="w-4 h-4 shrink-0" />
-              <span>Нажмите сюда, чтобы включить звук собеседника 🔊</span>
-            </div>
-            <span className="bg-white/20 hover:bg-white/30 px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider">
-              Включить
-            </span>
+            <Volume2 className="w-4 h-4 shrink-0" />
+            <span>Нажмите, чтобы включить звук собеседника 🔊</span>
           </div>
         )}
 
-        {/* 1. Main Video Workspace Card */}
-        <div className="relative flex flex-col bg-[#FFF8F1] rounded-2xl sm:rounded-[32px] overflow-hidden border border-[#F4E3D2] shadow-sm">
-        {/* Top Header Info Bar — Minimal, clean, without text clutter */}
-        <div className="p-2 sm:p-2.5 bg-white/95 backdrop-blur-md border-b border-[#F4E3D2] flex items-center justify-between">
-          <div className="flex items-center gap-2 bg-[#FFF7EE] px-3 py-1 rounded-full border border-[#EADBCC] text-[#161F38] text-xs shadow-2xs">
-            <span
-              className={`w-2 h-2 rounded-full ${
-                hasRemoteStream ? 'bg-[#5C8519] animate-pulse' : 'bg-amber-400'
-              } shrink-0`}
-            />
-            <span className="font-mono font-black shrink-0">
-              {formatTime(callDuration)}
-            </span>
+        {/* Hand Raise Notification Toast */}
+        {peerHandNotification && (
+          <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-black/75 backdrop-blur-md border border-amber-400/40 text-amber-300 font-bold text-xs sm:text-sm rounded-full flex items-center gap-2 shadow-2xl animate-bounce">
+            <Hand className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>{peerHandNotification}</span>
           </div>
+        )}
 
-          {/* Action Controls in Top Right */}
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {/* Toggle Vertical / Horizontal Video Format (for Mobile Phones) */}
-            <button
-              type="button"
-              onClick={() => setIsVerticalMode(!isVerticalMode)}
-              className={`p-1.5 sm:px-3 sm:py-1.5 border rounded-full font-extrabold text-xs shadow-2xs transition-colors cursor-pointer active:scale-95 flex items-center gap-1.5 ${
-                isVerticalMode
-                  ? 'bg-[#EAF7CF] border-[#CCE8A2] text-[#5C8519]'
-                  : 'bg-[#FFF7EE] hover:bg-[#FDEEDC] border-[#EADBCC] text-[#161F38]'
-              }`}
-              title="Переключить формат: вертикальный (телефон) / альбомный (компьютер)"
-            >
-              <Smartphone className="w-3.5 h-3.5 text-coralAccent" />
-              <span className="text-[11px] sm:text-xs font-bold">
-                {isVerticalMode ? 'Вертикально' : 'С телефона'}
-              </span>
-            </button>
-
-            {/* Picture in Picture Button */}
-            <button
-              type="button"
-              onClick={togglePictureInPicture}
-              className="p-1.5 sm:px-3 sm:py-1.5 bg-[#FFF7EE] hover:bg-[#FDEEDC] border border-[#EADBCC] text-[#161F38] hover:border-coralAccent font-extrabold text-xs rounded-full shadow-2xs transition-colors cursor-pointer active:scale-95 flex items-center gap-1.5"
-              title="Окно поверх всех приложений при выходе на рабочий стол (как в Telegram/VK)"
-            >
-              <ExternalLink className="w-3.5 h-3.5 text-coralAccent" />
-              <span className="hidden sm:inline">Поверх окон</span>
-            </button>
+        {/* Screen share banner */}
+        {isScreenSharing && (
+          <div className="fixed top-16 left-4 z-40 px-3 py-1 bg-indigo-600/80 backdrop-blur-md text-white text-xs font-bold rounded-full flex items-center gap-1.5 shadow-lg">
+            <Monitor className="w-3.5 h-3.5 animate-pulse" />
+            <span>Вы делитесь экраном</span>
           </div>
-        </div>
+        )}
 
-        {/* Main Video Streams Grid (Responsive on phones & desktops) */}
-        <div
-          className={`grid gap-2.5 sm:gap-4 p-2.5 sm:p-4 ${
-            isVerticalMode
-              ? 'grid-cols-1 sm:grid-cols-2 justify-items-center'
-              : 'grid-cols-1 md:grid-cols-2'
-          }`}
-        >
-          {/* Tile 1: Remote Participant (Real Live Video & Audio Stream) */}
-          <div
-            className={`relative rounded-2xl sm:rounded-3xl overflow-hidden bg-[#161F38] border-2 border-[#F2E3D5] flex items-center justify-center shadow-xs transition-all duration-200 ${
-              isVerticalMode
-                ? 'aspect-[9/16] w-full max-w-[340px] max-h-[500px]'
-                : 'aspect-[4/3] sm:aspect-video min-h-[190px] sm:min-h-[260px] w-full'
-            }`}
-          >
-            {/* Live Video from Remote Peer (muted so browser never blocks video stream; audio is played by <audio>) */}
-            <video
-              ref={remoteVideoRef}
-              autoPlay
-              playsInline
-              controls={false}
-              muted
-              autoPictureInPicture
-              onLoadedMetadata={(e) => {
-                const v = e.currentTarget;
-                if (v.videoHeight > v.videoWidth) {
-                  setIsVerticalMode(true);
-                }
-              }}
-              {...({ 'webkit-playsinline': 'true' } as any)}
-              className={`w-full h-full ${
-                isRemoteScreenSharing || isVerticalMode ? 'object-contain bg-black' : 'object-cover'
-              } ${hasRemoteStream && remoteCamActive ? 'block' : 'hidden'}`}
-            />
+        {/* 1. Main Fullscreen Video (Remote by default, or Local if isSwapped) */}
+        <div className="absolute inset-0 w-full h-full overflow-hidden bg-[#0A0E1A]">
+          {!isSwapped ? (
+            /* Main View: Remote stream */
+            <>
+              <video
+                ref={remoteVideoRef}
+                autoPlay
+                playsInline
+                className={`w-full h-full ${
+                  isScreenSharing || isVerticalMode ? 'object-contain bg-black' : 'object-cover'
+                } ${hasRemoteStream && remoteCamActive ? 'block' : 'hidden'}`}
+              />
 
-            {/* Clean Avatar when remote camera is off or not yet connected — NO TEXT */}
-            {(!hasRemoteStream || !remoteCamActive) && (
-              <div className="absolute inset-0 bg-[#161F38] flex items-center justify-center p-4 select-none">
-                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-coralAccent text-2xl sm:text-3xl font-black shadow-inner">
-                  {resolvedParticipantName[0] || 'П'}
+              {(!hasRemoteStream || !remoteCamActive) && (
+                <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-radial from-[#1e293b] via-[#0f172a] to-[#0A0E1A]">
+                  <div className="relative mb-4">
+                    <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gradient-to-tr from-[#3b5998] to-[#6389e8] text-white flex items-center justify-center text-3xl sm:text-4xl font-black shadow-2xl border-2 border-white/20">
+                      <span>{resolvedParticipantName[0] || 'П'}</span>
+                    </div>
+                    {hasRemoteStream && (
+                      <div className="absolute bottom-1 right-1 w-6 h-6 rounded-full bg-black/70 backdrop-blur-md border border-white/20 flex items-center justify-center">
+                        {!remoteMicActive ? (
+                          <MicOff className="w-3.5 h-3.5 text-rose-400" />
+                        ) : (
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <h3 className="text-white font-extrabold text-lg sm:text-xl tracking-tight">
+                    {resolvedParticipantName}
+                  </h3>
+                  <p className="text-white/60 text-xs sm:text-sm mt-1">
+                    {hasRemoteStream ? 'Камера выключена' : 'Ожидание подключения собеседника...'}
+                  </p>
                 </div>
-              </div>
-            )}
-          </div>
-
-          {/* Tile 2: Local User Camera Stream (Muted to prevent echo, Selfie Front Camera) */}
-          <div
-            className={`relative rounded-2xl sm:rounded-3xl overflow-hidden bg-[#161F38] border-2 border-[#F2E3D5] flex items-center justify-center shadow-xs transition-all duration-200 ${
-              isVerticalMode
-                ? 'aspect-[9/16] w-full max-w-[340px] max-h-[500px]'
-                : 'aspect-[4/3] sm:aspect-video min-h-[190px] sm:min-h-[260px] w-full'
-            }`}
-          >
-            {camActive ? (
+              )}
+            </>
+          ) : (
+            /* Main View: Local stream (Swapped) */
+            <>
               <video
                 ref={localVideoRef}
                 autoPlay
                 playsInline
                 muted
-                controls={false}
-                autoPictureInPicture
-                onLoadedMetadata={(e) => {
-                  const v = e.currentTarget;
-                  if (v.videoHeight > v.videoWidth && window.innerWidth < 640) {
-                    setIsVerticalMode(true);
-                  }
-                }}
-                {...({ 'webkit-playsinline': 'true' } as any)}
                 className={`w-full h-full ${
-                  isScreenSharing || isVerticalMode ? 'object-contain bg-black' : 'object-cover scale-x-[-1]'
-                }`}
+                  isScreenSharing || isVerticalMode ? 'object-contain bg-black' : 'object-cover'
+                } ${facingMode === 'user' ? '-scale-x-100' : ''} ${!camActive ? 'hidden' : 'block'}`}
               />
-            ) : (
-              <div className="text-center p-4 text-white/40">
-                <VideoOff className="w-10 h-10 sm:w-12 sm:h-12 mx-auto" />
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Integrated Bottom Control Bar */}
-      <div className="p-2 sm:p-3 bg-white/95 backdrop-blur-md border-t border-[#F2DECE] flex items-center justify-center gap-1.5 sm:gap-2.5 flex-wrap">
-        {/* Mic Toggle */}
-        <button
-          type="button"
-          onClick={toggleMic}
-          className={`p-2 sm:p-3 rounded-full transition-transform active:scale-90 cursor-pointer ${
-            micActive
-              ? 'bg-[#FFF7EE] hover:bg-[#FDEEDC] text-[#161F38]'
-              : 'bg-rose-100 text-rose-700 border border-rose-300'
-          }`}
-          title={micActive ? 'Выключить микрофон' : 'Включить микрофон'}
-        >
-          {micActive ? (
-            <Mic className="w-4 h-4 sm:w-5 sm:h-5 text-[#161F38]" />
-          ) : (
-            <MicOff className="w-4 h-4 sm:w-5 sm:h-5" />
-          )}
-        </button>
-
-        {/* Cam Toggle */}
-        <button
-          type="button"
-          onClick={toggleCam}
-          className={`p-2 sm:p-3 rounded-full transition-transform active:scale-90 cursor-pointer ${
-            camActive
-              ? 'bg-[#FFF7EE] hover:bg-[#FDEEDC] text-[#161F38]'
-              : 'bg-rose-100 text-rose-700 border border-rose-300'
-          }`}
-          title={camActive ? 'Выключить камеру' : 'Включить камеру'}
-        >
-          {camActive ? (
-            <Video className="w-4 h-4 sm:w-5 sm:h-5 text-[#161F38]" />
-          ) : (
-            <VideoOff className="w-4 h-4 sm:w-5 sm:h-5" />
-          )}
-        </button>
-
-        {/* Speakers Deafen Toggle (Заглушить динамики как в ВК) */}
-        <button
-          type="button"
-          onClick={toggleDeafen}
-          className={`p-2 sm:p-3 rounded-full transition-transform active:scale-90 cursor-pointer ${
-            isDeafened
-              ? 'bg-rose-100 text-rose-700 border border-rose-300'
-              : 'bg-[#FFF7EE] hover:bg-[#FDEEDC] text-[#161F38]'
-          }`}
-          title={isDeafened ? 'Включить динамики' : 'Заглушить динамики (отключить звук собеседника)'}
-        >
-          {isDeafened ? (
-            <VolumeX className="w-4 h-4 sm:w-5 sm:h-5 text-rose-600" />
-          ) : (
-            <Volume2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#161F38]" />
-          )}
-        </button>
-
-        {/* Screen Share — hidden on iOS / iPhone */}
-        {!isIPhone && (
-          <button
-            type="button"
-            onClick={toggleScreenShare}
-            className={`p-2 sm:p-3 rounded-full transition-transform active:scale-90 cursor-pointer ${
-              isScreenSharing
-                ? 'bg-[#EAF7CF] text-[#5C8519] border border-[#CCE8A2]'
-                : 'bg-[#FFF7EE] hover:bg-[#FDEEDC] text-[#161F38]'
-            }`}
-            title="Демонстрация экрана"
-          >
-            <Monitor className="w-4 h-4 sm:w-5 sm:h-5" />
-          </button>
-        )}
-
-        {/* Whiteboard Switch */}
-        {onToggleWhiteboard && (
-          <button
-            type="button"
-            onClick={onToggleWhiteboard}
-            className="bg-[#EAF7CF] hover:bg-[#DDF4B2] text-[#5C8519] border border-[#CCE8A2] rounded-full transition-transform active:scale-95 flex items-center gap-1.5 font-black text-xs px-3 sm:px-4 py-2 sm:py-2.5 shadow-2xs cursor-pointer"
-            title="Интерактивная доска"
-          >
-            <Layout className="w-4 h-4 text-[#5C8519]" />
-            <span className="hidden sm:inline">Интерактивная доска</span>
-          </button>
-        )}
-
-        {/* End Call — ONLY visible for teacher! */}
-        {isTeacher && (
-          <button
-            type="button"
-            onClick={handleEnd}
-            className="bg-coralAccent hover:bg-coralAccent-hover text-white rounded-full transition-transform active:scale-95 flex items-center gap-1.5 font-black text-xs px-3.5 sm:px-5 py-2 sm:py-2.5 shadow-xs cursor-pointer whitespace-nowrap shrink-0"
-            title="Завершить занятие"
-          >
-            <PhoneOff className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            <span>Завершить урок</span>
-          </button>
-        )}
-      </div>
-    </div>
-
-    {/* 2. In-Call Chat Section — Situated directly BELOW the cameras! */}
-    <div
-      id="lesson-chat-section"
-      className="w-full bg-white rounded-2xl sm:rounded-3xl border border-[#F2DECE] shadow-sm overflow-hidden flex flex-col scroll-mt-4"
-    >
-      {/* Chat Header */}
-      <div className="p-3 sm:p-3.5 bg-[#FFF7EE] border-b border-[#F4E3D2] flex items-center justify-between">
-        <div className="flex items-center gap-2 truncate">
-          <div className="w-7 h-7 rounded-xl bg-white border border-[#F4E3D2] flex items-center justify-center text-coralAccent shrink-0 shadow-2xs">
-            <MessageSquare className="w-4 h-4" />
-          </div>
-          <div className="truncate">
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs sm:text-sm font-black text-[#161F38]">Чат урока</span>
-              <span
-                className={`w-2 h-2 rounded-full ${
-                  hasRemoteStream ? 'bg-[#5C8519] animate-pulse' : 'bg-amber-400'
-                }`}
-                title={hasRemoteStream ? 'Собеседник на связи' : 'Ожидание собеседника'}
-              />
-            </div>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setIsChatOpen(!isChatOpen)}
-          className="p-1.5 text-[#8A95A8] hover:text-[#161F38] hover:bg-white rounded-xl transition-colors cursor-pointer shrink-0 flex items-center gap-1 text-xs font-bold"
-          title={isChatOpen ? 'Свернуть чат' : 'Развернуть чат'}
-        >
-          <span className="text-[11px] hidden sm:inline">{isChatOpen ? 'Свернуть' : 'Развернуть'}</span>
-          {isChatOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-        </button>
-      </div>
-
-      {isChatOpen && (
-        <>
-          {/* Messages List */}
-          <div className="h-56 sm:h-64 p-3 sm:p-4 overflow-y-auto space-y-2.5 text-xs bg-[#FFFDFB]">
-            {chatMessages.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center text-[#8A95A8] p-4">
-                <div className="w-12 h-12 rounded-2xl bg-[#FFF7EE] border border-[#F4E3D2] flex items-center justify-center text-coralAccent/60 mb-2">
-                  <MessageSquare className="w-6 h-6" />
-                </div>
-                <p className="text-xs font-black text-[#161F38]">Сообщений пока нет</p>
-                <p className="text-[11px] text-[#8A95A8] max-w-xs mt-0.5">
-                  Здесь можно обмениваться быстрыми сообщениями, фото и файлами во время занятия
-                </p>
-              </div>
-            ) : (
-              chatMessages.map((msg) => {
-                const isMe = msg.senderId === myPeerIdRef.current;
-                return (
-                  <div
-                    key={msg.id}
-                    className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
-                  >
-                    <div className="flex items-center gap-1 text-[10px] text-[#8A95A8] mb-0.5">
-                      <span className="font-bold">{isMe ? 'Вы' : msg.senderName}</span>
-                      <span>• {msg.time}</span>
-                    </div>
-                    <div
-                      className={`px-3.5 py-2 rounded-2xl max-w-[85%] break-words ${
-                        isMe
-                          ? 'bg-coralAccent text-white rounded-br-xs shadow-2xs'
-                          : 'bg-[#FFF7EE] text-[#161F38] border border-[#F4E3D2] rounded-bl-xs'
-                      }`}
-                    >
-                      {/* Attached media / document if present */}
-                      {msg.attachment && (
-                        <div className="mb-1.5">
-                          {msg.attachment.isImage ? (
-                            <a
-                              href={msg.attachment.url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="block overflow-hidden rounded-xl border border-black/10 hover:opacity-95 transition-opacity"
-                            >
-                              <img
-                                src={msg.attachment.url}
-                                alt={msg.attachment.name}
-                                className="max-h-48 w-auto object-cover rounded-xl"
-                                loading="lazy"
-                              />
-                            </a>
-                          ) : (
-                            <a
-                              href={msg.attachment.url}
-                              target="_blank"
-                              rel="noreferrer"
-                              download={msg.attachment.name}
-                              className={`flex items-center gap-2 p-2 rounded-xl text-xs font-bold transition-colors ${
-                                isMe
-                                  ? 'bg-white/20 text-white hover:bg-white/30'
-                                  : 'bg-[#FFF0E2] text-coralAccent hover:bg-[#FFE6D0]'
-                              }`}
-                            >
-                              <FileText className="w-4 h-4 shrink-0" />
-                              <span className="truncate max-w-[150px]">{msg.attachment.name}</span>
-                              <Download className="w-3.5 h-3.5 ml-auto shrink-0 opacity-70" />
-                            </a>
-                          )}
-                        </div>
-                      )}
-                      {msg.text && <div>{msg.text}</div>}
-                    </div>
+              {!camActive && (
+                <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-radial from-[#1e293b] via-[#0f172a] to-[#0A0E1A]">
+                  <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gradient-to-tr from-coralAccent to-rose-600 text-white flex items-center justify-center text-3xl sm:text-4xl font-black shadow-2xl border-2 border-white/20 mb-4">
+                    <span>Вы</span>
                   </div>
-                );
-              })
-            )}
-            <div ref={chatBottomRef} />
-          </div>
+                  <h3 className="text-white font-extrabold text-lg sm:text-xl">Ваша камера выключена</h3>
+                </div>
+              )}
+            </>
+          )}
+        </div>
 
-          {/* Attached file preview chip prior to sending */}
-          {attachedFile && (
-            <div className="px-3 py-1.5 bg-[#FFF0E2] border-t border-[#F2DECE] flex items-center justify-between gap-2 text-xs">
-              <div className="flex items-center gap-2 truncate">
-                {attachedFile.isImage ? (
-                  <img
-                    src={attachedFile.url}
-                    alt=""
-                    className="w-7 h-7 object-cover rounded-md border border-[#F4E3D2]"
-                  />
-                ) : (
-                  <FileText className="w-4 h-4 text-coralAccent shrink-0" />
-                )}
-                <span className="font-bold text-[#161F38] truncate">{attachedFile.name}</span>
-                <span className="text-[10px] text-[#8A95A8]">
-                  ({Math.round(attachedFile.size / 1024)} КБ)
-                </span>
+        {/* 2. Floating PiP Card (Selfie / Remote) in Top-Right */}
+        <div
+          onClick={() => setIsSwapped(!isSwapped)}
+          className="absolute top-16 right-3 sm:top-20 sm:right-6 z-30 w-28 xs:w-32 sm:w-44 aspect-[3/4] rounded-2xl sm:rounded-3xl overflow-hidden border-2 border-white/30 shadow-2xl bg-black/60 backdrop-blur-md cursor-pointer transition-transform duration-200 hover:scale-105 active:scale-95 group"
+          title="Нажмите, чтобы переключить отображение видео"
+        >
+          {!isSwapped ? (
+            /* PiP shows Local stream */
+            <>
+              <video
+                ref={localVideoRef}
+                autoPlay
+                playsInline
+                muted
+                className={`w-full h-full object-cover ${
+                  facingMode === 'user' ? '-scale-x-100' : ''
+                } ${!camActive ? 'hidden' : 'block'}`}
+              />
+              {!camActive && (
+                <div className="w-full h-full flex flex-col items-center justify-center bg-[#161F38] text-white p-2 text-center">
+                  <div className="w-9 h-9 rounded-full bg-coralAccent/20 text-coralAccent flex items-center justify-center mb-1">
+                    <VideoOff className="w-4 h-4" />
+                  </div>
+                  <span className="text-[10px] text-white/70 font-semibold">Камера выкл.</span>
+                </div>
+              )}
+              {/* Bottom label */}
+              <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between text-white text-[10px] font-bold bg-black/60 backdrop-blur-md px-2 py-0.5 rounded-full border border-white/10">
+                <span className="truncate">Вы</span>
+                {!micActive && <MicOff className="w-3 h-3 text-rose-400 shrink-0" />}
               </div>
+            </>
+          ) : (
+            /* PiP shows Remote stream */
+            <>
+              <video
+                ref={remoteVideoRef}
+                autoPlay
+                playsInline
+                className={`w-full h-full object-cover ${
+                  hasRemoteStream && remoteCamActive ? 'block' : 'hidden'
+                }`}
+              />
+              {(!hasRemoteStream || !remoteCamActive) && (
+                <div className="w-full h-full flex flex-col items-center justify-center bg-[#161F38] text-white p-2 text-center">
+                  <div className="w-9 h-9 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center mb-1">
+                    <span className="text-xs font-black">{resolvedParticipantName[0] || 'П'}</span>
+                  </div>
+                  <span className="text-[10px] text-white/70 font-semibold truncate max-w-[80px]">
+                    {resolvedParticipantName}
+                  </span>
+                </div>
+              )}
+              {/* Bottom label */}
+              <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between text-white text-[10px] font-bold bg-black/60 backdrop-blur-md px-2 py-0.5 rounded-full border border-white/10">
+                <span className="truncate">{resolvedParticipantName}</span>
+                {!remoteMicActive && hasRemoteStream && (
+                  <MicOff className="w-3 h-3 text-rose-400 shrink-0" />
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Hover Swap Indicator Overlay */}
+          <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+            <RefreshCw className="w-5 h-5 text-white/90" />
+          </div>
+        </div>
+
+        {/* 3. Floating Top Bar (VK Calls Style) */}
+        <div className="absolute top-0 left-0 right-0 z-40 p-3 sm:p-5 flex items-center justify-between pointer-events-none">
+          {/* Top Left: Chat, Participants, Whiteboard */}
+          <div className="pointer-events-auto flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsChatOpen(true)}
+              className="relative p-2.5 sm:p-3 rounded-full bg-black/40 hover:bg-black/60 text-white backdrop-blur-md border border-white/15 transition-all active:scale-95 cursor-pointer shadow-lg"
+              title="Чат урока"
+            >
+              <MessageSquare className="w-5 h-5" />
+              {chatMessages.length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-black shadow-xs">
+                  {chatMessages.length}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsParticipantsOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 sm:py-2.5 rounded-full bg-black/40 hover:bg-black/60 text-white backdrop-blur-md border border-white/15 text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-lg"
+              title="Участники"
+            >
+              <Users className="w-4 h-4" />
+              <span>{hasRemoteStream ? 2 : 1}</span>
+            </button>
+
+            {onToggleWhiteboard && (
               <button
                 type="button"
-                onClick={() => setAttachedFile(null)}
-                className="p-1 text-[#8A95A8] hover:text-rose-500 rounded-lg cursor-pointer transition-colors"
-                title="Удалить прикрепленный файл"
+                onClick={onToggleWhiteboard}
+                className="p-2.5 sm:p-3 rounded-full bg-black/40 hover:bg-black/60 text-white backdrop-blur-md border border-white/15 transition-all active:scale-95 cursor-pointer shadow-lg"
+                title="Интерактивная доска"
+              >
+                <LayoutGrid className="w-5 h-5" />
+              </button>
+            )}
+          </div>
+
+          {/* Top Center: Timer */}
+          <div className="pointer-events-auto flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/15 text-white text-xs font-mono font-bold shadow-lg">
+            <span
+              className={`w-2 h-2 rounded-full ${
+                hasRemoteStream ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
+              }`}
+            />
+            <span>{formatTime(callDuration)}</span>
+          </div>
+
+          {/* Top Right: Minimize / Return */}
+          <div className="pointer-events-auto flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleMinimizeOrReturn}
+              className="p-2.5 sm:p-3 rounded-full bg-black/40 hover:bg-black/60 text-white backdrop-blur-md border border-white/15 transition-all active:scale-95 cursor-pointer shadow-lg"
+              title="Свернуть / Вернуться к платформе"
+            >
+              <ChevronDown className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* 4. Floating Bottom Bar (VK Video Calls Style) */}
+        <div className="absolute bottom-0 left-0 right-0 z-40 pb-6 sm:pb-8 pt-10 px-4 flex flex-col items-center gap-3 bg-gradient-to-t from-black/95 via-black/55 to-transparent pointer-events-none">
+          {/* "Ещё" Upward Pill */}
+          <button
+            type="button"
+            onClick={() => setIsDrawerOpen(!isDrawerOpen)}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-black/40 hover:bg-black/60 text-white/90 hover:text-white backdrop-blur-md border border-white/15 text-xs font-medium transition-all active:scale-95 cursor-pointer pointer-events-auto mb-1 shadow-md"
+            title="Дополнительные функции"
+          >
+            <ChevronUp
+              className={`w-3.5 h-3.5 transition-transform duration-300 ${
+                isDrawerOpen ? 'rotate-180' : ''
+              }`}
+            />
+            <span>{isDrawerOpen ? 'Скрыть меню' : 'Ещё'}</span>
+          </button>
+
+          {/* 5 Main Action Circles */}
+          <div className="flex items-center justify-center gap-3.5 sm:gap-6 w-full max-w-md pointer-events-auto">
+            {/* 1. Flip Camera (Сменить камеру) */}
+            <button
+              type="button"
+              onClick={handleFlipCamera}
+              className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-white/20 hover:bg-white/30 text-white backdrop-blur-md border border-white/20 flex items-center justify-center transition-all active:scale-90 shadow-xl cursor-pointer"
+              title="Сменить камеру (фронтальная / основная)"
+            >
+              <RefreshCw className="w-5 h-5 sm:w-6 sm:h-6" />
+            </button>
+
+            {/* 2. Video Toggle */}
+            <button
+              type="button"
+              onClick={toggleCam}
+              className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full backdrop-blur-md border flex items-center justify-center transition-all active:scale-90 shadow-xl cursor-pointer ${
+                !camActive
+                  ? 'bg-rose-600/90 hover:bg-rose-700 border-rose-400 text-white'
+                  : 'bg-white/20 hover:bg-white/30 border-white/20 text-white'
+              }`}
+              title={!camActive ? 'Включить камеру' : 'Выключить камеру'}
+            >
+              {!camActive ? (
+                <VideoOff className="w-5 h-5 sm:w-6 sm:h-6" />
+              ) : (
+                <Video className="w-5 h-5 sm:w-6 sm:h-6" />
+              )}
+            </button>
+
+            {/* 3. Hero Mic Button (Центральная кнопка VK - белый круг) */}
+            <button
+              type="button"
+              onClick={toggleMic}
+              className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center transition-all active:scale-90 shadow-2xl cursor-pointer relative ${
+                !micActive
+                  ? 'bg-rose-600 hover:bg-rose-700 text-white border-2 border-rose-400 shadow-rose-600/40'
+                  : 'bg-white hover:bg-white/95 text-[#161F38] shadow-white/30 border-2 border-white'
+              }`}
+              title={!micActive ? 'Включить микрофон' : 'Выключить микрофон'}
+            >
+              {!micActive ? (
+                <MicOff className="w-6 h-6 sm:w-7 sm:h-7" />
+              ) : (
+                <Mic className="w-6 h-6 sm:w-7 sm:h-7" />
+              )}
+            </button>
+
+            {/* 4. Raise Hand (Поднять руку) */}
+            <button
+              type="button"
+              onClick={handleRaiseHand}
+              className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full backdrop-blur-md border flex items-center justify-center transition-all active:scale-90 shadow-xl cursor-pointer ${
+                isHandRaised
+                  ? 'bg-amber-500 border-amber-300 text-white ring-4 ring-amber-400/30'
+                  : 'bg-white/20 hover:bg-white/30 border-white/20 text-white'
+              }`}
+              title={isHandRaised ? 'Опустить руку' : 'Поднять руку'}
+            >
+              <Hand className={`w-5 h-5 sm:w-6 sm:h-6 ${isHandRaised ? 'animate-bounce' : ''}`} />
+            </button>
+
+            {/* 5. End Call (Завершить звонок - красный круг) */}
+            <button
+              type="button"
+              onClick={handleEnd}
+              className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#FF334B] hover:bg-[#E0243C] text-white flex items-center justify-center transition-all active:scale-90 shadow-2xl shadow-red-500/40 cursor-pointer border border-red-400/40"
+              title="Завершить урок"
+            >
+              <PhoneOff className="w-5 h-5 sm:w-6 sm:h-6" />
+            </button>
+          </div>
+        </div>
+
+        {/* 5. "Ещё" (More Options Drawer) */}
+        {isDrawerOpen && (
+          <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-sm bg-black/85 backdrop-blur-xl border border-white/20 rounded-3xl p-4 shadow-2xl text-white animate-in fade-in slide-in-from-bottom-4 duration-200">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-3">
+              <span className="font-bold text-sm">Дополнительные функции</span>
+              <button
+                type="button"
+                onClick={() => setIsDrawerOpen(false)}
+                className="p-1 text-white/60 hover:text-white rounded-full cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
-          )}
+            <div className="grid grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  toggleScreenShare();
+                  setIsDrawerOpen(false);
+                }}
+                className={`flex items-center gap-2 p-3 rounded-2xl border text-xs font-bold transition-all text-left ${
+                  isScreenSharing
+                    ? 'bg-indigo-600/40 border-indigo-400 text-indigo-200'
+                    : 'bg-white/10 hover:bg-white/20 border-white/10 text-white'
+                }`}
+              >
+                <Monitor className="w-4 h-4 shrink-0" />
+                <span>{isScreenSharing ? 'Стоп экран' : 'Экран'}</span>
+              </button>
 
-          {/* Chat Input Bar */}
-          <form onSubmit={handleSendMessage} className="p-2.5 sm:p-3 bg-white border-t border-[#F2DECE] flex items-center gap-1.5">
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileSelect}
-              accept="image/*,.pdf,.doc,.docx,.txt"
-              className="hidden"
-            />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUploadingAttachment}
-              className="p-2 sm:p-2.5 text-[#6B758E] hover:text-coralAccent hover:bg-[#FFF7EE] rounded-full transition-colors cursor-pointer shrink-0 disabled:opacity-50"
-              title="Прикрепить файл или фото (автоматически сжимается)"
-            >
-              {isUploadingAttachment ? (
-                <Loader2 className="w-4 h-4 animate-spin text-coralAccent" />
-              ) : (
-                <Paperclip className="w-4 h-4" />
+              <button
+                type="button"
+                onClick={() => {
+                  toggleDeafen();
+                  setIsDrawerOpen(false);
+                }}
+                className={`flex items-center gap-2 p-3 rounded-2xl border text-xs font-bold transition-all text-left ${
+                  isDeafened
+                    ? 'bg-rose-600/40 border-rose-400 text-rose-200'
+                    : 'bg-white/10 hover:bg-white/20 border-white/10 text-white'
+                }`}
+              >
+                {isDeafened ? (
+                  <VolumeX className="w-4 h-4 shrink-0" />
+                ) : (
+                  <Volume2 className="w-4 h-4 shrink-0" />
+                )}
+                <span>{isDeafened ? 'Вкл. динамики' : 'Заглушить'}</span>
+              </button>
+
+              {onToggleWhiteboard && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onToggleWhiteboard();
+                    setIsDrawerOpen(false);
+                  }}
+                  className="flex items-center gap-2 p-3 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/10 text-xs font-bold text-white transition-all text-left"
+                >
+                  <LayoutGrid className="w-4 h-4 shrink-0" />
+                  <span>Доска урока</span>
+                </button>
               )}
-            </button>
-            <input
-              ref={chatInputRef}
-              type="text"
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              placeholder="Напишите сообщение в чат урока..."
-              className="flex-1 bg-[#FFF8F1] border border-[#EADBCC] focus:border-coralAccent rounded-full px-4 py-2 text-base sm:text-xs text-[#161F38] outline-none"
-            />
-            <button
-              type="submit"
-              disabled={(!chatInput.trim() && !attachedFile) || isUploadingAttachment}
-              className="bg-coralAccent hover:bg-coralAccent-hover disabled:opacity-40 text-white p-2.5 rounded-full transition-transform active:scale-95 cursor-pointer shadow-2xs shrink-0"
-              title="Отправить"
-            >
-              <Send className="w-3.5 h-3.5" />
-            </button>
-          </form>
-        </>
-      )}
-    </div>
-  </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsVerticalMode(!isVerticalMode);
+                  setIsDrawerOpen(false);
+                }}
+                className={`flex items-center gap-2 p-3 rounded-2xl border text-xs font-bold transition-all text-left ${
+                  isVerticalMode
+                    ? 'bg-emerald-600/40 border-emerald-400 text-emerald-200'
+                    : 'bg-white/10 hover:bg-white/20 border-white/10 text-white'
+                }`}
+              >
+                <Smartphone className="w-4 h-4 shrink-0" />
+                <span>{isVerticalMode ? 'Вместить видео' : 'Заполнить экран'}</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 6. Participants Modal / Sheet */}
+        {isParticipantsOpen && (
+          <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
+            <div className="w-full sm:max-w-md bg-[#161F38] border border-white/20 rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl text-white">
+              <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
+                <div className="flex items-center gap-2">
+                  <Users className="w-5 h-5 text-coralAccent" />
+                  <span className="font-extrabold text-base">
+                    Участники ({hasRemoteStream ? 2 : 1})
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsParticipantsOpen(false)}
+                  className="p-1.5 text-white/60 hover:text-white rounded-full bg-white/10 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="space-y-3">
+                {/* You */}
+                <div className="flex items-center justify-between p-3 rounded-2xl bg-white/5 border border-white/10">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-coralAccent text-white flex items-center justify-center font-bold text-sm">
+                      Вы
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-white">
+                        Вы ({isTeacher ? 'Учитель' : 'Ученик'})
+                      </p>
+                      <p className="text-[11px] text-white/60">В сети</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {!micActive ? (
+                      <MicOff className="w-4 h-4 text-rose-400" />
+                    ) : (
+                      <Mic className="w-4 h-4 text-emerald-400" />
+                    )}
+                    {!camActive ? (
+                      <VideoOff className="w-4 h-4 text-rose-400" />
+                    ) : (
+                      <Video className="w-4 h-4 text-emerald-400" />
+                    )}
+                  </div>
+                </div>
+
+                {/* Remote Participant */}
+                <div className="flex items-center justify-between p-3 rounded-2xl bg-white/5 border border-white/10">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm">
+                      {resolvedParticipantName.slice(0, 1).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-white">{resolvedParticipantName}</p>
+                      <p className="text-[11px] text-white/60">
+                        {hasRemoteStream ? 'Подключен к уроку' : 'Ожидание подключения...'}
+                      </p>
+                    </div>
+                  </div>
+                  {hasRemoteStream && (
+                    <div className="flex items-center gap-2">
+                      {!remoteMicActive ? (
+                        <MicOff className="w-4 h-4 text-rose-400" />
+                      ) : (
+                        <Mic className="w-4 h-4 text-emerald-400" />
+                      )}
+                      {!remoteCamActive ? (
+                        <VideoOff className="w-4 h-4 text-rose-400" />
+                      ) : (
+                        <Video className="w-4 h-4 text-emerald-400" />
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 7. Slide-up Chat Sheet */}
+        {isChatOpen && (
+          <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-end sm:p-4 animate-in fade-in duration-200">
+            <div className="w-full sm:w-[420px] h-[85dvh] sm:h-[600px] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden text-[#161F38]">
+              {/* Chat Header */}
+              <div className="p-4 bg-white border-b border-[#F4E3D2] flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-coralAccent/15 text-coralAccent flex items-center justify-center">
+                    <MessageSquare className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-sm text-[#161F38]">Чат урока</h3>
+                    <p className="text-[11px] text-[#8A95A8]">{chatMessages.length} сообщений</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsChatOpen(false)}
+                  className="p-2 text-[#8A95A8] hover:text-[#161F38] rounded-full hover:bg-gray-100 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Chat Messages */}
+              <div className="flex-1 p-3 sm:p-4 overflow-y-auto space-y-2.5 text-xs bg-[#FFFDFB]">
+                {chatMessages.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center text-[#8A95A8] p-4">
+                    <div className="w-12 h-12 rounded-2xl bg-[#FFF7EE] border border-[#F4E3D2] flex items-center justify-center text-coralAccent/60 mb-2">
+                      <MessageSquare className="w-6 h-6" />
+                    </div>
+                    <p className="text-xs font-black text-[#161F38]">Сообщений пока нет</p>
+                    <p className="text-[11px] text-[#8A95A8] max-w-xs mt-0.5">
+                      Здесь можно обмениваться сообщениями, фото и файлами во время занятия
+                    </p>
+                  </div>
+                ) : (
+                  chatMessages.map((msg) => {
+                    const isMe = msg.senderId === myPeerIdRef.current;
+                    return (
+                      <div
+                        key={msg.id}
+                        className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
+                      >
+                        <div className="flex items-center gap-1 text-[10px] text-[#8A95A8] mb-0.5">
+                          <span className="font-bold">{isMe ? 'Вы' : msg.senderName}</span>
+                          <span>• {msg.time}</span>
+                        </div>
+                        <div
+                          className={`px-3.5 py-2 rounded-2xl max-w-[85%] break-words ${
+                            isMe
+                              ? 'bg-coralAccent text-white rounded-br-xs shadow-2xs'
+                              : 'bg-[#FFF7EE] text-[#161F38] border border-[#F4E3D2] rounded-bl-xs'
+                          }`}
+                        >
+                          {msg.attachment && (
+                            <div className="mb-1.5">
+                              {msg.attachment.isImage ? (
+                                <a
+                                  href={msg.attachment.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="block overflow-hidden rounded-xl border border-black/10 hover:opacity-95 transition-opacity"
+                                >
+                                  <img
+                                    src={msg.attachment.url}
+                                    alt={msg.attachment.name}
+                                    className="max-h-48 w-auto object-cover rounded-xl"
+                                    loading="lazy"
+                                  />
+                                </a>
+                              ) : (
+                                <a
+                                  href={msg.attachment.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  download={msg.attachment.name}
+                                  className={`flex items-center gap-2 p-2 rounded-xl text-xs font-bold transition-colors ${
+                                    isMe
+                                      ? 'bg-white/20 text-white hover:bg-white/30'
+                                      : 'bg-[#FFF0E2] text-coralAccent hover:bg-[#FFE6D0]'
+                                  }`}
+                                >
+                                  <FileText className="w-4 h-4 shrink-0" />
+                                  <span className="truncate max-w-[150px]">
+                                    {msg.attachment.name}
+                                  </span>
+                                  <Download className="w-3.5 h-3.5 ml-auto shrink-0 opacity-70" />
+                                </a>
+                              )}
+                            </div>
+                          )}
+                          {msg.text && <div>{msg.text}</div>}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+                <div ref={chatBottomRef} />
+              </div>
+
+              {/* Attached file preview chip prior to sending */}
+              {attachedFile && (
+                <div className="px-3 py-1.5 bg-[#FFF0E2] border-t border-[#F2DECE] flex items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-2 truncate">
+                    {attachedFile.isImage ? (
+                      <img
+                        src={attachedFile.url}
+                        alt=""
+                        className="w-7 h-7 object-cover rounded-md border border-[#F4E3D2]"
+                      />
+                    ) : (
+                      <FileText className="w-4 h-4 text-coralAccent shrink-0" />
+                    )}
+                    <span className="font-bold text-[#161F38] truncate">{attachedFile.name}</span>
+                    <span className="text-[10px] text-[#8A95A8]">
+                      ({Math.round(attachedFile.size / 1024)} КБ)
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAttachedFile(null)}
+                    className="p-1 text-[#8A95A8] hover:text-rose-500 rounded-lg cursor-pointer transition-colors"
+                    title="Удалить прикрепленный файл"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
+              {/* Chat Input Bar */}
+              <form
+                onSubmit={handleSendMessage}
+                className="p-2.5 sm:p-3 bg-white border-t border-[#F2DECE] flex items-center gap-1.5"
+              >
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileSelect}
+                  accept="image/*,.pdf,.doc,.docx,.txt"
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploadingAttachment}
+                  className="p-2 sm:p-2.5 text-[#6B758E] hover:text-coralAccent hover:bg-[#FFF7EE] rounded-full transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+                  title="Прикрепить файл или фото"
+                >
+                  {isUploadingAttachment ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-coralAccent" />
+                  ) : (
+                    <Paperclip className="w-4 h-4" />
+                  )}
+                </button>
+                <input
+                  ref={chatInputRef}
+                  type="text"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  placeholder="Напишите сообщение..."
+                  className="flex-1 bg-[#FFF8F1] border border-[#EADBCC] focus:border-coralAccent rounded-full px-4 py-2 text-base sm:text-xs text-[#161F38] outline-none"
+                />
+                <button
+                  type="submit"
+                  disabled={(!chatInput.trim() && !attachedFile) || isUploadingAttachment}
+                  className="bg-coralAccent hover:bg-coralAccent-hover disabled:opacity-40 text-white p-2.5 rounded-full transition-transform active:scale-95 cursor-pointer shadow-2xs shrink-0"
+                  title="Отправить"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
+
   </>
   );
 }

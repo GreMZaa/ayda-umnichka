@@ -71,6 +71,8 @@ export default function Navbar() {
     };
   }, []);
 
+  if (isRoom) return null;
+
   const handleLogoClick = (e: React.MouseEvent) => {
     const nextCount = logoClicks + 1;
     if (nextCount >= 3) {
