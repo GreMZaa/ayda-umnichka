@@ -224,7 +224,7 @@ export default function Navbar() {
     pathname !== '/login';
 
   return (
-    <header className="sticky top-0 z-50 bg-[#FFF7EE]/95 backdrop-blur-md border-b border-[#F4E4D3]">
+    <header className="sticky top-0 z-50 bg-[#FFF7EE] border-b border-[#F4E4D3] shadow-2xs">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 sm:h-20">
           {/* Brand Logo with Official Center Logo (Triple-click secret gateway to /admin) */}
@@ -420,14 +420,9 @@ export default function Navbar() {
                     />
                   </button>
 
-                  {/* Modern Floating Dropdown Popover with iOS Backdrop */}
+                  {/* Modern Floating Dropdown Popover */}
                   {profileOpen && (
-                    <>
-                      <div
-                        className="fixed inset-0 z-40 bg-black/10 backdrop-blur-[1px] transition-opacity duration-200"
-                        onClick={() => setProfileOpen(false)}
-                      />
-                      <div className="absolute right-0 top-full mt-2 w-64 bg-white/95 backdrop-blur-xl rounded-2xl border border-[#F0DCCD] shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-200 ease-out origin-top-right space-y-1">
+                    <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-2xl border border-[#F0DCCD] shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150 ease-out origin-top-right space-y-1">
                       {/* User Header Card */}
                       <div className="p-2.5 bg-gradient-to-r from-[#FFFBF7] to-[#FFF4EA] rounded-xl border border-[#F6E6D8]">
                         <div className="flex items-center gap-2.5">
@@ -500,7 +495,6 @@ export default function Navbar() {
                         <span>Выйти из аккаунта</span>
                       </button>
                     </div>
-                    </>
                   )}
                 </div>
               </div>
