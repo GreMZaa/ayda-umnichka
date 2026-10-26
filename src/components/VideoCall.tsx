@@ -64,6 +64,7 @@ export default function VideoCall({
   const [camActive, setCamActive] = useState(true);
   const [isSwapped, setIsSwapped] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [isRemoteScreenSharing, setIsRemoteScreenSharing] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
   const [isPipActive, setIsPipActive] = useState(false);
 
@@ -378,6 +379,13 @@ export default function VideoCall({
           }
         }
       })
+      .on('broadcast', { event: 'peer-screen-share' }, ({ payload }) => {
+        if (payload?.senderId === myPeerIdRef.current) return;
+        if (typeof payload?.isSharing === 'boolean') {
+          console.log('[WebRTC] Peer screen share status changed:', payload.isSharing);
+          setIsRemoteScreenSharing(payload.isSharing);
+        }
+      })
       .on('broadcast', { event: 'user-left' }, ({ payload }) => {
         if (payload?.senderId === myPeerIdRef.current) return;
         setHasRemoteStream(false);
@@ -522,51 +530,82 @@ export default function VideoCall({
   const toggleScreenShare = async () => {
     try {
       if (!isScreenSharing) {
+        // 1. Check if browser supports getDisplayMedia
         if (
-          typeof navigator === 'undefined' ||
-          !navigator.mediaDevices ||
-          typeof navigator.mediaDevices.getDisplayMedia !== 'function'
+          typeof navigator !== 'undefined' &&
+          navigator.mediaDevices &&
+          typeof navigator.mediaDevices.getDisplayMedia === 'function'
         ) {
-          alert('Демонстрация экрана доступна на компьютерах и ноутбуках (Chrome, Safari, Edge). На смартфонах используйте кнопку «Интерактивная доска».');
-          return;
-        }
+          try {
+            const screenStream = await navigator.mediaDevices.getDisplayMedia({
+              video: {
+                cursor: 'always',
+                displaySurface: 'monitor',
+              } as any,
+              audio: false,
+            });
 
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({
-          video: true,
-          audio: false,
-        });
+            screenStreamRef.current = screenStream;
+            const screenTrack = screenStream.getVideoTracks()[0];
+            if (!screenTrack) return;
 
-        screenStreamRef.current = screenStream;
-        const screenTrack = screenStream.getVideoTracks()[0];
-        if (!screenTrack) return;
+            // Replace track in peer connection
+            if (pcRef.current && pcRef.current.signalingState !== 'closed') {
+              const videoSender = pcRef.current.getSenders().find((s) => s.track?.kind === 'video');
+              if (videoSender) {
+                await videoSender.replaceTrack(screenTrack);
+              } else {
+                pcRef.current.addTrack(screenTrack, screenStream);
+              }
+            }
 
-        // Replace track in peer connection
-        if (pcRef.current && pcRef.current.signalingState !== 'closed') {
-          const videoSender = pcRef.current.getSenders().find((s) => s.track?.kind === 'video');
-          if (videoSender) {
-            await videoSender.replaceTrack(screenTrack);
-          } else {
-            pcRef.current.addTrack(screenTrack, screenStream);
+            if (localVideoRef.current) {
+              localVideoRef.current.srcObject = screenStream;
+            }
+
+            // Notify peer via signaling channel
+            if (channelRef.current) {
+              channelRef.current.send({
+                type: 'broadcast',
+                event: 'peer-screen-share',
+                payload: { senderId: myPeerIdRef.current, isSharing: true },
+              });
+            }
+
+            screenTrack.onended = () => {
+              stopScreenSharing();
+            };
+
+            setIsScreenSharing(true);
+            return;
+          } catch (captureErr: any) {
+            // User cancelled browser capture dialog
+            if (captureErr?.name === 'NotAllowedError') {
+              return;
+            }
+            console.warn('getDisplayMedia attempt error:', captureErr);
           }
         }
 
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = screenStream;
+        // 2. If getDisplayMedia is not available (e.g. iOS Safari on iPhone where Apple restricts system screen recording):
+        // Offer interactive whiteboard mode for visual collaboration
+        if (onToggleWhiteboard) {
+          const switchMode = confirm(
+            'На iPhone в браузере Safari компания Apple блокирует запись экрана веб-сайтами.\n\nВключить интерактивную доску для показа учебных материалов и совместной работы?'
+          );
+          if (switchMode) {
+            onToggleWhiteboard();
+          }
+        } else {
+          alert(
+            'На мобильных устройствах iOS Safari демонстрация всего экрана ограничена Apple. Для показа учебных материалов используйте интерактивную доску или компьютер.'
+          );
         }
-
-        screenTrack.onended = () => {
-          stopScreenSharing();
-        };
-
-        setIsScreenSharing(true);
       } else {
         stopScreenSharing();
       }
     } catch (err: any) {
-      if (err?.name !== 'NotAllowedError') {
-        console.warn('Screen share error:', err);
-        alert('Не удалось запустить демонстрацию экрана. Проверьте разрешения в браузере.');
-      }
+      console.warn('Screen share error:', err);
       setIsScreenSharing(false);
     }
   };
@@ -588,6 +627,15 @@ export default function VideoCall({
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = streamRef.current;
       }
+    }
+
+    // Notify peer that screen share ended
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'peer-screen-share',
+        payload: { senderId: myPeerIdRef.current, isSharing: false },
+      });
     }
 
     setIsScreenSharing(false);
@@ -786,7 +834,9 @@ export default function VideoCall({
             controls={false}
             autoPictureInPicture
             {...({ 'webkit-playsinline': 'true' } as any)}
-            className={`w-full h-full object-cover ${hasRemoteStream ? 'block' : 'hidden'}`}
+            className={`w-full h-full ${isRemoteScreenSharing ? 'object-contain bg-black' : 'object-cover'} ${
+              hasRemoteStream ? 'block' : 'hidden'
+            }`}
           />
 
           {/* Waiting Placeholder when remote participant has not yet connected */}
@@ -815,7 +865,9 @@ export default function VideoCall({
             <div className="absolute bottom-2.5 left-2.5 sm:bottom-3 sm:left-3 bg-black/60 backdrop-blur-md border border-white/20 px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-full text-white text-[10px] sm:text-xs font-black shadow-xs flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-[#5C8519] animate-pulse" />
               <span className="truncate max-w-[120px] sm:max-w-none">{resolvedParticipantName}</span>
-              <span className="text-[9px] sm:text-[10px] text-[#A6E044] font-bold">• В эфире</span>
+              <span className="text-[9px] sm:text-[10px] text-[#A6E044] font-bold">
+                {isRemoteScreenSharing ? '• Демонстрация экрана' : '• В эфире'}
+              </span>
               {!remoteMicActive && (
                 <span className="flex items-center gap-1 text-[9px] sm:text-[10px] text-rose-300 font-bold bg-rose-900/60 px-1.5 py-0.5 rounded-full ml-1">
                   <MicOff className="w-2.5 h-2.5" />
@@ -841,7 +893,7 @@ export default function VideoCall({
               controls={false}
               autoPictureInPicture
               {...({ 'webkit-playsinline': 'true' } as any)}
-              className={`w-full h-full object-cover ${isScreenSharing ? '' : 'scale-x-[-1]'}`}
+              className={`w-full h-full ${isScreenSharing ? 'object-contain bg-black' : 'object-cover scale-x-[-1]'}`}
             />
           ) : (
             <div className="text-center p-4 sm:p-6 text-white/70">
@@ -852,7 +904,7 @@ export default function VideoCall({
 
           {/* Local user badge: Correctly reflects teacher vs student */}
           <div className="absolute bottom-2.5 left-2.5 sm:bottom-3 sm:left-3 bg-black/60 backdrop-blur-md border border-white/20 px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-full text-white text-[10px] sm:text-xs font-black shadow-xs flex items-center gap-1.5">
-            <span>Вы ({isTeacher ? 'Преподаватель' : 'Ученик'})</span>
+            <span>{isScreenSharing ? '🖥️ Ваш экран' : `Вы (${isTeacher ? 'Преподаватель' : 'Ученик'})`}</span>
             {!micActive && (
               <span title="Микрофон выключен">
                 <MicOff className="w-3 h-3 text-rose-400" />
