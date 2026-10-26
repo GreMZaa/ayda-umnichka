@@ -224,6 +224,25 @@ export default function LessonsScheduleHistory({
     return `${dateFormatted}, ${time}`;
   };
 
+  const formatLessonDuration = (l: LessonRecord) => {
+    if (l.started_at && l.ended_at) {
+      const startMs = new Date(l.started_at).getTime();
+      const endMs = new Date(l.ended_at).getTime();
+      if (!isNaN(startMs) && !isNaN(endMs) && endMs > startMs) {
+        const diffSec = Math.max(0, Math.floor((endMs - startMs) / 1000));
+        const mins = Math.floor(diffSec / 60);
+        const secs = diffSec % 60;
+        if (mins > 0 && secs > 0) return `${mins} мин ${secs} сек`;
+        if (mins > 0) return `${mins} мин`;
+        if (secs > 0) return `${secs} сек`;
+      }
+    }
+    if (l.duration_minutes && l.duration_minutes > 0) {
+      return `${l.duration_minutes} мин`;
+    }
+    return '45 мин';
+  };
+
   return (
     <div className="bg-white rounded-2xl p-4 sm:p-5 border border-[#F2E0CF] shadow-xs flex flex-col justify-between h-full space-y-3.5">
       <div className="space-y-3">
@@ -511,12 +530,18 @@ export default function LessonsScheduleHistory({
                       <p className="text-[11px] text-[#6B758E] truncate">{l.topic}</p>
                     </div>
 
-                    <div className="shrink-0">
+                    <div className="shrink-0 flex flex-col items-end gap-0.5">
                       {passed ? (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-black bg-[#EAF7CF] text-[#5C8519] border border-[#D5ECA3] px-2 py-0.5 rounded-full">
-                          <CheckCircle2 className="w-3 h-3 text-[#5C8519]" />
-                          <span>Прошёл</span>
-                        </span>
+                        <>
+                          <span className="inline-flex items-center gap-1 text-[10px] font-black bg-[#EAF7CF] text-[#5C8519] border border-[#D5ECA3] px-2 py-0.5 rounded-full">
+                            <CheckCircle2 className="w-3 h-3 text-[#5C8519]" />
+                            <span>Прошёл</span>
+                          </span>
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#6B758E]">
+                            <Clock className="w-2.5 h-2.5 text-coralAccent" />
+                            <span>{formatLessonDuration(l)}</span>
+                          </span>
+                        </>
                       ) : (
                         <span className="inline-flex items-center gap-1 text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 rounded-full">
                           <XCircle className="w-3 h-3 text-rose-600" />

@@ -64,9 +64,6 @@ export default function LessonRoomPage() {
     try {
       const existingStart = localStorage.getItem(`aida_lesson_started_${roomId}`);
       const startTimestamp = existingStart ? parseInt(existingStart, 10) : Date.now();
-      if (!existingStart) {
-        localStorage.setItem(`aida_lesson_started_${roomId}`, String(startTimestamp));
-      }
 
       localStorage.setItem(
         'aida_active_lesson_room',
@@ -77,13 +74,6 @@ export default function LessonRoomPage() {
           timestamp: startTimestamp,
         })
       );
-
-      // Notify database that room has started
-      fetch('/api/lessons', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'start_room', room_token: roomId }),
-      }).catch(() => {});
     } catch (_) {}
   }, [roomId, roleParam, topicParam]);
 

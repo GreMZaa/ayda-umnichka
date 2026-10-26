@@ -61,7 +61,9 @@ export async function POST(req: NextRequest) {
       }
       if (action === 'start_room' || status === 'active') {
         updates.status = 'active';
-        updates.started_at = new Date().toISOString();
+        if (body.started_at) {
+          updates.started_at = body.started_at;
+        }
       }
       if (status === 'completed') {
         updates.status = 'completed';

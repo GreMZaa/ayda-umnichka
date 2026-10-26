@@ -139,7 +139,25 @@ export default function VideoCall({
     }
   }, [isDeafened, remoteMicActive]);
 
-  // Load chat history from Supabase on mount/roomToken change
+  const timerStartTimeRef = useRef<number | null>(null);
+
+  // Initialize or restore timer from localStorage immediately upon mount
+  useEffect(() => {
+    if (!roomToken) return;
+    try {
+      const savedStart = localStorage.getItem(`aida_lesson_started_${roomToken}`);
+      if (savedStart) {
+        const ms = parseInt(savedStart, 10);
+        if (!isNaN(ms) && ms > 0) {
+          timerStartTimeRef.current = ms;
+          const elapsed = Math.max(0, Math.floor((Date.now() - ms) / 1000));
+          setCallDuration(elapsed);
+        }
+      }
+    } catch (_) {}
+  }, [roomToken]);
+
+  // Load chat history & authoritative timer start from Supabase on mount/roomToken change
   useEffect(() => {
     if (!roomToken) return;
     let isCancelled = false;
@@ -147,8 +165,25 @@ export default function VideoCall({
     fetch(`/api/room/messages?roomToken=${encodeURIComponent(roomToken)}`)
       .then((res) => res.json())
       .then((data) => {
-        if (!isCancelled && Array.isArray(data?.messages)) {
+        if (isCancelled) return;
+        if (Array.isArray(data?.messages)) {
           setChatMessages(data.messages);
+        }
+
+        // Restore start timestamp from Supabase if present and lesson is active
+        if (data?.startedAt && data.status !== 'completed') {
+          const serverStartMs = new Date(data.startedAt).getTime();
+          if (!isNaN(serverStartMs) && serverStartMs > 0) {
+            // Keep the earliest reliable start time
+            if (!timerStartTimeRef.current || timerStartTimeRef.current > serverStartMs) {
+              timerStartTimeRef.current = serverStartMs;
+              try {
+                localStorage.setItem(`aida_lesson_started_${roomToken}`, String(serverStartMs));
+              } catch (_) {}
+            }
+            const elapsed = Math.max(0, Math.floor((Date.now() - timerStartTimeRef.current) / 1000));
+            setCallDuration(elapsed);
+          }
         }
       })
       .catch((err) => console.warn('Could not load room messages:', err));
@@ -176,15 +211,47 @@ export default function VideoCall({
     `peer_${isTeacher ? 'teacher' : 'student'}_${Math.random().toString(36).slice(2, 9)}`
   );
 
-  // Duration clock — ONLY starts counting when both participants are connected in the room
+  // Duration clock — ONLY starts counting when both participants are connected in the room, and continues across reloads!
   useEffect(() => {
-    if (!hasRemoteStream) return;
+    // If both participants are in room and timer hasn't started yet: initialize it now!
+    if (hasRemoteStream && !timerStartTimeRef.current) {
+      const now = Date.now();
+      timerStartTimeRef.current = now;
+      try {
+        localStorage.setItem(`aida_lesson_started_${roomToken}`, String(now));
+      } catch (_) {}
 
+      // Inform peer via realtime broadcast
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'timer-started',
+          payload: { startedAt: now },
+        });
+      }
+
+      // Persist started_at in database
+      fetch('/api/lessons', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'start_room',
+          room_token: roomToken,
+          started_at: new Date(now).toISOString(),
+        }),
+      }).catch(() => {});
+    }
+
+    // Tick every second if timer is active
     const timer = setInterval(() => {
-      setCallDuration((prev) => prev + 1);
+      if (timerStartTimeRef.current && (hasRemoteStream || callDuration > 0)) {
+        const elapsed = Math.max(0, Math.floor((Date.now() - timerStartTimeRef.current) / 1000));
+        setCallDuration(elapsed);
+      }
     }, 1000);
+
     return () => clearInterval(timer);
-  }, [hasRemoteStream]);
+  }, [hasRemoteStream, roomToken, callDuration]);
 
   // WebRTC PeerConnection factory
   const getOrCreatePeerConnection = (stream: MediaStream): RTCPeerConnection => {
@@ -501,6 +568,19 @@ export default function VideoCall({
           setTimeout(() => {
             chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
           }, 50);
+        }
+      })
+      .on('broadcast', { event: 'timer-started' }, ({ payload }) => {
+        if (payload?.startedAt) {
+          const peerStart = Number(payload.startedAt);
+          if (!timerStartTimeRef.current || timerStartTimeRef.current > peerStart) {
+            timerStartTimeRef.current = peerStart;
+            try {
+              localStorage.setItem(`aida_lesson_started_${roomToken}`, String(peerStart));
+            } catch (_) {}
+            const elapsed = Math.max(0, Math.floor((Date.now() - peerStart) / 1000));
+            setCallDuration(elapsed);
+          }
         }
       })
       .on('broadcast', { event: 'lesson-ended' }, ({ payload }) => {
@@ -1015,14 +1095,22 @@ export default function VideoCall({
 
   const handleEnd = () => {
     if (confirm('Завершить урок? Будет зафиксировано время и открыто окно для отправки домашнего задания.')) {
+      const finalDuration = timerStartTimeRef.current
+        ? Math.max(callDuration, Math.floor((Date.now() - timerStartTimeRef.current) / 1000))
+        : callDuration;
+
+      try {
+        localStorage.removeItem(`aida_lesson_started_${roomToken}`);
+      } catch (_) {}
+
       if (channelRef.current) {
         channelRef.current.send({
           type: 'broadcast',
           event: 'lesson-ended',
-          payload: { durationSec: callDuration },
+          payload: { durationSec: finalDuration },
         });
       }
-      if (onEndLesson) onEndLesson(callDuration);
+      if (onEndLesson) onEndLesson(finalDuration);
     }
   };
 
@@ -1158,7 +1246,7 @@ export default function VideoCall({
           {/* Time Pill */}
           <div className="absolute bottom-1.5 left-1.5 sm:bottom-2 sm:left-2 flex items-center gap-1 bg-black/60 backdrop-blur-md text-white px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-bold shadow-xs z-20">
             <span className={`w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full ${hasRemoteStream ? 'bg-[#5C8519] animate-pulse' : 'bg-amber-400'}`} />
-            <span>{hasRemoteStream ? formatTime(callDuration) : '00:00 (Ожидание)'}</span>
+            <span>{hasRemoteStream || callDuration > 0 ? formatTime(callDuration) : '00:00 (Ожидание)'}</span>
           </div>
 
           {/* Remote Peer name badge in PiP — strictly the other person */}
@@ -1188,7 +1276,9 @@ export default function VideoCall({
               } shrink-0`}
             />
             <span className="font-mono font-black shrink-0">
-              {hasRemoteStream ? formatTime(callDuration) : '00:00 (Ожидание)'}
+              {hasRemoteStream || callDuration > 0
+                ? formatTime(callDuration)
+                : '00:00 (Ожидание)'}
             </span>
             <span className="text-[#EADBCC] shrink-0">|</span>
             <span className="text-[#6B758E] font-bold truncate">

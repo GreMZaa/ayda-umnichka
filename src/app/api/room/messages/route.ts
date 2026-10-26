@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
 
     const { data: lesson, error } = await supabaseServer
       .from('lessons')
-      .select('id, room_token, teacher_summary')
+      .select('id, room_token, teacher_summary, started_at, ended_at, status, duration_minutes')
       .eq('room_token', roomToken)
       .maybeSingle();
 
@@ -23,18 +23,26 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ messages: [], error: error.message }, { status: 500 });
     }
 
-    if (!lesson || !lesson.teacher_summary) {
-      return NextResponse.json({ messages: [] });
+    if (!lesson) {
+      return NextResponse.json({ messages: [], startedAt: null });
     }
 
-    try {
-      const parsed = JSON.parse(lesson.teacher_summary);
-      const messages = Array.isArray(parsed?.messages) ? parsed.messages : [];
-      return NextResponse.json({ messages });
-    } catch {
-      // teacher_summary is raw text or not JSON
-      return NextResponse.json({ messages: [] });
+    let messages: any[] = [];
+    if (lesson.teacher_summary) {
+      try {
+        const parsed = JSON.parse(lesson.teacher_summary);
+        messages = Array.isArray(parsed?.messages) ? parsed.messages : [];
+      } catch {
+        messages = [];
+      }
     }
+
+    return NextResponse.json({
+      messages,
+      startedAt: lesson.started_at || null,
+      status: lesson.status || 'active',
+      durationMinutes: lesson.duration_minutes || 0,
+    });
   } catch (err: any) {
     console.error('Room messages GET error:', err);
     return NextResponse.json({ messages: [], error: err.message }, { status: 500 });
