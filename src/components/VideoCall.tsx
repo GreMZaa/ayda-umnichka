@@ -10,10 +10,8 @@ import {
   PhoneOff,
   Layout,
   Maximize2,
-  RefreshCw,
   ExternalLink,
   ArrowLeftRight,
-  Camera,
   Wifi,
   Users
 } from 'lucide-react';
@@ -62,8 +60,8 @@ export default function VideoCall({
   const resolvedParticipantName = cleanDisplayName(rawParticipant);
 
   const [micActive, setMicActive] = useState(true);
+  const [remoteMicActive, setRemoteMicActive] = useState(true);
   const [camActive, setCamActive] = useState(true);
-  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   const [isSwapped, setIsSwapped] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
@@ -78,6 +76,7 @@ export default function VideoCall({
   const pipVideoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
+  const remoteStreamRef = useRef<MediaStream | null>(null);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const channelRef = useRef<any>(null);
@@ -111,10 +110,19 @@ export default function VideoCall({
     // Handle remote tracks (audio & video from student or teacher)
     pc.ontrack = (event) => {
       console.log('[WebRTC] Received remote track:', event.track.kind);
-      const remoteStream = event.streams[0] || new MediaStream([event.track]);
+      if (!remoteStreamRef.current) {
+        remoteStreamRef.current = event.streams[0] || new MediaStream();
+      }
+      if (!remoteStreamRef.current.getTracks().some((t) => t.id === event.track.id)) {
+        remoteStreamRef.current.addTrack(event.track);
+      }
 
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = remoteStream;
+      if (event.track.kind === 'audio') {
+        event.track.enabled = remoteMicActive;
+      }
+
+      if (remoteVideoRef.current && remoteVideoRef.current.srcObject !== remoteStreamRef.current) {
+        remoteVideoRef.current.srcObject = remoteStreamRef.current;
         remoteVideoRef.current.play().catch(() => {});
       }
       setHasRemoteStream(true);
@@ -249,8 +257,8 @@ export default function VideoCall({
     }
   };
 
-  // Start local camera & microphone
-  const startCamera = async (mode: 'user' | 'environment') => {
+  // Start local camera & microphone (Selfie camera only)
+  const startCamera = async () => {
     try {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
@@ -258,7 +266,7 @@ export default function VideoCall({
 
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: mode,
+          facingMode: 'user',
           width: { ideal: 1280 },
           height: { ideal: 720 },
         },
@@ -267,6 +275,14 @@ export default function VideoCall({
           noiseSuppression: true,
           autoGainControl: true,
         },
+      });
+
+      // Preserve current microphone and camera states
+      stream.getAudioTracks().forEach((track) => {
+        track.enabled = micActive;
+      });
+      stream.getVideoTracks().forEach((track) => {
+        track.enabled = camActive;
       });
 
       streamRef.current = stream;
@@ -308,7 +324,7 @@ export default function VideoCall({
   useEffect(() => {
     if (!roomToken) return;
 
-    startCamera(facingMode);
+    startCamera();
 
     const cleanRoomId = roomToken.replace(/[^a-zA-Z0-9_-]/g, '_');
     const channel = supabase.channel(`webrtc_${cleanRoomId}`, {
@@ -350,6 +366,18 @@ export default function VideoCall({
           await handleRemoteIceCandidate(payload.candidate);
         }
       })
+      .on('broadcast', { event: 'peer-mic-change' }, ({ payload }) => {
+        if (payload?.senderId === myPeerIdRef.current) return;
+        if (typeof payload?.micActive === 'boolean') {
+          console.log('[WebRTC] Remote peer mic status changed:', payload.micActive);
+          setRemoteMicActive(payload.micActive);
+          if (remoteStreamRef.current) {
+            remoteStreamRef.current.getAudioTracks().forEach((track) => {
+              track.enabled = payload.micActive;
+            });
+          }
+        }
+      })
       .on('broadcast', { event: 'user-left' }, ({ payload }) => {
         if (payload?.senderId === myPeerIdRef.current) return;
         setHasRemoteStream(false);
@@ -389,6 +417,7 @@ export default function VideoCall({
       if (screenStreamRef.current) {
         screenStreamRef.current.getTracks().forEach((track) => track.stop());
       }
+      remoteStreamRef.current = null;
     };
   }, [roomToken, isTeacher]);
 
@@ -404,43 +433,72 @@ export default function VideoCall({
     }
   }, [isWhiteboardActive, camActive, isSwapped]);
 
-  // Flip front/back camera (phone & tablet)
-  const toggleCameraFacing = async () => {
-    const nextMode = facingMode === 'user' ? 'environment' : 'user';
-    setFacingMode(nextMode);
-    await startCamera(nextMode);
-  };
-
   // Native Picture-in-Picture (stays floating on top of all OS apps like in Telegram/VK)
   const togglePictureInPicture = async () => {
     try {
-      const activeVideo = remoteVideoRef.current || localVideoRef.current || pipVideoRef.current;
-      if (!activeVideo) return;
+      const activeVideo = ((hasRemoteStream ? remoteVideoRef.current : localVideoRef.current) || pipVideoRef.current) as any;
+      if (!activeVideo) {
+        alert('Камера еще подключается, попробуйте через секунду.');
+        return;
+      }
 
+      // 1. iOS Safari (WebKit Presentation Mode)
+      if (
+        typeof activeVideo.webkitSetPresentationMode === 'function' &&
+        activeVideo.webkitSupportsPresentationMode?.('picture-in-picture')
+      ) {
+        const isPiP = activeVideo.webkitPresentationMode === 'picture-in-picture';
+        const nextMode = isPiP ? 'inline' : 'picture-in-picture';
+        activeVideo.webkitSetPresentationMode(nextMode);
+        setIsPipActive(nextMode === 'picture-in-picture');
+        return;
+      }
+
+      // 2. Standard W3C Picture-in-Picture (Android Chrome, Desktop Chrome, Edge, Safari macOS)
       if (document.pictureInPictureElement) {
         await document.exitPictureInPicture();
         setIsPipActive(false);
-      } else if (document.pictureInPictureEnabled) {
+      } else if (typeof activeVideo.requestPictureInPicture === 'function') {
         await activeVideo.requestPictureInPicture();
         setIsPipActive(true);
+      } else {
+        alert('Режим «Картинка в картинке» не поддерживается этим браузером.');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.warn('Picture-in-Picture error:', err);
+      if (err?.name === 'NotAllowedError') {
+        alert('Нажмите кнопку еще раз для активации режима «Картинка в картинке».');
+      }
     }
   };
 
-  // Auto Picture-in-Picture when user minimizes tab or switches to another app
+  // Auto Picture-in-Picture when user minimizes tab, presses home or switches to another app
   useEffect(() => {
     const handleVisibilityChange = async () => {
       if (document.visibilityState === 'hidden') {
         try {
-          const activeVideo = remoteVideoRef.current || localVideoRef.current || pipVideoRef.current;
-          if (activeVideo && document.pictureInPictureEnabled && !document.pictureInPictureElement) {
+          const activeVideo = (hasRemoteStream ? remoteVideoRef.current : localVideoRef.current) as any;
+          if (!activeVideo) return;
+
+          // iOS WebKit
+          if (
+            typeof activeVideo.webkitSetPresentationMode === 'function' &&
+            activeVideo.webkitSupportsPresentationMode?.('picture-in-picture')
+          ) {
+            if (activeVideo.webkitPresentationMode !== 'picture-in-picture') {
+              activeVideo.webkitSetPresentationMode('picture-in-picture');
+              setIsPipActive(true);
+            }
+            return;
+          }
+
+          // Standard W3C
+          if (!document.pictureInPictureElement && typeof activeVideo.requestPictureInPicture === 'function') {
             await activeVideo.requestPictureInPicture();
             setIsPipActive(true);
           }
-        } catch {
-          // Ignore background auto-PiP gesture restriction
+        } catch (_) {
+          // Handled silently
         }
       }
     };
@@ -451,26 +509,44 @@ export default function VideoCall({
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     document.addEventListener('leavepictureinpicture', handleLeavePiP);
+    window.addEventListener('pagehide', handleVisibilityChange);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       document.removeEventListener('leavepictureinpicture', handleLeavePiP);
+      window.removeEventListener('pagehide', handleVisibilityChange);
     };
-  }, []);
+  }, [hasRemoteStream]);
 
-  // Screen sharing toggle with track replacement
+  // Screen sharing toggle with capability check and track replacement
   const toggleScreenShare = async () => {
     try {
       if (!isScreenSharing) {
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        if (
+          typeof navigator === 'undefined' ||
+          !navigator.mediaDevices ||
+          typeof navigator.mediaDevices.getDisplayMedia !== 'function'
+        ) {
+          alert('Демонстрация экрана доступна на компьютерах и ноутбуках (Chrome, Safari, Edge). На смартфонах используйте кнопку «Интерактивная доска».');
+          return;
+        }
+
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: false,
+        });
+
         screenStreamRef.current = screenStream;
         const screenTrack = screenStream.getVideoTracks()[0];
+        if (!screenTrack) return;
 
         // Replace track in peer connection
-        if (pcRef.current) {
+        if (pcRef.current && pcRef.current.signalingState !== 'closed') {
           const videoSender = pcRef.current.getSenders().find((s) => s.track?.kind === 'video');
           if (videoSender) {
             await videoSender.replaceTrack(screenTrack);
+          } else {
+            pcRef.current.addTrack(screenTrack, screenStream);
           }
         }
 
@@ -486,8 +562,11 @@ export default function VideoCall({
       } else {
         stopScreenSharing();
       }
-    } catch (err) {
-      console.warn('Screen share error:', err);
+    } catch (err: any) {
+      if (err?.name !== 'NotAllowedError') {
+        console.warn('Screen share error:', err);
+        alert('Не удалось запустить демонстрацию экрана. Проверьте разрешения в браузере.');
+      }
       setIsScreenSharing(false);
     }
   };
@@ -515,12 +594,36 @@ export default function VideoCall({
   };
 
   const toggleMic = () => {
+    const nextMicActive = !micActive;
+    setMicActive(nextMicActive);
+
+    // 1. Mute local media stream audio tracks
     if (streamRef.current) {
       streamRef.current.getAudioTracks().forEach((track) => {
-        track.enabled = !micActive;
+        track.enabled = nextMicActive;
       });
     }
-    setMicActive(!micActive);
+
+    // 2. Mute RTCPeerConnection audio senders directly
+    if (pcRef.current && pcRef.current.signalingState !== 'closed') {
+      pcRef.current.getSenders().forEach((sender) => {
+        if (sender.track && sender.track.kind === 'audio') {
+          sender.track.enabled = nextMicActive;
+        }
+      });
+    }
+
+    // 3. Broadcast status change to peer via signaling channel
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'peer-mic-change',
+        payload: {
+          senderId: myPeerIdRef.current,
+          micActive: nextMicActive,
+        },
+      });
+    }
   };
 
   const toggleCam = () => {
@@ -552,13 +655,6 @@ export default function VideoCall({
             <span className="truncate text-[#161F38] text-[11px]">{resolvedParticipantName}</span>
           </div>
           <div className="flex items-center gap-1 shrink-0">
-            <button
-              onClick={toggleCameraFacing}
-              className="p-1 hover:bg-[#FDEEDC] rounded-lg text-[#161F38]"
-              title="Переключить камеру (передняя/задняя)"
-            >
-              <RefreshCw className="w-3.5 h-3.5 text-coralAccent" />
-            </button>
             <button
               onClick={togglePictureInPicture}
               className="p-1 hover:bg-[#FDEEDC] rounded-lg text-[#161F38]"
@@ -595,7 +691,7 @@ export default function VideoCall({
               autoPlay
               playsInline
               muted
-              className={`w-full h-full object-cover ${facingMode === 'user' ? 'scale-x-[-1]' : ''}`}
+              className="w-full h-full object-cover scale-x-[-1]"
             />
           ) : (
             <div className="text-center p-3 text-white">
@@ -659,23 +755,12 @@ export default function VideoCall({
             <span className="hidden sm:inline">Поменять</span>
           </button>
 
-          {/* Camera Flip (Mobile / Front & Rear) */}
-          <button
-            type="button"
-            onClick={toggleCameraFacing}
-            className="p-1.5 sm:px-3 sm:py-1.5 bg-white/95 backdrop-blur-md border border-[#EADBCC] text-[#161F38] hover:border-coralAccent font-extrabold text-xs rounded-full shadow-xs transition-colors cursor-pointer active:scale-95 flex items-center gap-1.5"
-            title="Переключить камеру (селфи / основная)"
-          >
-            <RefreshCw className="w-3.5 h-3.5 text-coralAccent" />
-            <span className="hidden sm:inline">Камера: {facingMode === 'user' ? 'Передняя' : 'Задняя'}</span>
-          </button>
-
           {/* Picture in Picture Button (Float over all OS apps) */}
           <button
             type="button"
             onClick={togglePictureInPicture}
             className="p-1.5 sm:px-3 sm:py-1.5 bg-white/95 backdrop-blur-md border border-[#EADBCC] text-[#161F38] hover:border-coralAccent font-extrabold text-xs rounded-full shadow-xs transition-colors cursor-pointer active:scale-95 flex items-center gap-1.5"
-            title="Окно поверх всех приложений (как в Telegram/VK)"
+            title="Окно поверх всех приложений при выходе на рабочий стол (как в Telegram/VK)"
           >
             <ExternalLink className="w-3.5 h-3.5 text-coralAccent" />
             <span className="hidden sm:inline">Поверх окон</span>
@@ -698,6 +783,9 @@ export default function VideoCall({
             ref={remoteVideoRef}
             autoPlay
             playsInline
+            controls={false}
+            autoPictureInPicture
+            {...({ 'webkit-playsinline': 'true' } as any)}
             className={`w-full h-full object-cover ${hasRemoteStream ? 'block' : 'hidden'}`}
           />
 
@@ -728,11 +816,17 @@ export default function VideoCall({
               <span className="w-2 h-2 rounded-full bg-[#5C8519] animate-pulse" />
               <span className="truncate max-w-[120px] sm:max-w-none">{resolvedParticipantName}</span>
               <span className="text-[9px] sm:text-[10px] text-[#A6E044] font-bold">• В эфире</span>
+              {!remoteMicActive && (
+                <span className="flex items-center gap-1 text-[9px] sm:text-[10px] text-rose-300 font-bold bg-rose-900/60 px-1.5 py-0.5 rounded-full ml-1">
+                  <MicOff className="w-2.5 h-2.5" />
+                  <span>Выкл.</span>
+                </span>
+              )}
             </div>
           )}
         </div>
 
-        {/* Tile 2: Local User Camera Stream (Muted to prevent echo) */}
+        {/* Tile 2: Local User Camera Stream (Muted to prevent echo, Selfie Front Camera) */}
         <div
           className={`relative rounded-2xl sm:rounded-3xl overflow-hidden bg-[#161F38] border-2 border-[#F2E3D5] flex items-center justify-center shadow-xs transition-all duration-200 min-h-[160px] h-full ${
             isSwapped ? 'order-1 md:order-1' : 'order-2 md:order-2'
@@ -744,9 +838,10 @@ export default function VideoCall({
               autoPlay
               playsInline
               muted
-              className={`w-full h-full object-cover ${
-                isScreenSharing ? '' : facingMode === 'user' ? 'scale-x-[-1]' : ''
-              }`}
+              controls={false}
+              autoPictureInPicture
+              {...({ 'webkit-playsinline': 'true' } as any)}
+              className={`w-full h-full object-cover ${isScreenSharing ? '' : 'scale-x-[-1]'}`}
             />
           ) : (
             <div className="text-center p-4 sm:p-6 text-white/70">
@@ -758,18 +853,12 @@ export default function VideoCall({
           {/* Local user badge: Correctly reflects teacher vs student */}
           <div className="absolute bottom-2.5 left-2.5 sm:bottom-3 sm:left-3 bg-black/60 backdrop-blur-md border border-white/20 px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-full text-white text-[10px] sm:text-xs font-black shadow-xs flex items-center gap-1.5">
             <span>Вы ({isTeacher ? 'Преподаватель' : 'Ученик'})</span>
-            {!micActive && <MicOff className="w-3 h-3 text-rose-400" />}
+            {!micActive && (
+              <span title="Микрофон выключен">
+                <MicOff className="w-3 h-3 text-rose-400" />
+              </span>
+            )}
           </div>
-
-          {/* Quick camera switch button inside local tile */}
-          <button
-            type="button"
-            onClick={toggleCameraFacing}
-            className="absolute top-2.5 right-2.5 sm:top-3 sm:right-3 bg-black/60 hover:bg-black/80 backdrop-blur-md text-white p-1.5 sm:p-2 rounded-xl transition-colors cursor-pointer"
-            title="Сменить камеру"
-          >
-            <Camera className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-coralAccent" />
-          </button>
         </div>
       </div>
 
