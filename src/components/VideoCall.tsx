@@ -11,12 +11,23 @@ import {
   Layout,
   Maximize2,
   ExternalLink,
-  ArrowLeftRight,
   Wifi,
-  Users
+  Users,
+  MessageSquare,
+  Send,
+  X
 } from 'lucide-react';
 import { formatTime } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
+
+interface ChatMessage {
+  id: string;
+  senderId: string;
+  senderName: string;
+  senderRole: 'teacher' | 'student';
+  text: string;
+  time: string;
+}
 
 interface VideoCallProps {
   roomToken: string;
@@ -62,11 +73,19 @@ export default function VideoCall({
   const [micActive, setMicActive] = useState(true);
   const [remoteMicActive, setRemoteMicActive] = useState(true);
   const [camActive, setCamActive] = useState(true);
+  const [remoteCamActive, setRemoteCamActive] = useState(true);
   const [isSwapped, setIsSwapped] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [isRemoteScreenSharing, setIsRemoteScreenSharing] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
   const [isPipActive, setIsPipActive] = useState(false);
+
+  // Lesson In-Call Chat states
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const chatBottomRef = useRef<HTMLDivElement | null>(null);
 
   // WebRTC P2P states
   const [hasRemoteStream, setHasRemoteStream] = useState(false);
@@ -86,13 +105,15 @@ export default function VideoCall({
     `peer_${isTeacher ? 'teacher' : 'student'}_${Math.random().toString(36).slice(2, 9)}`
   );
 
-  // Duration clock
+  // Duration clock — ONLY starts counting when both participants are connected in the room
   useEffect(() => {
+    if (!hasRemoteStream) return;
+
     const timer = setInterval(() => {
       setCallDuration((prev) => prev + 1);
     }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [hasRemoteStream]);
 
   // WebRTC PeerConnection factory
   const getOrCreatePeerConnection = (stream: MediaStream): RTCPeerConnection => {
@@ -386,6 +407,34 @@ export default function VideoCall({
           setIsRemoteScreenSharing(payload.isSharing);
         }
       })
+      .on('broadcast', { event: 'peer-cam-change' }, ({ payload }) => {
+        if (payload?.senderId === myPeerIdRef.current) return;
+        if (typeof payload?.camActive === 'boolean') {
+          console.log('[WebRTC] Remote peer camera status changed:', payload.camActive);
+          setRemoteCamActive(payload.camActive);
+        }
+      })
+      .on('broadcast', { event: 'chat-message' }, ({ payload }) => {
+        if (payload?.id && payload?.text) {
+          setChatMessages((prev) => [...prev, payload]);
+          setIsChatOpen((open) => {
+            if (!open) {
+              setUnreadChatCount((count) => count + 1);
+            }
+            return open;
+          });
+          setTimeout(() => {
+            chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+          }, 50);
+        }
+      })
+      .on('broadcast', { event: 'lesson-ended' }, ({ payload }) => {
+        if (!isTeacher) {
+          const durationMin = Math.round((payload?.durationSec || 0) / 60) || 1;
+          alert(`Преподаватель завершил урок! Длительность: ${durationMin} мин.`);
+          if (onEndLesson) onEndLesson(payload?.durationSec || 0);
+        }
+      })
       .on('broadcast', { event: 'user-left' }, ({ payload }) => {
         if (payload?.senderId === myPeerIdRef.current) return;
         setHasRemoteStream(false);
@@ -674,17 +723,106 @@ export default function VideoCall({
     }
   };
 
-  const toggleCam = () => {
-    if (streamRef.current) {
-      streamRef.current.getVideoTracks().forEach((track) => {
-        track.enabled = !camActive;
+  const toggleCam = async () => {
+    if (camActive) {
+      // 1. Fully stop camera tracks so hardware sensor and LED indicator shut off
+      if (streamRef.current) {
+        streamRef.current.getVideoTracks().forEach((track) => {
+          track.stop();
+        });
+      }
+      setCamActive(false);
+
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'peer-cam-change',
+          payload: { senderId: myPeerIdRef.current, camActive: false },
+        });
+      }
+    } else {
+      // 2. Re-acquire camera stream
+      try {
+        const newStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: 'user',
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+        });
+        const newVideoTrack = newStream.getVideoTracks()[0];
+        if (newVideoTrack && streamRef.current) {
+          // Remove old stopped tracks
+          streamRef.current.getVideoTracks().forEach((t) => streamRef.current?.removeTrack(t));
+          streamRef.current.addTrack(newVideoTrack);
+
+          if (localVideoRef.current) {
+            localVideoRef.current.srcObject = streamRef.current;
+          }
+
+          if (pcRef.current && pcRef.current.signalingState !== 'closed') {
+            const videoSender = pcRef.current.getSenders().find((s) => s.track?.kind === 'video');
+            if (videoSender) {
+              await videoSender.replaceTrack(newVideoTrack);
+            }
+          }
+        }
+        setCamActive(true);
+
+        if (channelRef.current) {
+          channelRef.current.send({
+            type: 'broadcast',
+            event: 'peer-cam-change',
+            payload: { senderId: myPeerIdRef.current, camActive: true },
+          });
+        }
+      } catch (err) {
+        console.warn('Failed to restart camera:', err);
+      }
+    }
+  };
+
+  const handleSendMessage = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const trimmed = chatInput.trim();
+    if (!trimmed) return;
+
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const msg: ChatMessage = {
+      id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      senderId: myPeerIdRef.current,
+      senderName: isTeacher ? 'Преподаватель' : 'Ученик',
+      senderRole: isTeacher ? 'teacher' : 'student',
+      text: trimmed,
+      time: timeStr,
+    };
+
+    setChatMessages((prev) => [...prev, msg]);
+    setChatInput('');
+
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'chat-message',
+        payload: msg,
       });
     }
-    setCamActive(!camActive);
+
+    setTimeout(() => {
+      chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 50);
   };
 
   const handleEnd = () => {
-    if (confirm('Вы уверены, что хотите завершить урок? Будет зафиксировано время и сохранен результат.')) {
+    if (confirm('Завершить урок? Будет зафиксировано время и открыто окно для отправки домашнего задания.')) {
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'lesson-ended',
+          payload: { durationSec: callDuration },
+        });
+      }
       if (onEndLesson) onEndLesson(callDuration);
     }
   };
@@ -768,13 +906,15 @@ export default function VideoCall({
     <div className="relative flex flex-col h-full bg-[#FFF8F1] rounded-2xl sm:rounded-[32px] overflow-hidden border border-[#F4E3D2] shadow-sm min-h-[460px]">
       {/* Header Info Bar */}
       <div className="absolute top-2.5 sm:top-3.5 left-2.5 sm:left-4 right-2.5 sm:right-4 z-20 flex items-center justify-between gap-1.5 sm:gap-2 pointer-events-none">
-        <div className="flex items-center gap-1.5 sm:gap-2 bg-white/95 backdrop-blur-md px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-full border border-[#EADBCC] text-[#161F38] text-[11px] sm:text-xs shadow-xs pointer-events-auto min-w-0 max-w-[55%] sm:max-w-none">
+        <div className="flex items-center gap-1.5 sm:gap-2 bg-white/95 backdrop-blur-md px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-full border border-[#EADBCC] text-[#161F38] text-[11px] sm:text-xs shadow-xs pointer-events-auto min-w-0 max-w-[65%] sm:max-w-none">
           <span
             className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full ${
               hasRemoteStream ? 'bg-[#5C8519] animate-pulse' : 'bg-amber-400 animate-ping'
             } shrink-0`}
           />
-          <span className="font-mono font-black shrink-0">{formatTime(callDuration)}</span>
+          <span className="font-mono font-black shrink-0">
+            {hasRemoteStream ? formatTime(callDuration) : '00:00 (Ожидание)'}
+          </span>
           <span className="text-[#EADBCC] shrink-0">|</span>
           <span className="text-[#6B758E] font-bold truncate">
             {topic || `Комната: ${roomToken}`}
@@ -786,23 +926,12 @@ export default function VideoCall({
             }`}
           >
             <Wifi className="w-3 h-3" />
-            <span>{hasRemoteStream ? 'Связь P2P' : 'Ожидание...'}</span>
+            <span>{hasRemoteStream ? 'Связь P2P' : 'Ожидание подключения...'}</span>
           </span>
         </div>
 
         {/* Action Controls in Top Right */}
         <div className="flex items-center gap-1 sm:gap-2 pointer-events-auto shrink-0">
-          {/* Swap Video View (Student <-> Teacher) */}
-          <button
-            type="button"
-            onClick={() => setIsSwapped(!isSwapped)}
-            className="p-1.5 sm:px-3 sm:py-1.5 bg-white/95 backdrop-blur-md border border-[#EADBCC] text-[#161F38] hover:border-coralAccent font-extrabold text-xs rounded-full shadow-xs transition-colors cursor-pointer active:scale-95 flex items-center gap-1.5"
-            title="Поменять камеры местами"
-          >
-            <ArrowLeftRight className="w-3.5 h-3.5 text-coralAccent" />
-            <span className="hidden sm:inline">Поменять</span>
-          </button>
-
           {/* Picture in Picture Button (Float over all OS apps) */}
           <button
             type="button"
@@ -820,11 +949,7 @@ export default function VideoCall({
       <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-4 p-2.5 sm:p-4 pt-12 sm:pt-14 pb-20 sm:pb-24 h-full min-h-0">
         {/* Tile 1: Remote Participant (Real Live Video & Audio Stream) */}
         <div
-          onClick={() => setIsSwapped(!isSwapped)}
-          className={`relative rounded-2xl sm:rounded-3xl overflow-hidden bg-[#161F38] border-2 border-[#F2E3D5] flex items-center justify-center shadow-xs transition-all duration-200 cursor-pointer min-h-[160px] h-full ${
-            isSwapped ? 'order-2 md:order-2' : 'order-1 md:order-1'
-          }`}
-          title="Нажмите, чтобы поменять местами"
+          className="relative rounded-2xl sm:rounded-3xl overflow-hidden bg-[#161F38] border-2 border-[#F2E3D5] flex items-center justify-center shadow-xs transition-all duration-200 min-h-[160px] h-full"
         >
           {/* Live Video from Remote Peer (unmuted so sound plays) */}
           <video
@@ -835,9 +960,20 @@ export default function VideoCall({
             autoPictureInPicture
             {...({ 'webkit-playsinline': 'true' } as any)}
             className={`w-full h-full ${isRemoteScreenSharing ? 'object-contain bg-black' : 'object-cover'} ${
-              hasRemoteStream ? 'block' : 'hidden'
+              hasRemoteStream && remoteCamActive ? 'block' : 'hidden'
             }`}
           />
+
+          {/* Placeholder when remote peer turned camera off */}
+          {hasRemoteStream && !remoteCamActive && (
+            <div className="absolute inset-0 bg-[#161F38] flex flex-col items-center justify-center p-4 text-center z-10">
+              <div className="w-16 h-16 rounded-2xl bg-white/10 flex items-center justify-center text-coralAccent text-2xl font-black mb-2 shadow-xs">
+                {resolvedParticipantName[0] || 'П'}
+              </div>
+              <p className="text-white text-xs font-black">{resolvedParticipantName}</p>
+              <p className="text-white/60 text-[10px] mt-0.5">Камера собеседника выключена</p>
+            </div>
+          )}
 
           {/* Waiting Placeholder when remote participant has not yet connected */}
           {!hasRemoteStream && (
@@ -880,9 +1016,7 @@ export default function VideoCall({
 
         {/* Tile 2: Local User Camera Stream (Muted to prevent echo, Selfie Front Camera) */}
         <div
-          className={`relative rounded-2xl sm:rounded-3xl overflow-hidden bg-[#161F38] border-2 border-[#F2E3D5] flex items-center justify-center shadow-xs transition-all duration-200 min-h-[160px] h-full ${
-            isSwapped ? 'order-1 md:order-1' : 'order-2 md:order-2'
-          }`}
+          className="relative rounded-2xl sm:rounded-3xl overflow-hidden bg-[#161F38] border-2 border-[#F2E3D5] flex items-center justify-center shadow-xs transition-all duration-200 min-h-[160px] h-full"
         >
           {camActive ? (
             <video
@@ -913,6 +1047,82 @@ export default function VideoCall({
           </div>
         </div>
       </div>
+
+      {/* Live In-Call Chat Drawer at the bottom */}
+      {isChatOpen && (
+        <div className="absolute bottom-16 sm:bottom-20 left-3 right-3 sm:left-auto sm:right-6 z-30 sm:w-96 bg-white/95 backdrop-blur-md rounded-2xl sm:rounded-3xl shadow-2xl border border-[#F2DECE] overflow-hidden flex flex-col h-72 sm:h-80 animate-in slide-in-from-bottom-2">
+          {/* Chat Header */}
+          <div className="p-3 bg-[#FFF7EE] border-b border-[#F4E3D2] flex items-center justify-between">
+            <div className="flex items-center gap-2 truncate">
+              <MessageSquare className="w-4 h-4 text-coralAccent shrink-0" />
+              <span className="text-xs font-black text-[#161F38]">Чат урока</span>
+              <span className="text-[10px] text-[#6B758E] font-medium truncate">({topic || 'Занятие'})</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsChatOpen(false)}
+              className="p-1 text-[#8A95A8] hover:text-[#161F38] rounded-lg transition-colors cursor-pointer shrink-0"
+              title="Свернуть чат"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Messages List */}
+          <div className="flex-1 p-3 overflow-y-auto space-y-2 text-xs">
+            {chatMessages.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-center text-[#8A95A8] p-4">
+                <MessageSquare className="w-8 h-8 opacity-40 mb-1" />
+                <p className="text-[11px] font-bold">Здесь можно обмениваться быстрыми сообщениями, текстом и ответами во время урока</p>
+              </div>
+            ) : (
+              chatMessages.map((msg) => {
+                const isMe = msg.senderId === myPeerIdRef.current;
+                return (
+                  <div
+                    key={msg.id}
+                    className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
+                  >
+                    <div className="flex items-center gap-1 text-[10px] text-[#8A95A8] mb-0.5">
+                      <span className="font-bold">{isMe ? 'Вы' : msg.senderName}</span>
+                      <span>• {msg.time}</span>
+                    </div>
+                    <div
+                      className={`px-3 py-1.5 rounded-2xl max-w-[85%] break-words ${
+                        isMe
+                          ? 'bg-coralAccent text-white rounded-br-xs'
+                          : 'bg-[#FFF2E6] text-[#161F38] border border-[#FCDDC7] rounded-bl-xs'
+                      }`}
+                    >
+                      {msg.text}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+            <div ref={chatBottomRef} />
+          </div>
+
+          {/* Chat Input Bar */}
+          <form onSubmit={handleSendMessage} className="p-2.5 bg-white border-t border-[#F2DECE] flex items-center gap-1.5">
+            <input
+              type="text"
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              placeholder="Напишите сообщение..."
+              className="flex-1 bg-[#FFF8F1] border border-[#EADBCC] focus:border-coralAccent rounded-full px-3.5 py-1.5 text-xs text-[#161F38] outline-none"
+            />
+            <button
+              type="submit"
+              disabled={!chatInput.trim()}
+              className="bg-coralAccent hover:bg-coralAccent-hover disabled:opacity-40 text-white p-2 rounded-full transition-transform active:scale-95 cursor-pointer shadow-2xs shrink-0"
+              title="Отправить"
+            >
+              <Send className="w-3.5 h-3.5" />
+            </button>
+          </form>
+        </div>
+      )}
 
       {/* Bottom Floating Control Bar */}
       <div className="absolute bottom-2 sm:bottom-3.5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 sm:gap-2.5 bg-white/95 backdrop-blur-md px-3 sm:px-5 py-2 sm:py-2.5 rounded-full border border-[#EADBCC] shadow-xl max-w-[96%]">
@@ -979,16 +1189,41 @@ export default function VideoCall({
           </button>
         )}
 
-        {/* End Call */}
+        {/* Chat Toggle Button */}
         <button
           type="button"
-          onClick={handleEnd}
-          className="bg-coralAccent hover:bg-coralAccent-hover text-white rounded-full transition-transform active:scale-95 flex items-center gap-1.5 font-black text-xs px-3.5 sm:px-5 py-2 sm:py-2.5 shadow-xs cursor-pointer whitespace-nowrap shrink-0"
-          title="Завершить занятие"
+          onClick={() => {
+            setIsChatOpen(!isChatOpen);
+            setUnreadChatCount(0);
+          }}
+          className={`relative p-2 sm:px-3.5 sm:py-2.5 rounded-full transition-transform active:scale-95 cursor-pointer flex items-center gap-1.5 font-bold text-xs ${
+            isChatOpen
+              ? 'bg-coralAccent text-white shadow-2xs'
+              : 'bg-[#FFF7EE] hover:bg-[#FDEEDC] text-[#161F38]'
+          }`}
+          title="Чат урока"
         >
-          <PhoneOff className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-          <span>Завершить урок</span>
+          <MessageSquare className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+          <span className="hidden sm:inline">Чат</span>
+          {unreadChatCount > 0 && !isChatOpen && (
+            <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center animate-pulse">
+              {unreadChatCount}
+            </span>
+          )}
         </button>
+
+        {/* End Call — ONLY visible for teacher! */}
+        {isTeacher && (
+          <button
+            type="button"
+            onClick={handleEnd}
+            className="bg-coralAccent hover:bg-coralAccent-hover text-white rounded-full transition-transform active:scale-95 flex items-center gap-1.5 font-black text-xs px-3.5 sm:px-5 py-2 sm:py-2.5 shadow-xs cursor-pointer whitespace-nowrap shrink-0"
+            title="Завершить занятие"
+          >
+            <PhoneOff className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span>Завершить урок</span>
+          </button>
+        )}
       </div>
     </div>
   );
