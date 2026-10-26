@@ -224,7 +224,7 @@ export default function LessonRoomPage() {
       <div className={`w-full h-full relative overflow-hidden flex flex-col ${isPlatformMinimized ? 'bg-[#FFF7EE]' : 'bg-[#0A0E1A]'}`}>
         {/* Interactive Whiteboard Canvas */}
         <div className={`w-full h-full ${isWhiteboardActive && !isPlatformMinimized ? 'block' : 'hidden'}`}>
-          <Whiteboard roomId={roomId} onClose={() => setIsWhiteboardActive(false)} />
+          <Whiteboard roomId={roomId} isActive={isWhiteboardActive && !isPlatformMinimized} onClose={() => setIsWhiteboardActive(false)} />
         </div>
 
         {/* Minimized Platform View (Teacher / Student Cabinet) while call is running */}

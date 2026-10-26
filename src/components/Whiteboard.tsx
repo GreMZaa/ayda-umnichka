@@ -19,11 +19,18 @@ import {
 
 interface WhiteboardProps {
   roomId?: string;
+  isActive?: boolean;
   onSaveSnapshot?: (dataUrl: string) => void;
   onClose?: () => void;
 }
 
-export default function Whiteboard({ roomId, onSaveSnapshot, onClose }: WhiteboardProps) {
+// Fixed logical coordinate space ensures 100% pixel-perfect synchronization
+// across all devices, aspect ratios, viewports, and orientations.
+const BOARD_WIDTH = 2400;
+const BOARD_HEIGHT = 1800;
+const BASE_LINE_SCALE = 3.5;
+
+export default function Whiteboard({ roomId, isActive, onSaveSnapshot, onClose }: WhiteboardProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -62,30 +69,29 @@ export default function Whiteboard({ roomId, onSaveSnapshot, onClose }: Whiteboa
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const w = canvas.width;
-    const h = canvas.height;
-
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
+    const baseWidth = Math.max(1, payload.lineWidth * BOARD_WIDTH);
+
     if (payload.tool === 'highlighter') {
       ctx.strokeStyle = payload.color;
       ctx.globalAlpha = 0.35;
-      ctx.lineWidth = Math.max(1, payload.lineWidth * w * 2.5);
+      ctx.lineWidth = baseWidth * 2.5;
     } else if (payload.tool === 'eraser') {
       ctx.strokeStyle = '#ffffff';
       ctx.globalAlpha = 1.0;
-      ctx.lineWidth = Math.max(1, payload.lineWidth * w * 3);
+      ctx.lineWidth = baseWidth * 3;
     } else {
       ctx.strokeStyle = payload.color;
       ctx.globalAlpha = 1.0;
-      ctx.lineWidth = Math.max(1, payload.lineWidth * w);
+      ctx.lineWidth = baseWidth;
     }
 
     ctx.beginPath();
-    ctx.moveTo(payload.x1 * w, payload.y1 * h);
-    ctx.lineTo(payload.x2 * w, payload.y2 * h);
+    ctx.moveTo(payload.x1 * BOARD_WIDTH, payload.y1 * BOARD_HEIGHT);
+    ctx.lineTo(payload.x2 * BOARD_WIDTH, payload.y2 * BOARD_HEIGHT);
     ctx.stroke();
     ctx.restore();
   };
@@ -104,21 +110,18 @@ export default function Whiteboard({ roomId, onSaveSnapshot, onClose }: Whiteboa
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const w = canvas.width;
-    const h = canvas.height;
-
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.strokeStyle = payload.color;
     ctx.globalAlpha = 1.0;
-    ctx.lineWidth = Math.max(1, payload.lineWidth * w);
+    ctx.lineWidth = Math.max(1, payload.lineWidth * BOARD_WIDTH);
     ctx.beginPath();
 
-    const sx = payload.startX * w;
-    const sy = payload.startY * h;
-    const ex = payload.endX * w;
-    const ey = payload.endY * h;
+    const sx = payload.startX * BOARD_WIDTH;
+    const sy = payload.startY * BOARD_HEIGHT;
+    const ex = payload.endX * BOARD_WIDTH;
+    const ey = payload.endY * BOARD_HEIGHT;
 
     if (payload.tool === 'line') {
       ctx.moveTo(sx, sy);
@@ -127,7 +130,7 @@ export default function Whiteboard({ roomId, onSaveSnapshot, onClose }: Whiteboa
     } else if (payload.tool === 'rect') {
       ctx.strokeRect(sx, sy, ex - sx, ey - sy);
     } else if (payload.tool === 'circle') {
-      const radius = Math.sqrt(Math.pow(ex - sx, 2) + Math.pow(ey - sy, 2));
+      const radius = Math.hypot(ex - sx, ey - sy);
       ctx.arc(sx, sy, radius, 0, 2 * Math.PI);
       ctx.stroke();
     }
@@ -140,9 +143,10 @@ export default function Whiteboard({ roomId, onSaveSnapshot, onClose }: Whiteboa
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT);
   };
 
+  // Broadcast channel setup
   useEffect(() => {
     if (!roomId) return;
     const cleanRoomId = roomId.trim().toLowerCase();
@@ -180,7 +184,7 @@ export default function Whiteboard({ roomId, onSaveSnapshot, onClose }: Whiteboa
             const canvas = canvasRef.current;
             const ctx = canvas?.getContext('2d');
             if (canvas && ctx) {
-              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              ctx.drawImage(img, 0, 0, BOARD_WIDTH, BOARD_HEIGHT);
             }
           };
           img.src = payload.dataUrl;
@@ -207,84 +211,45 @@ export default function Whiteboard({ roomId, onSaveSnapshot, onClose }: Whiteboa
     };
   }, [roomId]);
 
-  // Resize canvas to match actual container dimensions with high fidelity
+  // Request latest state whenever whiteboard tab becomes visible/active
+  useEffect(() => {
+    if (isActive && channelRef.current) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'whiteboard-action',
+        payload: {
+          senderId: myPeerIdRef.current,
+          type: 'request-state',
+        },
+      });
+    }
+  }, [isActive]);
+
+  // Initialize white canvas background once on mount
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const resizeCanvas = () => {
-      const container = containerRef.current;
-      if (!container) return;
-      const rect = container.getBoundingClientRect();
-      if (rect.width > 0 && rect.height > 0) {
-        const targetWidth = Math.round(rect.width);
-        const targetHeight = Math.round(rect.height);
-
-        // Only resize if dimensions have meaningfully changed
-        if (canvas.width === targetWidth && canvas.height === targetHeight) {
-          return;
-        }
-
-        // Backup existing drawing
-        let prevCanvas: HTMLCanvasElement | null = null;
-        if (canvas.width > 0 && canvas.height > 0) {
-          prevCanvas = document.createElement('canvas');
-          prevCanvas.width = canvas.width;
-          prevCanvas.height = canvas.height;
-          const prevCtx = prevCanvas.getContext('2d');
-          if (prevCtx) {
-            prevCtx.drawImage(canvas, 0, 0);
-          }
-        }
-
-        canvas.width = targetWidth;
-        canvas.height = targetHeight;
-
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        if (prevCanvas && prevCanvas.width > 0 && prevCanvas.height > 0) {
-          ctx.drawImage(prevCanvas, 0, 0);
-        }
-      }
-    };
-
-    // Run immediately
-    resizeCanvas();
-
-    // ResizeObserver watches container visibility changes (e.g. switching tabs from video to whiteboard)
-    let ro: ResizeObserver | null = null;
-    if (typeof ResizeObserver !== 'undefined' && containerRef.current) {
-      ro = new ResizeObserver(() => {
-        resizeCanvas();
-      });
-      ro.observe(containerRef.current);
-    }
-
-    window.addEventListener('resize', resizeCanvas);
-    return () => {
-      if (ro) ro.disconnect();
-      window.removeEventListener('resize', resizeCanvas);
-    };
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT);
   }, []);
 
-  // Compute exact pixel coordinate on the canvas bitmap regardless of screen scale, zoom, or pan
+  // Compute exact pixel coordinate on the virtual 2400x1800 canvas bitmap regardless of screen scale, zoom, or pan
   const getCoordinates = (clientX: number, clientY: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
     if (!rect.width || !rect.height) return { x: 0, y: 0 };
 
-    // Ratio between canvas bitmap pixels and rendered bounding client rect
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
+    const scaleX = BOARD_WIDTH / rect.width;
+    const scaleY = BOARD_HEIGHT / rect.height;
 
-    return {
-      x: (clientX - rect.left) * scaleX,
-      y: (clientY - rect.top) * scaleY,
-    };
+    const x = Math.min(Math.max(0, (clientX - rect.left) * scaleX), BOARD_WIDTH);
+    const y = Math.min(Math.max(0, (clientY - rect.top) * scaleY), BOARD_HEIGHT);
+
+    return { x, y };
   };
 
   const startDrawingAt = (x: number, y: number) => {
@@ -297,7 +262,7 @@ export default function Whiteboard({ roomId, onSaveSnapshot, onClose }: Whiteboa
     lastDrawnPosRef.current = { x, y };
 
     if (['line', 'rect', 'circle'].includes(tool)) {
-      setSavedImageData(ctx.getImageData(0, 0, canvas.width, canvas.height));
+      setSavedImageData(ctx.getImageData(0, 0, BOARD_WIDTH, BOARD_HEIGHT));
     } else {
       ctx.beginPath();
       ctx.moveTo(x, y);
@@ -310,7 +275,9 @@ export default function Whiteboard({ roomId, onSaveSnapshot, onClose }: Whiteboa
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx) return;
 
-    ctx.lineWidth = lineWidth;
+    const strokeSize = lineWidth * BASE_LINE_SCALE;
+
+    ctx.lineWidth = strokeSize;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
@@ -322,34 +289,32 @@ export default function Whiteboard({ roomId, onSaveSnapshot, onClose }: Whiteboa
     } else if (tool === 'highlighter') {
       ctx.strokeStyle = color;
       ctx.globalAlpha = 0.35;
-      ctx.lineWidth = lineWidth * 2.5;
+      ctx.lineWidth = strokeSize * 2.5;
       ctx.lineTo(x, y);
       ctx.stroke();
     } else if (tool === 'eraser') {
       ctx.strokeStyle = '#ffffff';
       ctx.globalAlpha = 1.0;
-      ctx.lineWidth = lineWidth * 3;
+      ctx.lineWidth = strokeSize * 3;
       ctx.lineTo(x, y);
       ctx.stroke();
     }
 
     if (['pen', 'highlighter', 'eraser'].includes(tool)) {
       if (lastDrawnPosRef.current && channelRef.current) {
-        const w = canvas.width || 1;
-        const h = canvas.height || 1;
         channelRef.current.send({
           type: 'broadcast',
           event: 'whiteboard-action',
           payload: {
             senderId: myPeerIdRef.current,
             type: 'segment',
-            x1: lastDrawnPosRef.current.x / w,
-            y1: lastDrawnPosRef.current.y / h,
-            x2: x / w,
-            y2: y / h,
+            x1: lastDrawnPosRef.current.x / BOARD_WIDTH,
+            y1: lastDrawnPosRef.current.y / BOARD_HEIGHT,
+            x2: x / BOARD_WIDTH,
+            y2: y / BOARD_HEIGHT,
             tool,
             color,
-            lineWidth: lineWidth / w,
+            lineWidth: (lineWidth * BASE_LINE_SCALE) / BOARD_WIDTH,
           },
         });
       }
@@ -359,6 +324,7 @@ export default function Whiteboard({ roomId, onSaveSnapshot, onClose }: Whiteboa
       ctx.putImageData(savedImageData, 0, 0);
       ctx.strokeStyle = color;
       ctx.globalAlpha = 1.0;
+      ctx.lineWidth = strokeSize;
       ctx.beginPath();
 
       if (tool === 'line') {
@@ -368,7 +334,7 @@ export default function Whiteboard({ roomId, onSaveSnapshot, onClose }: Whiteboa
       } else if (tool === 'rect') {
         ctx.strokeRect(startPos.x, startPos.y, x - startPos.x, y - startPos.y);
       } else if (tool === 'circle') {
-        const radius = Math.sqrt(Math.pow(x - startPos.x, 2) + Math.pow(y - startPos.y, 2));
+        const radius = Math.hypot(x - startPos.x, y - startPos.y);
         ctx.arc(startPos.x, startPos.y, radius, 0, 2 * Math.PI);
         ctx.stroke();
       }
@@ -377,26 +343,21 @@ export default function Whiteboard({ roomId, onSaveSnapshot, onClose }: Whiteboa
 
   const stopDraw = () => {
     if (isDrawing && ['line', 'rect', 'circle'].includes(tool) && startPos && lastDrawnPosRef.current && channelRef.current) {
-      const canvas = canvasRef.current;
-      if (canvas) {
-        const w = canvas.width || 1;
-        const h = canvas.height || 1;
-        channelRef.current.send({
-          type: 'broadcast',
-          event: 'whiteboard-action',
-          payload: {
-            senderId: myPeerIdRef.current,
-            type: 'shape',
-            tool,
-            color,
-            lineWidth: lineWidth / w,
-            startX: startPos.x / w,
-            startY: startPos.y / h,
-            endX: lastDrawnPosRef.current.x / w,
-            endY: lastDrawnPosRef.current.y / h,
-          },
-        });
-      }
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'whiteboard-action',
+        payload: {
+          senderId: myPeerIdRef.current,
+          type: 'shape',
+          tool,
+          color,
+          lineWidth: (lineWidth * BASE_LINE_SCALE) / BOARD_WIDTH,
+          startX: startPos.x / BOARD_WIDTH,
+          startY: startPos.y / BOARD_HEIGHT,
+          endX: lastDrawnPosRef.current.x / BOARD_WIDTH,
+          endY: lastDrawnPosRef.current.y / BOARD_HEIGHT,
+        },
+      });
     }
     setIsDrawing(false);
     setStartPos(null);
@@ -519,7 +480,7 @@ export default function Whiteboard({ roomId, onSaveSnapshot, onClose }: Whiteboa
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx) return;
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT);
 
     if (channelRef.current) {
       channelRef.current.send({
@@ -726,7 +687,7 @@ export default function Whiteboard({ roomId, onSaveSnapshot, onClose }: Whiteboa
       {/* Canvas Area with full mouse & touch drawing support + Pinch-to-Zoom & Pan */}
       <div
         ref={containerRef}
-        className="relative flex-1 bg-[#FAF6F2] cursor-crosshair overflow-hidden min-h-[350px] touch-none select-none"
+        className="relative flex-1 bg-[#FAF6F2] cursor-crosshair overflow-hidden min-h-[350px] touch-none select-none flex items-center justify-center p-2 sm:p-4"
       >
         {/* Floating Zoom & Pan Control Pill */}
         <div className="absolute top-2.5 right-2.5 z-20 flex items-center gap-1 bg-white/95 backdrop-blur-md px-2 py-1 rounded-full border border-[#EADBCC] shadow-sm select-none">
@@ -770,15 +731,20 @@ export default function Whiteboard({ roomId, onSaveSnapshot, onClose }: Whiteboa
         <div
           style={{
             transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-            transformOrigin: '0 0',
-            width: '100%',
-            height: '100%',
+            transformOrigin: 'center center',
             transition: isPinchingRef.current ? 'none' : 'transform 100ms ease-out',
           }}
-          className="relative w-full h-full"
+          className="w-full h-full flex items-center justify-center pointer-events-auto"
         >
           <canvas
             ref={canvasRef}
+            width={BOARD_WIDTH}
+            height={BOARD_HEIGHT}
+            style={{
+              maxWidth: '100%',
+              maxHeight: '100%',
+              aspectRatio: '4 / 3',
+            }}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={stopDraw}
@@ -787,11 +753,9 @@ export default function Whiteboard({ roomId, onSaveSnapshot, onClose }: Whiteboa
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
             onTouchCancel={handleTouchEnd}
-            className="w-full h-full bg-white shadow-2xs touch-none select-none block"
+            className="bg-white rounded-xl shadow-md border border-[#EADBCC] block touch-none select-none cursor-crosshair"
           />
         </div>
-
-
       </div>
     </div>
   );
