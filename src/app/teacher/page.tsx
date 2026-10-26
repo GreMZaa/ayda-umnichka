@@ -560,9 +560,9 @@ export default function TeacherDashboard() {
       </div>
 
       {/* 2-Column Dashboard Grid: Left (Schedule & Lessons) | Right (Assigned Students & Homework) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 items-stretch">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 items-start">
         {/* Left Column: Schedule & Lesson History */}
-        <div className="w-full h-[620px] flex flex-col">
+        <div className="w-full">
           <LessonsScheduleHistory
             role="teacher"
             onStartLesson={(token, topic) => {
@@ -573,10 +573,10 @@ export default function TeacherDashboard() {
         </div>
 
         {/* Right Column: Assigned Students with Homework Accordion */}
-        <div className="w-full h-[620px] flex flex-col">
+        <div className="w-full">
           {/* Assigned Students List — Emerald Growth Accent */}
-          <div className="bg-white rounded-3xl p-4 sm:p-5 border-t-4 border-t-[#5C8519] border-x border-b border-[#D8E6C3] shadow-xs flex flex-col justify-between h-full space-y-3.5 hover:shadow-sm transition-shadow">
-            <div className="flex-1 min-h-0 flex flex-col space-y-3">
+          <div className="bg-white rounded-3xl p-4 sm:p-5 border-t-4 border-t-[#5C8519] border-x border-b border-[#D8E6C3] shadow-xs space-y-3.5 hover:shadow-sm transition-shadow">
+            <div className="space-y-3">
               <div className="shrink-0 flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-xl bg-[#EAF7CF] text-[#5C8519] border border-[#CCE8A2] flex items-center justify-center shrink-0 shadow-2xs">

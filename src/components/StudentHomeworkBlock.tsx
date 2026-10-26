@@ -24,7 +24,8 @@ import {
   RefreshCw,
   MessageCircle,
   FileCheck,
-  Check
+  Check,
+  Volume2
 } from 'lucide-react';
 import VoiceRecorder from '@/components/VoiceRecorder';
 import { HomeworkItem } from '@/types';
@@ -47,7 +48,12 @@ export default function StudentHomeworkBlock({
   // Active submission editing per homework ID
   const [openSubmitId, setOpenSubmitId] = useState<string | null>(null);
   const [solutionText, setSolutionText] = useState('');
-  const [solutionFile, setSolutionFile] = useState<{ url: string; name: string; isImage?: boolean } | null>(null);
+  const [solutionFile, setSolutionFile] = useState<{
+    url: string;
+    name: string;
+    isImage?: boolean;
+    isAudio?: boolean;
+  } | null>(null);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isVoiceMode, setIsVoiceMode] = useState(false);
@@ -69,10 +75,14 @@ export default function StudentHomeworkBlock({
     setOpenSubmitId(hw.id);
     setSolutionText(hw.studentSolutionText || '');
     if (hw.studentSolutionFileUrl) {
+      const isAud =
+        /\.(mp3|wav|ogg|webm|m4a|aac)($|\?)/i.test(hw.studentSolutionFileUrl) ||
+        Boolean(hw.studentSolutionText?.includes('Аудиоответ'));
       setSolutionFile({
         url: hw.studentSolutionFileUrl,
-        name: 'Ранее прикрепленный файл',
-        isImage: /\.(png|jpe?g|webp|gif)($|\?)/i.test(hw.studentSolutionFileUrl),
+        name: isAud ? 'Ранее прикрепленная аудиозапись' : 'Ранее прикрепленный файл',
+        isImage: !isAud && /\.(png|jpe?g|webp|gif)($|\?)/i.test(hw.studentSolutionFileUrl),
+        isAudio: isAud,
       });
     } else {
       setSolutionFile(null);
@@ -108,10 +118,17 @@ export default function StudentHomeworkBlock({
       const data = await res.json();
 
       if (data.success && data.url) {
+        const isAud = Boolean(
+          file.type.startsWith('audio/') ||
+          /\.(mp3|wav|ogg|m4a|webm|aac)($|\?)/i.test(file.name)
+        );
+        const isImg = Boolean(data.isImage || file.type.startsWith('image/'));
+
         setSolutionFile({
           url: data.url,
           name: data.name || file.name,
-          isImage: Boolean(data.isImage || file.type.startsWith('image/')),
+          isImage: isImg,
+          isAudio: isAud,
         });
       } else {
         alert(data.error || 'Ошибка загрузки файла');
@@ -129,10 +146,12 @@ export default function StudentHomeworkBlock({
     setIsSubmitting(true);
     try {
       let finalSolutionText = solutionText.trim();
-      let finalFileUrl = solutionFile?.url || voiceUrl || null;
+      let finalFileUrl = voiceUrl || solutionFile?.url || null;
 
       if (voiceDurationSec) {
         finalSolutionText = `Аудиоответ (${voiceDurationSec} сек.)${finalSolutionText ? `: ${finalSolutionText}` : ''}`;
+      } else if (solutionFile?.isAudio && !finalSolutionText.includes('Аудиоответ')) {
+        finalSolutionText = `Аудиоответ${finalSolutionText ? `: ${finalSolutionText}` : ''}`;
       }
 
       if (!finalSolutionText && !finalFileUrl) {
@@ -565,7 +584,7 @@ export default function StudentHomeworkBlock({
                           type="file"
                           ref={fileInputRef}
                           onChange={handleFileUpload}
-                          accept="image/*,.pdf,.doc,.docx,.txt"
+                          accept="image/*,audio/*,.pdf,.doc,.docx,.txt,.mp3,.wav,.m4a,.ogg,.webm"
                           className="hidden"
                         />
 
@@ -586,37 +605,51 @@ export default function StudentHomeworkBlock({
                           />
                         </div>
 
-                        {/* Attachment Area: File / Photo */}
+                        {/* Attachment Area: File / Photo / Audio */}
                         <div className="space-y-2">
                           <label className="text-[11px] font-bold text-[#161F38] block">
-                            2. Прикрепить фото тетради или документ:
+                            2. Прикрепить фото тетради, аудиозапись или файл:
                           </label>
 
                           {solutionFile ? (
-                            <div className="flex items-center justify-between gap-2 p-2.5 bg-white border border-[#CCE8A2] rounded-xl shadow-2xs">
-                              <div className="flex items-center gap-2 min-w-0">
-                                {solutionFile.isImage ? (
-                                  <ImageIcon className="w-4 h-4 text-[#5C8519] shrink-0" />
-                                ) : (
-                                  <FileText className="w-4 h-4 text-[#5C8519] shrink-0" />
-                                )}
-                                <div className="min-w-0 truncate">
-                                  <span className="text-xs font-bold text-[#161F38] truncate block">
-                                    {solutionFile.name}
-                                  </span>
-                                  <span className="text-[10px] text-[#5C8519] font-medium block">
-                                    ✓ Файл успешно прикреплен
-                                  </span>
+                            <div className="p-3 bg-white border border-[#CCE8A2] rounded-xl shadow-2xs space-y-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  {solutionFile.isAudio ? (
+                                    <Volume2 className="w-4 h-4 text-[#5C8519] shrink-0" />
+                                  ) : solutionFile.isImage ? (
+                                    <ImageIcon className="w-4 h-4 text-[#5C8519] shrink-0" />
+                                  ) : (
+                                    <FileText className="w-4 h-4 text-[#5C8519] shrink-0" />
+                                  )}
+                                  <div className="min-w-0 truncate">
+                                    <span className="text-xs font-bold text-[#161F38] truncate block">
+                                      {solutionFile.name}
+                                    </span>
+                                    <span className="text-[10px] text-[#5C8519] font-medium block">
+                                      {solutionFile.isAudio ? '✓ Аудиозапись решения прикреплена' : '✓ Файл успешно прикреплен'}
+                                    </span>
+                                  </div>
                                 </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setSolutionFile(null)}
+                                  className="text-[#8A95A8] hover:text-rose-600 p-1 rounded-lg transition-colors cursor-pointer"
+                                  title="Удалить прикрепленный файл"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => setSolutionFile(null)}
-                                className="text-[#8A95A8] hover:text-rose-600 p-1 rounded-lg transition-colors"
-                                title="Удалить файл"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
+
+                              {solutionFile.isAudio && (
+                                <div className="pt-1">
+                                  <audio
+                                    controls
+                                    src={solutionFile.url}
+                                    className="w-full h-8"
+                                  />
+                                </div>
+                              )}
                             </div>
                           ) : (
                             <button
@@ -633,7 +666,7 @@ export default function StudentHomeworkBlock({
                               ) : (
                                 <>
                                   <Upload className="w-4 h-4 text-coralAccent" />
-                                  <span>Нажмите, чтобы прикрепить фото тетради или файл (до 15 МБ)</span>
+                                  <span>Нажмите, чтобы прикрепить фото тетради, аудиозапись или файл (до 15 МБ)</span>
                                 </>
                               )}
                             </button>
@@ -649,26 +682,36 @@ export default function StudentHomeworkBlock({
                               className="inline-flex items-center gap-1.5 text-[11px] font-bold text-coralAccent hover:text-coralAccent-hover cursor-pointer"
                             >
                               <Mic className="w-3.5 h-3.5" />
-                              <span>Или прикрепить голосовой ответ (аудиозапись)</span>
+                              <span>
+                                {solutionFile?.isAudio
+                                  ? 'Записать заново голосовой ответ (микрофон)'
+                                  : 'Или прикрепить голосовой ответ (аудиозапись)'}
+                              </span>
                             </button>
                           ) : (
-                            <div className="space-y-1.5 p-3 bg-white border border-[#FCDDC7] rounded-xl">
+                            <div className="space-y-1.5 p-3 bg-white border border-[#FCDDC7] rounded-xl shadow-2xs animate-in fade-in">
                               <div className="flex items-center justify-between text-[11px] font-bold text-[#161F38]">
                                 <span className="flex items-center gap-1">
                                   <Mic className="w-3.5 h-3.5 text-coralAccent" />
-                                  Запись голосового ответа:
+                                  <span>Запись голосового ответа:</span>
                                 </span>
                                 <button
                                   type="button"
                                   onClick={() => setIsVoiceMode(false)}
-                                  className="text-[10px] text-[#8A95A8] hover:text-[#161F38]"
+                                  className="text-[10px] text-[#8A95A8] hover:text-[#161F38] cursor-pointer"
                                 >
                                   Скрыть
                                 </button>
                               </div>
                               <VoiceRecorder
-                                onSendVoice={(durationSec, blobUrl) => {
-                                  handleSendSolution(hw.id, durationSec, blobUrl);
+                                submitLabel="Прикрепить аудиозапись к ответу"
+                                onSendVoice={(durationSec, uploadedUrl) => {
+                                  setSolutionFile({
+                                    url: uploadedUrl,
+                                    name: `Голосовой ответ (${durationSec} сек.)`,
+                                    isAudio: true,
+                                  });
+                                  setIsVoiceMode(false);
                                 }}
                                 onCancel={() => setIsVoiceMode(false)}
                               />

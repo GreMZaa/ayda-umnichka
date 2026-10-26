@@ -348,8 +348,8 @@ export default function LessonsScheduleHistory({
   };
 
   return (
-    <div className="bg-white rounded-3xl p-4 sm:p-5 border-t-4 border-t-coralAccent border-x border-b border-[#F0DCCD] shadow-xs flex flex-col justify-between h-full space-y-3.5 hover:shadow-sm transition-shadow">
-      <div className="flex-1 min-h-0 flex flex-col space-y-3">
+    <div className="bg-white rounded-3xl p-4 sm:p-5 border-t-4 border-t-coralAccent border-x border-b border-[#F0DCCD] shadow-xs space-y-3.5 hover:shadow-sm transition-shadow">
+      <div className="space-y-3">
         {/* Header with Title and Tabs */}
         <div className="shrink-0 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5">
@@ -485,7 +485,7 @@ export default function LessonsScheduleHistory({
         )}
 
         {/* Content list & Pagination container */}
-        <div className="flex-1 min-h-0 flex flex-col justify-between">
+        <div className="space-y-3">
           {loading ? (
             <div className="p-6 text-center text-xs font-bold text-[#6B758E] flex items-center justify-center gap-2">
               <RefreshCw className="w-3.5 h-3.5 animate-spin text-coralAccent" />
@@ -504,8 +504,8 @@ export default function LessonsScheduleHistory({
                 </p>
               </div>
             ) : (
-              <div className="flex-1 min-h-0 flex flex-col justify-between">
-                <div className="space-y-2 overflow-y-auto pr-1">
+              <div className="space-y-2.5">
+                <div className="space-y-2 pr-1">
                   {paginatedUpcoming.map((l) => {
                     const elapsedSec = getLessonElapsedSeconds(l);
                     const isRoomActive = elapsedSec !== null;
@@ -648,8 +648,8 @@ export default function LessonsScheduleHistory({
                 </p>
               </div>
             ) : (
-              <div className="flex-1 min-h-0 flex flex-col justify-between">
-                <div className="space-y-2 overflow-y-auto pr-1">
+              <div className="space-y-2.5">
+                <div className="space-y-2 pr-1">
                   {paginatedHistory.map((l) => {
                     const passed = l.status === 'completed';
                     return (
