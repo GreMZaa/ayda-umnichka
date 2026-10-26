@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import LessonsScheduleHistory from '@/components/LessonsScheduleHistory';
 import StudentHomeworkBlock from '@/components/StudentHomeworkBlock';
+import BalanceWidget from '@/components/BalanceWidget';
 import { LessonSession, HomeworkItem } from '@/types';
 import {
   Video,
@@ -433,16 +434,28 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
         </div>
       )}
 
-      {/* 2. Schedule & Lesson History */}
-      <div className="w-full">
-        <LessonsScheduleHistory
-          role="student"
-          studentPublicId={currentId}
-          studentName={cleanStudentDisplayName}
-          onStartLesson={(token, topic) => {
-            router.push(`/room/${token}?role=student&topic=${encodeURIComponent(topic)}`);
-          }}
-        />
+      {/* 2. Main Student Dashboard: Left (Balance & Card Widget) | Right (Schedule & Lessons) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 items-start">
+        {/* Left Column: Balance & Subscription Card with Photo */}
+        <div className="lg:col-span-5 xl:col-span-5">
+          <BalanceWidget
+            balance={balance}
+            studentName={cleanStudentDisplayName}
+            studentPublicId={currentId}
+          />
+        </div>
+
+        {/* Right Column: Lessons Schedule & History */}
+        <div className="lg:col-span-7 xl:col-span-7">
+          <LessonsScheduleHistory
+            role="student"
+            studentPublicId={currentId}
+            studentName={cleanStudentDisplayName}
+            onStartLesson={(token, topic) => {
+              router.push(`/room/${token}?role=student&topic=${encodeURIComponent(topic)}`);
+            }}
+          />
+        </div>
       </div>
 
       {/* 3. Homeworks Block */}

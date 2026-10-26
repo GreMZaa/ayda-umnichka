@@ -2,108 +2,214 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Wifi, ArrowLeft, ArrowRight, Sparkles } from 'lucide-react';
+import Image from 'next/image';
+import {
+  Wifi,
+  Coins,
+  Sparkles,
+  ArrowRight,
+  ShieldCheck,
+  CheckCircle2,
+  Clock,
+  MessageCircle,
+  PlusCircle,
+  HelpCircle
+} from 'lucide-react';
 
 interface BalanceWidgetProps {
   balance: number;
   studentName?: string;
+  studentPublicId?: string;
   className?: string;
 }
 
 export default function BalanceWidget({
   balance = 0,
   studentName = 'Ученик',
+  studentPublicId = '',
   className = '',
 }: BalanceWidgetProps) {
   const maxLessons = 8;
   const progressPercent = Math.min(100, Math.max(0, (balance / maxLessons) * 100));
+  const isLowBalance = balance <= 1;
+
+  // Format card number with student ID suffix
+  const formattedId = studentPublicId
+    ? studentPublicId.replace(/[^0-9]/g, '').slice(-4) || '8745'
+    : '8745';
+
+  const getBalanceEnding = (count: number) => {
+    const mod10 = count % 10;
+    const mod100 = count % 100;
+    if (mod100 >= 11 && mod100 <= 19) return 'уроков';
+    if (mod10 === 1) return 'урок';
+    if (mod10 >= 2 && mod10 <= 4) return 'урока';
+    return 'уроков';
+  };
 
   return (
     <div
-      className={`bg-[#FFFBF7]/90 rounded-[32px] p-4 sm:p-5 border border-[#F2E0CE] shadow-sm flex flex-col sm:flex-row items-center gap-4 sm:gap-5 ${className}`}
+      className={`bg-white rounded-3xl p-4 sm:p-5 border border-[#F2E0CF] shadow-xs space-y-4 hover:shadow-sm transition-shadow ${className}`}
     >
-      {/* ─────────────────────────────────────────────────────────────
-          THE PASTEL PEACH CARD (Matching Reference Image 2)
-          ───────────────────────────────────────────────────────────── */}
-      <div className="w-full sm:w-56 h-32 sm:h-34 rounded-2xl bg-gradient-to-br from-[#FFE0CB] via-[#FFB894] to-[#FFA278] p-3.5 text-[#161F38] shadow-sm border border-white/70 flex flex-col justify-between relative overflow-hidden select-none shrink-0">
-        {/* Soft gloss highlight */}
-        <div className="absolute -top-12 -right-12 w-28 h-28 bg-white/25 rounded-full blur-xl pointer-events-none" />
+      {/* Widget Header */}
+      <div className="flex items-center justify-between gap-2 border-b border-[#F8EDE1] pb-3">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-[#FFF2E6] text-coralAccent border border-[#FCDDC7] flex items-center justify-center shrink-0 shadow-2xs">
+            <Coins className="w-4 h-4" />
+          </div>
+          <div>
+            <h3 className="font-black text-sm sm:text-base text-[#161F38] leading-tight">
+              Баланс и абонемент
+            </h3>
+            <p className="text-[11px] text-[#6B758E]">
+              Учет оплаченных занятий
+            </p>
+          </div>
+        </div>
 
-        {/* Card Top: Mastercard Circles & EMV Chip */}
+        <span className="inline-flex items-center gap-1.5 text-[10px] font-black bg-[#EAF7CF] text-[#5C8519] border border-[#D5ECA3] px-2.5 py-0.5 rounded-full">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#5C8519] animate-pulse" />
+          Активен
+        </span>
+      </div>
+
+      {/* ─────────────────────────────────────────────────────────────
+          THE STYLISH PASTEL PEACH STUDENT CARD WITH PHOTO
+          ───────────────────────────────────────────────────────────── */}
+      <div className="w-full h-44 sm:h-48 rounded-2xl bg-gradient-to-br from-[#FFE0CB] via-[#FFB894] to-[#FFA278] p-4 text-[#161F38] shadow-sm border border-white/80 flex flex-col justify-between relative overflow-hidden select-none">
+        {/* Soft gloss highlight */}
+        <div className="absolute -top-12 -right-12 w-32 h-32 bg-white/30 rounded-full blur-xl pointer-events-none" />
+        <div className="absolute -bottom-8 -left-8 w-28 h-28 bg-white/20 rounded-full blur-lg pointer-events-none" />
+
+        {/* Card Top: Brand / Mastercard Circles & EMV Chip */}
         <div className="flex items-center justify-between relative z-10">
-          <div className="flex items-center -space-x-2">
-            <div className="w-6 h-6 rounded-full bg-[#FA9669]/90 border border-white/60 shadow-xs" />
-            <div className="w-6 h-6 rounded-full bg-[#FFE8D6]/90 border border-white/60 shadow-xs" />
+          <div className="flex items-center gap-2">
+            <div className="flex items-center -space-x-2">
+              <div className="w-6 h-6 rounded-full bg-[#FA9669]/90 border border-white/70 shadow-xs" />
+              <div className="w-6 h-6 rounded-full bg-[#FFE8D6]/90 border border-white/70 shadow-xs" />
+            </div>
+            <span className="text-[11px] font-black tracking-tight text-[#161F38]/90">
+              АйДаУмничка
+            </span>
           </div>
 
           {/* Golden EMV Chip */}
-          <div className="w-7 h-5 rounded bg-[#F1A27A] border border-[#DC8253] flex items-center justify-center shadow-2xs">
-            <div className="w-4 h-3 border border-[#161F38]/25 rounded-sm" />
+          <div className="w-7 h-5 rounded-md bg-[#F1A27A] border border-[#DC8253] flex items-center justify-center shadow-2xs">
+            <div className="w-4 h-3 border border-[#161F38]/30 rounded-sm" />
           </div>
         </div>
 
         {/* Card Center: Card Number */}
-        <div className="font-mono text-xs sm:text-[13px] tracking-wider font-extrabold text-[#161F38]/95 relative z-10">
-          4149 7358 6754 8745
+        <div className="relative z-10 py-1">
+          <span className="text-[9px] uppercase tracking-widest text-[#161F38]/70 block font-bold">
+            Номер карты ученика
+          </span>
+          <div className="font-mono text-sm sm:text-base tracking-widest font-black text-[#161F38]/95 drop-shadow-2xs">
+            4149 •••• •••• {formattedId}
+          </div>
         </div>
 
-        {/* Card Bottom: Date & Contactless */}
-        <div className="flex items-end justify-between text-[10px] font-bold text-[#161F38]/85 relative z-10">
-          <div>
-            <span className="text-[8px] uppercase tracking-wider block opacity-70">Ученик</span>
-            <span className="truncate max-w-[110px] block font-extrabold">{studentName}</span>
+        {/* Card Bottom: Photo, Student Name, Validity & Contactless */}
+        <div className="flex items-end justify-between relative z-10 pt-1 border-t border-white/30">
+          <div className="flex items-center gap-2 min-w-0">
+            {/* Student Photo as requested ("фото как раньше у нас было") */}
+            <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-white shadow-2xs relative bg-white shrink-0">
+              <Image
+                src="/images/child-avatar.png"
+                alt={studentName}
+                width={32}
+                height={32}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  // Fallback if image not rendered
+                  (e.target as HTMLElement).style.display = 'none';
+                }}
+              />
+            </div>
+            <div className="min-w-0">
+              <span className="text-[8px] uppercase tracking-wider block opacity-75 font-bold">
+                Владелец абонемента
+              </span>
+              <span className="truncate max-w-[140px] block font-black text-xs text-[#161F38]">
+                {studentName}
+              </span>
+            </div>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span>07/26</span>
-            <Wifi className="w-3.5 h-3.5 rotate-90 text-[#161F38]/80" />
+
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="text-right">
+              <span className="text-[8px] uppercase tracking-wider block opacity-75 font-bold">
+                Срок
+              </span>
+              <span className="font-mono text-[11px] font-black text-[#161F38]">07/26</span>
+            </div>
+            <Wifi className="w-4 h-4 rotate-90 text-[#161F38]/85 shrink-0" />
           </div>
         </div>
       </div>
 
       {/* ─────────────────────────────────────────────────────────────
-          CARD RIGHT CONTENT (Title, Description & Slider)
+          BALANCE PROGRESS & DETAILS
           ───────────────────────────────────────────────────────────── */}
-      <div className="flex-1 min-w-0 space-y-2 w-full">
-        <div className="flex items-center justify-between">
-          <span className="text-[10px] font-black text-[#5C8519] uppercase tracking-widest bg-[#EEF8D5] px-2 py-0.5 rounded-full border border-[#DFEFC0]">
-            УРОК 1 • АБОНЕМЕНТ
-          </span>
-          <span className="text-[11px] font-extrabold text-coralAccent">
-            {balance} из {maxLessons} уроков
-          </span>
+      <div className="space-y-3 pt-1">
+        {/* Large Counter Row */}
+        <div className="p-3 bg-[#FFF8F1] border border-[#FCDDC7] rounded-2xl flex items-center justify-between gap-3">
+          <div>
+            <span className="text-[10px] font-black uppercase tracking-wider text-[#8A95A8] block">
+              Остаток на балансе:
+            </span>
+            <div className="flex items-baseline gap-1.5 mt-0.5">
+              <span className="text-2xl font-black text-[#5C8519] leading-none">
+                {balance}
+              </span>
+              <span className="text-xs font-black text-[#161F38]">
+                {getBalanceEnding(balance)}
+              </span>
+            </div>
+          </div>
+
+          <div className="text-right">
+            <span className="text-[10px] font-extrabold text-coralAccent bg-[#FFF2E6] border border-[#FCDDC7] px-2.5 py-1 rounded-full inline-block">
+              {balance} из {maxLessons} уроков
+            </span>
+          </div>
         </div>
 
-        <div>
-          <h4 className="text-sm sm:text-base font-black text-[#161F38] tracking-tight leading-snug">
-            Баланс занятий
-          </h4>
-          <p className="text-[11px] text-[#5A657C] leading-relaxed mt-0.5">
-            Индивидуальные уроки с логопедом в г. Тольятти. Автоматическое списание только после завершения занятия.
-          </p>
-        </div>
-
-        {/* The Exact Reference Slider: ← [ ===( • )=== ] → */}
-        <div className="pt-1 flex items-center gap-2">
-          <button
-            aria-label="Предыдущий урок"
-            className="w-5 h-5 rounded-full flex items-center justify-center text-[#161F38]/60 hover:text-[#161F38] hover:bg-[#FDEEDC] transition-colors duration-140 active:scale-90 cursor-pointer"
-          >
-            <ArrowLeft className="w-3 h-3" />
-          </button>
-
-          <div className="flex-1 bg-[#F5E5D4] h-2 rounded-full overflow-hidden relative">
+        {/* Visual Progress Bar */}
+        <div className="space-y-1">
+          <div className="flex items-center justify-between text-[11px] font-bold text-[#6B758E]">
+            <span>Заполненность пакета:</span>
+            <span className="text-[#161F38] font-black">{Math.round(progressPercent)}%</span>
+          </div>
+          <div className="w-full bg-[#F5E5D4] h-2.5 rounded-full overflow-hidden relative shadow-inner">
             <div
-              className="bg-coralAccent h-full rounded-full transition-[width] duration-220 ease-out-emil"
+              className={`h-full rounded-full transition-all duration-500 ${
+                isLowBalance
+                  ? 'bg-amber-500'
+                  : 'bg-gradient-to-r from-coralAccent to-[#5C8519]'
+              }`}
               style={{ width: `${progressPercent}%` }}
             />
           </div>
+        </div>
 
-          <button
-            aria-label="Следующий урок"
-            className="w-5 h-5 rounded-full flex items-center justify-center text-[#161F38]/60 hover:text-[#161F38] hover:bg-[#FDEEDC] transition-colors duration-140 active:scale-90 cursor-pointer"
+        {/* Explanatory Note */}
+        <div className="p-2.5 bg-[#FFFAF5] border border-[#F2DECE] rounded-xl text-[11px] text-[#6B758E] flex items-start gap-2 leading-relaxed">
+          <CheckCircle2 className="w-4 h-4 text-[#5C8519] shrink-0 mt-0.5" />
+          <span>
+            Списание 1 занятия происходит автоматически только после завершения онлайн-урока с преподавателем.
+          </span>
+        </div>
+
+        {/* Action Button: Top Up / Message Admin */}
+        <div className="pt-1 flex items-center gap-2">
+          <Link
+            href={`/messenger?id=${encodeURIComponent(studentPublicId || '')}`}
+            className="w-full inline-flex items-center justify-center gap-2 bg-[#FFF2E6] hover:bg-[#FFE3CC] text-coralAccent border border-[#FCDDC7] font-black text-xs py-2.5 rounded-xl transition-all duration-140 active:scale-95 cursor-pointer shadow-2xs"
           >
-            <ArrowRight className="w-3 h-3" />
-          </button>
+            <PlusCircle className="w-4 h-4" />
+            <span>Пополнить баланс уроков</span>
+          </Link>
         </div>
       </div>
     </div>
