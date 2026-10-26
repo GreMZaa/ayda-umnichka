@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useRef, useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
 import {
   Pencil,
   Highlighter,
@@ -17,11 +18,12 @@ import {
 } from 'lucide-react';
 
 interface WhiteboardProps {
+  roomId?: string;
   onSaveSnapshot?: (dataUrl: string) => void;
   onClose?: () => void;
 }
 
-export default function Whiteboard({ onSaveSnapshot, onClose }: WhiteboardProps) {
+export default function Whiteboard({ roomId, onSaveSnapshot, onClose }: WhiteboardProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -40,6 +42,170 @@ export default function Whiteboard({ onSaveSnapshot, onClose }: WhiteboardProps)
   const initialZoomRef = useRef<number>(1);
   const lastCenterRef = useRef<{ x: number; y: number } | null>(null);
   const isPinchingRef = useRef<boolean>(false);
+
+  // Realtime multi-user drawing synchronization via Supabase Broadcast
+  const myPeerIdRef = useRef<string>(`peer_${Math.random().toString(36).substring(2, 9)}`);
+  const channelRef = useRef<any>(null);
+  const lastDrawnPosRef = useRef<{ x: number; y: number } | null>(null);
+
+  const renderRemoteSegment = (payload: {
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+    tool: string;
+    color: string;
+    lineWidth: number;
+  }) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const w = canvas.width;
+    const h = canvas.height;
+
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    if (payload.tool === 'highlighter') {
+      ctx.strokeStyle = payload.color;
+      ctx.globalAlpha = 0.35;
+      ctx.lineWidth = Math.max(1, payload.lineWidth * w * 2.5);
+    } else if (payload.tool === 'eraser') {
+      ctx.strokeStyle = '#ffffff';
+      ctx.globalAlpha = 1.0;
+      ctx.lineWidth = Math.max(1, payload.lineWidth * w * 3);
+    } else {
+      ctx.strokeStyle = payload.color;
+      ctx.globalAlpha = 1.0;
+      ctx.lineWidth = Math.max(1, payload.lineWidth * w);
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(payload.x1 * w, payload.y1 * h);
+    ctx.lineTo(payload.x2 * w, payload.y2 * h);
+    ctx.stroke();
+    ctx.restore();
+  };
+
+  const renderRemoteShape = (payload: {
+    tool: string;
+    color: string;
+    lineWidth: number;
+    startX: number;
+    startY: number;
+    endX: number;
+    endY: number;
+  }) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const w = canvas.width;
+    const h = canvas.height;
+
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = payload.color;
+    ctx.globalAlpha = 1.0;
+    ctx.lineWidth = Math.max(1, payload.lineWidth * w);
+    ctx.beginPath();
+
+    const sx = payload.startX * w;
+    const sy = payload.startY * h;
+    const ex = payload.endX * w;
+    const ey = payload.endY * h;
+
+    if (payload.tool === 'line') {
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(ex, ey);
+      ctx.stroke();
+    } else if (payload.tool === 'rect') {
+      ctx.strokeRect(sx, sy, ex - sx, ey - sy);
+    } else if (payload.tool === 'circle') {
+      const radius = Math.sqrt(Math.pow(ex - sx, 2) + Math.pow(ey - sy, 2));
+      ctx.arc(sx, sy, radius, 0, 2 * Math.PI);
+      ctx.stroke();
+    }
+    ctx.restore();
+  };
+
+  const handleRemoteClear = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  };
+
+  useEffect(() => {
+    if (!roomId) return;
+    const cleanRoomId = roomId.trim().toLowerCase();
+    const channel = supabase.channel(`whiteboard_${cleanRoomId}`, {
+      config: { broadcast: { self: false } },
+    });
+
+    channel
+      .on('broadcast', { event: 'whiteboard-action' }, ({ payload }) => {
+        if (!payload || payload.senderId === myPeerIdRef.current) return;
+
+        if (payload.type === 'segment') {
+          renderRemoteSegment(payload);
+        } else if (payload.type === 'shape') {
+          renderRemoteShape(payload);
+        } else if (payload.type === 'clear') {
+          handleRemoteClear();
+        } else if (payload.type === 'request-state') {
+          const canvas = canvasRef.current;
+          if (canvas) {
+            const dataUrl = canvas.toDataURL('image/png');
+            channel.send({
+              type: 'broadcast',
+              event: 'whiteboard-action',
+              payload: {
+                senderId: myPeerIdRef.current,
+                type: 'sync-state',
+                dataUrl,
+              },
+            });
+          }
+        } else if (payload.type === 'sync-state' && payload.dataUrl) {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = canvasRef.current;
+            const ctx = canvas?.getContext('2d');
+            if (canvas && ctx) {
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            }
+          };
+          img.src = payload.dataUrl;
+        }
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          channel.send({
+            type: 'broadcast',
+            event: 'whiteboard-action',
+            payload: {
+              senderId: myPeerIdRef.current,
+              type: 'request-state',
+            },
+          });
+        }
+      });
+
+    channelRef.current = channel;
+
+    return () => {
+      supabase.removeChannel(channel);
+      channelRef.current = null;
+    };
+  }, [roomId]);
 
   // Resize canvas to match actual container dimensions with high fidelity
   useEffect(() => {
@@ -128,6 +294,7 @@ export default function Whiteboard({ onSaveSnapshot, onClose }: WhiteboardProps)
 
     setIsDrawing(true);
     setStartPos({ x, y });
+    lastDrawnPosRef.current = { x, y };
 
     if (['line', 'rect', 'circle'].includes(tool)) {
       setSavedImageData(ctx.getImageData(0, 0, canvas.width, canvas.height));
@@ -164,7 +331,31 @@ export default function Whiteboard({ onSaveSnapshot, onClose }: WhiteboardProps)
       ctx.lineWidth = lineWidth * 3;
       ctx.lineTo(x, y);
       ctx.stroke();
+    }
+
+    if (['pen', 'highlighter', 'eraser'].includes(tool)) {
+      if (lastDrawnPosRef.current && channelRef.current) {
+        const w = canvas.width || 1;
+        const h = canvas.height || 1;
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'whiteboard-action',
+          payload: {
+            senderId: myPeerIdRef.current,
+            type: 'segment',
+            x1: lastDrawnPosRef.current.x / w,
+            y1: lastDrawnPosRef.current.y / h,
+            x2: x / w,
+            y2: y / h,
+            tool,
+            color,
+            lineWidth: lineWidth / w,
+          },
+        });
+      }
+      lastDrawnPosRef.current = { x, y };
     } else if (savedImageData && startPos) {
+      lastDrawnPosRef.current = { x, y };
       ctx.putImageData(savedImageData, 0, 0);
       ctx.strokeStyle = color;
       ctx.globalAlpha = 1.0;
@@ -185,8 +376,31 @@ export default function Whiteboard({ onSaveSnapshot, onClose }: WhiteboardProps)
   };
 
   const stopDraw = () => {
+    if (isDrawing && ['line', 'rect', 'circle'].includes(tool) && startPos && lastDrawnPosRef.current && channelRef.current) {
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const w = canvas.width || 1;
+        const h = canvas.height || 1;
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'whiteboard-action',
+          payload: {
+            senderId: myPeerIdRef.current,
+            type: 'shape',
+            tool,
+            color,
+            lineWidth: lineWidth / w,
+            startX: startPos.x / w,
+            startY: startPos.y / h,
+            endX: lastDrawnPosRef.current.x / w,
+            endY: lastDrawnPosRef.current.y / h,
+          },
+        });
+      }
+    }
     setIsDrawing(false);
     setStartPos(null);
+    lastDrawnPosRef.current = null;
     setSavedImageData(null);
   };
 
@@ -306,6 +520,17 @@ export default function Whiteboard({ onSaveSnapshot, onClose }: WhiteboardProps)
     if (!canvas || !ctx) return;
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'whiteboard-action',
+        payload: {
+          senderId: myPeerIdRef.current,
+          type: 'clear',
+        },
+      });
+    }
   };
 
   const saveSnapshot = () => {
@@ -566,10 +791,7 @@ export default function Whiteboard({ onSaveSnapshot, onClose }: WhiteboardProps)
           />
         </div>
 
-        {/* Desktop & Tablet Watermark */}
-        <div className="absolute bottom-2 left-2 bg-[#FFF7EE]/95 border border-[#F4DEC6] rounded-full px-3 py-0.5 text-[10px] text-ink-600 font-bold pointer-events-none shadow-2xs hidden sm:block">
-          Интерактивная доска «АйДаУмничка» • Масштабирование 2 пальцами
-        </div>
+
       </div>
     </div>
   );

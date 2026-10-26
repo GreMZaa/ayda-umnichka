@@ -194,7 +194,7 @@ export default function LessonRoomPage() {
       <div className="w-full h-full relative overflow-hidden flex flex-col">
         {/* Interactive Whiteboard Canvas */}
         <div className={`w-full h-full ${isWhiteboardActive ? 'block' : 'hidden'}`}>
-          <Whiteboard onClose={() => setIsWhiteboardActive(false)} />
+          <Whiteboard roomId={roomId} onClose={() => setIsWhiteboardActive(false)} />
         </div>
 
         {/* VideoCall remains persistently mounted so WebRTC connection never drops */}
