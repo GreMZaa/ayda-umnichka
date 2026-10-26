@@ -61,6 +61,8 @@ interface VideoCallProps {
   onEndLesson?: (durationSec: number) => void;
   onToggleWhiteboard?: () => void;
   isWhiteboardActive?: boolean;
+  isPlatformMinimized?: boolean;
+  onTogglePlatformMinimize?: (minimized: boolean) => void;
 }
 
 const rtcConfig: RTCConfiguration = {
@@ -82,6 +84,8 @@ export default function VideoCall({
   onEndLesson,
   onToggleWhiteboard,
   isWhiteboardActive = false,
+  isPlatformMinimized: propPlatformMinimized,
+  onTogglePlatformMinimize,
 }: VideoCallProps) {
   const router = useRouter();
 
@@ -106,6 +110,9 @@ export default function VideoCall({
   const [callDuration, setCallDuration] = useState(0);
   const [isPipActive, setIsPipActive] = useState(false);
   const [isPipMinimized, setIsPipMinimized] = useState(false);
+  const [internalPlatformMinimized, setInternalPlatformMinimized] = useState(false);
+  const isPlatformMinimized =
+    propPlatformMinimized !== undefined ? propPlatformMinimized : internalPlatformMinimized;
   const [isIPhone, setIsIPhone] = useState(false);
   const [isDeafened, setIsDeafened] = useState(false);
   // Vertical / Portrait orientation for mobile phone video calls & screens
@@ -254,10 +261,18 @@ export default function VideoCall({
     }
   };
 
-  // User gesture unlock for audio (iOS/Safari requirement)
+  // User gesture unlock for audio & iOS background keep-alive
   useEffect(() => {
+    let audioCtx: AudioContext | null = null;
+    let osc: OscillatorNode | null = null;
+
     const unlockAudio = () => {
+      // 1. Play WebRTC remote audio element
       if (remoteAudioRef.current && remoteStreamRef.current) {
+        const aTracks = remoteStreamRef.current.getAudioTracks();
+        if (aTracks.length > 0 && !remoteAudioRef.current.srcObject) {
+          remoteAudioRef.current.srcObject = new MediaStream(aTracks);
+        }
         if (remoteAudioRef.current.paused) {
           remoteAudioRef.current
             .play()
@@ -265,6 +280,21 @@ export default function VideoCall({
             .catch(() => {});
         }
       }
+
+      // 2. Web Audio keep-alive oscillator (maintains iOS audio session in background)
+      try {
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioCtx && !audioCtx) {
+          audioCtx = new AudioCtx();
+          osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          gain.gain.value = 0.0001; // virtually silent
+          osc.frequency.value = 440;
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start();
+        }
+      } catch (_) {}
     };
 
     window.addEventListener('click', unlockAudio, { passive: true });
@@ -273,6 +303,10 @@ export default function VideoCall({
     return () => {
       window.removeEventListener('click', unlockAudio);
       window.removeEventListener('touchstart', unlockAudio);
+      try {
+        osc?.stop();
+        audioCtx?.close();
+      } catch (_) {}
     };
   }, []);
 
@@ -380,11 +414,12 @@ export default function VideoCall({
     return () => clearInterval(timer);
   }, [hasRemoteStream, roomToken, callDuration]);
 
-  // Keep remote audio element updated with remoteStreamRef
+  // Keep remote audio element updated with remoteStreamRef (strictly audio tracks)
   useEffect(() => {
     if (remoteAudioRef.current && remoteStreamRef.current) {
-      if (remoteAudioRef.current.srcObject !== remoteStreamRef.current) {
-        remoteAudioRef.current.srcObject = remoteStreamRef.current;
+      const audioTracks = remoteStreamRef.current.getAudioTracks();
+      if (audioTracks.length > 0) {
+        remoteAudioRef.current.srcObject = new MediaStream(audioTracks);
       }
       remoteAudioRef.current.muted = isDeafened;
       remoteAudioRef.current
@@ -395,7 +430,21 @@ export default function VideoCall({
           setIsAudioAutoplayBlocked(true);
         });
     }
-  }, [hasRemoteStream, isDeafened, remoteMicActive, isWhiteboardActive, isPipMinimized]);
+
+    // Re-verify local microphone tracks are enabled
+    if (streamRef.current) {
+      streamRef.current.getAudioTracks().forEach((track) => {
+        track.enabled = micActive;
+      });
+    }
+    if (pcRef.current) {
+      pcRef.current.getSenders().forEach((sender) => {
+        if (sender.track && sender.track.kind === 'audio') {
+          sender.track.enabled = micActive;
+        }
+      });
+    }
+  }, [hasRemoteStream, isDeafened, remoteMicActive, isWhiteboardActive, isPipMinimized, isChatOpen, isPlatformMinimized]);
 
   // WebRTC PeerConnection management & stream helpers
   const cameraPromiseRef = useRef<Promise<MediaStream | null> | null>(null);
@@ -452,8 +501,9 @@ export default function VideoCall({
 
       // 1. Dedicated audio element for crystal-clear sound that never pauses
       if (remoteAudioRef.current) {
-        if (remoteAudioRef.current.srcObject !== remoteStreamRef.current) {
-          remoteAudioRef.current.srcObject = remoteStreamRef.current;
+        const aTracks = remoteStreamRef.current.getAudioTracks();
+        if (aTracks.length > 0) {
+          remoteAudioRef.current.srcObject = new MediaStream(aTracks);
         }
         remoteAudioRef.current.muted = isDeafened;
         remoteAudioRef.current
@@ -467,10 +517,12 @@ export default function VideoCall({
 
       // 2. Video element (muted so browser never blocks video playback)
       if (remoteVideoRef.current) {
-        if (remoteVideoRef.current.srcObject !== remoteStreamRef.current) {
-          remoteVideoRef.current.srcObject = remoteStreamRef.current;
+        const vTracks = remoteStreamRef.current.getVideoTracks();
+        if (vTracks.length > 0) {
+          remoteVideoRef.current.srcObject = new MediaStream(vTracks);
         }
         remoteVideoRef.current.muted = true;
+        (remoteVideoRef.current as any).autoPictureInPicture = true;
         remoteVideoRef.current.play().catch(() => {});
       }
 
@@ -727,18 +779,13 @@ export default function VideoCall({
     }
   };
 
-  // Minimize or return to personal cabinet
+  // Minimize or expand video call to floating camera in top-right ("справа сверху")
   const handleMinimizeOrReturn = () => {
-    if (confirm('Вернуться в личный кабинет? (Урок продолжится, вы сможете вернуться через кабинет)')) {
-      const savedUserId =
-        localStorage.getItem('aida_auth_user_id') ||
-        localStorage.getItem('aida_user_id') ||
-        '';
-      if (isTeacher) {
-        router.push(`/teacher?id=${savedUserId || 'id179017'}`);
-      } else {
-        router.push(savedUserId ? `/${savedUserId}` : '/student');
-      }
+    const nextVal = !isPlatformMinimized;
+    setInternalPlatformMinimized(nextVal);
+    onTogglePlatformMinimize?.(nextVal);
+    if (nextVal) {
+      togglePictureInPicture().catch(() => {});
     }
   };
 
@@ -985,10 +1032,9 @@ export default function VideoCall({
   const togglePictureInPicture = async () => {
     try {
       const activeVideo = ((hasRemoteStream ? remoteVideoRef.current : localVideoRef.current) || pipVideoRef.current) as any;
-      if (!activeVideo) {
-        alert('Камера еще подключается, попробуйте через секунду.');
-        return;
-      }
+      if (!activeVideo) return;
+
+      activeVideo.autoPictureInPicture = true;
 
       // 1. iOS Safari (WebKit Presentation Mode)
       if (
@@ -1009,14 +1055,9 @@ export default function VideoCall({
       } else if (typeof activeVideo.requestPictureInPicture === 'function') {
         await activeVideo.requestPictureInPicture();
         setIsPipActive(true);
-      } else {
-        alert('Режим «Картинка в картинке» не поддерживается этим браузером.');
       }
     } catch (err: any) {
       console.warn('Picture-in-Picture error:', err);
-      if (err?.name === 'NotAllowedError') {
-        alert('Нажмите кнопку еще раз для активации режима «Картинка в картинке».');
-      }
     }
   };
 
@@ -1615,6 +1656,114 @@ export default function VideoCall({
     );
   }
 
+  // Floating Camera Mode when Platform / Cabinet is open ("справа сверху")
+  if (isPlatformMinimized) {
+    return (
+      <>
+        <audio
+          ref={remoteAudioRef}
+          autoPlay
+          playsInline
+          controls={false}
+          style={{
+            position: 'fixed',
+            bottom: 4,
+            left: 4,
+            width: 1,
+            height: 1,
+            opacity: 0.01,
+            pointerEvents: 'none',
+            zIndex: 9999,
+          }}
+        />
+        {/* Floating Camera in Top Right ("справа сверху") */}
+        <div
+          className="fixed top-[max(1rem,env(safe-area-inset-top,1rem))] right-3 sm:top-5 sm:right-6 z-50 w-36 xs:w-44 sm:w-60 aspect-[3/4] rounded-3xl overflow-hidden border-2 border-white shadow-2xl bg-black/95 backdrop-blur-md animate-in slide-in-from-top-4 duration-200 select-none group"
+        >
+          {/* Remote Video Stream (strictly video tracks) */}
+          <video
+            ref={(el) => {
+              if (el) {
+                (el as any).autoPictureInPicture = true;
+                if (remoteStreamRef.current) {
+                  const vTracks = remoteStreamRef.current.getVideoTracks();
+                  if (vTracks.length > 0 && (!el.srcObject || (el.srcObject as MediaStream).getVideoTracks()[0]?.id !== vTracks[0].id)) {
+                    el.srcObject = new MediaStream(vTracks);
+                  }
+                }
+                el.play().catch(() => {});
+              }
+            }}
+            autoPlay
+            playsInline
+            muted
+            className={`w-full h-full object-cover ${
+              hasRemoteStream && remoteCamActive ? 'block' : 'hidden'
+            }`}
+          />
+
+          {(!hasRemoteStream || !remoteCamActive) && (
+            <div className="w-full h-full flex flex-col items-center justify-center bg-[#161F38] text-white p-3 text-center">
+              <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-[#3b5998] to-[#6389e8] text-white flex items-center justify-center font-black text-lg mb-2 shadow-md">
+                <span>{resolvedParticipantName[0] || 'П'}</span>
+              </div>
+              <span className="text-xs font-bold text-white truncate max-w-[120px]">
+                {resolvedParticipantName}
+              </span>
+              <span className="text-[10px] text-white/60 mt-0.5">
+                {hasRemoteStream ? 'Камера выкл.' : 'Ожидание...'}
+              </span>
+            </div>
+          )}
+
+          {/* Top Info Bar inside PiP: Participant Name & Timer */}
+          <div className="absolute top-2 left-2 right-2 flex items-center justify-between text-white text-[10px] font-bold bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10 pointer-events-none">
+            <span className="truncate max-w-[70px] sm:max-w-[100px]">{resolvedParticipantName}</span>
+            <div className="flex items-center gap-1 font-mono text-emerald-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span>{formatTime(callDuration)}</span>
+            </div>
+          </div>
+
+          {/* Bottom Floating Controls: Expand button + Mic toggle + End call */}
+          <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between gap-1.5 z-20">
+            <button
+              type="button"
+              onClick={() => {
+                setInternalPlatformMinimized(false);
+                onTogglePlatformMinimize?.(false);
+              }}
+              className="p-2 bg-white/20 hover:bg-white/30 text-white rounded-full backdrop-blur-md border border-white/20 transition-transform active:scale-90 cursor-pointer shadow-md"
+              title="Развернуть звонок на весь экран"
+            >
+              <Maximize2 className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={toggleMic}
+              className={`p-2 rounded-full backdrop-blur-md border transition-transform active:scale-90 cursor-pointer shadow-md ${
+                !micActive
+                  ? 'bg-rose-600 border-rose-400 text-white'
+                  : 'bg-white/20 hover:bg-white/30 border-white/20 text-white'
+              }`}
+              title={!micActive ? 'Включить микрофон' : 'Выключить микрофон'}
+            >
+              {!micActive ? <MicOff className="w-4 h-4 text-white" /> : <Mic className="w-4 h-4 text-white" />}
+            </button>
+            <button
+              type="button"
+              onClick={handleEnd}
+              className="p-2 bg-[#FF334B] hover:bg-[#E0243C] text-white rounded-full transition-transform active:scale-90 cursor-pointer shadow-md border border-red-400/30"
+              title="Завершить звонок"
+            >
+              <PhoneOff className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </>
+    );
+  }
+
   // Full Video Workspace (100% spacious, responsive on mobile & desktop)
   return (
     <>
@@ -1625,12 +1774,13 @@ export default function VideoCall({
         controls={false}
         style={{
           position: 'fixed',
-          top: -9999,
-          left: -9999,
+          bottom: 4,
+          left: 4,
           width: 1,
           height: 1,
-          opacity: 0,
+          opacity: 0.01,
           pointerEvents: 'none',
+          zIndex: 9999,
         }}
       />
       {/* VK Calls Layout */}
@@ -1851,13 +2001,21 @@ export default function VideoCall({
             </div>
           </div>
 
-          {/* Top Right: Minimize / Return */}
+          {/* Top Right: Picture-in-Picture & Minimize */}
           <div className="pointer-events-auto flex items-center gap-2">
+            <button
+              type="button"
+              onClick={togglePictureInPicture}
+              className="p-2.5 sm:p-3 rounded-full bg-black/40 hover:bg-black/60 text-white backdrop-blur-md border border-white/15 transition-all active:scale-95 cursor-pointer shadow-lg"
+              title="Поверх всех приложений (PiP)"
+            >
+              <ExternalLink className="w-5 h-5" />
+            </button>
             <button
               type="button"
               onClick={handleMinimizeOrReturn}
               className="p-2.5 sm:p-3 rounded-full bg-black/40 hover:bg-black/60 text-white backdrop-blur-md border border-white/15 transition-all active:scale-95 cursor-pointer shadow-lg"
-              title="Свернуть / Вернуться к платформе"
+              title="Свернуть в мини-окно справа сверху"
             >
               <ChevronDown className="w-5 h-5" />
             </button>
@@ -2090,7 +2248,7 @@ export default function VideoCall({
           </div>
         )}
 
-        {/* 7. Full-Screen VK Chat with Floating Video Call PiP */}
+        {/* 7. Full-Screen VK Chat with Floating Video Call PiP (Styled to match website #FFF7EE theme) */}
         {isChatOpen && (
           <div
             style={
@@ -2101,30 +2259,30 @@ export default function VideoCall({
                   }
                 : undefined
             }
-            className="fixed inset-x-0 top-0 z-50 bg-[#0A0E1A] flex flex-col h-[100dvh] max-h-[100dvh] overflow-hidden overscroll-none animate-in fade-in duration-200 select-auto"
+            className="fixed inset-x-0 top-0 z-50 bg-[#FFF7EE] flex flex-col h-[100dvh] max-h-[100dvh] overflow-hidden overscroll-none animate-in fade-in duration-200 select-auto"
           >
-            {/* VK Messenger Header */}
-            <div className="h-14 sm:h-16 px-3 sm:px-4 bg-[#111726]/95 backdrop-blur-md border-b border-white/10 flex items-center justify-between z-30 shrink-0 sticky top-0">
+            {/* Chat Header (Warm cream & crisp white matching platform brand) */}
+            <div className="h-14 sm:h-16 px-3 sm:px-4 bg-white/95 backdrop-blur-md border-b border-[#F2DECE] flex items-center justify-between z-30 shrink-0 sticky top-0 shadow-2xs">
               <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                 <button
                   type="button"
                   onClick={() => setIsChatOpen(false)}
-                  className="p-1.5 -ml-1 text-white hover:bg-white/10 rounded-full transition-colors cursor-pointer flex items-center"
+                  className="p-1.5 -ml-1 text-[#161F38] hover:bg-[#FFF7EE] rounded-full transition-colors cursor-pointer flex items-center"
                   title="Вернуться к звонку"
                 >
                   <ChevronLeft className="w-6 h-6" />
                 </button>
 
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-tr from-[#3b5998] to-[#6389e8] text-white flex items-center justify-center font-bold text-sm shrink-0 border border-white/20 shadow-md">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-tr from-[#FF6B4A] to-[#FFA259] text-white flex items-center justify-center font-bold text-sm shrink-0 border border-white shadow-sm">
                   <span>{resolvedParticipantName[0] || 'П'}</span>
                 </div>
 
                 <div className="min-w-0 flex flex-col justify-center">
-                  <h3 className="font-extrabold text-sm sm:text-base text-white truncate max-w-[180px] sm:max-w-xs">
+                  <h3 className="font-extrabold text-sm sm:text-base text-[#161F38] truncate max-w-[180px] sm:max-w-xs">
                     {resolvedParticipantName}
                   </h3>
-                  <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-semibold">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <div className="flex items-center gap-1.5 text-[11px] text-[#5C8519] font-bold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#5C8519] animate-pulse" />
                     <span>В звонке • {formatTime(callDuration)}</span>
                   </div>
                 </div>
@@ -2134,7 +2292,7 @@ export default function VideoCall({
               <button
                 type="button"
                 onClick={() => setIsChatOpen(false)}
-                className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-full cursor-pointer transition-colors"
+                className="p-2 text-[#6B758E] hover:text-[#161F38] hover:bg-[#FFF7EE] rounded-full cursor-pointer transition-colors"
                 title="Свернуть чат"
               >
                 <X className="w-5 h-5" />
@@ -2144,14 +2302,20 @@ export default function VideoCall({
             {/* Floating Video Call Mini-Window (PiP) in Top Right — Exactly like VK! */}
             <div
               onClick={() => setIsChatOpen(false)}
-              className="absolute top-16 right-3 sm:top-20 sm:right-6 z-40 w-28 xs:w-32 sm:w-44 aspect-[3/4] rounded-2xl sm:rounded-3xl overflow-hidden border-2 border-white/30 shadow-2xl bg-black/85 backdrop-blur-md cursor-pointer transition-transform duration-200 hover:scale-105 active:scale-95 group shrink-0"
+              className="absolute top-16 right-3 sm:top-20 sm:right-6 z-40 w-28 xs:w-32 sm:w-44 aspect-[3/4] rounded-2xl sm:rounded-3xl overflow-hidden border-2 border-white shadow-2xl bg-black/90 backdrop-blur-md cursor-pointer transition-transform duration-200 hover:scale-105 active:scale-95 group shrink-0"
               title="Нажмите, чтобы вернуться к видеозвонку"
             >
-              {/* Remote Video Stream */}
+              {/* Remote Video Stream (strictly video tracks so iOS never mutes audio session) */}
               <video
                 ref={(el) => {
-                  if (el && remoteStreamRef.current && el.srcObject !== remoteStreamRef.current) {
-                    el.srcObject = remoteStreamRef.current;
+                  if (el) {
+                    (el as any).autoPictureInPicture = true;
+                    if (remoteStreamRef.current) {
+                      const vTracks = remoteStreamRef.current.getVideoTracks();
+                      if (vTracks.length > 0 && (!el.srcObject || (el.srcObject as MediaStream).getVideoTracks()[0]?.id !== vTracks[0].id)) {
+                        el.srcObject = new MediaStream(vTracks);
+                      }
+                    }
                     el.play().catch(() => {});
                   }
                 }}
@@ -2200,18 +2364,18 @@ export default function VideoCall({
               </div>
             </div>
 
-            {/* Chat Messages Body */}
+            {/* Chat Messages Body (Warm cream #FFF7EE background like the website) */}
             <div
               ref={chatMessagesContainerRef}
-              className="flex-1 p-3 sm:p-5 overflow-y-auto overscroll-contain space-y-3 bg-[#0A0E1A] bg-radial from-[#121929] to-[#0A0E1A] touch-pan-y"
+              className="flex-1 p-3 sm:p-5 overflow-y-auto overscroll-contain space-y-3 bg-[#FFF7EE] touch-pan-y"
             >
               {chatMessages.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-center text-white/50 p-6">
-                  <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-coralAccent mb-3">
+                <div className="h-full flex flex-col items-center justify-center text-center p-6">
+                  <div className="w-14 h-14 rounded-2xl bg-white border border-[#F2DECE] flex items-center justify-center text-[#FF6B4A] shadow-xs mb-3">
                     <MessageSquare className="w-7 h-7" />
                   </div>
-                  <p className="text-sm font-extrabold text-white">Сообщений пока нет</p>
-                  <p className="text-xs text-white/60 max-w-xs mt-1">
+                  <p className="text-sm font-extrabold text-[#161F38]">Сообщений пока нет</p>
+                  <p className="text-xs text-[#6B758E] max-w-xs mt-1">
                     Здесь можно обмениваться быстрыми сообщениями, фото и учебными материалами
                   </p>
                 </div>
@@ -2223,15 +2387,15 @@ export default function VideoCall({
                       key={msg.id}
                       className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
                     >
-                      <div className="flex items-center gap-1 text-[10px] text-white/50 mb-0.5">
+                      <div className="flex items-center gap-1 text-[10px] text-[#6B758E] mb-0.5 px-1">
                         <span className="font-semibold">{isMe ? 'Вы' : msg.senderName}</span>
                         <span>• {msg.time}</span>
                       </div>
                       <div
-                        className={`px-4 py-2.5 rounded-2xl max-w-[85%] sm:max-w-[70%] break-words text-sm shadow-md ${
+                        className={`px-4 py-2.5 rounded-2xl max-w-[85%] sm:max-w-[70%] break-words text-sm shadow-xs ${
                           isMe
-                            ? 'bg-[#2B5278] text-white rounded-br-xs border border-[#3E6F9F]'
-                            : 'bg-[#1E293B] text-white rounded-bl-xs border border-white/10'
+                            ? 'bg-gradient-to-tr from-[#FF6B4A] to-[#FFA259] text-white rounded-br-xs shadow-orange-500/10'
+                            : 'bg-white text-[#161F38] rounded-bl-xs border border-[#F2DECE]'
                         }`}
                       >
                         {msg.attachment && (
@@ -2241,7 +2405,7 @@ export default function VideoCall({
                                 href={msg.attachment.url}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="block overflow-hidden rounded-xl border border-white/10 hover:opacity-95 transition-opacity"
+                                className="block overflow-hidden rounded-xl border border-white/20 hover:opacity-95 transition-opacity"
                               >
                                 <img
                                   src={msg.attachment.url}
@@ -2256,9 +2420,11 @@ export default function VideoCall({
                                 target="_blank"
                                 rel="noreferrer"
                                 download={msg.attachment.name}
-                                className="flex items-center gap-2 p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-colors"
+                                className={`flex items-center gap-2 p-2 rounded-xl text-xs font-bold transition-colors ${
+                                  isMe ? 'bg-white/20 text-white' : 'bg-[#FFF7EE] hover:bg-[#FDEEDC] text-[#161F38] border border-[#F2DECE]'
+                                }`}
                               >
-                                <FileText className="w-4 h-4 shrink-0 text-coralAccent" />
+                                <FileText className={`w-4 h-4 shrink-0 ${isMe ? 'text-white' : 'text-[#FF6B4A]'}`} />
                                 <span className="truncate max-w-[160px]">
                                   {msg.attachment.name}
                                 </span>
@@ -2270,7 +2436,7 @@ export default function VideoCall({
                         {msg.text && <div>{msg.text}</div>}
                         <div
                           className={`text-[10px] mt-1 flex items-center justify-end gap-1 ${
-                            isMe ? 'text-blue-200' : 'text-white/50'
+                            isMe ? 'text-white/80' : 'text-[#8E99AF]'
                           }`}
                         >
                           <span>{msg.time}</span>
@@ -2286,26 +2452,26 @@ export default function VideoCall({
 
             {/* Attached file preview chip prior to sending */}
             {attachedFile && (
-              <div className="px-4 py-2 bg-[#161F38] border-t border-white/10 flex items-center justify-between gap-2 text-xs">
+              <div className="px-4 py-2 bg-[#FFF0E6] border-t border-[#F2DECE] flex items-center justify-between gap-2 text-xs">
                 <div className="flex items-center gap-2 truncate">
                   {attachedFile.isImage ? (
                     <img
                       src={attachedFile.url}
                       alt=""
-                      className="w-8 h-8 object-cover rounded-md border border-white/20"
+                      className="w-8 h-8 object-cover rounded-md border border-[#F2DECE]"
                     />
                   ) : (
-                    <FileText className="w-4 h-4 text-coralAccent shrink-0" />
+                    <FileText className="w-4 h-4 text-[#FF6B4A] shrink-0" />
                   )}
-                  <span className="font-bold text-white truncate">{attachedFile.name}</span>
-                  <span className="text-[10px] text-white/50">
+                  <span className="font-bold text-[#161F38] truncate">{attachedFile.name}</span>
+                  <span className="text-[10px] text-[#6B758E]">
                     ({Math.round(attachedFile.size / 1024)} КБ)
                   </span>
                 </div>
                 <button
                   type="button"
                   onClick={() => setAttachedFile(null)}
-                  className="p-1 text-white/60 hover:text-rose-400 rounded-lg cursor-pointer transition-colors"
+                  className="p-1 text-[#6B758E] hover:text-rose-500 rounded-lg cursor-pointer transition-colors"
                   title="Удалить прикрепленный файл"
                 >
                   <X className="w-4 h-4" />
@@ -2313,10 +2479,10 @@ export default function VideoCall({
               </div>
             )}
 
-            {/* Chat Input Bar (VK Style) */}
+            {/* Chat Input Bar (Light website theme with safe-area support) */}
             <form
               onSubmit={handleSendMessage}
-              className="p-2.5 sm:p-3 bg-[#111726] border-t border-white/10 flex items-center gap-2 shrink-0"
+              className="p-2.5 sm:p-3 bg-white/95 backdrop-blur-md border-t border-[#F2DECE] flex items-center gap-2 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom,0.75rem))]"
             >
               <input
                 type="file"
@@ -2329,11 +2495,11 @@ export default function VideoCall({
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isUploadingAttachment}
-                className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+                className="w-10 h-10 rounded-full bg-[#FFF0E6] hover:bg-[#FDEEDC] text-[#FF6B4A] border border-[#F2DECE] flex items-center justify-center transition-colors cursor-pointer shrink-0 disabled:opacity-50"
                 title="Прикрепить фото или файл"
               >
                 {isUploadingAttachment ? (
-                  <Loader2 className="w-4 h-4 animate-spin text-coralAccent" />
+                  <Loader2 className="w-4 h-4 animate-spin text-[#FF6B4A]" />
                 ) : (
                   <Plus className="w-5 h-5" />
                 )}
@@ -2342,8 +2508,20 @@ export default function VideoCall({
                 ref={chatInputRef}
                 type="text"
                 value={chatInput}
+                autoComplete="off"
+                autoCorrect="off"
+                spellCheck={false}
                 onChange={(e) => setChatInput(e.target.value)}
                 onFocus={() => {
+                  // Ensure remote audio playback and local mic remain active when input is focused
+                  if (remoteAudioRef.current && remoteStreamRef.current) {
+                    remoteAudioRef.current.play().catch(() => {});
+                  }
+                  if (streamRef.current) {
+                    streamRef.current.getAudioTracks().forEach((t) => {
+                      t.enabled = micActive;
+                    });
+                  }
                   if (typeof window !== 'undefined') {
                     window.scrollTo(0, 0);
                     document.body.scrollTop = 0;
@@ -2358,12 +2536,12 @@ export default function VideoCall({
                   }
                 }}
                 placeholder="Сообщение..."
-                className="flex-1 bg-white/10 hover:bg-white/15 focus:bg-white/20 border border-white/10 focus:border-blue-400 rounded-full px-4 py-2.5 text-base sm:text-sm text-white placeholder-white/40 outline-none transition-all"
+                className="flex-1 bg-[#FFF7EE] focus:bg-white border border-[#F2DECE] focus:border-[#FF6B4A] rounded-full px-4 py-2.5 text-base sm:text-sm text-[#161F38] placeholder-[#9AA3B8] outline-none transition-all"
               />
               <button
                 type="submit"
                 disabled={(!chatInput.trim() && !attachedFile) || isUploadingAttachment}
-                className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white w-10 h-10 rounded-full flex items-center justify-center transition-transform active:scale-95 cursor-pointer shadow-md shrink-0"
+                className="bg-gradient-to-tr from-[#FF6B4A] to-[#FFA259] hover:opacity-95 disabled:opacity-40 text-white w-10 h-10 rounded-full flex items-center justify-center transition-transform active:scale-95 cursor-pointer shadow-md shadow-orange-500/20 shrink-0"
                 title="Отправить"
               >
                 <Send className="w-4 h-4" />

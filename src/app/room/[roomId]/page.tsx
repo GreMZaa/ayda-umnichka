@@ -188,15 +188,27 @@ export default function LessonRoomPage() {
     router.push(`/teacher?id=${savedUserId || 'id179017'}`);
   };
 
-  // Seamless status bar and background color in video call room (eliminates beige stripes)
+  const [isPlatformMinimized, setIsPlatformMinimized] = useState(false);
+  const [savedUserId, setSavedUserId] = useState('');
+
+  useEffect(() => {
+    const uid =
+      localStorage.getItem('aida_auth_user_id') ||
+      localStorage.getItem('aida_user_id') ||
+      '';
+    setSavedUserId(uid);
+  }, []);
+
+  // Seamless status bar and background color in video call room (dynamically adapts when minimized)
   useEffect(() => {
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     const originalTheme = metaThemeColor?.getAttribute('content') || '#FFF7EE';
+    const targetTheme = isPlatformMinimized ? '#FFF7EE' : '#0A0E1A';
     if (metaThemeColor) {
-      metaThemeColor.setAttribute('content', '#0A0E1A');
+      metaThemeColor.setAttribute('content', targetTheme);
     }
     const origBodyBg = document.body.style.backgroundColor;
-    document.body.style.backgroundColor = '#0A0E1A';
+    document.body.style.backgroundColor = targetTheme;
 
     return () => {
       if (metaThemeColor) {
@@ -204,19 +216,36 @@ export default function LessonRoomPage() {
       }
       document.body.style.backgroundColor = origBodyBg;
     };
-  }, []);
+  }, [isPlatformMinimized]);
 
   return (
-    <div className="fixed inset-0 w-full h-full z-40 overflow-hidden bg-[#0A0E1A] flex flex-col select-none">
+    <div className={`fixed inset-0 w-full h-full z-40 overflow-hidden ${isPlatformMinimized ? 'bg-[#FFF7EE]' : 'bg-[#0A0E1A]'} flex flex-col select-none`}>
       {/* 100% Immersive Full-Screen Workspace — WebRTC call stays continuously connected */}
-      <div className="w-full h-full relative overflow-hidden flex flex-col bg-[#0A0E1A]">
+      <div className={`w-full h-full relative overflow-hidden flex flex-col ${isPlatformMinimized ? 'bg-[#FFF7EE]' : 'bg-[#0A0E1A]'}`}>
         {/* Interactive Whiteboard Canvas */}
-        <div className={`w-full h-full ${isWhiteboardActive ? 'block' : 'hidden'}`}>
+        <div className={`w-full h-full ${isWhiteboardActive && !isPlatformMinimized ? 'block' : 'hidden'}`}>
           <Whiteboard roomId={roomId} onClose={() => setIsWhiteboardActive(false)} />
         </div>
 
+        {/* Minimized Platform View (Teacher / Student Cabinet) while call is running */}
+        {isPlatformMinimized && (
+          <div className="w-full h-full bg-[#FFF7EE] relative z-20">
+            <iframe
+              src={
+                isTeacher
+                  ? `/teacher?id=${savedUserId || 'id179017'}`
+                  : savedUserId
+                  ? `/${savedUserId}`
+                  : '/student'
+              }
+              className="w-full h-full border-0 select-auto"
+              title="Личный кабинет платформы"
+            />
+          </div>
+        )}
+
         {/* VideoCall remains persistently mounted so WebRTC connection never drops */}
-        <div className={isWhiteboardActive ? 'contents' : 'w-full h-full'}>
+        <div className={isWhiteboardActive || isPlatformMinimized ? 'contents' : 'w-full h-full'}>
           <VideoCall
             roomToken={roomId}
             isTeacher={isTeacher}
@@ -224,6 +253,8 @@ export default function LessonRoomPage() {
             topic={topic}
             isWhiteboardActive={isWhiteboardActive}
             onToggleWhiteboard={() => setIsWhiteboardActive(!isWhiteboardActive)}
+            isPlatformMinimized={isPlatformMinimized}
+            onTogglePlatformMinimize={setIsPlatformMinimized}
             onEndLesson={handleEndLesson}
           />
         </div>
