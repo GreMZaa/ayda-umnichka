@@ -1217,36 +1217,19 @@ export default function VideoCall({
             }`}
           />
 
-          {/* Remote peer camera turned off placeholder */}
-          {hasRemoteStream && !remoteCamActive && (
-            <div className="absolute inset-0 bg-[#161F38] flex flex-col items-center justify-center p-2 sm:p-3 text-center z-10">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-white/10 flex items-center justify-center text-coralAccent text-lg sm:text-xl font-black mb-1 shadow-xs">
+          {/* Remote peer camera turned off or waiting placeholder — clean without text clutter */}
+          {(!hasRemoteStream || !remoteCamActive) && (
+            <div className="absolute inset-0 bg-[#161F38] flex items-center justify-center p-2 select-none z-10">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-coralAccent text-lg sm:text-xl font-black shadow-inner">
                 {resolvedParticipantName[0] || 'П'}
               </div>
-              <p className="text-white text-[11px] sm:text-xs font-black">{resolvedParticipantName}</p>
-              <p className="text-white/60 text-[9px] sm:text-[10px]">Камера собеседника выключена</p>
-            </div>
-          )}
-
-          {/* Waiting for remote peer to connect */}
-          {!hasRemoteStream && (
-            <div className="absolute inset-0 bg-[#161F38] flex flex-col items-center justify-center p-2 sm:p-3 text-center text-white z-10 select-none">
-              <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center text-coralAccent text-base sm:text-xl font-black mb-1 shadow-xs">
-                {resolvedParticipantName[0] || 'П'}
-              </div>
-              <h4 className="text-white font-black text-[11px] sm:text-xs leading-tight">
-                {resolvedParticipantName}
-              </h4>
-              <p className="text-[9px] sm:text-[10px] text-[#EADBCC] mt-0.5 font-medium">
-                {isTeacher ? 'Ожидание ученика...' : 'Ожидание педагога...'}
-              </p>
             </div>
           )}
 
           {/* Time Pill */}
           <div className="absolute bottom-1.5 left-1.5 sm:bottom-2 sm:left-2 flex items-center gap-1 bg-black/60 backdrop-blur-md text-white px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-bold shadow-xs z-20">
             <span className={`w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full ${hasRemoteStream ? 'bg-[#5C8519] animate-pulse' : 'bg-amber-400'}`} />
-            <span>{hasRemoteStream || callDuration > 0 ? formatTime(callDuration) : '00:00 (Ожидание)'}</span>
+            <span>{formatTime(callDuration)}</span>
           </div>
 
           {/* Remote Peer name badge in PiP — strictly the other person */}
@@ -1267,31 +1250,16 @@ export default function VideoCall({
     <div className="flex flex-col gap-3 sm:gap-4 w-full">
       {/* 1. Main Video Workspace Card */}
       <div className="relative flex flex-col bg-[#FFF8F1] rounded-2xl sm:rounded-[32px] overflow-hidden border border-[#F4E3D2] shadow-sm">
-        {/* Top Header Info Bar */}
-        <div className="p-2.5 sm:p-3.5 bg-white/95 backdrop-blur-md border-b border-[#F4E3D2] flex items-center justify-between gap-1.5 sm:gap-2">
-          <div className="flex items-center gap-1.5 sm:gap-2 bg-[#FFF7EE] px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full border border-[#EADBCC] text-[#161F38] text-[11px] sm:text-xs shadow-2xs min-w-0 max-w-[70%] sm:max-w-none">
+        {/* Top Header Info Bar — Minimal, clean, without text clutter */}
+        <div className="p-2 sm:p-2.5 bg-white/95 backdrop-blur-md border-b border-[#F4E3D2] flex items-center justify-between">
+          <div className="flex items-center gap-2 bg-[#FFF7EE] px-3 py-1 rounded-full border border-[#EADBCC] text-[#161F38] text-xs shadow-2xs">
             <span
-              className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full ${
-                hasRemoteStream ? 'bg-[#5C8519] animate-pulse' : 'bg-amber-400 animate-ping'
+              className={`w-2 h-2 rounded-full ${
+                hasRemoteStream ? 'bg-[#5C8519] animate-pulse' : 'bg-amber-400'
               } shrink-0`}
             />
             <span className="font-mono font-black shrink-0">
-              {hasRemoteStream || callDuration > 0
-                ? formatTime(callDuration)
-                : '00:00 (Ожидание)'}
-            </span>
-            <span className="text-[#EADBCC] shrink-0">|</span>
-            <span className="text-[#6B758E] font-bold truncate">
-              {topic || `Комната: ${roomToken}`}
-            </span>
-            <span className="text-[#EADBCC] hidden md:inline">|</span>
-            <span
-              className={`text-[10px] font-bold hidden md:inline-flex items-center gap-1 ${
-                hasRemoteStream ? 'text-[#5C8519]' : 'text-amber-600'
-              }`}
-            >
-              <Wifi className="w-3 h-3" />
-              <span>{hasRemoteStream ? 'Связь P2P' : 'Ожидание подключения...'}</span>
+              {formatTime(callDuration)}
             </span>
           </div>
 
@@ -1316,77 +1284,53 @@ export default function VideoCall({
           <div
             className="relative rounded-2xl sm:rounded-3xl overflow-hidden bg-[#161F38] border-2 border-[#F2E3D5] flex items-center justify-center shadow-xs transition-all duration-200 aspect-[4/3] sm:aspect-video min-h-[190px] sm:min-h-[260px]"
           >
-          {/* Live Video from Remote Peer (unmuted so sound plays) */}
-          <video
-            ref={remoteVideoRef}
-            autoPlay
-            playsInline
-            controls={false}
-            autoPictureInPicture
-            {...({ 'webkit-playsinline': 'true' } as any)}
-            className={`w-full h-full ${isRemoteScreenSharing ? 'object-contain bg-black' : 'object-cover'} ${
-              hasRemoteStream && remoteCamActive ? 'block' : 'hidden'
-            }`}
-          />
-
-          {/* Placeholder when remote peer turned camera off */}
-          {hasRemoteStream && !remoteCamActive && (
-            <div className="absolute inset-0 bg-[#161F38] flex flex-col items-center justify-center p-4 text-center z-10">
-              <div className="w-16 h-16 rounded-2xl bg-white/10 flex items-center justify-center text-coralAccent text-2xl font-black mb-2 shadow-xs">
-                {resolvedParticipantName[0] || 'П'}
-              </div>
-              <p className="text-white text-xs font-black">{resolvedParticipantName}</p>
-              <p className="text-white/60 text-[10px] mt-0.5">Камера собеседника выключена</p>
-            </div>
-          )}
-
-          {/* Waiting Placeholder when remote participant has not yet connected */}
-          {!hasRemoteStream && (
-            <div className="text-center p-3 sm:p-6 text-white animate-in fade-in select-none max-w-[90%]">
-              <div className="w-14 h-14 sm:w-20 sm:h-20 rounded-2xl sm:rounded-3xl bg-white/10 border-2 border-white/20 flex items-center justify-center mx-auto mb-2 sm:mb-3 text-coralAccent text-2xl sm:text-3xl font-black shadow-xs">
-                {resolvedParticipantName[0] || 'П'}
-              </div>
-              <h3 className="text-white font-black text-sm sm:text-base leading-tight">
-                {resolvedParticipantName}
-              </h3>
-              <p className="text-[11px] sm:text-xs text-[#EADBCC] mt-1 font-medium">
-                {isTeacher
-                  ? 'Ожидание подключения ученика...'
-                  : 'Педагог центра «АйДаУмничка» • Ожидание подключения...'}
-              </p>
-              <div className="mt-2.5 inline-flex items-center gap-1.5 bg-white/10 px-3 py-1 rounded-full text-[10px] sm:text-[11px] font-bold text-white/90">
-                <span className="w-1.5 h-1.5 rounded-full bg-coralAccent animate-ping" />
-                <span>Прямой WebRTC канал</span>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Tile 2: Local User Camera Stream (Muted to prevent echo, Selfie Front Camera) */}
-        <div
-          className="relative rounded-2xl sm:rounded-3xl overflow-hidden bg-[#161F38] border-2 border-[#F2E3D5] flex items-center justify-center shadow-xs transition-all duration-200 aspect-[4/3] sm:aspect-video min-h-[190px] sm:min-h-[260px]"
-        >
-          {camActive ? (
+            {/* Live Video from Remote Peer (unmuted so sound plays) */}
             <video
-              ref={localVideoRef}
+              ref={remoteVideoRef}
               autoPlay
               playsInline
-              muted
               controls={false}
               autoPictureInPicture
               {...({ 'webkit-playsinline': 'true' } as any)}
-              className={`w-full h-full ${isScreenSharing ? 'object-contain bg-black' : 'object-cover scale-x-[-1]'}`}
+              className={`w-full h-full ${isRemoteScreenSharing ? 'object-contain bg-black' : 'object-cover'} ${
+                hasRemoteStream && remoteCamActive ? 'block' : 'hidden'
+              }`}
             />
-          ) : (
-            <div className="text-center p-4 sm:p-6 text-white/70">
-              <VideoOff className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-2 opacity-60" />
-              <p className="text-xs font-bold">Камера отключена</p>
-            </div>
-          )}
-        </div>
-      </div>
 
-      {/* Integrated Bottom Control Bar */}
+            {/* Clean Avatar when remote camera is off or not yet connected — NO TEXT */}
+            {(!hasRemoteStream || !remoteCamActive) && (
+              <div className="absolute inset-0 bg-[#161F38] flex items-center justify-center p-4 select-none">
+                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-coralAccent text-2xl sm:text-3xl font-black shadow-inner">
+                  {resolvedParticipantName[0] || 'П'}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Tile 2: Local User Camera Stream (Muted to prevent echo, Selfie Front Camera) */}
+          <div
+            className="relative rounded-2xl sm:rounded-3xl overflow-hidden bg-[#161F38] border-2 border-[#F2E3D5] flex items-center justify-center shadow-xs transition-all duration-200 aspect-[4/3] sm:aspect-video min-h-[190px] sm:min-h-[260px]"
+          >
+            {camActive ? (
+              <video
+                ref={localVideoRef}
+                autoPlay
+                playsInline
+                muted
+                controls={false}
+                autoPictureInPicture
+                {...({ 'webkit-playsinline': 'true' } as any)}
+                className={`w-full h-full ${isScreenSharing ? 'object-contain bg-black' : 'object-cover scale-x-[-1]'}`}
+              />
+            ) : (
+              <div className="text-center p-4 text-white/40">
+                <VideoOff className="w-10 h-10 sm:w-12 sm:h-12 mx-auto" />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Integrated Bottom Control Bar */}
       <div className="p-2 sm:p-3 bg-white/95 backdrop-blur-md border-t border-[#F2DECE] flex items-center justify-center gap-1.5 sm:gap-2.5 flex-wrap">
         {/* Mic Toggle */}
         <button
