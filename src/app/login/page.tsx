@@ -150,8 +150,14 @@ function LoginFormContent() {
             password,
           });
 
-          if (error && !error.message.includes('Invalid login credentials')) {
-            throw error;
+          if (error) {
+            setErrorMessage(
+              error.message.includes('Invalid login credentials')
+                ? 'Неверный email/телефон или пароль'
+                : error.message
+            );
+            setLoading(false);
+            return;
           }
 
           if (signInData?.user) {
@@ -161,15 +167,20 @@ function LoginFormContent() {
               .eq('auth_user_id', signInData.user.id)
               .maybeSingle();
 
-            if (binding?.public_id) {
-              targetId = binding.public_id;
+            const metaRole = (signInData.user.user_metadata as any)?.role;
+            const metaPublicId = (signInData.user.user_metadata as any)?.public_id;
+            const metaFullName = (signInData.user.user_metadata as any)?.full_name;
+
+            if (binding?.public_id || metaPublicId) {
+              targetId = binding?.public_id || metaPublicId;
               setClientUserId(targetId);
             }
-            if (binding?.role) {
-              userRole = binding.role;
+            if (binding?.role || metaRole) {
+              userRole = binding?.role || metaRole;
             }
-            if (binding?.full_name) {
-              const cleanFullName = binding.full_name.replace(/\s*\(.*?\)$/, '').trim() || binding.full_name;
+            if (binding?.full_name || metaFullName) {
+              const rawName = binding?.full_name || metaFullName;
+              const cleanFullName = rawName.replace(/\s*\(.*?\)$/, '').trim() || rawName;
               localStorage.setItem('aida_full_name', cleanFullName);
             }
             if (binding?.balance_lessons !== undefined) {

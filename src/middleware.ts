@@ -62,7 +62,14 @@ export function middleware(request: NextRequest) {
       const targetId = authUserId || cookieUserId;
       if (targetId && activeRole) {
         const url = request.nextUrl.clone();
-        url.pathname = `/${targetId}`;
+        if (activeRole === 'admin') {
+          url.pathname = '/admin';
+        } else if (activeRole === 'teacher') {
+          url.pathname = '/teacher';
+          url.searchParams.set('id', targetId);
+        } else {
+          url.pathname = `/${targetId}`;
+        }
         const response = NextResponse.redirect(url);
         return applySecurityHeaders(response);
       }
