@@ -37,18 +37,26 @@ export async function POST(req: NextRequest) {
 
     // 1. Solution submission action
     if (body.action === 'submit_solution') {
-      const { id, student_solution_text } = body;
+      const { id, student_solution_text, student_solution_file_url } = body;
       if (!id) {
         return NextResponse.json({ error: 'Missing homework id' }, { status: 400 });
       }
 
+      const updateData: Record<string, any> = {
+        status: 'submitted',
+        updated_at: new Date().toISOString(),
+      };
+
+      if (student_solution_text !== undefined) {
+        updateData.student_solution_text = student_solution_text;
+      }
+      if (student_solution_file_url !== undefined) {
+        updateData.student_solution_file_url = student_solution_file_url;
+      }
+
       const { data, error } = await supabase
         .from('homework')
-        .update({
-          status: 'submitted',
-          student_solution_text: student_solution_text || 'Аудиоответ отправлен педагогу',
-          updated_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq('id', id)
         .select()
         .single();

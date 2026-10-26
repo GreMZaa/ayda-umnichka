@@ -9,9 +9,11 @@ import {
   Plus,
   Video,
   ChevronRight,
+  ChevronLeft,
   RefreshCw,
   User,
-  AlertCircle
+  AlertCircle,
+  Trash2
 } from 'lucide-react';
 
 export interface LessonRecord {
@@ -54,6 +56,9 @@ export default function LessonsScheduleHistory({
   const [lessons, setLessons] = useState<LessonRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [showScheduleForm, setShowScheduleForm] = useState(false);
+  const [upcomingPage, setUpcomingPage] = useState(1);
+  const [historyPage, setHistoryPage] = useState(1);
+  const LESSONS_PER_PAGE = 3;
 
   // Live ticking state for active room elapsed duration
   const [now, setNow] = useState(Date.now());
@@ -243,6 +248,35 @@ export default function LessonsScheduleHistory({
     }
   };
 
+  const handleDeleteLesson = async (lessonId: string, topic?: string) => {
+    if (role === 'student') return;
+    const confirmed = window.confirm(
+      topic
+        ? `Вы уверены, что хотите удалить урок «${topic}»?`
+        : 'Вы уверены, что хотите удалить этот урок?'
+    );
+    if (!confirmed) return;
+
+    try {
+      // Optimistically remove from state
+      setLessons((prev) => prev.filter((l) => l.id !== lessonId));
+
+      const res = await fetch(`/api/lessons?id=${encodeURIComponent(lessonId)}`, {
+        method: 'DELETE',
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data?.error || 'Не удалось удалить урок');
+        await fetchLessons();
+      }
+    } catch (err) {
+      console.error('Error deleting lesson:', err);
+      alert('Ошибка при удалении урока');
+      await fetchLessons();
+    }
+  };
+
   const relevantLessons = role === 'student'
     ? lessons.filter((l) => {
         if (studentPublicId && l.student_public_id && l.student_public_id.toLowerCase() === studentPublicId.toLowerCase()) return true;
@@ -260,6 +294,20 @@ export default function LessonsScheduleHistory({
   );
   const historyLessons = relevantLessons.filter(
     (l) => l.status === 'completed' || l.status === 'cancelled'
+  );
+
+  const totalUpcomingPages = Math.max(1, Math.ceil(upcomingLessons.length / LESSONS_PER_PAGE));
+  const currentUpcomingPage = Math.min(upcomingPage, totalUpcomingPages);
+  const paginatedUpcoming = upcomingLessons.slice(
+    (currentUpcomingPage - 1) * LESSONS_PER_PAGE,
+    currentUpcomingPage * LESSONS_PER_PAGE
+  );
+
+  const totalHistoryPages = Math.max(1, Math.ceil(historyLessons.length / LESSONS_PER_PAGE));
+  const currentHistoryPage = Math.min(historyPage, totalHistoryPages);
+  const paginatedHistory = historyLessons.slice(
+    (currentHistoryPage - 1) * LESSONS_PER_PAGE,
+    currentHistoryPage * LESSONS_PER_PAGE
   );
 
   const formatLessonTime = (dateStr?: string) => {
@@ -301,9 +349,9 @@ export default function LessonsScheduleHistory({
 
   return (
     <div className="bg-white rounded-3xl p-4 sm:p-5 border-t-4 border-t-coralAccent border-x border-b border-[#F0DCCD] shadow-xs flex flex-col justify-between h-full space-y-3.5 hover:shadow-sm transition-shadow">
-      <div className="space-y-3">
+      <div className="flex-1 min-h-0 flex flex-col space-y-3">
         {/* Header with Title and Tabs */}
-        <div className="flex items-center justify-between gap-2">
+        <div className="shrink-0 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-[#FFF2E6] text-coralAccent border border-[#FCDDC7] flex items-center justify-center shrink-0 shadow-2xs">
               <Calendar className="w-4 h-4" />
@@ -324,7 +372,7 @@ export default function LessonsScheduleHistory({
         </div>
 
         {/* Tab Switcher */}
-        <div className="flex items-center bg-[#F8EFE7] p-1.5 rounded-2xl border border-[#EADBCC]">
+        <div className="shrink-0 flex items-center bg-[#F8EFE7] p-1.5 rounded-2xl border border-[#EADBCC]">
           <button
             type="button"
             onClick={() => setActiveTab('upcoming')}
@@ -353,7 +401,7 @@ export default function LessonsScheduleHistory({
         {showScheduleForm && (
           <form
             onSubmit={handleCreateScheduledLesson}
-            className="p-3 bg-[#FFF8F1] border border-[#F2DECE] rounded-xl space-y-2 animate-in fade-in"
+            className="shrink-0 p-3 bg-[#FFF8F1] border border-[#F2DECE] rounded-xl space-y-2 animate-in fade-in"
           >
             <div className="text-[11px] font-black text-[#161F38]">
               Запланировать онлайн-урок:
@@ -436,180 +484,261 @@ export default function LessonsScheduleHistory({
           </form>
         )}
 
-        {/* Content list */}
-        {loading ? (
-          <div className="p-6 text-center text-xs font-bold text-[#6B758E] flex items-center justify-center gap-2">
-            <RefreshCw className="w-3.5 h-3.5 animate-spin text-coralAccent" />
-            <span>Загрузка уроков...</span>
-          </div>
-        ) : activeTab === 'upcoming' ? (
-          /* Upcoming Lessons List */
-          upcomingLessons.length === 0 ? (
-            <div className="p-5 rounded-xl border border-dashed border-[#F2DECE] bg-[#FFFAF5] text-center space-y-1">
-              <Calendar className="w-6 h-6 text-coralAccent mx-auto opacity-50" />
-              <h4 className="font-bold text-xs text-[#161F38]">Нет запланированных уроков</h4>
-              <p className="text-[11px] text-[#6B758E]">
-                {role === 'student'
-                  ? 'Преподаватель центра назначит время урока в вашем кабинете.'
-                  : 'Запланируйте занятие через кнопку выше или начните мгновенный урок слева.'}
-              </p>
+        {/* Content list & Pagination container */}
+        <div className="flex-1 min-h-0 flex flex-col justify-between">
+          {loading ? (
+            <div className="p-6 text-center text-xs font-bold text-[#6B758E] flex items-center justify-center gap-2">
+              <RefreshCw className="w-3.5 h-3.5 animate-spin text-coralAccent" />
+              <span>Загрузка уроков...</span>
             </div>
-          ) : (
-            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-              {upcomingLessons.map((l) => {
-                const elapsedSec = getLessonElapsedSeconds(l);
-                const isRoomActive = elapsedSec !== null;
+          ) : activeTab === 'upcoming' ? (
+            /* Upcoming Lessons List */
+            upcomingLessons.length === 0 ? (
+              <div className="p-5 rounded-xl border border-dashed border-[#F2DECE] bg-[#FFFAF5] text-center space-y-1">
+                <Calendar className="w-6 h-6 text-coralAccent mx-auto opacity-50" />
+                <h4 className="font-bold text-xs text-[#161F38]">Нет запланированных уроков</h4>
+                <p className="text-[11px] text-[#6B758E]">
+                  {role === 'student'
+                    ? 'Преподаватель центра назначит время урока в вашем кабинете.'
+                    : 'Запланируйте занятие через кнопку выше или начните мгновенный урок слева.'}
+                </p>
+              </div>
+            ) : (
+              <div className="flex-1 min-h-0 flex flex-col justify-between">
+                <div className="space-y-2 overflow-y-auto pr-1">
+                  {paginatedUpcoming.map((l) => {
+                    const elapsedSec = getLessonElapsedSeconds(l);
+                    const isRoomActive = elapsedSec !== null;
 
-                return (
-                  <div
-                    key={l.id}
-                    className="p-2.5 rounded-xl border border-[#F2DECE] bg-[#FFFDFB] hover:bg-white transition-colors space-y-1.5 shadow-2xs"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs font-black text-[#161F38] truncate" title={l.student_name}>
-                            {role === 'student' ? (l.teacher_name || 'Преподаватель') : getStudentDisplayLabel(l)}
-                          </span>
-                          <span className="text-[9px] font-bold bg-[#FFF2E6] text-coralAccent px-1.5 py-0.5 rounded-full shrink-0">
-                            {formatLessonTime(l.scheduled_for)}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-[#6B758E] truncate mt-0.5">{l.topic}</p>
-                      </div>
-
-                      <a
-                        href={`/room/${l.room_token}?role=${role}&topic=${encodeURIComponent(l.topic)}`}
-                        className={`text-[10px] font-black ${
-                          isRoomActive
-                            ? 'bg-[#5C8519] hover:bg-[#4E7214] text-white shadow-xs animate-pulse'
-                            : 'bg-coralAccent hover:bg-coralAccent-hover text-white'
-                        } px-3 py-1 rounded-full transition-colors cursor-pointer active:scale-95 flex items-center gap-1 shrink-0`}
+                    return (
+                      <div
+                        key={l.id}
+                        className="p-2.5 rounded-xl border border-[#F2DECE] bg-[#FFFDFB] hover:bg-white transition-colors space-y-1.5 shadow-2xs"
                       >
-                        <Video className="w-3 h-3" />
-                        <span>{isRoomActive ? 'Вернуться в урок' : 'Войти'}</span>
-                      </a>
-                    </div>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xs font-black text-[#161F38] truncate" title={l.student_name}>
+                                {role === 'student' ? (l.teacher_name || 'Преподаватель') : getStudentDisplayLabel(l)}
+                              </span>
+                              <span className="text-[9px] font-bold bg-[#FFF2E6] text-coralAccent px-1.5 py-0.5 rounded-full shrink-0">
+                                {formatLessonTime(l.scheduled_for)}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-[#6B758E] truncate mt-0.5">{l.topic}</p>
+                          </div>
 
-                    {/* Status footer */}
-                    <div className="pt-1 border-t border-[#F8EDE1] flex items-center justify-between text-[10px]">
-                      {role === 'student' ? (
-                        <>
-                          <span className="text-[#8A95A8]">Статус:</span>
-                          {isRoomActive ? (
-                            <span className="inline-flex items-center gap-1.5 font-bold text-[#5C8519]">
-                              <span className="w-1.5 h-1.5 rounded-full bg-[#5C8519] animate-ping" />
-                              <span>В эфире • Идёт урок: <strong>{formatElapsedTimer(elapsedSec)}</strong></span>
-                            </span>
+                          <a
+                            href={`/room/${l.room_token}?role=${role}&topic=${encodeURIComponent(l.topic)}`}
+                            className={`text-[10px] font-black ${
+                              isRoomActive
+                                ? 'bg-[#5C8519] hover:bg-[#4E7214] text-white shadow-xs animate-pulse'
+                                : 'bg-coralAccent hover:bg-coralAccent-hover text-white'
+                            } px-3 py-1 rounded-full transition-colors cursor-pointer active:scale-95 flex items-center gap-1 shrink-0`}
+                          >
+                            <Video className="w-3 h-3" />
+                            <span>{isRoomActive ? 'Вернуться в урок' : 'Войти'}</span>
+                          </a>
+                        </div>
+
+                        {/* Status footer */}
+                        <div className="pt-1 border-t border-[#F8EDE1] flex items-center justify-between text-[10px] flex-wrap gap-1">
+                          {role === 'student' ? (
+                            <>
+                              <span className="text-[#8A95A8]">Статус:</span>
+                              {isRoomActive ? (
+                                <span className="inline-flex items-center gap-1.5 font-bold text-[#5C8519]">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-[#5C8519] animate-ping" />
+                                  <span>В эфире • Идёт урок: <strong>{formatElapsedTimer(elapsedSec)}</strong></span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 font-bold text-[#5C8519]">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-[#5C8519] animate-pulse" />
+                                  <span>Готов к подключению (45 мин)</span>
+                                </span>
+                              )}
+                            </>
                           ) : (
-                            <span className="inline-flex items-center gap-1 font-bold text-[#5C8519]">
-                              <span className="w-1.5 h-1.5 rounded-full bg-[#5C8519] animate-pulse" />
-                              <span>Готов к подключению (45 мин)</span>
+                            <>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[#8A95A8]">Статус:</span>
+                                {isRoomActive ? (
+                                  <span className="text-[#5C8519] font-black flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-[#5C8519] animate-ping" />
+                                    <span>Урок идёт: <strong>{formatElapsedTimer(elapsedSec)}</strong></span>
+                                  </span>
+                                ) : (
+                                  <span className="text-[#6B758E] font-medium">Ожидание начала (45 мин)</span>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateStatus(l.id, 'completed')}
+                                  className="inline-flex items-center gap-1 font-bold text-[#5C8519] bg-[#EAF7CF] hover:bg-[#DDF4B2] px-2 py-0.5 rounded-md transition-colors cursor-pointer active:scale-95"
+                                  title="Отметить, что урок состоялся"
+                                >
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  <span>Прошёл</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateStatus(l.id, 'cancelled')}
+                                  className="inline-flex items-center gap-1 font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded-md transition-colors cursor-pointer active:scale-95"
+                                  title="Отметить, что урок не состоялся"
+                                >
+                                  <XCircle className="w-3 h-3" />
+                                  <span>Не прошёл</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteLesson(l.id, l.topic)}
+                                  className="inline-flex items-center gap-1 font-bold text-red-600 bg-red-50 hover:bg-red-100 px-2 py-0.5 rounded-md transition-colors cursor-pointer active:scale-95"
+                                  title="Удалить урок"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                  <span>Удалить</span>
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Upcoming pagination controls */}
+                {totalUpcomingPages > 1 && (
+                  <div className="pt-2 flex items-center justify-between text-xs shrink-0 select-none border-t border-[#F8EDE1]">
+                    <button
+                      type="button"
+                      disabled={currentUpcomingPage <= 1}
+                      onClick={() => setUpcomingPage((p) => Math.max(1, p - 1))}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-[#F2DECE] bg-white text-[#161F38] hover:bg-[#FFF2E6] disabled:opacity-30 disabled:cursor-not-allowed transition-colors font-bold text-[11px] cursor-pointer shadow-2xs"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                      <span>Назад</span>
+                    </button>
+                    <div className="flex items-center gap-1 font-bold text-[11px] text-[#6B758E]">
+                      <span>Стр. {currentUpcomingPage} из {totalUpcomingPages}</span>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={currentUpcomingPage >= totalUpcomingPages}
+                      onClick={() => setUpcomingPage((p) => Math.min(totalUpcomingPages, p + 1))}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-[#F2DECE] bg-white text-[#161F38] hover:bg-[#FFF2E6] disabled:opacity-30 disabled:cursor-not-allowed transition-colors font-bold text-[11px] cursor-pointer shadow-2xs"
+                    >
+                      <span>Вперёд</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          ) : (
+            /* History Lessons List */
+            historyLessons.length === 0 ? (
+              <div className="p-5 rounded-xl border border-dashed border-[#F2DECE] bg-[#FFFAF5] text-center space-y-1">
+                <Clock className="w-6 h-6 text-coralAccent mx-auto opacity-50" />
+                <h4 className="font-bold text-xs text-[#161F38]">История пуста</h4>
+                <p className="text-[11px] text-[#6B758E]">
+                  Здесь будут сохраняться прошедшие и отмененные занятия с пометкой статуса.
+                </p>
+              </div>
+            ) : (
+              <div className="flex-1 min-h-0 flex flex-col justify-between">
+                <div className="space-y-2 overflow-y-auto pr-1">
+                  {paginatedHistory.map((l) => {
+                    const passed = l.status === 'completed';
+                    return (
+                      <div
+                        key={l.id}
+                        className="p-2.5 rounded-xl border border-[#F2DECE] bg-[#FFFDFB] flex items-center justify-between gap-2 shadow-2xs"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-xs font-black text-[#161F38] truncate" title={l.student_name}>
+                              {role === 'student' ? (l.teacher_name || 'Преподаватель') : getStudentDisplayLabel(l)}
+                            </span>
+                            <span className="text-[10px] text-[#8A95A8]">
+                              • {formatLessonTime(l.scheduled_for || l.created_at)}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-[#6B758E] truncate">{l.topic}</p>
+                        </div>
+
+                        <div className="shrink-0 flex flex-col items-end gap-1">
+                          {passed ? (
+                            <>
+                              <span className="inline-flex items-center gap-1 text-[10px] font-black bg-[#EAF7CF] text-[#5C8519] border border-[#D5ECA3] px-2 py-0.5 rounded-full">
+                                <CheckCircle2 className="w-3 h-3 text-[#5C8519]" />
+                                <span>Прошёл</span>
+                              </span>
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#6B758E]">
+                                <Clock className="w-2.5 h-2.5 text-coralAccent" />
+                                <span>{formatLessonDuration(l)}</span>
+                              </span>
+                            </>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 rounded-full">
+                              <XCircle className="w-3 h-3 text-rose-600" />
+                              <span>Не прошёл</span>
                             </span>
                           )}
-                        </>
-                      ) : (
-                        <>
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-[#8A95A8]">Статус:</span>
-                            {isRoomActive ? (
-                              <span className="text-[#5C8519] font-black flex items-center gap-1">
-                                <span className="w-1.5 h-1.5 rounded-full bg-[#5C8519] animate-ping" />
-                                <span>Урок идёт: <strong>{formatElapsedTimer(elapsedSec)}</strong></span>
-                              </span>
-                            ) : (
-                              <span className="text-[#6B758E] font-medium">Ожидание начала (45 мин)</span>
-                            )}
-                          </div>
 
-                          <div className="flex items-center gap-1.5">
+                          {role !== 'student' && (
                             <button
                               type="button"
-                              onClick={() => handleUpdateStatus(l.id, 'completed')}
-                              className="inline-flex items-center gap-1 font-bold text-[#5C8519] bg-[#EAF7CF] hover:bg-[#DDF4B2] px-2 py-0.5 rounded-md transition-colors cursor-pointer active:scale-95"
-                              title="Отметить, что урок состоялся"
+                              onClick={() => handleDeleteLesson(l.id, l.topic)}
+                              className="inline-flex items-center gap-1 text-[10px] font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-2 py-0.5 rounded-md transition-colors cursor-pointer active:scale-95"
+                              title="Удалить запись об уроке"
                             >
-                              <CheckCircle2 className="w-3 h-3" />
-                              <span>Прошёл</span>
+                              <Trash2 className="w-2.5 h-2.5" />
+                              <span>Удалить</span>
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateStatus(l.id, 'cancelled')}
-                              className="inline-flex items-center gap-1 font-bold text-red-600 bg-red-50 hover:bg-red-100 px-2 py-0.5 rounded-md transition-colors cursor-pointer active:scale-95"
-                              title="Отметить, что урок не состоялся"
-                            >
-                              <XCircle className="w-3 h-3" />
-                              <span>Не прошёл</span>
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )
-        ) : (
-          /* History Lessons List */
-          historyLessons.length === 0 ? (
-            <div className="p-5 rounded-xl border border-dashed border-[#F2DECE] bg-[#FFFAF5] text-center space-y-1">
-              <Clock className="w-6 h-6 text-coralAccent mx-auto opacity-50" />
-              <h4 className="font-bold text-xs text-[#161F38]">История пуста</h4>
-              <p className="text-[11px] text-[#6B758E]">
-                Здесь будут сохраняться прошедшие и отмененные занятия с пометкой статуса.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
-              {historyLessons.map((l) => {
-                const passed = l.status === 'completed';
-                return (
-                  <div
-                    key={l.id}
-                    className="p-2.5 rounded-xl border border-[#F2DECE] bg-[#FFFDFB] flex items-center justify-between gap-2 shadow-2xs"
-                  >
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-black text-[#161F38] truncate" title={l.student_name}>
-                          {role === 'student' ? (l.teacher_name || 'Преподаватель') : getStudentDisplayLabel(l)}
-                        </span>
-                        <span className="text-[10px] text-[#8A95A8]">
-                          • {formatLessonTime(l.scheduled_for || l.created_at)}
-                        </span>
+                          )}
+                        </div>
                       </div>
-                      <p className="text-[11px] text-[#6B758E] truncate">{l.topic}</p>
-                    </div>
+                    );
+                  })}
+                </div>
 
-                    <div className="shrink-0 flex flex-col items-end gap-0.5">
-                      {passed ? (
-                        <>
-                          <span className="inline-flex items-center gap-1 text-[10px] font-black bg-[#EAF7CF] text-[#5C8519] border border-[#D5ECA3] px-2 py-0.5 rounded-full">
-                            <CheckCircle2 className="w-3 h-3 text-[#5C8519]" />
-                            <span>Прошёл</span>
-                          </span>
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#6B758E]">
-                            <Clock className="w-2.5 h-2.5 text-coralAccent" />
-                            <span>{formatLessonDuration(l)}</span>
-                          </span>
-                        </>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 rounded-full">
-                          <XCircle className="w-3 h-3 text-rose-600" />
-                          <span>Не прошёл</span>
-                        </span>
-                      )}
+                {/* History pagination controls */}
+                {totalHistoryPages > 1 && (
+                  <div className="pt-2 flex items-center justify-between text-xs shrink-0 select-none border-t border-[#F8EDE1]">
+                    <button
+                      type="button"
+                      disabled={currentHistoryPage <= 1}
+                      onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-[#F2DECE] bg-white text-[#161F38] hover:bg-[#FFF2E6] disabled:opacity-30 disabled:cursor-not-allowed transition-colors font-bold text-[11px] cursor-pointer shadow-2xs"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                      <span>Назад</span>
+                    </button>
+                    <div className="flex items-center gap-1 font-bold text-[11px] text-[#6B758E]">
+                      <span>Стр. {currentHistoryPage} из {totalHistoryPages}</span>
                     </div>
+                    <button
+                      type="button"
+                      disabled={currentHistoryPage >= totalHistoryPages}
+                      onClick={() => setHistoryPage((p) => Math.min(totalHistoryPages, p + 1))}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-[#F2DECE] bg-white text-[#161F38] hover:bg-[#FFF2E6] disabled:opacity-30 disabled:cursor-not-allowed transition-colors font-bold text-[11px] cursor-pointer shadow-2xs"
+                    >
+                      <span>Вперёд</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
                   </div>
-                );
-              })}
-            </div>
-          )
-        )}
+                )}
+              </div>
+            )
+          )}
+        </div>
       </div>
 
       {/* Footer */}
-      <div className="pt-2 border-t border-[#F8EDE1] flex items-center justify-between text-[11px] text-[#6B758E]">
+      <div className="shrink-0 pt-2 border-t border-[#F8EDE1] flex items-center justify-between text-[11px] text-[#6B758E]">
         <span>Всего уроков: <strong className="text-[#161F38]">{lessons.length}</strong></span>
         <button
           type="button"

@@ -16,6 +16,7 @@ import {
   Trash2,
   GraduationCap,
   ChevronRight,
+  ChevronLeft,
   ChevronDown,
   Clock,
   RefreshCw,
@@ -87,6 +88,8 @@ export default function TeacherDashboard() {
   const [customStudentName, setCustomStudentName] = useState('');
   const [customStudentNote, setCustomStudentNote] = useState('');
   const [isBindingStudent, setIsBindingStudent] = useState(false);
+  const [studentsPage, setStudentsPage] = useState(1);
+  const STUDENTS_PER_PAGE = 3;
 
   // Homework loaded for students and selected student accordion
   const [allHomework, setAllHomework] = useState<TeacherHomeworkItem[]>([]);
@@ -506,6 +509,13 @@ export default function TeacherDashboard() {
     return true;
   });
 
+  const totalStudentPages = Math.max(1, Math.ceil(boundStudents.length / STUDENTS_PER_PAGE));
+  const currentStudentPage = Math.min(studentsPage, totalStudentPages);
+  const paginatedStudents = boundStudents.slice(
+    (currentStudentPage - 1) * STUDENTS_PER_PAGE,
+    currentStudentPage * STUDENTS_PER_PAGE
+  );
+
   return (
     <div className="space-y-4 sm:space-y-5">
       {/* Teacher Profile Header — Distinct Warm Hero Card */}
@@ -550,9 +560,9 @@ export default function TeacherDashboard() {
       </div>
 
       {/* 2-Column Dashboard Grid: Left (Schedule & Lessons) | Right (Assigned Students & Homework) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 items-stretch">
         {/* Left Column: Schedule & Lesson History */}
-        <div className="w-full">
+        <div className="w-full h-[620px] flex flex-col">
           <LessonsScheduleHistory
             role="teacher"
             onStartLesson={(token, topic) => {
@@ -563,35 +573,35 @@ export default function TeacherDashboard() {
         </div>
 
         {/* Right Column: Assigned Students with Homework Accordion */}
-        <div className="w-full">
+        <div className="w-full h-[620px] flex flex-col">
           {/* Assigned Students List — Emerald Growth Accent */}
-          <div className="bg-white rounded-3xl p-4 sm:p-5 border-t-4 border-t-[#5C8519] border-x border-b border-[#D8E6C3] shadow-xs flex flex-col justify-between space-y-3 hover:shadow-sm transition-shadow">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-[#EAF7CF] text-[#5C8519] border border-[#CCE8A2] flex items-center justify-center shrink-0 shadow-2xs">
-                  <Users className="w-4 h-4" />
+          <div className="bg-white rounded-3xl p-4 sm:p-5 border-t-4 border-t-[#5C8519] border-x border-b border-[#D8E6C3] shadow-xs flex flex-col justify-between h-full space-y-3.5 hover:shadow-sm transition-shadow">
+            <div className="flex-1 min-h-0 flex flex-col space-y-3">
+              <div className="shrink-0 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-[#EAF7CF] text-[#5C8519] border border-[#CCE8A2] flex items-center justify-center shrink-0 shadow-2xs">
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <h3 className="font-black text-sm sm:text-base text-[#161F38]">Закрепленные ученики</h3>
                 </div>
-                <h3 className="font-black text-sm sm:text-base text-[#161F38]">Закрепленные ученики</h3>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] bg-[#EAF7CF] text-[#5C8519] border border-[#CCE8A2] px-2.5 py-0.5 rounded-full font-bold">
+                    {boundStudents.length} активных
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddStudentForm(!showAddStudentForm)}
+                    className="inline-flex items-center gap-1 text-[11px] font-black bg-[#5C8519] hover:bg-[#4E7214] text-white px-3 py-1.5 rounded-full transition-colors duration-140 cursor-pointer active:scale-95 shadow-2xs"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>{showAddStudentForm ? 'Скрыть форму' : 'Добавить ученика'}</span>
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] bg-[#EAF7CF] text-[#5C8519] border border-[#CCE8A2] px-2.5 py-0.5 rounded-full font-bold">
-                  {boundStudents.length} активных
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setShowAddStudentForm(!showAddStudentForm)}
-                  className="inline-flex items-center gap-1 text-[11px] font-black bg-[#5C8519] hover:bg-[#4E7214] text-white px-3 py-1.5 rounded-full transition-colors duration-140 cursor-pointer active:scale-95 shadow-2xs"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>{showAddStudentForm ? 'Скрыть форму' : 'Добавить ученика'}</span>
-                </button>
-              </div>
-            </div>
 
-            {/* Form to Add Student */}
-            {showAddStudentForm && (
-              <form onSubmit={handleAddStudent} className="p-3 bg-[#FFF8F1] border border-[#F2DECE] rounded-xl space-y-2 animate-in fade-in">
+              {/* Form to Add Student */}
+              {showAddStudentForm && (
+                <form onSubmit={handleAddStudent} className="shrink-0 p-3 bg-[#FFF8F1] border border-[#F2DECE] rounded-xl space-y-2 animate-in fade-in">
                 <div className="text-[11px] font-black text-[#161F38]">Привязать ученика к кабинету:</div>
 
                 {supabaseStudents.length > 0 && (
@@ -666,31 +676,33 @@ export default function TeacherDashboard() {
               </form>
             )}
 
-            {/* Students List with Interactive Homework Accordion */}
-            {boundStudents.length === 0 ? (
-              <div className="p-5 rounded-xl border border-dashed border-[#F2DECE] bg-[#FFFAF5] text-center space-y-1.5">
-                <Users className="w-6 h-6 text-coralAccent mx-auto opacity-50" />
-                <h4 className="font-bold text-xs text-[#161F38]">Пока нет закрепленных учеников</h4>
-                <p className="text-[11px] text-[#6B758E] max-w-xs mx-auto">
-                  Нажмите «Добавить ученика», чтобы привязать ученика к вашему кабинету.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1">
-                {boundStudents.map((st) => {
-                  const info = getCleanStudentInfo(st);
-                  const stHwList = getStudentHomeworkList(st);
-                  const isExpanded = selectedStudentHwId === st.id;
+            {/* Students List Container with Interactive Homework Accordion & Pagination */}
+            <div className="flex-1 min-h-0 flex flex-col justify-between">
+              {boundStudents.length === 0 ? (
+                <div className="p-5 rounded-xl border border-dashed border-[#F2DECE] bg-[#FFFAF5] text-center space-y-1.5">
+                  <Users className="w-6 h-6 text-coralAccent mx-auto opacity-50" />
+                  <h4 className="font-bold text-xs text-[#161F38]">Пока нет закрепленных учеников</h4>
+                  <p className="text-[11px] text-[#6B758E] max-w-xs mx-auto">
+                    Нажмите «Добавить ученика», чтобы привязать ученика к вашему кабинету.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex-1 min-h-0 flex flex-col justify-between">
+                  <div className="space-y-2 overflow-y-auto pr-1">
+                    {paginatedStudents.map((st) => {
+                      const info = getCleanStudentInfo(st);
+                      const stHwList = getStudentHomeworkList(st);
+                      const isExpanded = selectedStudentHwId === st.id;
 
-                  return (
-                    <div
-                      key={st.id}
-                      className={`rounded-2xl border transition-all duration-140 ${
-                        isExpanded
-                          ? 'border-[#5C8519] bg-[#F7FAEF] shadow-xs'
-                          : 'border-[#E5EED8] bg-[#FDFEFC] hover:bg-white hover:border-[#5C8519]/60 shadow-2xs'
-                      }`}
-                    >
+                      return (
+                        <div
+                          key={st.id}
+                          className={`rounded-2xl border transition-all duration-140 ${
+                            isExpanded
+                              ? 'border-[#5C8519] bg-[#F7FAEF] shadow-xs'
+                              : 'border-[#E5EED8] bg-[#FDFEFC] hover:bg-white hover:border-[#5C8519]/60 shadow-2xs'
+                          }`}
+                        >
                       {/* Student Card Row (Click to toggle Homework list) */}
                       <div
                         onClick={() => setSelectedStudentHwId(isExpanded ? null : st.id)}
@@ -945,11 +957,39 @@ export default function TeacherDashboard() {
                                           </p>
                                         )}
                                         {hw.student_solution_file_url && (
-                                          <audio
-                                            controls
-                                            src={hw.student_solution_file_url}
-                                            className="w-full h-7 mt-1"
-                                          />
+                                          <div className="mt-1.5">
+                                            {/\.(mp3|wav|ogg|webm|m4a)($|\?)/i.test(hw.student_solution_file_url) ? (
+                                              <audio
+                                                controls
+                                                src={hw.student_solution_file_url}
+                                                className="w-full h-8"
+                                              />
+                                            ) : /\.(png|jpe?g|webp|gif)($|\?)/i.test(hw.student_solution_file_url) ? (
+                                              <a
+                                                href={hw.student_solution_file_url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="block overflow-hidden rounded-lg border border-[#D5ECA3] max-w-[200px] hover:opacity-90 transition-opacity"
+                                              >
+                                                <img
+                                                  src={hw.student_solution_file_url}
+                                                  alt="Решение ученика"
+                                                  className="w-full max-h-36 object-contain bg-white"
+                                                />
+                                              </a>
+                                            ) : (
+                                              <a
+                                                href={hw.student_solution_file_url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                download
+                                                className="inline-flex items-center gap-1.5 text-[10px] font-bold text-[#5C8519] bg-white border border-[#D5ECA3] px-2 py-1 rounded-lg hover:bg-[#F2F7E5] transition-colors"
+                                              >
+                                                <Paperclip className="w-3 h-3" />
+                                                <span>Прикрепленный файл с решением</span>
+                                              </a>
+                                            )}
+                                          </div>
                                         )}
                                       </div>
                                     )}
@@ -968,16 +1008,45 @@ export default function TeacherDashboard() {
                   );
                 })}
               </div>
-            )}
-          </div>
 
-          <div className="pt-2 border-t border-[#F8EDE1] flex items-center justify-between text-[11px] text-[#6B758E]">
-            <span>Всего в списке: <strong className="text-[#161F38]">{boundStudents.length}</strong></span>
-            <span className="text-[10px] text-[#8A95A8]">Данные сохраняются в кабинете</span>
+              {/* Students pagination controls */}
+              {totalStudentPages > 1 && (
+                <div className="pt-2 flex items-center justify-between text-xs shrink-0 select-none border-t border-[#E5EED8]">
+                  <button
+                    type="button"
+                    disabled={currentStudentPage <= 1}
+                    onClick={() => setStudentsPage((p) => Math.max(1, p - 1))}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-[#D8E6C3] bg-white text-[#161F38] hover:bg-[#F7FAEF] disabled:opacity-30 disabled:cursor-not-allowed transition-colors font-bold text-[11px] cursor-pointer shadow-2xs"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                    <span>Назад</span>
+                  </button>
+                  <div className="flex items-center gap-1 font-bold text-[11px] text-[#6B758E]">
+                    <span>Стр. {currentStudentPage} из {totalStudentPages}</span>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={currentStudentPage >= totalStudentPages}
+                    onClick={() => setStudentsPage((p) => Math.min(totalStudentPages, p + 1))}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-[#D8E6C3] bg-white text-[#161F38] hover:bg-[#F7FAEF] disabled:opacity-30 disabled:cursor-not-allowed transition-colors font-bold text-[11px] cursor-pointer shadow-2xs"
+                  >
+                    <span>Вперёд</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
           </div>
+        </div>
+
+        <div className="shrink-0 pt-2 border-t border-[#F8EDE1] flex items-center justify-between text-[11px] text-[#6B758E]">
+          <span>Всего в списке: <strong className="text-[#161F38]">{boundStudents.length}</strong></span>
+          <span className="text-[10px] text-[#8A95A8]">Данные сохраняются в кабинете</span>
         </div>
       </div>
     </div>
+  </div>
 
     {/* Row 3: Real Teachers & Pedagogical Faculty — Golden Amber Accent (Full Width) */}
     <div className="w-full bg-white rounded-3xl p-4 sm:p-5 border-t-4 border-t-amber-500 border-x border-b border-[#FCDDC7] shadow-xs space-y-3.5 hover:shadow-sm transition-shadow">

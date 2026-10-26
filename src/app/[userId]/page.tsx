@@ -4,7 +4,7 @@ import React, { useState, useEffect, use } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import LessonsScheduleHistory from '@/components/LessonsScheduleHistory';
-import VoiceRecorder from '@/components/VoiceRecorder';
+import StudentHomeworkBlock from '@/components/StudentHomeworkBlock';
 import { LessonSession, HomeworkItem } from '@/types';
 import {
   Video,
@@ -56,7 +56,6 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
   const [balance, setBalance] = useState<number>(0);
   const [lessons, setLessons] = useState<LessonSession[]>([]);
   const [homeworks, setHomeworks] = useState<HomeworkItem[]>([]);
-  const [recordingHwId, setRecordingHwId] = useState<string | null>(null);
 
   // Active lesson room state (to re-enter after exit)
   const [activeLessonRoom, setActiveLessonRoom] = useState<{ roomId: string; topic: string } | null>(null);
@@ -146,6 +145,8 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
             studentId: h.student_public_id || uid,
             status: h.status || 'assigned',
             studentSolutionText: h.student_solution_text,
+            studentSolutionFileUrl: h.student_solution_file_url,
+            teacherFeedback: h.teacher_feedback,
             createdAt: h.created_at,
           }));
           setHomeworks(mappedHw);
@@ -212,37 +213,6 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
       setCurrentId(saved);
       setIsEditingSlug(false);
       router.push(`/${saved}`);
-    }
-  };
-
-  const handleVoiceSubmission = async (hwId: string, durationSec: number) => {
-    const solutionText = `Аудиоответ отправлен педагогу (${durationSec} сек.)`;
-    try {
-      await fetch('/api/homework', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'submit_solution',
-          id: hwId,
-          student_solution_text: solutionText,
-        }),
-      });
-
-      setHomeworks((prev) =>
-        prev.map((hw) =>
-          hw.id === hwId
-            ? {
-                ...hw,
-                status: 'submitted',
-                studentSolutionText: solutionText,
-              }
-            : hw
-        )
-      );
-      setRecordingHwId(null);
-      alert('Домашнее задание успешно отправлено на проверку преподавателю!');
-    } catch (err) {
-      console.warn('Error submitting voice homework:', err);
     }
   };
 
@@ -475,111 +445,13 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
         />
       </div>
 
-      {/* 3. Homeworks List */}
-      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-[#F2E0CF] shadow-xs space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <BookOpen className="w-4 h-4 text-coralAccent" />
-            <h3 className="font-black text-sm sm:text-base text-[#161F38]">
-              Домашние задания от преподавателя
-            </h3>
-          </div>
-          <span className="text-[10px] font-black bg-[#FFF2E6] text-coralAccent px-2 py-0.5 rounded-full border border-[#FCDDC7]">
-            {homeworks.length} {homeworks.length === 1 ? 'задание' : 'заданий'}
-          </span>
-        </div>
-
-        {homeworks.length === 0 ? (
-          <div className="p-6 rounded-xl border border-dashed border-[#F2DECE] bg-[#FFFAF5] text-center space-y-1.5">
-            <CheckCircle2 className="w-7 h-7 text-[#5C8519] mx-auto opacity-70" />
-            <h4 className="font-bold text-xs text-[#161F38]">Все задания выполнены</h4>
-            <p className="text-[11px] text-[#6B758E] max-w-xs mx-auto">
-              Новые упражнения от преподавателя появятся здесь сразу после проведения занятия.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
-            {homeworks.map((hw) => {
-              const isSubmitted = hw.status === 'submitted';
-              return (
-                <div
-                  key={hw.id}
-                  className="p-3.5 rounded-xl border border-[#F2DECE] bg-[#FFFDFB] hover:bg-white transition-colors space-y-2.5 shadow-2xs"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <h4 className="font-black text-xs sm:text-sm text-[#161F38]">{hw.title}</h4>
-                      <span className="text-[10px] text-[#8A95A8]">Педагог: {hw.teacherName || 'Василина Владимировна'}</span>
-                    </div>
-                    {isSubmitted ? (
-                      <span className="text-[10px] font-extrabold bg-[#EAF7CF] text-[#5C8519] border border-[#D5ECA3] px-2 py-0.5 rounded-full shrink-0">
-                        ✓ На проверке
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-extrabold bg-[#FFF2E6] text-coralAccent border border-[#FCDDC7] px-2 py-0.5 rounded-full shrink-0">
-                        К выполнению
-                      </span>
-                    )}
-                  </div>
-
-                  <p className="text-xs text-[#6B758E] leading-relaxed whitespace-pre-line">
-                    {hw.taskDescription}
-                  </p>
-
-                  {hw.taskFileUrl && (
-                    <div className="pt-0.5">
-                      <a
-                        href={hw.taskFileUrl}
-                        download={hw.fileName || 'material'}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 text-[11px] font-bold text-coralAccent bg-[#FFF2E6] hover:bg-[#FFE3CC] border border-[#FCDDC7] px-2.5 py-1 rounded-xl transition-colors cursor-pointer"
-                      >
-                        <Paperclip className="w-3 h-3" />
-                        <span>Скачать файл: {hw.fileName || 'Материалы задания'}</span>
-                      </a>
-                    </div>
-                  )}
-
-                  {/* Solution status or Voice submission */}
-                  <div className="pt-2 border-t border-[#F8EDE1]">
-                    {isSubmitted ? (
-                      <div className="text-[11px] text-[#5C8519] font-medium flex items-center gap-1.5">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>{hw.studentSolutionText || 'Ответ отправлен педагогу'}</span>
-                      </div>
-                    ) : recordingHwId === hw.id ? (
-                      <VoiceRecorder
-                        onSendVoice={(duration) => handleVoiceSubmission(hw.id, duration)}
-                        onCancel={() => setRecordingHwId(null)}
-                      />
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setRecordingHwId(hw.id)}
-                        className="w-full bg-[#FFF7EE] hover:bg-[#FFF2E6] text-coralAccent border border-[#F2DECE] font-black text-xs py-2 rounded-xl transition-colors cursor-pointer active:scale-[0.98] flex items-center justify-center gap-1.5"
-                      >
-                        <span>🎤 Записать голосовой ответ педагогу</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        <div className="pt-2 border-t border-[#F8EDE1] flex items-center justify-between text-[11px] text-[#6B758E]">
-          <span>Статус: <strong className="text-[#5C8519]">Кабинет подключен</strong></span>
-          <Link
-            href={`/messenger?id=${routeUserId}`}
-            className="inline-flex items-center gap-1 font-bold text-coralAccent hover:text-coralAccent-hover text-xs"
-          >
-            <MessageCircle className="w-3.5 h-3.5" />
-            <span>Написать преподавателю</span>
-            <ChevronRight className="w-3 h-3" />
-          </Link>
-        </div>
+      {/* 3. Homeworks Block */}
+      <div className="w-full">
+        <StudentHomeworkBlock
+          homeworks={homeworks}
+          currentUserId={currentId}
+          onHomeworkUpdated={() => fetchStudentData(currentId)}
+        />
       </div>
     </div>
   );

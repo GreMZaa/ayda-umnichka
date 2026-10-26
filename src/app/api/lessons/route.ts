@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { supabaseServer } from '@/lib/supabaseServer';
 
 export const dynamic = 'force-dynamic';
 
@@ -142,6 +143,41 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, lesson: data });
   } catch (err: any) {
     console.error('Lessons POST handler error:', err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    let id = searchParams.get('id')?.trim();
+
+    if (!id) {
+      try {
+        const body = await req.json();
+        id = body.id?.trim();
+      } catch (_) {}
+    }
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID урока обязателен для удаления' }, { status: 400 });
+    }
+
+    // Attempt delete using supabaseServer (service role) to avoid RLS restrictions
+    const client = supabaseServer || supabase;
+    const { error } = await client
+      .from('lessons')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error deleting lesson from Supabase:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true, message: 'Урок успешно удален' });
+  } catch (err: any) {
+    console.error('Lessons DELETE handler error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
