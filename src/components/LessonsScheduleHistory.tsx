@@ -43,6 +43,7 @@ interface LessonsScheduleHistoryProps {
   role?: 'teacher' | 'student';
   studentPublicId?: string;
   studentName?: string;
+  teacherName?: string;
 }
 
 export default function LessonsScheduleHistory({
@@ -51,6 +52,7 @@ export default function LessonsScheduleHistory({
   role = 'teacher',
   studentPublicId,
   studentName,
+  teacherName,
 }: LessonsScheduleHistoryProps) {
   const [activeTab, setActiveTab] = useState<'upcoming' | 'history'>('upcoming');
   const [lessons, setLessons] = useState<LessonRecord[]>([]);
@@ -209,6 +211,7 @@ export default function LessonsScheduleHistory({
           topic: formTopic,
           student_name: selectedStudentObj?.fullName || formStudent || 'Ученик центра',
           student_public_id: selectedStudentObj?.publicId || null,
+          teacher_name: teacherName || 'Преподаватель',
           scheduled_for: formDateTime,
           status: 'pending',
           duration_minutes: 45,

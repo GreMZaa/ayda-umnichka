@@ -583,6 +583,7 @@ export default function TeacherDashboard() {
         <div className="w-full">
           <LessonsScheduleHistory
             role="teacher"
+            teacherName={cleanTeacherDisplayName || teacherName || 'Преподаватель'}
             onStartLesson={(token, topic) => {
               router.push(`/room/${token}?role=teacher&topic=${encodeURIComponent(topic)}`);
             }}

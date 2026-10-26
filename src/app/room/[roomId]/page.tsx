@@ -57,7 +57,7 @@ export default function LessonRoomPage() {
     if (teacherFlag) {
       setParticipantName('Ученик центра');
     } else {
-      setParticipantName('Василина Владимировна');
+      setParticipantName('Преподаватель');
     }
 
     // 4. Save active lesson room state so user can re-enter from personal cabinet if navigated away
@@ -77,7 +77,7 @@ export default function LessonRoomPage() {
     } catch (_) {}
   }, [roomId, roleParam, topicParam]);
 
-  // Fetch student info linked to this lesson room
+  // Fetch lesson & participant info linked to this lesson room
   useEffect(() => {
     const fetchLessonDetails = async () => {
       try {
@@ -94,6 +94,12 @@ export default function LessonRoomPage() {
               setTargetStudentName(cleanName || currentLesson.student_name);
               if (isTeacher) {
                 setParticipantName(cleanName || currentLesson.student_name);
+              }
+            }
+            if (!isTeacher && currentLesson.teacher_name) {
+              const cleanTeacher = currentLesson.teacher_name.replace(/\s*\(.*?\)$/, '').trim();
+              if (cleanTeacher && cleanTeacher !== 'Преподаватель') {
+                setParticipantName(cleanTeacher);
               }
             }
           }
@@ -153,6 +159,12 @@ export default function LessonRoomPage() {
     setIsSubmittingHw(true);
 
     try {
+      const activeTeacherName =
+        localStorage.getItem('aida_full_name') ||
+        localStorage.getItem('aida_user_name') ||
+        'Преподаватель';
+      const cleanTName = activeTeacherName.replace(/\s*\(.*?\)$/, '').trim() || 'Преподаватель';
+
       if (hwTitle.trim() && hwDescription.trim()) {
         await fetch('/api/homework', {
           method: 'POST',
@@ -162,7 +174,7 @@ export default function LessonRoomPage() {
             task_description: hwDescription.trim(),
             student_public_id: targetStudentId || null,
             student_name: targetStudentName || 'Ученик',
-            teacher_name: 'Василина Владимировна',
+            teacher_name: cleanTName,
             due_date: hwDueDate || null,
           }),
         });

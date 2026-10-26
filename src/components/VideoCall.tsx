@@ -96,8 +96,12 @@ export default function VideoCall({
   };
 
   // Resolve participant label based on role
+  const [peerProvidedName, setPeerProvidedName] = useState<string>('');
+
   const rawParticipant =
-    participantName || (isTeacher ? 'Ученик центра' : 'Василина Владимировна');
+    peerProvidedName ||
+    participantName ||
+    (isTeacher ? 'Ученик центра' : 'Преподаватель');
   const resolvedParticipantName = cleanDisplayName(rawParticipant);
 
   const [micActive, setMicActive] = useState(true);
@@ -814,14 +818,26 @@ export default function VideoCall({
         // Sync timer start with peer if available
         syncTimerWithTimestamp(payload?.startedAt);
 
+        if (payload?.userName) {
+          setPeerProvidedName(payload.userName);
+        }
+
         // 1. Immediately acknowledge presence so newcomer knows we are already in the room!
         if (channelRef.current) {
+          const myLocalName =
+            (typeof window !== 'undefined' &&
+              (localStorage.getItem('aida_full_name') ||
+                localStorage.getItem('aida_user_name'))) ||
+            '';
+          const cleanLocalName = myLocalName.replace(/\s*\(.*?\)$/, '').trim();
+
           channelRef.current.send({
             type: 'broadcast',
             event: 'user-here',
             payload: {
               senderId: myPeerIdRef.current,
               isTeacher,
+              userName: cleanLocalName || (isTeacher ? 'Преподаватель' : 'Ученик'),
               startedAt: timerStartTimeRef.current,
             },
           });
@@ -855,6 +871,10 @@ export default function VideoCall({
 
         // Sync timer start with peer if available
         syncTimerWithTimestamp(payload?.startedAt);
+
+        if (payload?.userName) {
+          setPeerProvidedName(payload.userName);
+        }
 
         // Reset old peer connection to negotiate clean session
         resetPeerConnection();
@@ -967,12 +987,20 @@ export default function VideoCall({
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           console.log('[WebRTC] Connected to signaling channel');
+          const myLocalName =
+            (typeof window !== 'undefined' &&
+              (localStorage.getItem('aida_full_name') ||
+                localStorage.getItem('aida_user_name'))) ||
+            '';
+          const cleanLocalName = myLocalName.replace(/\s*\(.*?\)$/, '').trim();
+
           channel.send({
             type: 'broadcast',
             event: 'user-joined',
             payload: {
               senderId: myPeerIdRef.current,
               isTeacher,
+              userName: cleanLocalName || (isTeacher ? 'Преподаватель' : 'Ученик'),
               startedAt: timerStartTimeRef.current,
             },
           });
