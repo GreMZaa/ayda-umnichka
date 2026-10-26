@@ -1,7 +1,6 @@
 // Service Worker for АйДаУмничка PWA
-const CACHE_NAME = 'ayda-umnichka-pwa-v1';
+const CACHE_NAME = 'ayda-umnichka-pwa-v3';
 const STATIC_ASSETS = [
-  '/',
   '/manifest.json',
   '/icon-192.png',
   '/icon-512.png',
@@ -13,7 +12,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(STATIC_ASSETS).catch((err) => {
-        console.warn('PWA: Some assets failed to pre-cache:', err);
+        console.warn('PWA: Pre-cache warning:', err);
       });
     })
   );
@@ -26,6 +25,7 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         keys.map((key) => {
           if (key !== CACHE_NAME) {
+            console.log('PWA: Purging outdated cache:', key);
             return caches.delete(key);
           }
         })
@@ -35,10 +35,23 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
+self.addEventListener('message', (event) => {
+  if (event.data) {
+    if (event.data.type === 'SKIP_WAITING') {
+      self.skipWaiting();
+    }
+    if (event.data.type === 'CLEAR_CACHE') {
+      caches.keys().then((keys) => {
+        Promise.all(keys.map((key) => caches.delete(key)));
+      });
+    }
+  }
+});
+
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Bypass service worker caching for API calls, WebRTC, Supabase, and dynamic room signals
+  // Bypass service worker caching for API calls, WebRTC, Supabase, room signals and non-GET requests
   if (
     url.pathname.startsWith('/api/') ||
     url.hostname.includes('supabase.co') ||
@@ -48,15 +61,38 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Network-first strategy with cache fallback for pages and assets
+  // Navigation requests (HTML pages) MUST be Network-First to guarantee latest Next.js build
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          return response;
+        })
+        .catch(() => {
+          return caches.match(event.request).then((cached) => {
+            if (cached) return cached;
+            return caches.match('/');
+          });
+        })
+    );
+    return;
+  }
+
+  // Static assets: Network-first with cache fallback
   event.respondWith(
     fetch(event.request)
       .then((response) => {
         if (response && response.status === 200 && response.type === 'basic') {
-          const responseToCache = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
+          // Only cache images and icons in runtime cache
+          if (
+            url.pathname.match(/\.(png|jpg|jpeg|svg|ico|webp|woff2)$/i) ||
+            url.pathname.startsWith('/_next/static/')
+          ) {
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseToCache);
+            });
+          }
         }
         return response;
       })
@@ -64,10 +100,6 @@ self.addEventListener('fetch', (event) => {
         return caches.match(event.request).then((cachedResponse) => {
           if (cachedResponse) {
             return cachedResponse;
-          }
-          // If offline and request is navigation, fallback to root
-          if (event.request.mode === 'navigate') {
-            return caches.match('/');
           }
           return new Response('Offline', { status: 503, statusText: 'Offline' });
         });
