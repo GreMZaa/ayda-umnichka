@@ -431,15 +431,6 @@ export default function TeacherDashboard() {
               <span className="text-[10px] bg-[#FFF2E6] text-coralAccent border border-[#FCDDC7] font-extrabold px-2 py-0.5 rounded-full">
                 ★ ID: {teacherPublicId}
               </span>
-              <button
-                type="button"
-                onClick={copyCabinetLink}
-                className="inline-flex items-center gap-1 text-[10px] text-[#8A95A8] hover:text-[#161F38] bg-[#FFF8F1] hover:bg-[#FFF2E6] border border-[#F2DECE] px-2 py-0.5 rounded-lg transition-colors cursor-pointer"
-                title="Скопировать постоянную ссылку на кабинет"
-              >
-                {copiedLink ? <Check className="w-3 h-3 text-[#5C8519]" /> : <Copy className="w-3 h-3 text-[#8A95A8]" />}
-                <span>{copiedLink ? 'Скопировано!' : 'Ссылка'}</span>
-              </button>
             </div>
             <p className="text-[11px] text-[#6B758E] mt-0.5">
               Детский развивающий центр «АйДаУмничка», г. Тольятти • Онлайн-кабинет занятий
@@ -447,18 +438,18 @@ export default function TeacherDashboard() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 self-stretch md:self-auto justify-end">
-          <div className="bg-[#FFF8F1] border border-[#F2DECE] px-3 py-1.5 rounded-xl text-center min-w-[70px]">
+        <div className="grid grid-cols-3 gap-2 w-full sm:w-auto sm:flex sm:items-center sm:justify-end">
+          <div className="bg-[#FFF8F1] border border-[#F2DECE] px-2 sm:px-3 py-2 rounded-xl text-center flex flex-col items-center justify-center min-h-[54px] shadow-2xs">
             <span className="text-[9px] text-[#6B758E] font-extrabold uppercase tracking-wider block">Учеников</span>
-            <p className="text-sm font-black text-[#161F38]">{boundStudents.length}</p>
+            <p className="text-sm font-black text-[#161F38] mt-0.5">{boundStudents.length}</p>
           </div>
-          <div className="bg-[#FFF8F1] border border-[#F2DECE] px-3 py-1.5 rounded-xl text-center min-w-[70px]">
+          <div className="bg-[#FFF8F1] border border-[#F2DECE] px-2 sm:px-3 py-2 rounded-xl text-center flex flex-col items-center justify-center min-h-[54px] shadow-2xs">
             <span className="text-[9px] text-[#6B758E] font-extrabold uppercase tracking-wider block">Коллег</span>
-            <p className="text-sm font-black text-[#5C8519]">{colleagueTeachers.length}</p>
+            <p className="text-sm font-black text-[#5C8519] mt-0.5">{colleagueTeachers.length}</p>
           </div>
-          <div className="bg-[#FFF8F1] border border-[#F2DECE] px-3 py-1.5 rounded-xl text-center min-w-[70px]">
+          <div className="bg-[#FFF8F1] border border-[#F2DECE] px-2 sm:px-3 py-2 rounded-xl text-center flex flex-col items-center justify-center min-h-[54px] shadow-2xs">
             <span className="text-[9px] text-[#6B758E] font-extrabold uppercase tracking-wider block">Статус</span>
-            <span className="text-xs font-black text-[#5C8519] flex items-center justify-center gap-1">
+            <span className="text-xs font-black text-[#5C8519] flex items-center justify-center gap-1 mt-0.5">
               <span className="w-1.5 h-1.5 rounded-full bg-[#5C8519]" />
               В сети
             </span>

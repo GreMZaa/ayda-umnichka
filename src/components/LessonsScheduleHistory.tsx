@@ -97,6 +97,28 @@ export default function LessonsScheduleHistory({
     return null;
   };
 
+  // Helper to resolve child ID for teacher cabinet display
+  const getStudentDisplayId = (l: LessonRecord) => {
+    if (l.student_public_id) {
+      return l.student_public_id;
+    }
+    if (availableStudents && availableStudents.length > 0) {
+      const cleanLName = (l.student_name || '').replace(/\s*\(.*?\)$/, '').trim().toLowerCase();
+      const matched = availableStudents.find((s) => {
+        const cleanSName = (s.fullName || '').replace(/\s*\(.*?\)$/, '').trim().toLowerCase();
+        return cleanSName === cleanLName || cleanSName.includes(cleanLName) || cleanLName.includes(cleanSName);
+      });
+      if (matched?.publicId) {
+        return matched.publicId;
+      }
+    }
+    const match = (l.student_name || '').match(/id\d+/i);
+    if (match) return match[0];
+
+    const cleanOnly = (l.student_name || '').replace(/\s*\(.*?\)$/, '').trim();
+    return cleanOnly || 'id179018';
+  };
+
   const formatElapsedTimer = (totalSec: number) => {
     const mins = Math.floor(totalSec / 60);
     const secs = totalSec % 60;
@@ -410,19 +432,12 @@ export default function LessonsScheduleHistory({
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs font-black text-[#161F38] truncate">
-                            {role === 'student' ? (l.teacher_name || 'Преподаватель') : l.student_name}
+                          <span className="text-xs font-black text-[#161F38] truncate" title={l.student_name}>
+                            {role === 'student' ? (l.teacher_name || 'Преподаватель') : getStudentDisplayId(l)}
                           </span>
-                          {isRoomActive ? (
-                            <span className="inline-flex items-center gap-1.5 bg-[#EAF7CF] text-[#5C8519] border border-[#CCE8A2] px-2 py-0.5 rounded-full text-[10px] font-mono font-black animate-pulse">
-                              <span className="w-1.5 h-1.5 rounded-full bg-[#5C8519]" />
-                              <span>Идёт урок: {formatElapsedTimer(elapsedSec)}</span>
-                            </span>
-                          ) : (
-                            <span className="text-[9px] font-bold bg-[#FFF2E6] text-coralAccent px-1.5 py-0.2 rounded-full shrink-0">
-                              {formatLessonTime(l.scheduled_for)}
-                            </span>
-                          )}
+                          <span className="text-[9px] font-bold bg-[#FFF2E6] text-coralAccent px-1.5 py-0.5 rounded-full shrink-0">
+                            {formatLessonTime(l.scheduled_for)}
+                          </span>
                         </div>
                         <p className="text-[11px] text-[#6B758E] truncate mt-0.5">{l.topic}</p>
                       </div>
@@ -520,8 +535,8 @@ export default function LessonsScheduleHistory({
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-black text-[#161F38] truncate">
-                          {l.student_name}
+                        <span className="text-xs font-black text-[#161F38] truncate" title={l.student_name}>
+                          {role === 'student' ? (l.teacher_name || 'Преподаватель') : getStudentDisplayId(l)}
                         </span>
                         <span className="text-[10px] text-[#8A95A8]">
                           • {formatLessonTime(l.scheduled_for || l.created_at)}
