@@ -28,7 +28,6 @@ import {
   FileText,
   Download,
   Loader2,
-  Smartphone,
   RefreshCw,
   Hand,
   LayoutGrid,
@@ -1984,7 +1983,7 @@ export default function VideoCall({
                   toggleScreenShare();
                   setIsDrawerOpen(false);
                 }}
-                className={`flex items-center gap-2 p-3 rounded-2xl border text-xs font-bold transition-all text-left ${
+                className={`flex items-center justify-center gap-2 p-3 rounded-2xl border text-xs font-bold transition-all text-center ${
                   isScreenSharing
                     ? 'bg-indigo-600/40 border-indigo-400 text-indigo-200'
                     : 'bg-white/10 hover:bg-white/20 border-white/10 text-white'
@@ -1994,26 +1993,6 @@ export default function VideoCall({
                 <span>{isScreenSharing ? 'Стоп экран' : 'Экран'}</span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  toggleDeafen();
-                  setIsDrawerOpen(false);
-                }}
-                className={`flex items-center gap-2 p-3 rounded-2xl border text-xs font-bold transition-all text-left ${
-                  isDeafened
-                    ? 'bg-rose-600/40 border-rose-400 text-rose-200'
-                    : 'bg-white/10 hover:bg-white/20 border-white/10 text-white'
-                }`}
-              >
-                {isDeafened ? (
-                  <VolumeX className="w-4 h-4 shrink-0" />
-                ) : (
-                  <Volume2 className="w-4 h-4 shrink-0" />
-                )}
-                <span>{isDeafened ? 'Вкл. динамики' : 'Заглушить'}</span>
-              </button>
-
               {onToggleWhiteboard && (
                 <button
                   type="button"
@@ -2021,40 +2000,12 @@ export default function VideoCall({
                     onToggleWhiteboard();
                     setIsDrawerOpen(false);
                   }}
-                  className="flex items-center gap-2 p-3 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/10 text-xs font-bold text-white transition-all text-left"
+                  className="flex items-center justify-center gap-2 p-3 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/10 text-xs font-bold text-white transition-all text-center"
                 >
                   <LayoutGrid className="w-4 h-4 shrink-0" />
                   <span>Доска урока</span>
                 </button>
               )}
-
-              <button
-                type="button"
-                onClick={() => {
-                  handleFlipCamera();
-                  setIsDrawerOpen(false);
-                }}
-                className="flex items-center gap-2 p-3 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/10 text-xs font-bold text-white transition-all text-left"
-              >
-                <RefreshCw className="w-4 h-4 shrink-0" />
-                <span>Сменить камеру</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setIsVerticalMode(!isVerticalMode);
-                  setIsDrawerOpen(false);
-                }}
-                className={`flex items-center gap-2 p-3 rounded-2xl border text-xs font-bold transition-all text-left ${
-                  isVerticalMode
-                    ? 'bg-emerald-600/40 border-emerald-400 text-emerald-200'
-                    : 'bg-white/10 hover:bg-white/20 border-white/10 text-white'
-                }`}
-              >
-                <Smartphone className="w-4 h-4 shrink-0" />
-                <span>{isVerticalMode ? 'Вместить видео' : 'Заполнить экран'}</span>
-              </button>
             </div>
           </div>
         )}
