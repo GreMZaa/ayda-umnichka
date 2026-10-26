@@ -188,10 +188,28 @@ export default function LessonRoomPage() {
     router.push(`/teacher?id=${savedUserId || 'id179017'}`);
   };
 
+  // Seamless status bar and background color in video call room (eliminates beige stripes)
+  useEffect(() => {
+    const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+    const originalTheme = metaThemeColor?.getAttribute('content') || '#FFF7EE';
+    if (metaThemeColor) {
+      metaThemeColor.setAttribute('content', '#0A0E1A');
+    }
+    const origBodyBg = document.body.style.backgroundColor;
+    document.body.style.backgroundColor = '#0A0E1A';
+
+    return () => {
+      if (metaThemeColor) {
+        metaThemeColor.setAttribute('content', originalTheme);
+      }
+      document.body.style.backgroundColor = origBodyBg;
+    };
+  }, []);
+
   return (
-    <div className="flex flex-col w-full h-[100dvh] relative overflow-hidden bg-[#FFF7EE]">
+    <div className="fixed inset-0 w-full h-full z-40 overflow-hidden bg-[#0A0E1A] flex flex-col select-none">
       {/* 100% Immersive Full-Screen Workspace — WebRTC call stays continuously connected */}
-      <div className="w-full h-full relative overflow-hidden flex flex-col">
+      <div className="w-full h-full relative overflow-hidden flex flex-col bg-[#0A0E1A]">
         {/* Interactive Whiteboard Canvas */}
         <div className={`w-full h-full ${isWhiteboardActive ? 'block' : 'hidden'}`}>
           <Whiteboard roomId={roomId} onClose={() => setIsWhiteboardActive(false)} />

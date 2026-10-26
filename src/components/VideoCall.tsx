@@ -1635,7 +1635,7 @@ export default function VideoCall({
         }}
       />
       {/* VK Calls Layout */}
-      <div className="relative w-full h-[100dvh] bg-[#FFF7EE] overflow-hidden select-none">
+      <div className="relative w-full h-full min-h-[100dvh] bg-[#0A0E1A] overflow-hidden select-none">
         {/* Banner if browser autoplay policy blocked sound until interaction */}
         {isAudioAutoplayBlocked && hasRemoteStream && !isDeafened && (
           <div
@@ -1671,7 +1671,7 @@ export default function VideoCall({
         )}
 
         {/* 1. Main Fullscreen Video (Remote by default, or Local if isSwapped) */}
-        <div className="absolute inset-0 w-full h-full overflow-hidden bg-[#FFF7EE]">
+        <div className="absolute inset-0 w-full h-full overflow-hidden bg-[#0A0E1A]">
           {!isSwapped ? (
             /* Main View: Remote stream */
             <>
@@ -1685,25 +1685,25 @@ export default function VideoCall({
               />
 
               {(!hasRemoteStream || !remoteCamActive) && (
-                <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-[#FFFDFB] via-[#FFF7EE] to-[#FFEFE0]">
+                <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-radial from-[#1e293b] via-[#0f172a] to-[#0A0E1A]">
                   <div className="relative mb-4">
-                    <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gradient-to-tr from-[#FF6B4A] to-[#FFA259] text-white flex items-center justify-center text-3xl sm:text-4xl font-black shadow-xl shadow-orange-500/15 border-4 border-white">
+                    <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gradient-to-tr from-[#3b5998] to-[#6389e8] text-white flex items-center justify-center text-3xl sm:text-4xl font-black shadow-2xl border-4 border-white/20">
                       <span>{resolvedParticipantName[0] || 'П'}</span>
                     </div>
                     {hasRemoteStream && (
-                      <div className="absolute bottom-1 right-1 w-7 h-7 rounded-full bg-white border border-[#F2DECE] shadow-sm flex items-center justify-center">
+                      <div className="absolute bottom-1 right-1 w-7 h-7 rounded-full bg-black/60 backdrop-blur-md border border-white/20 shadow-sm flex items-center justify-center">
                         {!remoteMicActive ? (
-                          <MicOff className="w-4 h-4 text-rose-500" />
+                          <MicOff className="w-4 h-4 text-rose-400" />
                         ) : (
-                          <span className="w-2.5 h-2.5 rounded-full bg-[#5C8519] animate-pulse" />
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
                         )}
                       </div>
                     )}
                   </div>
-                  <h3 className="text-[#161F38] font-black text-xl sm:text-2xl tracking-tight">
+                  <h3 className="text-white font-extrabold text-xl sm:text-2xl tracking-tight">
                     {resolvedParticipantName}
                   </h3>
-                  <p className="text-[#6B758E] font-medium text-xs sm:text-sm mt-1">
+                  <p className="text-white/60 font-medium text-xs sm:text-sm mt-1">
                     {hasRemoteStream ? 'Камера выключена' : 'Ожидание подключения собеседника...'}
                   </p>
                 </div>
@@ -1722,11 +1722,11 @@ export default function VideoCall({
                 } ${facingMode === 'user' ? '-scale-x-100' : ''} ${!camActive ? 'hidden' : 'block'}`}
               />
               {!camActive && (
-                <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-[#FFFDFB] via-[#FFF7EE] to-[#FFEFE0]">
-                  <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gradient-to-tr from-[#FF6B4A] to-[#FFA259] text-white flex items-center justify-center text-3xl sm:text-4xl font-black shadow-xl shadow-orange-500/15 border-4 border-white mb-4">
+                <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-radial from-[#1e293b] via-[#0f172a] to-[#0A0E1A]">
+                  <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gradient-to-tr from-[#FF6B4A] to-[#FFA259] text-white flex items-center justify-center text-3xl sm:text-4xl font-black shadow-2xl border-4 border-white/20 mb-4">
                     <span>Вы</span>
                   </div>
-                  <h3 className="text-[#161F38] font-black text-xl sm:text-2xl">Ваша камера выключена</h3>
+                  <h3 className="text-white font-extrabold text-xl sm:text-2xl">Ваша камера выключена</h3>
                 </div>
               )}
             </>
@@ -1736,7 +1736,7 @@ export default function VideoCall({
         {/* 2. Floating PiP Card (Selfie / Remote) in Top-Right */}
         <div
           onClick={() => setIsSwapped(!isSwapped)}
-          className="absolute top-16 right-3 sm:top-20 sm:right-6 z-30 w-28 xs:w-32 sm:w-44 aspect-[3/4] rounded-2xl sm:rounded-3xl overflow-hidden border-2 border-white/30 shadow-2xl bg-black/60 backdrop-blur-md cursor-pointer transition-transform duration-200 hover:scale-105 active:scale-95 group"
+          className="absolute top-[max(4.25rem,calc(env(safe-area-inset-top,0px)+3.75rem))] right-3 sm:top-20 sm:right-6 z-30 w-28 xs:w-32 sm:w-44 aspect-[3/4] rounded-2xl sm:rounded-3xl overflow-hidden border-2 border-white/30 shadow-2xl bg-black/60 backdrop-blur-md cursor-pointer transition-transform duration-200 hover:scale-105 active:scale-95 group"
           title="Нажмите, чтобы переключить отображение видео"
         >
           {!isSwapped ? (
@@ -1803,7 +1803,7 @@ export default function VideoCall({
         </div>
 
         {/* 3. Floating Top Bar */}
-        <div className="absolute top-0 left-0 right-0 z-40 p-3 sm:p-5 flex items-center justify-between pointer-events-none">
+        <div className="absolute top-0 left-0 right-0 z-40 pt-[max(0.75rem,env(safe-area-inset-top,0.75rem))] px-3 sm:px-5 pb-3 flex items-center justify-between pointer-events-none">
           {/* Top Left: Chat, Participants, Whiteboard, and Timer Counter (all grouped together on the left) */}
           <div className="pointer-events-auto flex items-center gap-2">
             <button
@@ -1866,7 +1866,7 @@ export default function VideoCall({
         </div>
 
         {/* 4. Floating Bottom Bar (VK Video Calls Style) */}
-        <div className="absolute bottom-0 left-0 right-0 z-40 pb-6 sm:pb-8 pt-10 px-4 flex flex-col items-center gap-3 bg-gradient-to-t from-black/95 via-black/55 to-transparent pointer-events-none">
+        <div className="absolute bottom-0 left-0 right-0 z-40 pb-[max(1.5rem,env(safe-area-inset-bottom,1.5rem))] pt-10 px-4 flex flex-col items-center gap-3 bg-gradient-to-t from-black/95 via-black/55 to-transparent pointer-events-none">
           {/* "Ещё" Upward Pill */}
           <button
             type="button"
