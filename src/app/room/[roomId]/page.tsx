@@ -199,16 +199,16 @@ export default function LessonRoomPage() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-72px)] sm:h-[calc(100vh-100px)] min-h-[480px] w-full relative">
+    <div className={`flex flex-col w-full relative ${isWhiteboardActive ? 'h-[calc(100dvh-72px)] sm:h-[calc(100vh-100px)] min-h-[480px] overflow-hidden' : 'min-h-[calc(100dvh-72px)] pb-8'}`}>
       {/* 100% Spacious Main Workspace — WebRTC call stays continuously connected */}
-      <div className="flex-1 w-full h-full relative overflow-hidden">
+      <div className={`w-full relative ${isWhiteboardActive ? 'flex-1 h-full overflow-hidden' : ''}`}>
         {/* Interactive Whiteboard Canvas */}
         <div className={`w-full h-full ${isWhiteboardActive ? 'block' : 'hidden'}`}>
           <Whiteboard />
         </div>
 
         {/* VideoCall remains persistently mounted so WebRTC connection never drops */}
-        <div className={isWhiteboardActive ? 'contents' : 'w-full h-full'}>
+        <div className={isWhiteboardActive ? 'contents' : 'w-full'}>
           <VideoCall
             roomToken={roomId}
             isTeacher={isTeacher}

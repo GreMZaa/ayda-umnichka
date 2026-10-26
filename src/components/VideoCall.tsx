@@ -15,7 +15,9 @@ import {
   Users,
   MessageSquare,
   Send,
-  X
+  X,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { formatTime } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
@@ -83,9 +85,10 @@ export default function VideoCall({
   // Lesson In-Call Chat states
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
-  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(true);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
+  const chatInputRef = useRef<HTMLInputElement | null>(null);
 
   // WebRTC P2P states
   const [hasRemoteStream, setHasRemoteStream] = useState(false);
@@ -814,6 +817,15 @@ export default function VideoCall({
     }, 50);
   };
 
+  const handleChatButtonClick = () => {
+    setIsChatOpen(true);
+    setUnreadChatCount(0);
+    setTimeout(() => {
+      document.getElementById('lesson-chat-section')?.scrollIntoView({ behavior: 'smooth' });
+      chatInputRef.current?.focus();
+    }, 60);
+  };
+
   const handleEnd = () => {
     if (confirm('Завершить урок? Будет зафиксировано время и открыто окно для отправки домашнего задания.')) {
       if (channelRef.current) {
@@ -903,54 +915,56 @@ export default function VideoCall({
 
   // Full Video Workspace (100% spacious, responsive on mobile & desktop)
   return (
-    <div className="relative flex flex-col h-full bg-[#FFF8F1] rounded-2xl sm:rounded-[32px] overflow-hidden border border-[#F4E3D2] shadow-sm min-h-[460px]">
-      {/* Header Info Bar */}
-      <div className="absolute top-2.5 sm:top-3.5 left-2.5 sm:left-4 right-2.5 sm:right-4 z-20 flex items-center justify-between gap-1.5 sm:gap-2 pointer-events-none">
-        <div className="flex items-center gap-1.5 sm:gap-2 bg-white/95 backdrop-blur-md px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-full border border-[#EADBCC] text-[#161F38] text-[11px] sm:text-xs shadow-xs pointer-events-auto min-w-0 max-w-[65%] sm:max-w-none">
-          <span
-            className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full ${
-              hasRemoteStream ? 'bg-[#5C8519] animate-pulse' : 'bg-amber-400 animate-ping'
-            } shrink-0`}
-          />
-          <span className="font-mono font-black shrink-0">
-            {hasRemoteStream ? formatTime(callDuration) : '00:00 (Ожидание)'}
-          </span>
-          <span className="text-[#EADBCC] shrink-0">|</span>
-          <span className="text-[#6B758E] font-bold truncate">
-            {topic || `Комната: ${roomToken}`}
-          </span>
-          <span className="text-[#EADBCC] hidden md:inline">|</span>
-          <span
-            className={`text-[10px] font-bold hidden md:inline-flex items-center gap-1 ${
-              hasRemoteStream ? 'text-[#5C8519]' : 'text-amber-600'
-            }`}
-          >
-            <Wifi className="w-3 h-3" />
-            <span>{hasRemoteStream ? 'Связь P2P' : 'Ожидание подключения...'}</span>
-          </span>
+    <div className="flex flex-col gap-3 sm:gap-4 w-full">
+      {/* 1. Main Video Workspace Card */}
+      <div className="relative flex flex-col bg-[#FFF8F1] rounded-2xl sm:rounded-[32px] overflow-hidden border border-[#F4E3D2] shadow-sm">
+        {/* Top Header Info Bar */}
+        <div className="p-2.5 sm:p-3.5 bg-white/95 backdrop-blur-md border-b border-[#F4E3D2] flex items-center justify-between gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 bg-[#FFF7EE] px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full border border-[#EADBCC] text-[#161F38] text-[11px] sm:text-xs shadow-2xs min-w-0 max-w-[70%] sm:max-w-none">
+            <span
+              className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full ${
+                hasRemoteStream ? 'bg-[#5C8519] animate-pulse' : 'bg-amber-400 animate-ping'
+              } shrink-0`}
+            />
+            <span className="font-mono font-black shrink-0">
+              {hasRemoteStream ? formatTime(callDuration) : '00:00 (Ожидание)'}
+            </span>
+            <span className="text-[#EADBCC] shrink-0">|</span>
+            <span className="text-[#6B758E] font-bold truncate">
+              {topic || `Комната: ${roomToken}`}
+            </span>
+            <span className="text-[#EADBCC] hidden md:inline">|</span>
+            <span
+              className={`text-[10px] font-bold hidden md:inline-flex items-center gap-1 ${
+                hasRemoteStream ? 'text-[#5C8519]' : 'text-amber-600'
+              }`}
+            >
+              <Wifi className="w-3 h-3" />
+              <span>{hasRemoteStream ? 'Связь P2P' : 'Ожидание подключения...'}</span>
+            </span>
+          </div>
+
+          {/* Action Controls in Top Right */}
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+            {/* Picture in Picture Button */}
+            <button
+              type="button"
+              onClick={togglePictureInPicture}
+              className="p-1.5 sm:px-3 sm:py-1.5 bg-[#FFF7EE] hover:bg-[#FDEEDC] border border-[#EADBCC] text-[#161F38] hover:border-coralAccent font-extrabold text-xs rounded-full shadow-2xs transition-colors cursor-pointer active:scale-95 flex items-center gap-1.5"
+              title="Окно поверх всех приложений при выходе на рабочий стол (как в Telegram/VK)"
+            >
+              <ExternalLink className="w-3.5 h-3.5 text-coralAccent" />
+              <span className="hidden sm:inline">Поверх окон</span>
+            </button>
+          </div>
         </div>
 
-        {/* Action Controls in Top Right */}
-        <div className="flex items-center gap-1 sm:gap-2 pointer-events-auto shrink-0">
-          {/* Picture in Picture Button (Float over all OS apps) */}
-          <button
-            type="button"
-            onClick={togglePictureInPicture}
-            className="p-1.5 sm:px-3 sm:py-1.5 bg-white/95 backdrop-blur-md border border-[#EADBCC] text-[#161F38] hover:border-coralAccent font-extrabold text-xs rounded-full shadow-xs transition-colors cursor-pointer active:scale-95 flex items-center gap-1.5"
-            title="Окно поверх всех приложений при выходе на рабочий стол (как в Telegram/VK)"
+        {/* Main Video Streams Grid (Responsive on phones & desktops) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-4 p-2.5 sm:p-4">
+          {/* Tile 1: Remote Participant (Real Live Video & Audio Stream) */}
+          <div
+            className="relative rounded-2xl sm:rounded-3xl overflow-hidden bg-[#161F38] border-2 border-[#F2E3D5] flex items-center justify-center shadow-xs transition-all duration-200 aspect-[4/3] sm:aspect-video min-h-[190px] sm:min-h-[260px]"
           >
-            <ExternalLink className="w-3.5 h-3.5 text-coralAccent" />
-            <span className="hidden sm:inline">Поверх окон</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Main Video Streams Grid (Responsive on phones & desktops) */}
-      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-4 p-2.5 sm:p-4 pt-12 sm:pt-14 pb-20 sm:pb-24 h-full min-h-0">
-        {/* Tile 1: Remote Participant (Real Live Video & Audio Stream) */}
-        <div
-          className="relative rounded-2xl sm:rounded-3xl overflow-hidden bg-[#161F38] border-2 border-[#F2E3D5] flex items-center justify-center shadow-xs transition-all duration-200 min-h-[160px] h-full"
-        >
           {/* Live Video from Remote Peer (unmuted so sound plays) */}
           <video
             ref={remoteVideoRef}
@@ -1016,7 +1030,7 @@ export default function VideoCall({
 
         {/* Tile 2: Local User Camera Stream (Muted to prevent echo, Selfie Front Camera) */}
         <div
-          className="relative rounded-2xl sm:rounded-3xl overflow-hidden bg-[#161F38] border-2 border-[#F2E3D5] flex items-center justify-center shadow-xs transition-all duration-200 min-h-[160px] h-full"
+          className="relative rounded-2xl sm:rounded-3xl overflow-hidden bg-[#161F38] border-2 border-[#F2E3D5] flex items-center justify-center shadow-xs transition-all duration-200 aspect-[4/3] sm:aspect-video min-h-[190px] sm:min-h-[260px]"
         >
           {camActive ? (
             <video
@@ -1048,84 +1062,8 @@ export default function VideoCall({
         </div>
       </div>
 
-      {/* Live In-Call Chat Drawer at the bottom */}
-      {isChatOpen && (
-        <div className="absolute bottom-16 sm:bottom-20 left-3 right-3 sm:left-auto sm:right-6 z-30 sm:w-96 bg-white/95 backdrop-blur-md rounded-2xl sm:rounded-3xl shadow-2xl border border-[#F2DECE] overflow-hidden flex flex-col h-72 sm:h-80 animate-in slide-in-from-bottom-2">
-          {/* Chat Header */}
-          <div className="p-3 bg-[#FFF7EE] border-b border-[#F4E3D2] flex items-center justify-between">
-            <div className="flex items-center gap-2 truncate">
-              <MessageSquare className="w-4 h-4 text-coralAccent shrink-0" />
-              <span className="text-xs font-black text-[#161F38]">Чат урока</span>
-              <span className="text-[10px] text-[#6B758E] font-medium truncate">({topic || 'Занятие'})</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsChatOpen(false)}
-              className="p-1 text-[#8A95A8] hover:text-[#161F38] rounded-lg transition-colors cursor-pointer shrink-0"
-              title="Свернуть чат"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Messages List */}
-          <div className="flex-1 p-3 overflow-y-auto space-y-2 text-xs">
-            {chatMessages.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center text-[#8A95A8] p-4">
-                <MessageSquare className="w-8 h-8 opacity-40 mb-1" />
-                <p className="text-[11px] font-bold">Здесь можно обмениваться быстрыми сообщениями, текстом и ответами во время урока</p>
-              </div>
-            ) : (
-              chatMessages.map((msg) => {
-                const isMe = msg.senderId === myPeerIdRef.current;
-                return (
-                  <div
-                    key={msg.id}
-                    className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
-                  >
-                    <div className="flex items-center gap-1 text-[10px] text-[#8A95A8] mb-0.5">
-                      <span className="font-bold">{isMe ? 'Вы' : msg.senderName}</span>
-                      <span>• {msg.time}</span>
-                    </div>
-                    <div
-                      className={`px-3 py-1.5 rounded-2xl max-w-[85%] break-words ${
-                        isMe
-                          ? 'bg-coralAccent text-white rounded-br-xs'
-                          : 'bg-[#FFF2E6] text-[#161F38] border border-[#FCDDC7] rounded-bl-xs'
-                      }`}
-                    >
-                      {msg.text}
-                    </div>
-                  </div>
-                );
-              })
-            )}
-            <div ref={chatBottomRef} />
-          </div>
-
-          {/* Chat Input Bar */}
-          <form onSubmit={handleSendMessage} className="p-2.5 bg-white border-t border-[#F2DECE] flex items-center gap-1.5">
-            <input
-              type="text"
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              placeholder="Напишите сообщение..."
-              className="flex-1 bg-[#FFF8F1] border border-[#EADBCC] focus:border-coralAccent rounded-full px-3.5 py-1.5 text-xs text-[#161F38] outline-none"
-            />
-            <button
-              type="submit"
-              disabled={!chatInput.trim()}
-              className="bg-coralAccent hover:bg-coralAccent-hover disabled:opacity-40 text-white p-2 rounded-full transition-transform active:scale-95 cursor-pointer shadow-2xs shrink-0"
-              title="Отправить"
-            >
-              <Send className="w-3.5 h-3.5" />
-            </button>
-          </form>
-        </div>
-      )}
-
-      {/* Bottom Floating Control Bar */}
-      <div className="absolute bottom-2 sm:bottom-3.5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 sm:gap-2.5 bg-white/95 backdrop-blur-md px-3 sm:px-5 py-2 sm:py-2.5 rounded-full border border-[#EADBCC] shadow-xl max-w-[96%]">
+      {/* Integrated Bottom Control Bar */}
+      <div className="p-2 sm:p-3 bg-white/95 backdrop-blur-md border-t border-[#F2DECE] flex items-center justify-center gap-1.5 sm:gap-2.5 flex-wrap">
         {/* Mic Toggle */}
         <button
           type="button"
@@ -1189,23 +1127,20 @@ export default function VideoCall({
           </button>
         )}
 
-        {/* Chat Toggle Button */}
+        {/* Chat Shortcut Button */}
         <button
           type="button"
-          onClick={() => {
-            setIsChatOpen(!isChatOpen);
-            setUnreadChatCount(0);
-          }}
+          onClick={handleChatButtonClick}
           className={`relative p-2 sm:px-3.5 sm:py-2.5 rounded-full transition-transform active:scale-95 cursor-pointer flex items-center gap-1.5 font-bold text-xs ${
             isChatOpen
               ? 'bg-coralAccent text-white shadow-2xs'
               : 'bg-[#FFF7EE] hover:bg-[#FDEEDC] text-[#161F38]'
           }`}
-          title="Чат урока"
+          title="Перейти к чату урока снизу"
         >
           <MessageSquare className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
           <span className="hidden sm:inline">Чат</span>
-          {unreadChatCount > 0 && !isChatOpen && (
+          {unreadChatCount > 0 && (
             <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center animate-pulse">
               {unreadChatCount}
             </span>
@@ -1226,5 +1161,109 @@ export default function VideoCall({
         )}
       </div>
     </div>
+
+    {/* 2. In-Call Chat Section — Situated directly BELOW the cameras! */}
+    <div
+      id="lesson-chat-section"
+      className="w-full bg-white rounded-2xl sm:rounded-3xl border border-[#F2DECE] shadow-sm overflow-hidden flex flex-col scroll-mt-4"
+    >
+      {/* Chat Header */}
+      <div className="p-3 sm:p-3.5 bg-[#FFF7EE] border-b border-[#F4E3D2] flex items-center justify-between">
+        <div className="flex items-center gap-2 truncate">
+          <div className="w-7 h-7 rounded-xl bg-white border border-[#F4E3D2] flex items-center justify-center text-coralAccent shrink-0 shadow-2xs">
+            <MessageSquare className="w-4 h-4" />
+          </div>
+          <div className="truncate">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs sm:text-sm font-black text-[#161F38]">Чат урока</span>
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  hasRemoteStream ? 'bg-[#5C8519] animate-pulse' : 'bg-amber-400'
+                }`}
+                title={hasRemoteStream ? 'Собеседник на связи' : 'Ожидание собеседника'}
+              />
+            </div>
+            <p className="text-[10px] text-[#6B758E] font-medium truncate">
+              {topic || 'Индивидуальное занятие'} • {resolvedParticipantName}
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setIsChatOpen(!isChatOpen)}
+          className="p-1.5 text-[#8A95A8] hover:text-[#161F38] hover:bg-white rounded-xl transition-colors cursor-pointer shrink-0 flex items-center gap-1 text-xs font-bold"
+          title={isChatOpen ? 'Свернуть чат' : 'Развернуть чат'}
+        >
+          <span className="text-[11px] hidden sm:inline">{isChatOpen ? 'Свернуть' : 'Развернуть'}</span>
+          {isChatOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </button>
+      </div>
+
+      {isChatOpen && (
+        <>
+          {/* Messages List */}
+          <div className="h-56 sm:h-64 p-3 sm:p-4 overflow-y-auto space-y-2 text-xs bg-[#FFFDFB]">
+            {chatMessages.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-center text-[#8A95A8] p-4">
+                <div className="w-12 h-12 rounded-2xl bg-[#FFF7EE] border border-[#F4E3D2] flex items-center justify-center text-coralAccent/60 mb-2">
+                  <MessageSquare className="w-6 h-6" />
+                </div>
+                <p className="text-xs font-black text-[#161F38]">Сообщений пока нет</p>
+                <p className="text-[11px] text-[#8A95A8] max-w-xs mt-0.5">
+                  Здесь можно обмениваться быстрыми сообщениями, текстом и ответами во время занятия
+                </p>
+              </div>
+            ) : (
+              chatMessages.map((msg) => {
+                const isMe = msg.senderId === myPeerIdRef.current;
+                return (
+                  <div
+                    key={msg.id}
+                    className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
+                  >
+                    <div className="flex items-center gap-1 text-[10px] text-[#8A95A8] mb-0.5">
+                      <span className="font-bold">{isMe ? 'Вы' : msg.senderName}</span>
+                      <span>• {msg.time}</span>
+                    </div>
+                    <div
+                      className={`px-3.5 py-2 rounded-2xl max-w-[85%] break-words ${
+                        isMe
+                          ? 'bg-coralAccent text-white rounded-br-xs shadow-2xs'
+                          : 'bg-[#FFF7EE] text-[#161F38] border border-[#F4E3D2] rounded-bl-xs'
+                      }`}
+                    >
+                      {msg.text}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+            <div ref={chatBottomRef} />
+          </div>
+
+          {/* Chat Input Bar */}
+          <form onSubmit={handleSendMessage} className="p-2.5 sm:p-3 bg-white border-t border-[#F2DECE] flex items-center gap-1.5">
+            <input
+              ref={chatInputRef}
+              type="text"
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              placeholder="Напишите сообщение в чат урока..."
+              className="flex-1 bg-[#FFF8F1] border border-[#EADBCC] focus:border-coralAccent rounded-full px-4 py-2 text-xs text-[#161F38] outline-none"
+            />
+            <button
+              type="submit"
+              disabled={!chatInput.trim()}
+              className="bg-coralAccent hover:bg-coralAccent-hover disabled:opacity-40 text-white p-2.5 rounded-full transition-transform active:scale-95 cursor-pointer shadow-2xs shrink-0"
+              title="Отправить"
+            >
+              <Send className="w-3.5 h-3.5" />
+            </button>
+          </form>
+        </>
+      )}
+    </div>
+  </div>
   );
 }
