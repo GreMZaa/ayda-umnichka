@@ -87,7 +87,10 @@ export default function MessengerPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'all' | 'contacts' | 'support'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'students' | 'teachers'>('all');
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
   const [onlyUnread, setOnlyUnread] = useState(false);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -260,9 +263,9 @@ export default function MessengerPage() {
     // Unread only toggle
     if (onlyUnread && c.unreadCount === 0) return false;
 
-    // Tab filter
-    if (activeTab === 'support') return c.contact.role === 'support';
-    if (activeTab === 'contacts') return c.contact.role !== 'support';
+    // Tab filter: Все / Ученики / Педагоги
+    if (activeTab === 'students') return c.contact.role === 'student';
+    if (activeTab === 'teachers') return c.contact.role === 'teacher' || c.contact.role === 'admin';
     return true;
   });
 
@@ -360,66 +363,130 @@ export default function MessengerPage() {
     }
   };
 
-  // 5. Voice Recording Simulator / Handler
-  const toggleRecordVoice = () => {
-    if (isRecordingVoice) {
-      // Finish recording and send
-      if (recordTimerRef.current) clearInterval(recordTimerRef.current);
-      setIsRecordingVoice(false);
+  // 5. Real MediaRecorder Voice Recording (Telegram & VK style)
+  const startRecordingVoice = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunksRef.current = [];
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
 
-      if (recordSeconds > 0 && activeConvId) {
-        const voiceMsg: Message = {
-          id: `voice_${Date.now()}`,
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      recorder.start(100);
+      setIsRecordingVoice(true);
+      setRecordSeconds(0);
+      if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+      recordTimerRef.current = setInterval(() => {
+        setRecordSeconds((s) => s + 1);
+      }, 1000);
+    } catch (err) {
+      console.error('Microphone error:', err);
+      alert('Пожалуйста, разрешите доступ к микрофону для записи голосового сообщения.');
+    }
+  };
+
+  const cancelRecordVoice = () => {
+    if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      try {
+        mediaRecorderRef.current.stop();
+        mediaRecorderRef.current.stream.getTracks().forEach((t) => t.stop());
+      } catch (_) {}
+    }
+    setIsRecordingVoice(false);
+    setRecordSeconds(0);
+    audioChunksRef.current = [];
+  };
+
+  const stopAndSendVoice = async () => {
+    if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+    const durationSec = recordSeconds;
+    setIsRecordingVoice(false);
+    setRecordSeconds(0);
+
+    const recorder = mediaRecorderRef.current;
+    if (!recorder || !activeConvId) return;
+
+    recorder.onstop = async () => {
+      try {
+        recorder.stream.getTracks().forEach((t) => t.stop());
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        if (audioBlob.size === 0) return;
+
+        setIsSending(true);
+
+        // Upload recorded audio file
+        const fd = new FormData();
+        fd.append('file', audioBlob, `voice_${Date.now()}.webm`);
+        const upRes = await fetch('/api/room/upload', {
+          method: 'POST',
+          body: fd,
+        });
+        const upData = await upRes.json();
+        const fileUrl = upData.url || null;
+
+        const tempId = `voice_${Date.now()}`;
+        const newMsg: Message = {
+          id: tempId,
           conversation_id: activeConvId,
           sender_id: currentUser?.id || 'c51ef5b0-3bc0-456f-bd31-7dbba439846c',
-          text: null,
-          file_url: null,
+          text: `🎙 Голосовое сообщение (${durationSec || 1} сек.)`,
+          file_url: fileUrl,
           file_type: 'audio/webm',
-          voice_duration_sec: recordSeconds,
+          voice_duration_sec: durationSec || 1,
           is_read: false,
           created_at: new Date().toISOString(),
         };
 
+        // Optimistic update
         setConversations((prev) =>
           prev.map((c) => {
             if (c.id === activeConvId) {
               return {
                 ...c,
-                messages: [...c.messages, voiceMsg],
-                lastMessage: voiceMsg,
+                messages: [...c.messages, newMsg],
+                lastMessage: newMsg,
               };
             }
             return c;
           })
         );
 
-        fetch('/api/messenger', {
+        const res = await fetch('/api/messenger', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             conversationId: activeConvId,
-            text: `Голосовое сообщение (${recordSeconds} сек.)`,
+            text: `🎙 Голосовое сообщение (${durationSec || 1} сек.)`,
+            fileUrl,
             fileType: 'audio/webm',
             senderId: currentUser?.id,
             senderRole: currentUser?.role,
           }),
-        }).catch(() => {});
-      }
-      setRecordSeconds(0);
-    } else {
-      // Start recording
-      setIsRecordingVoice(true);
-      setRecordSeconds(0);
-      recordTimerRef.current = setInterval(() => {
-        setRecordSeconds((s) => s + 1);
-      }, 1000);
-    }
-  };
+        });
 
-  const cancelRecordVoice = () => {
-    if (recordTimerRef.current) clearInterval(recordTimerRef.current);
-    setIsRecordingVoice(false);
-    setRecordSeconds(0);
+        const result = await res.json();
+        if (result.success && result.message) {
+          const channel = supabase.channel('platform_messenger_global');
+          channel.send({
+            type: 'broadcast',
+            event: 'new-message',
+            payload: result.message,
+          });
+        }
+      } catch (err) {
+        console.error('Error uploading/sending voice:', err);
+      } finally {
+        setIsSending(false);
+      }
+    };
+
+    if (recorder.state !== 'inactive') {
+      recorder.stop();
+    }
   };
 
   // 6. Handle File Attachment Selection
@@ -477,54 +544,9 @@ export default function MessengerPage() {
             activeConvId ? 'hidden sm:flex' : 'flex'
           }`}
         >
-          {/* 1. Sidebar Header */}
+          {/* 1. Sidebar Header (Burger removed as requested) */}
           <div className="p-3.5 sm:p-4 bg-white border-b border-[#F2DECE] flex items-center justify-between gap-2 shrink-0">
             <div className="flex items-center gap-3">
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setShowMenuDropdown(!showMenuDropdown)}
-                  className="p-2 text-[#161F38] hover:bg-[#FFF7EE] rounded-xl transition-colors cursor-pointer"
-                  title="Меню"
-                >
-                  <Menu className="w-5 h-5 text-[#161F38]" />
-                </button>
-
-                {/* Dropdown Menu */}
-                {showMenuDropdown && (
-                  <div className="absolute left-0 top-12 w-56 bg-white rounded-2xl border border-[#F2DECE] shadow-xl py-2 z-50 text-xs font-bold text-[#161F38] animate-in fade-in duration-150">
-                    <Link
-                      href={currentUser?.role === 'teacher' ? `/teacher?id=${currentUser.publicId}` : `/${currentUser?.publicId || 'student'}`}
-                      className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-[#FFF7EE] transition-colors"
-                      onClick={() => setShowMenuDropdown(false)}
-                    >
-                      <User className="w-4 h-4 text-[#FF6B4A]" />
-                      <span>Личный кабинет</span>
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowMenuDropdown(false);
-                        handleLaunchCall();
-                      }}
-                      className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 hover:bg-[#FFF7EE] transition-colors cursor-pointer"
-                    >
-                      <Video className="w-4 h-4 text-[#5C8519]" />
-                      <span>Открыть видеоурок</span>
-                    </button>
-                    <div className="h-[1px] bg-[#F2DECE] my-1" />
-                    <Link
-                      href="/login"
-                      className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-rose-50 text-rose-600 transition-colors"
-                      onClick={() => setShowMenuDropdown(false)}
-                    >
-                      <LogOut className="w-4 h-4" />
-                      <span>Выйти из аккаунта</span>
-                    </Link>
-                  </div>
-                )}
-              </div>
-
               <div>
                 <h1 className="font-black text-lg text-[#161F38] tracking-tight leading-tight">
                   Мессенджер
@@ -581,53 +603,40 @@ export default function MessengerPage() {
             </div>
           </div>
 
-          {/* 3. Filter Folder Tabs (Matching Telegram tabs in screenshot: Все / Ученики / Поддержка) */}
-          <div className="px-3 pt-2 pb-1 bg-white border-b border-[#F2DECE] flex items-center justify-between gap-1 shrink-0 text-xs font-black">
-            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
-              <button
-                type="button"
-                onClick={() => setActiveTab('all')}
-                className={`px-3 py-1.5 rounded-full transition-all cursor-pointer ${
-                  activeTab === 'all'
-                    ? 'bg-[#161F38] text-white shadow-xs'
-                    : 'text-[#6B758E] hover:bg-[#FFF7EE] hover:text-[#161F38]'
-                }`}
-              >
-                Все
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('contacts')}
-                className={`px-3 py-1.5 rounded-full transition-all cursor-pointer flex items-center gap-1 ${
-                  activeTab === 'contacts'
-                    ? 'bg-[#161F38] text-white shadow-xs'
-                    : 'text-[#6B758E] hover:bg-[#FFF7EE] hover:text-[#161F38]'
-                }`}
-              >
-                <span>{currentUser?.role === 'teacher' ? 'Ученики' : 'Преподаватели'}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('support')}
-                className={`px-3 py-1.5 rounded-full transition-all cursor-pointer flex items-center gap-1 ${
-                  activeTab === 'support'
-                    ? 'bg-[#161F38] text-white shadow-xs'
-                    : 'text-[#6B758E] hover:bg-[#FFF7EE] hover:text-[#161F38]'
-                }`}
-              >
-                <span>Поддержка</span>
-              </button>
-            </div>
-
+          {/* 3. Filter Tabs: Все / Ученики / Педагоги (Поддержка and Settings button removed) */}
+          <div className="px-3 pt-2 pb-1.5 bg-white border-b border-[#F2DECE] flex items-center gap-1 shrink-0 text-xs font-black overflow-x-auto no-scrollbar">
             <button
               type="button"
-              onClick={() => setOnlyUnread(!onlyUnread)}
-              className={`p-1.5 rounded-full transition-colors cursor-pointer shrink-0 ${
-                onlyUnread ? 'bg-[#FFF0E6] text-[#FF6B4A]' : 'text-[#8E99AF] hover:bg-[#FFF7EE]'
+              onClick={() => setActiveTab('all')}
+              className={`px-3.5 py-1.5 rounded-full transition-all cursor-pointer ${
+                activeTab === 'all'
+                  ? 'bg-[#161F38] text-white shadow-xs'
+                  : 'text-[#6B758E] hover:bg-[#FFF7EE] hover:text-[#161F38]'
               }`}
-              title="Фильтр непрочитанных"
             >
-              <Settings className="w-4 h-4" />
+              Все
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('students')}
+              className={`px-3.5 py-1.5 rounded-full transition-all cursor-pointer ${
+                activeTab === 'students'
+                  ? 'bg-[#161F38] text-white shadow-xs'
+                  : 'text-[#6B758E] hover:bg-[#FFF7EE] hover:text-[#161F38]'
+              }`}
+            >
+              Ученики
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('teachers')}
+              className={`px-3.5 py-1.5 rounded-full transition-all cursor-pointer ${
+                activeTab === 'teachers'
+                  ? 'bg-[#161F38] text-white shadow-xs'
+                  : 'text-[#6B758E] hover:bg-[#FFF7EE] hover:text-[#161F38]'
+              }`}
+            >
+              Педагоги
             </button>
           </div>
 
@@ -782,36 +791,8 @@ export default function MessengerPage() {
                   </div>
                 </div>
 
-                {/* Right Action Icons (Direct Call button, Search, More) */}
-                <div className="flex items-center gap-1 sm:gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleLaunchCall(activeConversation.contact.roomToken)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#EAF7CF] hover:bg-[#DCF2B3] text-[#5C8519] border border-[#CCE8A2] rounded-full text-xs font-black shadow-2xs transition-all active:scale-95 cursor-pointer"
-                    title="Запустить видеоурок в реальном времени"
-                  >
-                    <Video className="w-4 h-4 text-[#5C8519]" />
-                    <span className="hidden xs:inline">Видеоурок</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery('')}
-                    className="p-2 text-[#6B758E] hover:text-[#161F38] hover:bg-[#FFF7EE] rounded-full transition-colors cursor-pointer"
-                    title="Поиск по диалогу"
-                  >
-                    <Search className="w-4 h-4" />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => fetchMessengerData()}
-                    className="p-2 text-[#6B758E] hover:text-[#161F38] hover:bg-[#FFF7EE] rounded-full transition-colors cursor-pointer"
-                    title="Обновить историю"
-                  >
-                    <MoreVertical className="w-4 h-4" />
-                  </button>
-                </div>
+                {/* Right Action Icons removed as requested */}
+                <div />
               </div>
 
               {/* 2. Top Audio Player Bar (Matching screenshot when voice note is played) */}
@@ -1034,28 +1015,46 @@ export default function MessengerPage() {
                   </div>
                 )}
 
-                {/* Voice Recording Mode */}
+                {/* Voice Recording Mode (VK and Telegram style with real timer & pulsing wave) */}
                 {isRecordingVoice ? (
-                  <div className="flex items-center justify-between gap-3 bg-[#FFF0E6] border border-[#F2DECE] p-2.5 rounded-full animate-pulse">
-                    <div className="flex items-center gap-2 text-[#FF6B4A] font-extrabold text-xs pl-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
-                      <span>Идет запись голоса: 0:{String(recordSeconds).padStart(2, '0')}</span>
+                  <div className="flex items-center justify-between gap-3 bg-gradient-to-r from-[#FFF5ED] via-[#FFF0E6] to-[#FFEFE0] border border-[#FCDDC7] p-2 sm:p-2.5 rounded-2xl shadow-xs">
+                    <div className="flex items-center gap-2.5 pl-2 min-w-0">
+                      <span className="relative flex h-3 w-3 shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500" />
+                      </span>
+                      <div className="font-mono font-black text-sm text-[#FF6B4A] shrink-0">
+                        {String(Math.floor(recordSeconds / 60)).padStart(2, '0')}:{String(recordSeconds % 60).padStart(2, '0')}
+                      </div>
+                      {/* Telegram/VK animated waveform bars */}
+                      <div className="flex items-center gap-1 ml-1 h-5">
+                        <span className="w-1 h-2.5 bg-[#FF6B4A] rounded-full animate-pulse [animation-duration:600ms]" />
+                        <span className="w-1 h-4.5 bg-[#FF6B4A] rounded-full animate-pulse [animation-duration:400ms]" />
+                        <span className="w-1 h-2 bg-[#FF6B4A] rounded-full animate-pulse [animation-duration:700ms]" />
+                        <span className="w-1 h-5 bg-[#FF6B4A] rounded-full animate-pulse [animation-duration:500ms]" />
+                        <span className="w-1 h-3 bg-[#FF6B4A] rounded-full animate-pulse [animation-duration:450ms]" />
+                        <span className="w-1 h-4 bg-[#FF6B4A] rounded-full animate-pulse [animation-duration:550ms]" />
+                      </div>
+                      <span className="text-xs text-[#8A95A8] font-bold hidden md:inline ml-1 truncate">
+                        Идет запись аудио...
+                      </span>
                     </div>
 
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-2 shrink-0">
                       <button
                         type="button"
                         onClick={cancelRecordVoice}
-                        className="px-3 py-1.5 rounded-full text-xs font-bold text-[#6B758E] hover:bg-white cursor-pointer"
+                        className="px-3 py-1.5 rounded-full text-xs font-bold text-[#8A95A8] hover:text-red-500 hover:bg-white/80 transition-colors cursor-pointer"
                       >
                         Отмена
                       </button>
                       <button
                         type="button"
-                        onClick={toggleRecordVoice}
-                        className="px-4 py-1.5 rounded-full bg-gradient-to-tr from-[#FF6B4A] to-[#FFA259] text-white font-black text-xs shadow-xs cursor-pointer"
+                        onClick={stopAndSendVoice}
+                        className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#FF6B4A] to-[#FFA259] hover:opacity-95 text-white flex items-center justify-center shadow-md shadow-orange-500/20 active:scale-95 cursor-pointer transition-transform"
+                        title="Отправить голосовое"
                       >
-                        Отправить
+                        <Send className="w-4 h-4 ml-0.5" />
                       </button>
                     </div>
                   </div>
@@ -1108,9 +1107,9 @@ export default function MessengerPage() {
                     {!inputText.trim() && !attachedFile ? (
                       <button
                         type="button"
-                        onClick={toggleRecordVoice}
-                        className="w-10 h-10 rounded-full bg-[#FFF0E6] hover:bg-[#FDEEDC] text-[#FF6B4A] border border-[#F2DECE] flex items-center justify-center transition-colors cursor-pointer shrink-0"
-                        title="Записать голосовое сообщение"
+                        onClick={startRecordingVoice}
+                        className="w-10 h-10 rounded-full bg-[#FFF0E6] hover:bg-[#FDEEDC] text-[#FF6B4A] border border-[#F2DECE] flex items-center justify-center transition-colors cursor-pointer shrink-0 active:scale-95"
+                        title="Записать голосовое сообщение (как в Telegram/VK)"
                       >
                         <Mic className="w-4 h-4 text-[#FF6B4A]" />
                       </button>

@@ -142,6 +142,24 @@ export default function Navbar() {
 
   const myMessengerUrl = `/messenger?id=${userId || (isTeacher ? 'id179017' : 'id571210')}`;
 
+  const isActuallyTeacher =
+    userRole === 'teacher' ||
+    pathname.startsWith('/teacher') ||
+    userId === 'id179017' ||
+    userId === 'id180457';
+  const isActuallyAdmin =
+    userRole === 'admin' ||
+    pathname.startsWith('/admin') ||
+    userId === 'admin_head';
+  const showStudentBalance =
+    !isActuallyTeacher &&
+    !isActuallyAdmin &&
+    userRole === 'student' &&
+    !isRoom &&
+    !pathname.startsWith('/messenger') &&
+    pathname !== '/' &&
+    pathname !== '/login';
+
   return (
     <header className="sticky top-0 z-50 bg-[#FFF7EE]/95 backdrop-blur-md border-b border-[#F4E4D3]">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
@@ -245,7 +263,7 @@ export default function Navbar() {
           {/* Right Section */}
           <div className="flex items-center gap-3">
             {/* Balance Pill — Only visible for student */}
-            {isStudent && (
+            {showStudentBalance && (
               <Link
                 href={userId ? `/${userId}` : '/student'}
                 suppressHydrationWarning
@@ -282,14 +300,14 @@ export default function Navbar() {
                 <Link
                   href={myMessengerUrl}
                   title="Мессенджер и чаты"
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black transition-all duration-140 border shadow-2xs active:scale-95 cursor-pointer ${
+                  className={`inline-flex items-center justify-center gap-1.5 px-3.5 h-8 rounded-full text-xs font-black transition-all duration-140 border shadow-2xs active:scale-95 cursor-pointer text-center leading-none ${
                     pathname === '/messenger'
                       ? 'bg-coralAccent text-white border-coralAccent shadow-xs shadow-orange-500/20'
                       : 'bg-white text-[#161F38] border-[#EADBCC] hover:border-coralAccent hover:text-coralAccent'
                   }`}
                 >
-                  <MessageCircle className="w-3.5 h-3.5 text-coralAccent" />
-                  <span className="hidden md:inline">Чаты</span>
+                  <MessageCircle className={`w-3.5 h-3.5 shrink-0 ${pathname === '/messenger' ? 'text-white' : 'text-coralAccent'}`} />
+                  <span className="hidden md:inline leading-none pt-0.5">Чаты</span>
                 </Link>
 
                 {/* Modern User Profile Menu */}
@@ -339,9 +357,14 @@ export default function Navbar() {
                     />
                   </button>
 
-                  {/* Modern Floating Dropdown Popover */}
+                  {/* Modern Floating Dropdown Popover with iOS Backdrop */}
                   {profileOpen && (
-                    <div className="absolute right-0 top-full mt-2 w-64 bg-white/95 backdrop-blur-md rounded-2xl border border-[#F0DCCD] shadow-xl p-2 z-50 animate-in fade-in zoom-in-95 duration-140 space-y-1">
+                    <>
+                      <div
+                        className="fixed inset-0 z-40 bg-black/10 backdrop-blur-[1px] transition-opacity duration-200"
+                        onClick={() => setProfileOpen(false)}
+                      />
+                      <div className="absolute right-0 top-full mt-2 w-64 bg-white/95 backdrop-blur-xl rounded-2xl border border-[#F0DCCD] shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-200 ease-out origin-top-right space-y-1">
                       {/* User Header Card */}
                       <div className="p-2.5 bg-gradient-to-r from-[#FFFBF7] to-[#FFF4EA] rounded-xl border border-[#F6E6D8]">
                         <div className="flex items-center gap-2.5">
@@ -385,14 +408,7 @@ export default function Navbar() {
                           <span>Личный кабинет</span>
                         </Link>
 
-                        <Link
-                          href={myMessengerUrl}
-                          onClick={() => setProfileOpen(false)}
-                          className="flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-[#161F38] hover:bg-[#FFF7EE] hover:text-coralAccent rounded-xl transition-colors cursor-pointer"
-                        >
-                          <MessageCircle className="w-4 h-4 text-[#5C8519] shrink-0" />
-                          <span>Сообщения и чаты</span>
-                        </Link>
+
 
                         <a
                           href="https://ayda-umnichka.vercel.app"
@@ -421,6 +437,7 @@ export default function Navbar() {
                         <span>Выйти из аккаунта</span>
                       </button>
                     </div>
+                    </>
                   )}
                 </div>
               </div>

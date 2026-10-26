@@ -182,19 +182,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Always include Platform Support dialog (backed by Admin account in Supabase)
-    if (activeRole !== 'admin') {
-      contactsMap.set('support', {
-        id: adminUuid,
-        publicId: 'support',
-        role: 'support',
-        fullName: 'АйДаУмничка • Поддержка',
-        subtitle: 'Методический отдел и служба заботы',
-        avatarText: '⭐',
-        online: true,
-      });
-    }
-
+    // Support dialog removed as requested
     const contacts = Array.from(contactsMap.values());
 
     // 4. Load or create real conversations and messages from Supabase
