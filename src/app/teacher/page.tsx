@@ -92,6 +92,7 @@ export default function TeacherDashboard() {
   const [allHomework, setAllHomework] = useState<TeacherHomeworkItem[]>([]);
   const [loadingHomework, setLoadingHomework] = useState<boolean>(false);
   const [selectedStudentHwId, setSelectedStudentHwId] = useState<string | null>(null);
+  const [activeHwStudentId, setActiveHwStudentId] = useState<string | null>(null);
 
   // Homework creation state
   const [hwStudentInput, setHwStudentInput] = useState('');
@@ -468,7 +469,8 @@ export default function TeacherDashboard() {
           setHwStudentInput('');
           setHwStudentPublicId('');
           setHwSuccess(false);
-        }, 3000);
+          setActiveHwStudentId(null);
+        }, 2000);
       } else {
         const data = await res.json();
         alert(data.error || 'Ошибка при сохранении задания');
@@ -548,7 +550,7 @@ export default function TeacherDashboard() {
       </div>
 
       {/* Row 1: Schedule & Lesson History */}
-      <div className="w-full">
+      <div className="w-full lg:max-w-2xl">
         <LessonsScheduleHistory
           role="teacher"
           onStartLesson={(token, topic) => {
@@ -558,10 +560,10 @@ export default function TeacherDashboard() {
         />
       </div>
 
-      {/* Row 2: Aligned Students Roster & Homework */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 items-stretch">
+      {/* Row 2: Assigned Students with Homework Accordion */}
+      <div className="w-full lg:max-w-2xl">
         {/* Assigned Students List — Emerald Growth Accent */}
-        <div className="lg:col-span-6 bg-white rounded-3xl p-4 sm:p-5 border-t-4 border-t-[#5C8519] border-x border-b border-[#D8E6C3] shadow-xs flex flex-col justify-between h-full space-y-3 hover:shadow-sm transition-shadow">
+        <div className="bg-white rounded-3xl p-4 sm:p-5 border-t-4 border-t-[#5C8519] border-x border-b border-[#D8E6C3] shadow-xs flex flex-col justify-between space-y-3 hover:shadow-sm transition-shadow">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
@@ -765,14 +767,114 @@ export default function TeacherDashboard() {
                                 setHwStudentInput(info.displayName);
                                 setHwStudentPublicId(info.publicId);
                                 setHwTitle(`Упражнение для ${info.displayName}`);
-                                hwPickerRef.current?.scrollIntoView({ behavior: 'smooth' });
+                                setActiveHwStudentId(activeHwStudentId === st.id ? null : st.id);
                               }}
                               className="inline-flex items-center gap-1 text-[10px] font-black bg-[#4F46E5] hover:bg-[#4338CA] text-white px-2.5 py-1 rounded-full shadow-2xs cursor-pointer active:scale-95 transition-transform"
                             >
                               <Plus className="w-3 h-3" />
-                              <span>Назначить ДЗ</span>
+                              <span>{activeHwStudentId === st.id ? 'Скрыть форму' : 'Назначить ДЗ'}</span>
                             </button>
                           </div>
+
+                          {/* Inline Homework Assignment Form */}
+                          {activeHwStudentId === st.id && (
+                            <form
+                              onSubmit={assignHomework}
+                              onClick={(e) => e.stopPropagation()}
+                              className="p-3 bg-[#FFFDFB] border border-[#CCE8A2] rounded-xl space-y-2.5 animate-in fade-in"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-black text-[#161F38]">
+                                  Новое задание: {info.displayName}
+                                </span>
+                                {hwSuccess && (
+                                  <span className="text-[10px] font-bold text-[#5C8519] bg-[#EAF7CF] px-2 py-0.5 rounded-full">
+                                    ✓ Назначено!
+                                  </span>
+                                )}
+                              </div>
+
+                              <div>
+                                <label className="block text-[10px] font-bold text-[#6B758E] mb-1">
+                                  Тема / название задания:
+                                </label>
+                                <input
+                                  type="text"
+                                  required
+                                  value={hwTitle}
+                                  onChange={(e) => setHwTitle(e.target.value)}
+                                  placeholder="Например: Артикуляционная гимнастика «Лошадка»"
+                                  className="w-full bg-white border border-[#EADBCC] rounded-lg px-2.5 py-1.5 text-xs text-[#161F38] focus:outline-none focus:border-[#4F46E5]"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="block text-[10px] font-bold text-[#6B758E] mb-1">
+                                  Описание упражнения и инструкции:
+                                </label>
+                                <textarea
+                                  required
+                                  rows={3}
+                                  value={hwDesc}
+                                  onChange={(e) => setHwDesc(e.target.value)}
+                                  placeholder="Опишите, что нужно сделать ребенку (упражнения перед зеркалом, повторение звуков...)"
+                                  className="w-full bg-white border border-[#EADBCC] rounded-lg px-2.5 py-1.5 text-xs text-[#161F38] focus:outline-none focus:border-[#4F46E5] resize-none"
+                                />
+                              </div>
+
+                              {/* File attachment */}
+                              <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
+                                <div>
+                                  <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    onChange={handleFileChange}
+                                    className="hidden"
+                                    accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.mp3,.wav,.m4a"
+                                  />
+                                  {hwFile ? (
+                                    <div className="inline-flex items-center gap-1.5 bg-[#FFF2E6] text-coralAccent border border-[#FCDDC7] px-2.5 py-1 rounded-lg text-[10px] font-bold">
+                                      <Paperclip className="w-3 h-3" />
+                                      <span className="truncate max-w-[130px]">{hwFile.name}</span>
+                                      <button
+                                        type="button"
+                                        onClick={removeFileAttachment}
+                                        className="text-red-500 hover:text-red-700 ml-1 font-bold"
+                                      >
+                                        ×
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => fileInputRef.current?.click()}
+                                      className="inline-flex items-center gap-1 text-[10px] font-bold text-[#6B758E] hover:text-[#161F38] bg-gray-100 hover:bg-gray-200 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                                    >
+                                      <Paperclip className="w-3 h-3" />
+                                      <span>Прикрепить файл</span>
+                                    </button>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center gap-1.5 ml-auto">
+                                  <button
+                                    type="button"
+                                    onClick={() => setActiveHwStudentId(null)}
+                                    className="text-xs font-bold text-[#8A95A8] hover:text-[#161F38] px-2.5 py-1 cursor-pointer"
+                                  >
+                                    Отмена
+                                  </button>
+                                  <button
+                                    type="submit"
+                                    disabled={isSubmittingHw || hwSuccess}
+                                    className="text-xs font-black bg-[#4F46E5] hover:bg-[#4338CA] text-white px-3.5 py-1 rounded-full shadow-2xs active:scale-95 cursor-pointer disabled:opacity-50 transition-all"
+                                  >
+                                    {isSubmittingHw ? 'Отправка...' : hwSuccess ? 'Отправлено!' : 'Назначить'}
+                                  </button>
+                                </div>
+                              </div>
+                            </form>
+                          )}
 
                           {stHwList.length === 0 ? (
                             <div className="py-2.5 px-3 bg-white/80 rounded-xl border border-dashed border-[#CCE8A2] text-center text-xs text-[#6B758E]">
@@ -872,223 +974,10 @@ export default function TeacherDashboard() {
             <span className="text-[10px] text-[#8A95A8]">Данные сохраняются в кабинете</span>
           </div>
         </div>
-
-        {/* Quick Homework Assigner — Scholar Indigo Accent */}
-        <div className="lg:col-span-6 bg-white rounded-3xl p-4 sm:p-5 border-t-4 border-t-[#4F46E5] border-x border-b border-[#DCDAF7] shadow-xs flex flex-col justify-between h-full space-y-3 hover:shadow-sm transition-shadow">
-          <div className="space-y-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-[#EEF2FF] text-[#4F46E5] border border-[#DCDAF7] flex items-center justify-center shrink-0 shadow-2xs">
-                <BookOpen className="w-4 h-4" />
-              </div>
-              <h3 className="font-black text-sm sm:text-base text-[#161F38]">Назначить домашнее упражнение</h3>
-            </div>
-
-            {hwSuccess && (
-              <div className="p-2.5 bg-[#F2FBE8] border border-[#C5E87D] rounded-xl text-[#161F38] text-xs font-black flex items-center gap-2 animate-in fade-in">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>Домашнее задание успешно отправлено в личный кабинет ученика!</span>
-              </div>
-            )}
-
-            <form onSubmit={assignHomework} className="space-y-2.5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {/* Searchable Student Picker for Homework (iOS style tap-outside dismissal) */}
-                <div ref={hwPickerRef} className="relative">
-                  <label className="block text-[11px] font-extrabold text-[#161F38] mb-1">
-                    Ученик:
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={hwStudentInput}
-                      onChange={(e) => {
-                        setHwStudentInput(e.target.value);
-                        setHwStudentPublicId('');
-                        setHwDropdownOpen(true);
-                      }}
-                      onFocus={() => setHwDropdownOpen(true)}
-                      placeholder="Всем или поиск ученика..."
-                      className="w-full bg-[#FFFDFB] border border-[#EADBCC] rounded-xl px-2.5 py-1.5 text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent pr-8"
-                    />
-                    <Search className="w-3.5 h-3.5 text-[#8A95A8] absolute right-2.5 top-2.5 pointer-events-none" />
-                  </div>
-
-                  {/* Dropdown list of students for homework (iOS style) */}
-                  {hwDropdownOpen && (
-                    <div className="absolute z-30 left-0 right-0 mt-1.5 bg-white/95 backdrop-blur-md border border-[#F2DECE] rounded-2xl shadow-xl max-h-52 overflow-y-auto p-1.5 animate-in fade-in zoom-in-95 duration-140">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setHwStudentInput('');
-                          setHwStudentPublicId('');
-                          setHwDropdownOpen(false);
-                        }}
-                        className="w-full text-left p-2 rounded-xl hover:bg-[#FFF8F1] transition-colors text-xs font-bold text-coralAccent cursor-pointer active:scale-[0.98]"
-                      >
-                        📢 Всем закрепленным ученикам
-                      </button>
-
-                      {/* Bound Students section */}
-                      {boundStudents.length > 0 && (
-                        <div className="py-1">
-                          <div className="px-2 py-0.5 text-[10px] font-extrabold uppercase text-[#5C8519] tracking-wider">
-                            Закрепленные в кабинете:
-                          </div>
-                          {boundStudents.map((st) => {
-                            const info = getCleanStudentInfo(st);
-                            return (
-                              <button
-                                key={`bound-${st.id}`}
-                                type="button"
-                                onClick={() => {
-                                  setHwStudentInput(info.displayName);
-                                  setHwStudentPublicId(st.publicId || '');
-                                  setHwDropdownOpen(false);
-                                }}
-                                className="w-full text-left p-2 rounded-xl hover:bg-[#F4F9EB] transition-colors flex items-center justify-between text-xs cursor-pointer active:scale-[0.98]"
-                              >
-                                <div>
-                                  <div className="font-bold text-[#161F38]">{info.displayName}</div>
-                                  {st.publicId && (
-                                    <div className="text-[10px] text-[#8A95A8]">ID: {st.publicId}</div>
-                                  )}
-                                </div>
-                                <span className="text-[10px] font-extrabold text-[#5C8519] bg-[#EAF7CF] px-2 py-0.5 rounded-full">
-                                  Выбрать
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-
-                      {/* General database students */}
-                      {filteredHwStudents.length > 0 && (
-                        <div className="py-1 border-t border-[#F8EDE1]">
-                          <div className="px-2 py-0.5 text-[10px] font-extrabold uppercase text-[#8A95A8] tracking-wider">
-                            Все зарегистрированные ученики:
-                          </div>
-                          {filteredHwStudents.map((st) => (
-                            <button
-                              key={st.publicId}
-                              type="button"
-                              onClick={() => {
-                                setHwStudentInput(st.fullName);
-                                setHwStudentPublicId(st.publicId);
-                                setHwDropdownOpen(false);
-                              }}
-                              className="w-full text-left p-2 rounded-xl hover:bg-[#FFF8F1] transition-colors flex items-center justify-between text-xs cursor-pointer active:scale-[0.98]"
-                            >
-                              <div>
-                                <div className="font-bold text-[#161F38]">{st.fullName}</div>
-                                <div className="text-[10px] text-[#8A95A8]">ID: {st.publicId}</div>
-                              </div>
-                              <span className="text-[10px] font-extrabold text-coralAccent bg-[#FFF2E6] px-2 py-0.5 rounded-full">
-                                Выбрать
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-
-                      <div className="p-1 border-t border-[#F8EDE1] text-right">
-                        <button
-                          type="button"
-                          onClick={() => setHwDropdownOpen(false)}
-                          className="text-[10px] font-bold text-[#8A95A8] hover:text-[#161F38] px-2.5 py-0.5"
-                        >
-                          Скрыть окно
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-extrabold text-[#161F38] mb-1">
-                    Название упражнения:
-                  </label>
-                  <input
-                    type="text"
-                    value={hwTitle}
-                    onChange={(e) => setHwTitle(e.target.value)}
-                    placeholder="Чистоговорка перед зеркалом"
-                    required
-                    className="w-full bg-[#FFFDFB] border border-[#EADBCC] rounded-xl px-2.5 py-1.5 text-xs text-[#161F38] focus:outline-none focus:border-coralAccent"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-extrabold text-[#161F38] mb-1">
-                  Задание для ученика / родителя:
-                </label>
-                <textarea
-                  rows={2}
-                  value={hwDesc}
-                  onChange={(e) => setHwDesc(e.target.value)}
-                  placeholder="Опишите упражнение. Ребёнок сможет записать голосовой ответ в чате..."
-                  required
-                  className="w-full bg-[#FFFDFB] border border-[#EADBCC] rounded-xl px-2.5 py-1.5 text-xs text-[#161F38] focus:outline-none focus:border-coralAccent resize-none"
-                />
-              </div>
-
-              {/* File Attachment Support */}
-              <div className="pt-1">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  onChange={handleFileChange}
-                  accept="image/*,.pdf,.doc,.docx,.txt,audio/*"
-                  className="hidden"
-                />
-
-                {hwFile ? (
-                  <div className="inline-flex items-center gap-2 bg-[#FFF8F1] border border-[#F2DECE] px-3 py-1.5 rounded-xl text-xs">
-                    <Paperclip className="w-3.5 h-3.5 text-coralAccent" />
-                    <span className="font-bold text-[#161F38] max-w-[200px] truncate">{hwFile.name}</span>
-                    <button
-                      type="button"
-                      onClick={removeFileAttachment}
-                      className="text-[#8A95A8] hover:text-red-500 p-0.5 rounded cursor-pointer"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="inline-flex items-center gap-1.5 text-xs font-bold text-[#6B758E] hover:text-[#161F38] bg-[#FFF8F1] hover:bg-[#FFF2E6] border border-[#F2DECE] px-3 py-1.5 rounded-xl transition-colors cursor-pointer active:scale-95"
-                  >
-                    <Paperclip className="w-3.5 h-3.5 text-coralAccent" />
-                    <span>Прикрепить файл к заданию (до 5 МБ)</span>
-                  </button>
-                )}
-              </div>
-
-              <div className="flex justify-end pt-1">
-                <button
-                  type="submit"
-                  disabled={isSubmittingHw}
-                  className="inline-flex items-center gap-1.5 bg-[#4F46E5] hover:bg-[#4338CA] text-white font-black px-5 py-2.5 rounded-full text-xs shadow-xs shadow-indigo-500/20 transition-[background-color,transform,box-shadow] duration-140 ease-out-emil active:scale-[0.97] cursor-pointer disabled:opacity-50"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>{isSubmittingHw ? 'Отправка...' : 'Отправить задание'}</span>
-                </button>
-              </div>
-            </form>
-          </div>
-
-          <div className="pt-2 border-t border-[#F8EDE1] flex items-center justify-between text-[11px] text-[#6B758E]">
-            <span>Статус отправки: <strong className="text-[#5C8519]">Готов</strong></span>
-            <span className="text-[10px] text-[#8A95A8]">Мгновенно поступает в кабинет ученика</span>
-          </div>
-        </div>
       </div>
 
       {/* Row 3: Real Teachers & Pedagogical Faculty — Golden Amber Accent */}
-      <div className="bg-white rounded-3xl p-4 sm:p-5 border-t-4 border-t-amber-500 border-x border-b border-[#FCDDC7] shadow-xs space-y-3.5 hover:shadow-sm transition-shadow">
+      <div className="w-full lg:max-w-2xl bg-white rounded-3xl p-4 sm:p-5 border-t-4 border-t-amber-500 border-x border-b border-[#FCDDC7] shadow-xs space-y-3.5 hover:shadow-sm transition-shadow">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <div className="flex items-center gap-2.5">
@@ -1132,7 +1021,7 @@ export default function TeacherDashboard() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-stretch">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-stretch">
             {colleagueTeachers.map((teacher) => (
               <div
                 key={teacher.id}
