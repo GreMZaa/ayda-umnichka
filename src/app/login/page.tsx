@@ -295,7 +295,7 @@ function LoginFormContent() {
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
                         placeholder="Иван Иванов"
-                        className="w-full bg-[#FFFBF7] border border-[#F2E0CF] rounded-xl px-3 py-1.5 text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent"
+                        className="w-full bg-[#FFFBF7] border border-[#F2E0CF] rounded-xl px-3 py-1.5 text-base sm:text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent"
                       />
                     </div>
                     <div className="space-y-0.5">
@@ -307,7 +307,7 @@ function LoginFormContent() {
                         value={childName}
                         onChange={(e) => setChildName(e.target.value)}
                         placeholder={selectedRole === 'teacher' ? 'Логопед-дефектолог' : 'Артём (6 лет)'}
-                        className="w-full bg-[#FFFBF7] border border-[#F2E0CF] rounded-xl px-3 py-1.5 text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent"
+                        className="w-full bg-[#FFFBF7] border border-[#F2E0CF] rounded-xl px-3 py-1.5 text-base sm:text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent"
                       />
                     </div>
                   </div>
@@ -325,7 +325,7 @@ function LoginFormContent() {
                       value={emailOrPhone}
                       onChange={(e) => setEmailOrPhone(e.target.value)}
                       placeholder="user@mail.ru или +7 (927) 000-00-00"
-                      className="w-full bg-[#FFFBF7] border border-[#F2E0CF] rounded-xl px-3 py-1.5 pl-8 text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent"
+                      className="w-full bg-[#FFFBF7] border border-[#F2E0CF] rounded-xl px-3 py-1.5 pl-8 text-base sm:text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent"
                     />
                     <Mail className="w-3.5 h-3.5 text-[#9E9085] absolute left-2.5 top-1/2 -translate-y-1/2" />
                   </div>
@@ -343,7 +343,7 @@ function LoginFormContent() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full bg-[#FFFBF7] border border-[#F2E0CF] rounded-xl px-3 py-1.5 pl-8 pr-8 text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent font-mono"
+                      className="w-full bg-[#FFFBF7] border border-[#F2E0CF] rounded-xl px-3 py-1.5 pl-8 pr-8 text-base sm:text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent font-mono"
                     />
                     <Lock className="w-3.5 h-3.5 text-[#9E9085] absolute left-2.5 top-1/2 -translate-y-1/2" />
                     <button

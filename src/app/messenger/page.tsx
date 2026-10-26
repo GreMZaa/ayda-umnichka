@@ -245,7 +245,7 @@ export default function MessengerPage() {
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 placeholder="Напишите сообщение педагогу..."
-                className="flex-1 bg-white border border-[#EADBCC] rounded-full px-5 py-2.5 text-xs text-ink-900 focus:outline-none focus:ring-2 focus:ring-coralAccent"
+                className="flex-1 bg-white border border-[#EADBCC] rounded-full px-5 py-2.5 text-base sm:text-xs text-ink-900 focus:outline-none focus:ring-2 focus:ring-coralAccent"
               />
               <button
                 type="submit"

@@ -15,11 +15,34 @@
   --duration-modal: 220ms;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
 body {
   color: var(--foreground);
   background: var(--background);
   font-family: -apple-system, BlinkMacSystemFont, "Plus Jakarta Sans", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Prevent iOS Safari and mobile browsers from auto-zooming on input focus (requires 16px minimum on touch/mobile) */
+@media screen and (max-width: 768px), (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* Eliminate 300ms touch delay and double-tap zoom on buttons and interactive elements */
+button,
+a,
+[role="button"],
+input[type="submit"],
+input[type="button"] {
+  touch-action: manipulation;
 }
 
 /* Micro-interaction: subtle tactile press feedback */

@@ -270,7 +270,7 @@ export default function LessonRoomPage() {
                   value={hwTitle}
                   onChange={(e) => setHwTitle(e.target.value)}
                   placeholder="Например: Артикуляционная гимнастика"
-                  className="w-full bg-[#FFF8F1] border border-[#EADBCC] focus:border-coralAccent rounded-xl px-3.5 py-2 text-xs font-bold text-[#161F38] outline-none"
+                  className="w-full bg-[#FFF8F1] border border-[#EADBCC] focus:border-coralAccent rounded-xl px-3.5 py-2 text-base sm:text-xs font-bold text-[#161F38] outline-none"
                 />
               </div>
 
@@ -284,7 +284,7 @@ export default function LessonRoomPage() {
                   value={hwDescription}
                   onChange={(e) => setHwDescription(e.target.value)}
                   placeholder="Опишите, что нужно повторить, отработать перед зеркалом или записать в аудиоответе..."
-                  className="w-full bg-[#FFF8F1] border border-[#EADBCC] focus:border-coralAccent rounded-xl p-3 text-xs text-[#161F38] outline-none resize-none"
+                  className="w-full bg-[#FFF8F1] border border-[#EADBCC] focus:border-coralAccent rounded-xl p-3 text-base sm:text-xs text-[#161F38] outline-none resize-none"
                 />
               </div>
 
@@ -297,7 +297,7 @@ export default function LessonRoomPage() {
                     type="date"
                     value={hwDueDate}
                     onChange={(e) => setHwDueDate(e.target.value)}
-                    className="w-full bg-[#FFF8F1] border border-[#EADBCC] focus:border-coralAccent rounded-xl px-3.5 py-2 text-xs font-bold text-[#161F38] outline-none"
+                    className="w-full bg-[#FFF8F1] border border-[#EADBCC] focus:border-coralAccent rounded-xl px-3.5 py-2 text-base sm:text-xs font-bold text-[#161F38] outline-none"
                   />
                 </div>
               </div>

@@ -1566,7 +1566,7 @@ export default function VideoCall({
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               placeholder="Напишите сообщение в чат урока..."
-              className="flex-1 bg-[#FFF8F1] border border-[#EADBCC] focus:border-coralAccent rounded-full px-4 py-2 text-xs text-[#161F38] outline-none"
+              className="flex-1 bg-[#FFF8F1] border border-[#EADBCC] focus:border-coralAccent rounded-full px-4 py-2 text-base sm:text-xs text-[#161F38] outline-none"
             />
             <button
               type="submit"
