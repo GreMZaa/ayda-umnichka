@@ -549,21 +549,23 @@ export default function TeacherDashboard() {
         </div>
       </div>
 
-      {/* Row 1: Schedule & Lesson History */}
-      <div className="w-full lg:max-w-2xl">
-        <LessonsScheduleHistory
-          role="teacher"
-          onStartLesson={(token, topic) => {
-            router.push(`/room/${token}?role=teacher&topic=${encodeURIComponent(topic)}`);
-          }}
-          availableStudents={supabaseStudents}
-        />
-      </div>
+      {/* 2-Column Dashboard Grid: Left (Schedule & Lessons) | Right (Assigned Students & Homework) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 items-start">
+        {/* Left Column: Schedule & Lesson History */}
+        <div className="w-full">
+          <LessonsScheduleHistory
+            role="teacher"
+            onStartLesson={(token, topic) => {
+              router.push(`/room/${token}?role=teacher&topic=${encodeURIComponent(topic)}`);
+            }}
+            availableStudents={supabaseStudents}
+          />
+        </div>
 
-      {/* Row 2: Assigned Students with Homework Accordion */}
-      <div className="w-full lg:max-w-2xl">
-        {/* Assigned Students List — Emerald Growth Accent */}
-        <div className="bg-white rounded-3xl p-4 sm:p-5 border-t-4 border-t-[#5C8519] border-x border-b border-[#D8E6C3] shadow-xs flex flex-col justify-between space-y-3 hover:shadow-sm transition-shadow">
+        {/* Right Column: Assigned Students with Homework Accordion */}
+        <div className="w-full">
+          {/* Assigned Students List — Emerald Growth Accent */}
+          <div className="bg-white rounded-3xl p-4 sm:p-5 border-t-4 border-t-[#5C8519] border-x border-b border-[#D8E6C3] shadow-xs flex flex-col justify-between space-y-3 hover:shadow-sm transition-shadow">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
@@ -975,53 +977,54 @@ export default function TeacherDashboard() {
           </div>
         </div>
       </div>
+    </div>
 
-      {/* Row 3: Real Teachers & Pedagogical Faculty — Golden Amber Accent */}
-      <div className="w-full lg:max-w-2xl bg-white rounded-3xl p-4 sm:p-5 border-t-4 border-t-amber-500 border-x border-b border-[#FCDDC7] shadow-xs space-y-3.5 hover:shadow-sm transition-shadow">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0 shadow-2xs">
-                <GraduationCap className="w-4 h-4" />
-              </div>
-              <h3 className="font-black text-sm sm:text-base text-[#161F38]">
-                Коллеги и руководство центра
-              </h3>
+    {/* Row 3: Real Teachers & Pedagogical Faculty — Golden Amber Accent (Full Width) */}
+    <div className="w-full bg-white rounded-3xl p-4 sm:p-5 border-t-4 border-t-amber-500 border-x border-b border-[#FCDDC7] shadow-xs space-y-3.5 hover:shadow-sm transition-shadow">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0 shadow-2xs">
+              <GraduationCap className="w-4 h-4" />
             </div>
-            <p className="text-[11px] text-[#6B758E] mt-0.5">
-              Педагогический состав и администрация детского центра «АйДаУмничка»
-            </p>
+            <h3 className="font-black text-sm sm:text-base text-[#161F38]">
+              Коллеги и руководство центра
+            </h3>
           </div>
-
-          <div className="flex items-center gap-2 self-start sm:self-auto">
-            <button
-              type="button"
-              onClick={fetchTeachers}
-              disabled={loadingTeachers}
-              title="Обновить список коллег"
-              className="p-1 text-[#8A95A8] hover:text-[#161F38] transition-colors rounded-lg active:scale-95 cursor-pointer"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${loadingTeachers ? 'animate-spin' : ''}`} />
-            </button>
-          </div>
+          <p className="text-[11px] text-[#6B758E] mt-0.5">
+            Педагогический состав и администрация детского центра «АйДаУмничка»
+          </p>
         </div>
 
-        {/* Teachers Grid: Aligned evenly with items-stretch and equal height cards */}
-        {loadingTeachers && colleagueTeachers.length === 0 ? (
-          <div className="p-6 text-center text-xs font-bold text-[#6B758E] flex items-center justify-center gap-2">
-            <RefreshCw className="w-4 h-4 animate-spin text-coralAccent" />
-            <span>Загрузка преподавателей...</span>
-          </div>
-        ) : colleagueTeachers.length === 0 ? (
-          <div className="p-6 rounded-xl border border-dashed border-[#F2DECE] bg-[#FFFAF5] text-center space-y-1">
-            <Users className="w-6 h-6 text-coralAccent mx-auto opacity-50" />
-            <h4 className="font-bold text-xs text-[#161F38]">Другие коллеги пока не подключены</h4>
-            <p className="text-[11px] text-[#6B758E]">
-              Вы вошли в кабинет преподавателя. Когда ваши коллеги или методисты зарегистрируются, они появятся в этом блоке.
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-stretch">
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={fetchTeachers}
+            disabled={loadingTeachers}
+            title="Обновить список коллег"
+            className="p-1 text-[#8A95A8] hover:text-[#161F38] transition-colors rounded-lg active:scale-95 cursor-pointer"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loadingTeachers ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+      </div>
+
+      {/* Teachers Grid: Aligned evenly with items-stretch and equal height cards */}
+      {loadingTeachers && colleagueTeachers.length === 0 ? (
+        <div className="p-6 text-center text-xs font-bold text-[#6B758E] flex items-center justify-center gap-2">
+          <RefreshCw className="w-4 h-4 animate-spin text-coralAccent" />
+          <span>Загрузка преподавателей...</span>
+        </div>
+      ) : colleagueTeachers.length === 0 ? (
+        <div className="p-6 rounded-xl border border-dashed border-[#F2DECE] bg-[#FFFAF5] text-center space-y-1">
+          <Users className="w-6 h-6 text-coralAccent mx-auto opacity-50" />
+          <h4 className="font-bold text-xs text-[#161F38]">Другие коллеги пока не подключены</h4>
+          <p className="text-[11px] text-[#6B758E]">
+            Вы вошли в кабинет преподавателя. Когда ваши коллеги или методисты зарегистрируются, они появятся в этом блоке.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-stretch">
             {colleagueTeachers.map((teacher) => (
               <div
                 key={teacher.id}
