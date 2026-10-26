@@ -125,6 +125,7 @@ export default function MessengerPage() {
   const recordTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const initialChatSelectedRef = useRef<boolean>(false);
 
   // 1. Initial Load & Polling from Supabase API
   const fetchMessengerData = async (silent = false, explicitId?: string, explicitRole?: string) => {
@@ -158,26 +159,36 @@ export default function MessengerPage() {
         }
         setConversations(data.conversations || []);
 
-        // Check if chatWith target is specified in query parameters
-        let chatWithTarget = '';
-        if (typeof window !== 'undefined') {
-          const sp = new URLSearchParams(window.location.search);
-          chatWithTarget = sp.get('chatWith') || '';
-        }
+        // Only select initial conversation once; NEVER override user selection during polling!
+        if (!initialChatSelectedRef.current && data.conversations?.length > 0) {
+          let chatWithTarget = '';
+          if (typeof window !== 'undefined') {
+            const sp = new URLSearchParams(window.location.search);
+            chatWithTarget = sp.get('chatWith') || '';
+          }
 
-        if (chatWithTarget && data.conversations?.length > 0) {
-          const targetConv = data.conversations.find(
-            (c: Conversation) => c.contact.publicId === chatWithTarget || c.contact.id === chatWithTarget
-          );
-          if (targetConv) {
-            setActiveConvId(targetConv.id);
-            if (targetConv.contact.role === 'teacher') setActiveTab('teachers');
-            else if (targetConv.contact.role === 'student') setActiveTab('students');
+          if (chatWithTarget) {
+            const targetConv = data.conversations.find(
+              (c: Conversation) => c.contact.publicId === chatWithTarget || c.contact.id === chatWithTarget
+            );
+            if (targetConv) {
+              setActiveConvId(targetConv.id);
+              initialChatSelectedRef.current = true;
+              // Clean up chatWith parameter so it doesn't persist or re-lock on future actions
+              if (typeof window !== 'undefined') {
+                const sp = new URLSearchParams(window.location.search);
+                sp.delete('chatWith');
+                const cleanQuery = sp.toString();
+                window.history.replaceState(null, '', `/messenger${cleanQuery ? '?' + cleanQuery : ''}`);
+              }
+            } else if (!activeConvId) {
+              setActiveConvId(data.conversations[0].id);
+              initialChatSelectedRef.current = true;
+            }
           } else if (!activeConvId) {
             setActiveConvId(data.conversations[0].id);
+            initialChatSelectedRef.current = true;
           }
-        } else if (!activeConvId && data.conversations?.length > 0) {
-          setActiveConvId(data.conversations[0].id);
         }
       }
     } catch (err) {
