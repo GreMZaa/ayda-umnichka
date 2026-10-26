@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
       .order('created_at', { ascending: false });
 
     if (teacherPublicId) {
-      query = query.eq('teacher_public_id', teacherPublicId);
+      query = query.or(`teacher_public_id.eq.${teacherPublicId},teacher_public_id.is.null`);
     }
 
     const { data, error } = await query;

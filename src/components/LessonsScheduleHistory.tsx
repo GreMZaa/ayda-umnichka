@@ -97,26 +97,60 @@ export default function LessonsScheduleHistory({
     return null;
   };
 
-  // Helper to resolve child ID for teacher cabinet display
-  const getStudentDisplayId = (l: LessonRecord) => {
-    if (l.student_public_id) {
-      return l.student_public_id;
+  // Helper to resolve child ID and child Name for teacher cabinet display
+  const getStudentDisplayLabel = (l: LessonRecord) => {
+    let pubId = l.student_public_id || '';
+
+    // Extract child name if pattern "Имя (ребёнок: ИмяРебёнка)" is present
+    const childMatch = (l.student_name || '').match(/ребёнок:\s*([^)]+)/i);
+    let childName = childMatch ? childMatch[1].trim() : '';
+
+    if (!childName) {
+      childName = (l.student_name || '').replace(/\s*\(.*?\)$/, '').trim();
     }
+
+    // Try to match with availableStudents to resolve missing ID or full name
     if (availableStudents && availableStudents.length > 0) {
-      const cleanLName = (l.student_name || '').replace(/\s*\(.*?\)$/, '').trim().toLowerCase();
-      const matched = availableStudents.find((s) => {
-        const cleanSName = (s.fullName || '').replace(/\s*\(.*?\)$/, '').trim().toLowerCase();
-        return cleanSName === cleanLName || cleanSName.includes(cleanLName) || cleanLName.includes(cleanSName);
-      });
-      if (matched?.publicId) {
-        return matched.publicId;
+      if (pubId) {
+        const found = availableStudents.find(
+          (s) => s.publicId?.toLowerCase() === pubId.toLowerCase()
+        );
+        if (found && (!childName || childName.toLowerCase() === pubId.toLowerCase())) {
+          const mChild = (found.fullName || '').match(/ребёнок:\s*([^)]+)/i);
+          childName = mChild ? mChild[1].trim() : found.fullName.replace(/\s*\(.*?\)$/, '').trim();
+        }
+      } else if (childName) {
+        const cleanLName = childName.toLowerCase();
+        const found = availableStudents.find((s) => {
+          const cleanSName = (s.fullName || '').replace(/\s*\(.*?\)$/, '').trim().toLowerCase();
+          return cleanSName === cleanLName || cleanSName.includes(cleanLName) || cleanLName.includes(cleanSName);
+        });
+        if (found?.publicId) {
+          pubId = found.publicId;
+        }
       }
     }
-    const match = (l.student_name || '').match(/id\d+/i);
-    if (match) return match[0];
 
-    const cleanOnly = (l.student_name || '').replace(/\s*\(.*?\)$/, '').trim();
-    return cleanOnly || 'id179018';
+    if (!pubId) {
+      const match = (l.student_name || '').match(/id\d+/i);
+      if (match) pubId = match[0];
+    }
+
+    // If childName is just an id, try to lookup real name
+    if (/^id\d+$/i.test(childName)) {
+      if (availableStudents) {
+        const found = availableStudents.find((s) => s.publicId?.toLowerCase() === childName.toLowerCase());
+        if (found?.fullName) {
+          const mChild = (found.fullName || '').match(/ребёнок:\s*([^)]+)/i);
+          childName = mChild ? mChild[1].trim() : found.fullName.replace(/\s*\(.*?\)$/, '').trim();
+        }
+      }
+    }
+
+    if (pubId && childName && pubId.toLowerCase() !== childName.toLowerCase()) {
+      return `${pubId} (${childName})`;
+    }
+    return pubId || childName || 'Ученик';
   };
 
   const formatElapsedTimer = (totalSec: number) => {
@@ -435,7 +469,7 @@ export default function LessonsScheduleHistory({
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-xs font-black text-[#161F38] truncate" title={l.student_name}>
-                            {role === 'student' ? (l.teacher_name || 'Преподаватель') : getStudentDisplayId(l)}
+                            {role === 'student' ? (l.teacher_name || 'Преподаватель') : getStudentDisplayLabel(l)}
                           </span>
                           <span className="text-[9px] font-bold bg-[#FFF2E6] text-coralAccent px-1.5 py-0.5 rounded-full shrink-0">
                             {formatLessonTime(l.scheduled_for)}
@@ -538,7 +572,7 @@ export default function LessonsScheduleHistory({
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
                         <span className="text-xs font-black text-[#161F38] truncate" title={l.student_name}>
-                          {role === 'student' ? (l.teacher_name || 'Преподаватель') : getStudentDisplayId(l)}
+                          {role === 'student' ? (l.teacher_name || 'Преподаватель') : getStudentDisplayLabel(l)}
                         </span>
                         <span className="text-[10px] text-[#8A95A8]">
                           • {formatLessonTime(l.scheduled_for || l.created_at)}
