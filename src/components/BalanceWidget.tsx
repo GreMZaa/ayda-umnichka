@@ -1,20 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
 import Image from 'next/image';
 import {
   Wifi,
   Coins,
-  Sparkles,
-  ArrowRight,
-  ShieldCheck,
-  CheckCircle2,
-  Clock,
-  MessageCircle,
-  PlusCircle,
-  HelpCircle,
-  RefreshCw
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
@@ -107,10 +97,6 @@ export default function BalanceWidget({
     };
   }, [studentPublicId]);
 
-  const maxLessons = 8;
-  const progressPercent = Math.min(100, Math.max(0, (liveBalance / maxLessons) * 100));
-  const isLowBalance = liveBalance <= 1;
-
   // Format card number with student ID suffix
   const formattedId = studentPublicId
     ? studentPublicId.replace(/[^0-9]/g, '').slice(-4) || '8745'
@@ -190,7 +176,6 @@ export default function BalanceWidget({
         {/* Card Bottom: Photo, Student Name, Validity & Contactless */}
         <div className="flex items-end justify-between relative z-10 pt-1 border-t border-white/30">
           <div className="flex items-center gap-2 min-w-0">
-            {/* Student Photo as requested ("фото как раньше у нас было") */}
             <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-white shadow-2xs relative bg-white shrink-0">
               <Image
                 src="/images/child-avatar.png"
@@ -199,7 +184,6 @@ export default function BalanceWidget({
                 height={32}
                 className="w-full h-full object-cover"
                 onError={(e) => {
-                  // Fallback if image not rendered
                   (e.target as HTMLElement).style.display = 'none';
                 }}
               />
@@ -227,10 +211,10 @@ export default function BalanceWidget({
       </div>
 
       {/* ─────────────────────────────────────────────────────────────
-          BALANCE PROGRESS & DETAILS
+          BALANCE DETAILS
           ───────────────────────────────────────────────────────────── */}
-      <div className="space-y-3 pt-1">
-        {/* Large Counter Row */}
+      <div className="pt-1">
+        {/* Counter Row */}
         <div className="p-3 bg-[#FFF8F1] border border-[#FCDDC7] rounded-2xl flex items-center justify-between gap-3">
           <div>
             <span className="text-[10px] font-black uppercase tracking-wider text-[#8A95A8] block">
@@ -245,49 +229,6 @@ export default function BalanceWidget({
               </span>
             </div>
           </div>
-
-          <div className="text-right">
-            <span className="text-[10px] font-extrabold text-coralAccent bg-[#FFF2E6] border border-[#FCDDC7] px-2.5 py-1 rounded-full inline-block">
-              {liveBalance} из {maxLessons} уроков
-            </span>
-          </div>
-        </div>
-
-        {/* Visual Progress Bar */}
-        <div className="space-y-1">
-          <div className="flex items-center justify-between text-[11px] font-bold text-[#6B758E]">
-            <span>Заполненность пакета:</span>
-            <span className="text-[#161F38] font-black">{Math.round(progressPercent)}%</span>
-          </div>
-          <div className="w-full bg-[#F5E5D4] h-2.5 rounded-full overflow-hidden relative shadow-inner">
-            <div
-              className={`h-full rounded-full transition-all duration-500 ${
-                isLowBalance
-                  ? 'bg-amber-500'
-                  : 'bg-gradient-to-r from-coralAccent to-[#5C8519]'
-              }`}
-              style={{ width: `${progressPercent}%` }}
-            />
-          </div>
-        </div>
-
-        {/* Explanatory Note */}
-        <div className="p-2.5 bg-[#FFFAF5] border border-[#F2DECE] rounded-xl text-[11px] text-[#6B758E] flex items-start gap-2 leading-relaxed">
-          <CheckCircle2 className="w-4 h-4 text-[#5C8519] shrink-0 mt-0.5" />
-          <span>
-            Списание 1 занятия происходит автоматически только после завершения онлайн-урока с преподавателем.
-          </span>
-        </div>
-
-        {/* Action Button: Top Up / Message Admin */}
-        <div className="pt-1 flex items-center gap-2">
-          <Link
-            href={`/messenger?id=${encodeURIComponent(studentPublicId || '')}`}
-            className="w-full inline-flex items-center justify-center gap-2 bg-[#FFF2E6] hover:bg-[#FFE3CC] text-coralAccent border border-[#FCDDC7] font-black text-xs py-2.5 rounded-xl transition-all duration-140 active:scale-95 cursor-pointer shadow-2xs"
-          >
-            <PlusCircle className="w-4 h-4" />
-            <span>Пополнить баланс уроков</span>
-          </Link>
         </div>
       </div>
     </div>
