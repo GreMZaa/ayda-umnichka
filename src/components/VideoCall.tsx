@@ -20,6 +20,8 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  Plus,
   Volume2,
   VolumeX,
   Paperclip,
@@ -2053,179 +2055,258 @@ export default function VideoCall({
           </div>
         )}
 
-        {/* 7. Slide-up Chat Sheet */}
+        {/* 7. Full-Screen VK Chat with Floating Video Call PiP */}
         {isChatOpen && (
-          <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-end sm:p-4 animate-in fade-in duration-200">
-            <div className="w-full sm:w-[420px] h-[85dvh] sm:h-[600px] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden text-[#161F38]">
-              {/* Chat Header */}
-              <div className="p-4 bg-white border-b border-[#F4E3D2] flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-coralAccent/15 text-coralAccent flex items-center justify-center">
-                    <MessageSquare className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h3 className="font-extrabold text-sm text-[#161F38]">Чат урока</h3>
-                    <p className="text-[11px] text-[#8A95A8]">{chatMessages.length} сообщений</p>
-                  </div>
-                </div>
+          <div className="absolute inset-0 z-50 bg-[#0A0E1A] flex flex-col animate-in fade-in duration-200">
+            {/* VK Messenger Header */}
+            <div className="h-14 sm:h-16 px-3 sm:px-4 bg-[#111726]/90 backdrop-blur-md border-b border-white/10 flex items-center justify-between z-30 shrink-0">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                 <button
                   type="button"
                   onClick={() => setIsChatOpen(false)}
-                  className="p-2 text-[#8A95A8] hover:text-[#161F38] rounded-full hover:bg-gray-100 cursor-pointer"
+                  className="p-1.5 -ml-1 text-white hover:bg-white/10 rounded-full transition-colors cursor-pointer flex items-center"
+                  title="Вернуться к звонку"
                 >
-                  <X className="w-5 h-5" />
+                  <ChevronLeft className="w-6 h-6" />
                 </button>
+
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-tr from-[#3b5998] to-[#6389e8] text-white flex items-center justify-center font-bold text-sm shrink-0 border border-white/20 shadow-md">
+                  <span>{resolvedParticipantName[0] || 'П'}</span>
+                </div>
+
+                <div className="min-w-0 flex flex-col justify-center">
+                  <h3 className="font-extrabold text-sm sm:text-base text-white truncate max-w-[180px] sm:max-w-xs">
+                    {resolvedParticipantName}
+                  </h3>
+                  <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-semibold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>В звонке • {formatTime(callDuration)}</span>
+                  </div>
+                </div>
               </div>
 
-              {/* Chat Messages */}
-              <div className="flex-1 p-3 sm:p-4 overflow-y-auto space-y-2.5 text-xs bg-[#FFFDFB]">
-                {chatMessages.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-center text-[#8A95A8] p-4">
-                    <div className="w-12 h-12 rounded-2xl bg-[#FFF7EE] border border-[#F4E3D2] flex items-center justify-center text-coralAccent/60 mb-2">
-                      <MessageSquare className="w-6 h-6" />
-                    </div>
-                    <p className="text-xs font-black text-[#161F38]">Сообщений пока нет</p>
-                    <p className="text-[11px] text-[#8A95A8] max-w-xs mt-0.5">
-                      Здесь можно обмениваться сообщениями, фото и файлами во время занятия
-                    </p>
-                  </div>
-                ) : (
-                  chatMessages.map((msg) => {
-                    const isMe = msg.senderId === myPeerIdRef.current;
-                    return (
-                      <div
-                        key={msg.id}
-                        className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
-                      >
-                        <div className="flex items-center gap-1 text-[10px] text-[#8A95A8] mb-0.5">
-                          <span className="font-bold">{isMe ? 'Вы' : msg.senderName}</span>
-                          <span>• {msg.time}</span>
-                        </div>
-                        <div
-                          className={`px-3.5 py-2 rounded-2xl max-w-[85%] break-words ${
-                            isMe
-                              ? 'bg-coralAccent text-white rounded-br-xs shadow-2xs'
-                              : 'bg-[#FFF7EE] text-[#161F38] border border-[#F4E3D2] rounded-bl-xs'
-                          }`}
-                        >
-                          {msg.attachment && (
-                            <div className="mb-1.5">
-                              {msg.attachment.isImage ? (
-                                <a
-                                  href={msg.attachment.url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="block overflow-hidden rounded-xl border border-black/10 hover:opacity-95 transition-opacity"
-                                >
-                                  <img
-                                    src={msg.attachment.url}
-                                    alt={msg.attachment.name}
-                                    className="max-h-48 w-auto object-cover rounded-xl"
-                                    loading="lazy"
-                                  />
-                                </a>
-                              ) : (
-                                <a
-                                  href={msg.attachment.url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  download={msg.attachment.name}
-                                  className={`flex items-center gap-2 p-2 rounded-xl text-xs font-bold transition-colors ${
-                                    isMe
-                                      ? 'bg-white/20 text-white hover:bg-white/30'
-                                      : 'bg-[#FFF0E2] text-coralAccent hover:bg-[#FFE6D0]'
-                                  }`}
-                                >
-                                  <FileText className="w-4 h-4 shrink-0" />
-                                  <span className="truncate max-w-[150px]">
-                                    {msg.attachment.name}
-                                  </span>
-                                  <Download className="w-3.5 h-3.5 ml-auto shrink-0 opacity-70" />
-                                </a>
-                              )}
-                            </div>
-                          )}
-                          {msg.text && <div>{msg.text}</div>}
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-                <div ref={chatBottomRef} />
-              </div>
+              {/* Close / Return button on header */}
+              <button
+                type="button"
+                onClick={() => setIsChatOpen(false)}
+                className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-full cursor-pointer transition-colors"
+                title="Свернуть чат"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
-              {/* Attached file preview chip prior to sending */}
-              {attachedFile && (
-                <div className="px-3 py-1.5 bg-[#FFF0E2] border-t border-[#F2DECE] flex items-center justify-between gap-2 text-xs">
-                  <div className="flex items-center gap-2 truncate">
-                    {attachedFile.isImage ? (
-                      <img
-                        src={attachedFile.url}
-                        alt=""
-                        className="w-7 h-7 object-cover rounded-md border border-[#F4E3D2]"
-                      />
-                    ) : (
-                      <FileText className="w-4 h-4 text-coralAccent shrink-0" />
-                    )}
-                    <span className="font-bold text-[#161F38] truncate">{attachedFile.name}</span>
-                    <span className="text-[10px] text-[#8A95A8]">
-                      ({Math.round(attachedFile.size / 1024)} КБ)
-                    </span>
+            {/* Floating Video Call Mini-Window (PiP) in Top Right — Exactly like VK! */}
+            <div
+              onClick={() => setIsChatOpen(false)}
+              className="absolute top-16 right-3 sm:top-20 sm:right-6 z-40 w-32 xs:w-36 sm:w-44 aspect-[3/4] rounded-2xl sm:rounded-3xl overflow-hidden border-2 border-white/30 shadow-2xl bg-black/85 backdrop-blur-md cursor-pointer transition-transform duration-200 hover:scale-105 active:scale-95 group"
+              title="Нажмите, чтобы вернуться к видеозвонку"
+            >
+              {/* Remote Video Stream */}
+              <video
+                ref={(el) => {
+                  if (el && remoteStreamRef.current && el.srcObject !== remoteStreamRef.current) {
+                    el.srcObject = remoteStreamRef.current;
+                    el.play().catch(() => {});
+                  }
+                }}
+                autoPlay
+                playsInline
+                muted
+                className={`w-full h-full object-cover ${
+                  hasRemoteStream && remoteCamActive ? 'block' : 'hidden'
+                }`}
+              />
+
+              {/* Avatar placeholder if camera is off or connecting */}
+              {(!hasRemoteStream || !remoteCamActive) && (
+                <div className="w-full h-full flex flex-col items-center justify-center bg-[#161F38] text-white p-2 text-center">
+                  <div className="w-10 h-10 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center mb-1 font-black text-sm">
+                    <span>{resolvedParticipantName[0] || 'П'}</span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setAttachedFile(null)}
-                    className="p-1 text-[#8A95A8] hover:text-rose-500 rounded-lg cursor-pointer transition-colors"
-                    title="Удалить прикрепленный файл"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+                  <span className="text-[10px] text-white/80 font-semibold truncate max-w-[90px]">
+                    {resolvedParticipantName}
+                  </span>
+                  <span className="text-[9px] text-white/50">
+                    {hasRemoteStream ? 'Камера выкл.' : 'Ожидание...'}
+                  </span>
                 </div>
               )}
 
-              {/* Chat Input Bar */}
-              <form
-                onSubmit={handleSendMessage}
-                className="p-2.5 sm:p-3 bg-white border-t border-[#F2DECE] flex items-center gap-1.5"
-              >
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileSelect}
-                  accept="image/*,.pdf,.doc,.docx,.txt"
-                  className="hidden"
-                />
+              {/* Bottom controls on the mini-card (Expand icon on left, Mute on right) */}
+              <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between pointer-events-none">
+                <div className="p-1 bg-black/60 backdrop-blur-md rounded-lg text-white">
+                  <Maximize2 className="w-3.5 h-3.5 drop-shadow" />
+                </div>
+                <div className="p-1 bg-black/60 backdrop-blur-md rounded-lg text-white">
+                  {!remoteMicActive ? (
+                    <MicOff className="w-3.5 h-3.5 text-rose-400 drop-shadow" />
+                  ) : (
+                    <Mic className="w-3.5 h-3.5 text-emerald-400 drop-shadow" />
+                  )}
+                </div>
+              </div>
+
+              {/* Hover overlay hint */}
+              <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                <span className="bg-black/70 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded-full">
+                  Развернуть звонок
+                </span>
+              </div>
+            </div>
+
+            {/* Chat Messages Body */}
+            <div className="flex-1 p-3 sm:p-5 overflow-y-auto space-y-3 bg-[#0A0E1A] bg-radial from-[#121929] to-[#0A0E1A]">
+              {chatMessages.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center text-white/50 p-6">
+                  <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-coralAccent mb-3">
+                    <MessageSquare className="w-7 h-7" />
+                  </div>
+                  <p className="text-sm font-extrabold text-white">Сообщений пока нет</p>
+                  <p className="text-xs text-white/60 max-w-xs mt-1">
+                    Здесь можно обмениваться быстрыми сообщениями, фото и учебными материалами
+                  </p>
+                </div>
+              ) : (
+                chatMessages.map((msg) => {
+                  const isMe = msg.senderId === myPeerIdRef.current;
+                  return (
+                    <div
+                      key={msg.id}
+                      className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
+                    >
+                      <div className="flex items-center gap-1 text-[10px] text-white/50 mb-0.5">
+                        <span className="font-semibold">{isMe ? 'Вы' : msg.senderName}</span>
+                        <span>• {msg.time}</span>
+                      </div>
+                      <div
+                        className={`px-4 py-2.5 rounded-2xl max-w-[85%] sm:max-w-[70%] break-words text-sm shadow-md ${
+                          isMe
+                            ? 'bg-[#2B5278] text-white rounded-br-xs border border-[#3E6F9F]'
+                            : 'bg-[#1E293B] text-white rounded-bl-xs border border-white/10'
+                        }`}
+                      >
+                        {msg.attachment && (
+                          <div className="mb-2">
+                            {msg.attachment.isImage ? (
+                              <a
+                                href={msg.attachment.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="block overflow-hidden rounded-xl border border-white/10 hover:opacity-95 transition-opacity"
+                              >
+                                <img
+                                  src={msg.attachment.url}
+                                  alt={msg.attachment.name}
+                                  className="max-h-56 w-auto object-cover rounded-xl"
+                                  loading="lazy"
+                                />
+                              </a>
+                            ) : (
+                              <a
+                                href={msg.attachment.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                download={msg.attachment.name}
+                                className="flex items-center gap-2 p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-colors"
+                              >
+                                <FileText className="w-4 h-4 shrink-0 text-coralAccent" />
+                                <span className="truncate max-w-[160px]">
+                                  {msg.attachment.name}
+                                </span>
+                                <Download className="w-3.5 h-3.5 ml-auto shrink-0 opacity-70" />
+                              </a>
+                            )}
+                          </div>
+                        )}
+                        {msg.text && <div>{msg.text}</div>}
+                        <div
+                          className={`text-[10px] mt-1 flex items-center justify-end gap-1 ${
+                            isMe ? 'text-blue-200' : 'text-white/50'
+                          }`}
+                        >
+                          <span>{msg.time}</span>
+                          {isMe && <span>✓✓</span>}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+              <div ref={chatBottomRef} />
+            </div>
+
+            {/* Attached file preview chip prior to sending */}
+            {attachedFile && (
+              <div className="px-4 py-2 bg-[#161F38] border-t border-white/10 flex items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-2 truncate">
+                  {attachedFile.isImage ? (
+                    <img
+                      src={attachedFile.url}
+                      alt=""
+                      className="w-8 h-8 object-cover rounded-md border border-white/20"
+                    />
+                  ) : (
+                    <FileText className="w-4 h-4 text-coralAccent shrink-0" />
+                  )}
+                  <span className="font-bold text-white truncate">{attachedFile.name}</span>
+                  <span className="text-[10px] text-white/50">
+                    ({Math.round(attachedFile.size / 1024)} КБ)
+                  </span>
+                </div>
                 <button
                   type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isUploadingAttachment}
-                  className="p-2 sm:p-2.5 text-[#6B758E] hover:text-coralAccent hover:bg-[#FFF7EE] rounded-full transition-colors cursor-pointer shrink-0 disabled:opacity-50"
-                  title="Прикрепить файл или фото"
+                  onClick={() => setAttachedFile(null)}
+                  className="p-1 text-white/60 hover:text-rose-400 rounded-lg cursor-pointer transition-colors"
+                  title="Удалить прикрепленный файл"
                 >
-                  {isUploadingAttachment ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-coralAccent" />
-                  ) : (
-                    <Paperclip className="w-4 h-4" />
-                  )}
+                  <X className="w-4 h-4" />
                 </button>
-                <input
-                  ref={chatInputRef}
-                  type="text"
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  placeholder="Напишите сообщение..."
-                  className="flex-1 bg-[#FFF8F1] border border-[#EADBCC] focus:border-coralAccent rounded-full px-4 py-2 text-base sm:text-xs text-[#161F38] outline-none"
-                />
-                <button
-                  type="submit"
-                  disabled={(!chatInput.trim() && !attachedFile) || isUploadingAttachment}
-                  className="bg-coralAccent hover:bg-coralAccent-hover disabled:opacity-40 text-white p-2.5 rounded-full transition-transform active:scale-95 cursor-pointer shadow-2xs shrink-0"
-                  title="Отправить"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                </button>
-              </form>
-            </div>
+              </div>
+            )}
+
+            {/* Chat Input Bar (VK Style) */}
+            <form
+              onSubmit={handleSendMessage}
+              className="p-2.5 sm:p-3 bg-[#111726] border-t border-white/10 flex items-center gap-2 shrink-0"
+            >
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileSelect}
+                accept="image/*,.pdf,.doc,.docx,.txt"
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploadingAttachment}
+                className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+                title="Прикрепить фото или файл"
+              >
+                {isUploadingAttachment ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-coralAccent" />
+                ) : (
+                  <Plus className="w-5 h-5" />
+                )}
+              </button>
+              <input
+                ref={chatInputRef}
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                placeholder="Сообщение..."
+                className="flex-1 bg-white/10 hover:bg-white/15 focus:bg-white/20 border border-white/10 focus:border-blue-400 rounded-full px-4 py-2.5 text-sm text-white placeholder-white/40 outline-none transition-all"
+              />
+              <button
+                type="submit"
+                disabled={(!chatInput.trim() && !attachedFile) || isUploadingAttachment}
+                className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white w-10 h-10 rounded-full flex items-center justify-center transition-transform active:scale-95 cursor-pointer shadow-md shrink-0"
+                title="Отправить"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </form>
           </div>
         )}
       </div>
