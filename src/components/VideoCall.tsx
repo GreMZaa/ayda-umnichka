@@ -10,6 +10,7 @@ import {
   PhoneOff,
   Layout,
   Maximize2,
+  Minimize2,
   ExternalLink,
   Wifi,
   Users,
@@ -81,6 +82,7 @@ export default function VideoCall({
   const [isRemoteScreenSharing, setIsRemoteScreenSharing] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
   const [isPipActive, setIsPipActive] = useState(false);
+  const [isPipMinimized, setIsPipMinimized] = useState(false);
 
   // Lesson In-Call Chat states
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -841,31 +843,81 @@ export default function VideoCall({
 
   // PiP (Picture in Picture) mode when Whiteboard is open — strictly displays the REMOTE participant (student or teacher)
   if (isWhiteboardActive) {
-    return (
-      <div className="fixed bottom-6 right-6 z-40 w-72 sm:w-80 bg-white rounded-3xl shadow-2xl border-2 border-coralAccent overflow-hidden text-ink-900 animate-in slide-in-from-bottom-4">
-        <div className="p-2.5 bg-[#FFF7EE] flex items-center justify-between text-xs border-b border-[#F4E3D2] font-black">
-          <div className="flex items-center gap-1.5 truncate">
+    if (isPipMinimized) {
+      return (
+        <div
+          onClick={() => setIsPipMinimized(false)}
+          className="fixed bottom-3 right-3 sm:bottom-6 sm:right-6 z-40 bg-white/95 backdrop-blur-md rounded-full shadow-2xl border-2 border-coralAccent p-1.5 flex items-center gap-2 cursor-pointer hover:scale-105 active:scale-95 transition-transform"
+          title="Нажмите, чтобы развернуть видео собеседника"
+        >
+          <div className="w-9 h-9 rounded-full bg-[#161F38] text-white flex items-center justify-center font-black text-xs shrink-0 overflow-hidden relative border border-coralAccent/40">
+            {hasRemoteStream && remoteCamActive ? (
+              <video
+                ref={(el) => {
+                  if (el) {
+                    if (remoteStreamRef.current && el.srcObject !== remoteStreamRef.current) {
+                      el.srcObject = remoteStreamRef.current;
+                    }
+                    el.play().catch(() => {});
+                  }
+                }}
+                autoPlay
+                playsInline
+                muted
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <span>{resolvedParticipantName[0] || 'П'}</span>
+            )}
+          </div>
+          <div className="pr-2 flex items-center gap-1.5">
+            <span className="text-xs font-black text-[#161F38] truncate max-w-[90px] sm:max-w-none">
+              {resolvedParticipantName}
+            </span>
             <span
-              className={`w-2 h-2 rounded-full ${
+              className={`w-2 h-2 rounded-full ${hasRemoteStream ? 'bg-[#5C8519] animate-pulse' : 'bg-amber-400'}`}
+            />
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="fixed bottom-3 right-3 sm:bottom-6 sm:right-6 z-40 w-44 xs:w-52 sm:w-80 bg-white rounded-2xl sm:rounded-3xl shadow-2xl border-2 border-coralAccent overflow-hidden text-ink-900 animate-in slide-in-from-bottom-2">
+        <div className="p-1.5 sm:p-2.5 bg-[#FFF7EE] flex items-center justify-between text-xs border-b border-[#F4E3D2] font-black">
+          <div className="flex items-center gap-1 sm:gap-1.5 truncate">
+            <span
+              className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${
                 hasRemoteStream ? 'bg-[#5C8519] animate-pulse' : 'bg-amber-400'
               } shrink-0`}
             />
-            <span className="truncate text-[#161F38] text-[11px]">{resolvedParticipantName}</span>
+            <span className="truncate text-[#161F38] text-[10px] sm:text-[11px] font-black">{resolvedParticipantName}</span>
           </div>
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+            {/* Minimize to small pill */}
             <button
+              type="button"
+              onClick={() => setIsPipMinimized(true)}
+              className="p-1 hover:bg-[#FDEEDC] rounded-md text-[#161F38] cursor-pointer"
+              title="Свернуть видео, чтобы освободить доску"
+            >
+              <Minimize2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+            </button>
+            <button
+              type="button"
               onClick={togglePictureInPicture}
-              className="p-1 hover:bg-[#FDEEDC] rounded-lg text-[#161F38]"
+              className="p-1 hover:bg-[#FDEEDC] rounded-md text-[#161F38] hidden sm:block cursor-pointer"
               title="Поверх всех окон (как в Telegram/VK)"
             >
               <ExternalLink className="w-3.5 h-3.5 text-coralAccent" />
             </button>
             <button
+              type="button"
               onClick={onToggleWhiteboard}
-              className="p-1 hover:bg-[#FDEEDC] rounded-lg text-[#161F38]"
+              className="p-1 hover:bg-[#FDEEDC] rounded-md text-[#161F38] cursor-pointer"
               title="Развернуть видео на весь экран"
             >
-              <Maximize2 className="w-3.5 h-3.5" />
+              <Maximize2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
             </button>
           </div>
         </div>
@@ -894,44 +946,40 @@ export default function VideoCall({
 
           {/* Remote peer camera turned off placeholder */}
           {hasRemoteStream && !remoteCamActive && (
-            <div className="absolute inset-0 bg-[#161F38] flex flex-col items-center justify-center p-3 text-center z-10">
-              <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center text-coralAccent text-xl font-black mb-1.5 shadow-xs">
+            <div className="absolute inset-0 bg-[#161F38] flex flex-col items-center justify-center p-2 sm:p-3 text-center z-10">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-white/10 flex items-center justify-center text-coralAccent text-lg sm:text-xl font-black mb-1 shadow-xs">
                 {resolvedParticipantName[0] || 'П'}
               </div>
-              <p className="text-white text-xs font-black">{resolvedParticipantName}</p>
-              <p className="text-white/60 text-[10px] mt-0.5">Камера собеседника выключена</p>
+              <p className="text-white text-[11px] sm:text-xs font-black">{resolvedParticipantName}</p>
+              <p className="text-white/60 text-[9px] sm:text-[10px]">Камера собеседника выключена</p>
             </div>
           )}
 
           {/* Waiting for remote peer to connect */}
           {!hasRemoteStream && (
-            <div className="absolute inset-0 bg-[#161F38] flex flex-col items-center justify-center p-3 text-center text-white z-10 select-none">
-              <div className="w-12 h-12 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center text-coralAccent text-xl font-black mb-1.5 shadow-xs">
+            <div className="absolute inset-0 bg-[#161F38] flex flex-col items-center justify-center p-2 sm:p-3 text-center text-white z-10 select-none">
+              <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center text-coralAccent text-base sm:text-xl font-black mb-1 shadow-xs">
                 {resolvedParticipantName[0] || 'П'}
               </div>
-              <h4 className="text-white font-black text-xs leading-tight">
+              <h4 className="text-white font-black text-[11px] sm:text-xs leading-tight">
                 {resolvedParticipantName}
               </h4>
-              <p className="text-[10px] text-[#EADBCC] mt-1 font-medium">
-                {isTeacher ? 'Ожидание подключения ученика...' : 'Ожидание педагога...'}
+              <p className="text-[9px] sm:text-[10px] text-[#EADBCC] mt-0.5 font-medium">
+                {isTeacher ? 'Ожидание ученика...' : 'Ожидание педагога...'}
               </p>
-              <div className="mt-2 inline-flex items-center gap-1 bg-white/10 px-2.5 py-0.5 rounded-full text-[9px] font-bold text-white/90">
-                <span className="w-1.5 h-1.5 rounded-full bg-coralAccent animate-ping" />
-                <span>Канал связи</span>
-              </div>
             </div>
           )}
 
           {/* Time Pill */}
-          <div className="absolute bottom-2 left-2 flex items-center gap-1.5 bg-black/60 backdrop-blur-md text-white px-2 py-0.5 rounded-full text-[10px] font-mono font-bold shadow-xs z-20">
-            <span className={`w-1.5 h-1.5 rounded-full ${hasRemoteStream ? 'bg-[#5C8519] animate-pulse' : 'bg-amber-400'}`} />
+          <div className="absolute bottom-1.5 left-1.5 sm:bottom-2 sm:left-2 flex items-center gap-1 bg-black/60 backdrop-blur-md text-white px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-bold shadow-xs z-20">
+            <span className={`w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full ${hasRemoteStream ? 'bg-[#5C8519] animate-pulse' : 'bg-amber-400'}`} />
             <span>{hasRemoteStream ? formatTime(callDuration) : '00:00 (Ожидание)'}</span>
           </div>
 
           {/* Remote Peer name badge in PiP — strictly the other person */}
-          <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-md text-white px-2.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1.5 shadow-xs z-20">
+          <div className="absolute top-1.5 left-1.5 sm:top-2 sm:left-2 bg-black/60 backdrop-blur-md text-white px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold flex items-center gap-1 shadow-xs z-20">
             <span className={`w-1.5 h-1.5 rounded-full ${hasRemoteStream ? 'bg-[#5C8519] animate-pulse' : 'bg-amber-400'}`} />
-            <span className="truncate max-w-[140px]">{resolvedParticipantName}</span>
+            <span className="truncate max-w-[100px] sm:max-w-[140px]">{resolvedParticipantName}</span>
             {!remoteMicActive && hasRemoteStream && (
               <MicOff className="w-2.5 h-2.5 text-rose-300 ml-0.5" />
             )}
