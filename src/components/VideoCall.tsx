@@ -144,10 +144,9 @@ export default function VideoCall({
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
   const chatMessagesContainerRef = useRef<HTMLDivElement | null>(null);
   const chatInputRef = useRef<HTMLInputElement | null>(null);
-  const [visualViewportState, setVisualViewportState] = useState<{
-    height: number;
-    offsetTop: number;
-  } | null>(null);
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+  const [viewportHeight, setViewportHeight] = useState<number | null>(null);
+  const [viewportOffsetTop, setViewportOffsetTop] = useState<number>(0);
 
   const scrollChatToBottom = (smooth = true) => {
     if (chatMessagesContainerRef.current) {
@@ -158,53 +157,50 @@ export default function VideoCall({
     }
   };
 
-  // Pin chat to visual viewport on mobile (prevents iOS keyboard from displacing top header & camera PiP)
+  // Pin chat to visual viewport when mobile keyboard is open, and restore 100% full height cleanly on dismiss
   useEffect(() => {
     if (!isChatOpen) return;
 
-    const updateViewport = () => {
-      if (typeof window !== 'undefined' && window.visualViewport) {
-        setVisualViewportState({
-          height: window.visualViewport.height,
-          offsetTop: window.visualViewport.offsetTop,
-        });
-        if (window.scrollY !== 0 || window.scrollX !== 0) {
-          window.scrollTo(0, 0);
-        }
+    const handleViewportChange = () => {
+      if (typeof window === 'undefined') return;
+      const vv = window.visualViewport;
+      if (!vv) return;
+
+      const keyboardOpen = window.innerHeight - vv.height > 120;
+      setIsKeyboardOpen(keyboardOpen);
+
+      if (keyboardOpen) {
+        setViewportHeight(vv.height);
+        setViewportOffsetTop(vv.offsetTop);
+      } else {
+        setViewportHeight(null);
+        setViewportOffsetTop(0);
+      }
+
+      if (window.scrollY !== 0 || window.scrollX !== 0) {
+        window.scrollTo(0, 0);
       }
     };
 
-    updateViewport();
-
     const vv = typeof window !== 'undefined' ? window.visualViewport : null;
     if (vv) {
-      vv.addEventListener('resize', updateViewport);
-      vv.addEventListener('scroll', updateViewport);
+      vv.addEventListener('resize', handleViewportChange);
+      vv.addEventListener('scroll', handleViewportChange);
     }
-    window.addEventListener('scroll', updateViewport);
+    window.addEventListener('scroll', handleViewportChange);
+    window.addEventListener('resize', handleViewportChange);
 
-    // Prevent background body bounce/scrolling while chat is active
     const prevOverflow = document.body.style.overflow;
-    const prevPosition = document.body.style.position;
-    const prevWidth = document.body.style.width;
-    const prevHeight = document.body.style.height;
-
     document.body.style.overflow = 'hidden';
-    document.body.style.position = 'fixed';
-    document.body.style.width = '100%';
-    document.body.style.height = '100%';
 
     return () => {
       if (vv) {
-        vv.removeEventListener('resize', updateViewport);
-        vv.removeEventListener('scroll', updateViewport);
+        vv.removeEventListener('resize', handleViewportChange);
+        vv.removeEventListener('scroll', handleViewportChange);
       }
-      window.removeEventListener('scroll', updateViewport);
-
+      window.removeEventListener('scroll', handleViewportChange);
+      window.removeEventListener('resize', handleViewportChange);
       document.body.style.overflow = prevOverflow;
-      document.body.style.position = prevPosition;
-      document.body.style.width = prevWidth;
-      document.body.style.height = prevHeight;
       window.scrollTo(0, 0);
     };
   }, [isChatOpen]);
@@ -2252,10 +2248,10 @@ export default function VideoCall({
         {isChatOpen && (
           <div
             style={
-              visualViewportState
+              isKeyboardOpen && viewportHeight
                 ? {
-                    height: `${visualViewportState.height}px`,
-                    top: `${visualViewportState.offsetTop}px`,
+                    height: `${viewportHeight}px`,
+                    top: `${viewportOffsetTop}px`,
                   }
                 : undefined
             }
@@ -2302,7 +2298,9 @@ export default function VideoCall({
             {/* Floating Video Call Mini-Window (PiP) in Top Right — Exactly like VK! */}
             <div
               onClick={() => setIsChatOpen(false)}
-              className="absolute top-16 right-3 sm:top-20 sm:right-6 z-40 w-28 xs:w-32 sm:w-44 aspect-[3/4] rounded-2xl sm:rounded-3xl overflow-hidden border-2 border-white shadow-2xl bg-black/90 backdrop-blur-md cursor-pointer transition-transform duration-200 hover:scale-105 active:scale-95 group shrink-0"
+              className={`absolute top-16 right-3 sm:top-20 sm:right-6 z-40 ${
+                isKeyboardOpen ? 'w-20 xs:w-24 sm:w-36' : 'w-28 xs:w-32 sm:w-44'
+              } aspect-[3/4] rounded-2xl sm:rounded-3xl overflow-hidden border-2 border-white shadow-2xl bg-black/90 backdrop-blur-md cursor-pointer transition-all duration-200 hover:scale-105 active:scale-95 group shrink-0`}
               title="Нажмите, чтобы вернуться к видеозвонку"
             >
               {/* Remote Video Stream (strictly video tracks so iOS never mutes audio session) */}
@@ -2513,6 +2511,14 @@ export default function VideoCall({
                 spellCheck={false}
                 onChange={(e) => setChatInput(e.target.value)}
                 onFocus={() => {
+                  setIsKeyboardOpen(true);
+                  if (typeof window !== 'undefined' && window.visualViewport) {
+                    const vv = window.visualViewport;
+                    if (window.innerHeight - vv.height > 120) {
+                      setViewportHeight(vv.height);
+                      setViewportOffsetTop(vv.offsetTop);
+                    }
+                  }
                   // Ensure remote audio playback and local mic remain active when input is focused
                   if (remoteAudioRef.current && remoteStreamRef.current) {
                     remoteAudioRef.current.play().catch(() => {});
@@ -2532,6 +2538,27 @@ export default function VideoCall({
                     }, 50);
                     setTimeout(() => {
                       window.scrollTo(0, 0);
+                    }, 250);
+                  }
+                }}
+                onBlur={() => {
+                  setIsKeyboardOpen(false);
+                  setViewportHeight(null);
+                  setViewportOffsetTop(0);
+                  if (typeof window !== 'undefined') {
+                    window.scrollTo(0, 0);
+                    document.body.scrollTop = 0;
+                    document.documentElement.scrollTop = 0;
+                    setTimeout(() => {
+                      window.scrollTo(0, 0);
+                      document.body.scrollTop = 0;
+                      document.documentElement.scrollTop = 0;
+                      scrollChatToBottom(false);
+                    }, 80);
+                    setTimeout(() => {
+                      window.scrollTo(0, 0);
+                      document.body.scrollTop = 0;
+                      document.documentElement.scrollTop = 0;
                     }, 250);
                   }
                 }}
