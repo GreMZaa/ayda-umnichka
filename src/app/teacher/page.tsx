@@ -677,7 +677,7 @@ export default function TeacherDashboard() {
             )}
 
             {/* Students List Container with Interactive Homework Accordion & Pagination */}
-            <div className="flex-1 min-h-0 flex flex-col justify-between">
+            <div className="space-y-3">
               {boundStudents.length === 0 ? (
                 <div className="p-5 rounded-xl border border-dashed border-[#F2DECE] bg-[#FFFAF5] text-center space-y-1.5">
                   <Users className="w-6 h-6 text-coralAccent mx-auto opacity-50" />
@@ -687,8 +687,8 @@ export default function TeacherDashboard() {
                   </p>
                 </div>
               ) : (
-                <div className="flex-1 min-h-0 flex flex-col justify-between">
-                  <div className="space-y-2 overflow-y-auto pr-1">
+                <div className="space-y-2.5">
+                  <div className="space-y-2 pr-1">
                     {paginatedStudents.map((st) => {
                       const info = getCleanStudentInfo(st);
                       const stHwList = getStudentHomeworkList(st);
