@@ -25,6 +25,7 @@ import {
   FileText,
   Download,
   Loader2,
+  Smartphone,
 } from 'lucide-react';
 import { formatTime } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
@@ -100,6 +101,8 @@ export default function VideoCall({
   const [isPipMinimized, setIsPipMinimized] = useState(false);
   const [isIPhone, setIsIPhone] = useState(false);
   const [isDeafened, setIsDeafened] = useState(false);
+  // Vertical / Portrait orientation for mobile phone video calls & screens
+  const [isVerticalMode, setIsVerticalMode] = useState(false);
 
   // Lesson In-Call Chat states
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -118,12 +121,15 @@ export default function VideoCall({
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
   const chatInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Detect iOS / iPhone for screen sharing capability
+  // Detect iOS / iPhone for screen sharing capability & mobile default orientation
   useEffect(() => {
     if (typeof navigator !== 'undefined') {
       const ua = navigator.userAgent || '';
       const isApple = /iPhone|iPod/.test(ua) || (/iPad/.test(ua) && navigator.maxTouchPoints > 1);
       setIsIPhone(isApple);
+    }
+    if (typeof window !== 'undefined' && window.innerWidth < 640) {
+      setIsVerticalMode(true);
     }
   }, []);
 
@@ -1264,7 +1270,24 @@ export default function VideoCall({
           </div>
 
           {/* Action Controls in Top Right */}
-          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {/* Toggle Vertical / Horizontal Video Format (for Mobile Phones) */}
+            <button
+              type="button"
+              onClick={() => setIsVerticalMode(!isVerticalMode)}
+              className={`p-1.5 sm:px-3 sm:py-1.5 border rounded-full font-extrabold text-xs shadow-2xs transition-colors cursor-pointer active:scale-95 flex items-center gap-1.5 ${
+                isVerticalMode
+                  ? 'bg-[#EAF7CF] border-[#CCE8A2] text-[#5C8519]'
+                  : 'bg-[#FFF7EE] hover:bg-[#FDEEDC] border-[#EADBCC] text-[#161F38]'
+              }`}
+              title="Переключить формат: вертикальный (телефон) / альбомный (компьютер)"
+            >
+              <Smartphone className="w-3.5 h-3.5 text-coralAccent" />
+              <span className="text-[11px] sm:text-xs font-bold">
+                {isVerticalMode ? 'Вертикально' : 'С телефона'}
+              </span>
+            </button>
+
             {/* Picture in Picture Button */}
             <button
               type="button"
@@ -1279,10 +1302,20 @@ export default function VideoCall({
         </div>
 
         {/* Main Video Streams Grid (Responsive on phones & desktops) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-4 p-2.5 sm:p-4">
+        <div
+          className={`grid gap-2.5 sm:gap-4 p-2.5 sm:p-4 ${
+            isVerticalMode
+              ? 'grid-cols-1 sm:grid-cols-2 justify-items-center'
+              : 'grid-cols-1 md:grid-cols-2'
+          }`}
+        >
           {/* Tile 1: Remote Participant (Real Live Video & Audio Stream) */}
           <div
-            className="relative rounded-2xl sm:rounded-3xl overflow-hidden bg-[#161F38] border-2 border-[#F2E3D5] flex items-center justify-center shadow-xs transition-all duration-200 aspect-[4/3] sm:aspect-video min-h-[190px] sm:min-h-[260px]"
+            className={`relative rounded-2xl sm:rounded-3xl overflow-hidden bg-[#161F38] border-2 border-[#F2E3D5] flex items-center justify-center shadow-xs transition-all duration-200 ${
+              isVerticalMode
+                ? 'aspect-[9/16] w-full max-w-[340px] max-h-[500px]'
+                : 'aspect-[4/3] sm:aspect-video min-h-[190px] sm:min-h-[260px] w-full'
+            }`}
           >
             {/* Live Video from Remote Peer (unmuted so sound plays) */}
             <video
@@ -1291,10 +1324,16 @@ export default function VideoCall({
               playsInline
               controls={false}
               autoPictureInPicture
+              onLoadedMetadata={(e) => {
+                const v = e.currentTarget;
+                if (v.videoHeight > v.videoWidth) {
+                  setIsVerticalMode(true);
+                }
+              }}
               {...({ 'webkit-playsinline': 'true' } as any)}
-              className={`w-full h-full ${isRemoteScreenSharing ? 'object-contain bg-black' : 'object-cover'} ${
-                hasRemoteStream && remoteCamActive ? 'block' : 'hidden'
-              }`}
+              className={`w-full h-full ${
+                isRemoteScreenSharing || isVerticalMode ? 'object-contain bg-black' : 'object-cover'
+              } ${hasRemoteStream && remoteCamActive ? 'block' : 'hidden'}`}
             />
 
             {/* Clean Avatar when remote camera is off or not yet connected — NO TEXT */}
@@ -1309,7 +1348,11 @@ export default function VideoCall({
 
           {/* Tile 2: Local User Camera Stream (Muted to prevent echo, Selfie Front Camera) */}
           <div
-            className="relative rounded-2xl sm:rounded-3xl overflow-hidden bg-[#161F38] border-2 border-[#F2E3D5] flex items-center justify-center shadow-xs transition-all duration-200 aspect-[4/3] sm:aspect-video min-h-[190px] sm:min-h-[260px]"
+            className={`relative rounded-2xl sm:rounded-3xl overflow-hidden bg-[#161F38] border-2 border-[#F2E3D5] flex items-center justify-center shadow-xs transition-all duration-200 ${
+              isVerticalMode
+                ? 'aspect-[9/16] w-full max-w-[340px] max-h-[500px]'
+                : 'aspect-[4/3] sm:aspect-video min-h-[190px] sm:min-h-[260px] w-full'
+            }`}
           >
             {camActive ? (
               <video
@@ -1319,8 +1362,16 @@ export default function VideoCall({
                 muted
                 controls={false}
                 autoPictureInPicture
+                onLoadedMetadata={(e) => {
+                  const v = e.currentTarget;
+                  if (v.videoHeight > v.videoWidth && window.innerWidth < 640) {
+                    setIsVerticalMode(true);
+                  }
+                }}
                 {...({ 'webkit-playsinline': 'true' } as any)}
-                className={`w-full h-full ${isScreenSharing ? 'object-contain bg-black' : 'object-cover scale-x-[-1]'}`}
+                className={`w-full h-full ${
+                  isScreenSharing || isVerticalMode ? 'object-contain bg-black' : 'object-cover scale-x-[-1]'
+                }`}
               />
             ) : (
               <div className="text-center p-4 text-white/40">
