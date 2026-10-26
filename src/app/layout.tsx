@@ -4,6 +4,7 @@ import Footer from "@/components/Footer";
 import ContentWrapper from "@/components/ContentWrapper";
 import AgentationToolbar from "@/components/AgentationToolbar";
 import PwaRegistrar from "@/components/PwaRegistrar";
+import UserPresenceHeartbeat from "@/components/UserPresenceHeartbeat";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -113,6 +114,7 @@ export default function RootLayout({
         <Footer />
         <AgentationToolbar />
         <PwaRegistrar />
+        <UserPresenceHeartbeat />
       </body>
     </html>
   );

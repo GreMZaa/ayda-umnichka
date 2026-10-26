@@ -3,6 +3,40 @@ import { supabaseServer } from '@/lib/supabaseServer';
 
 export const dynamic = 'force-dynamic';
 
+function isUuid(id?: string | null): boolean {
+  if (!id) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
+
+function checkIsOnline(metadata?: any): boolean {
+  if (!metadata?.last_seen_at) return false;
+  const lastSeenMs = new Date(metadata.last_seen_at).getTime();
+  if (isNaN(lastSeenMs)) return false;
+  return Date.now() - lastSeenMs < 90_000; // 90 seconds
+}
+
+function formatContactSubtitle(role: string, metadata?: any, defaultSub = ''): string {
+  const isOnline = checkIsOnline(metadata);
+  if (isOnline) {
+    if (role === 'teacher') return 'Педагог центра • В сети';
+    if (role === 'student') return 'Ученик • В сети';
+    if (role === 'admin') return 'Руководитель • В сети';
+    return 'В сети';
+  }
+  if (metadata?.last_seen_at) {
+    const diffMs = Date.now() - new Date(metadata.last_seen_at).getTime();
+    const mins = Math.floor(diffMs / 60_000);
+    if (mins < 60) return `Был(а) ${mins} мин. назад`;
+    if (mins < 24 * 60) {
+      const d = new Date(metadata.last_seen_at);
+      const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+      return `Был(а) сегодня в ${timeStr}`;
+    }
+    return 'Не в сети';
+  }
+  return defaultSub || (role === 'teacher' ? 'Педагог центра' : role === 'student' ? 'Ученик центра' : 'Не в сети');
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -18,25 +52,33 @@ export async function GET(req: NextRequest) {
       req.cookies.get('aida_role')?.value?.trim();
 
     const activePublicId = queryUserId || cookieUserId || 'id179017';
+    const isIdUuid = isUuid(activePublicId);
 
-    // 2. Fetch current user from Supabase user_bindings or profiles
-    const { data: binding } = await supabaseServer
-      .from('user_bindings')
-      .select('*')
-      .or(`public_id.eq.${activePublicId},id.eq.${activePublicId},auth_user_id.eq.${activePublicId}`)
-      .maybeSingle();
+    // 2. Fetch current user from Supabase user_bindings or profiles safely without 22P02 UUID errors
+    let bindingQuery = supabaseServer.from('user_bindings').select('*');
+    if (isIdUuid) {
+      bindingQuery = bindingQuery.or(`id.eq.${activePublicId},auth_user_id.eq.${activePublicId}`);
+    } else {
+      bindingQuery = bindingQuery.eq('public_id', activePublicId);
+    }
+    const { data: binding } = await bindingQuery.maybeSingle();
 
-    const { data: profile } = await supabaseServer
-      .from('profiles')
-      .select('*')
-      .or(`public_id.eq.${activePublicId},id.eq.${activePublicId}`)
-      .maybeSingle();
+    let profileQuery = supabaseServer.from('profiles').select('*');
+    if (isIdUuid) {
+      profileQuery = profileQuery.eq('id', activePublicId);
+    } else {
+      profileQuery = profileQuery.eq('public_id', activePublicId);
+    }
+    const { data: profile } = await profileQuery.maybeSingle();
 
     const currentUserId =
       binding?.auth_user_id ||
       profile?.id ||
       binding?.id ||
-      'c51ef5b0-3bc0-456f-bd31-7dbba439846c';
+      (activePublicId === 'id180457' ? '94ac1a5b-c8cd-40ee-9ee8-914be2cc47ef' :
+       activePublicId === 'id571210' ? '6fb2d0a9-0f80-428d-8539-3272303360a0' :
+       activePublicId === 'admin_head' ? '03106a99-4793-4fce-bd94-0e8ddaeed4f5' :
+       'c51ef5b0-3bc0-456f-bd31-7dbba439846c');
 
     const activeRole =
       binding?.role ||
@@ -50,14 +92,9 @@ export async function GET(req: NextRequest) {
       rawFullName.replace(/\s*\(.*?\)$/, '').trim() ||
       (activeRole === 'teacher' ? 'Преподаватель центра' : activeRole === 'admin' ? 'Администратор' : 'Ученик');
 
-    // 3. Fetch all active users from Supabase user_bindings & profiles to build genuine contacts
+    // 3. Fetch all active users from Supabase user_bindings & profiles
     const { data: allBindings } = await supabaseServer
       .from('user_bindings')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    const { data: allProfiles } = await supabaseServer
-      .from('profiles')
       .select('*')
       .order('created_at', { ascending: false });
 
@@ -67,16 +104,9 @@ export async function GET(req: NextRequest) {
       .order('created_at', { ascending: false });
 
     // Find admin user for official platform support dialog
-    const adminUser =
-      allBindings?.find((b) => b.role === 'admin') ||
-      allProfiles?.find((p) => p.role === 'admin') || {
-        id: '03106a99-4793-4fce-bd94-0e8ddaeed4f5',
-        auth_user_id: '03106a99-4793-4fce-bd94-0e8ddaeed4f5',
-        public_id: 'admin_head',
-        full_name: 'Руководитель центра',
-      };
-
-    const adminUuid = adminUser.auth_user_id || adminUser.id || '03106a99-4793-4fce-bd94-0e8ddaeed4f5';
+    const adminBinding = allBindings?.find((b) => b.role === 'admin');
+    const adminUuid = adminBinding?.auth_user_id || adminBinding?.id || '03106a99-4793-4fce-bd94-0e8ddaeed4f5';
+    const adminPubId = adminBinding?.public_id || 'admin_head';
 
     // Build contacts list dynamically based on role
     const contactsMap = new Map<string, {
@@ -92,142 +122,183 @@ export async function GET(req: NextRequest) {
 
     if (activeRole === 'teacher') {
       // Teachers see:
-      // a) Their assigned/bound students from teacher_students
+      // a) Assigned/bound students
       (boundStudents || []).forEach((st) => {
         const sPubId = st.student_public_id || 'id571210';
         const rawName = st.student_name || 'Ученик';
         const cleanName = rawName.replace(/\s*\(.*?\)$/, '').trim();
         const studentBinding = allBindings?.find((b) => b.public_id === sPubId);
         const sUuid = studentBinding?.auth_user_id || studentBinding?.id || '6fb2d0a9-0f80-428d-8539-3272303360a0';
+        const isOnline = checkIsOnline(studentBinding?.metadata);
 
         contactsMap.set(sPubId, {
           id: sUuid,
           publicId: sPubId,
           role: 'student',
           fullName: cleanName,
-          subtitle: st.notes ? `Ученик • ${st.notes}` : 'Ученик • Индивидуальное сопровождение',
+          subtitle: formatContactSubtitle('student', studentBinding?.metadata, st.notes ? `Ученик • ${st.notes}` : 'Ученик • Индивидуальное сопровождение'),
           avatarText: cleanName[0] || 'У',
-          online: true,
+          online: isOnline,
           roomToken: 'room-4599',
         });
       });
 
-      // b) Any other registered students in user_bindings
+      // b) Any other registered students
       (allBindings || []).forEach((b) => {
         if (b.role === 'student' && !contactsMap.has(b.public_id)) {
           const cleanName = (b.full_name || 'Ученик').replace(/\s*\(.*?\)$/, '').trim();
+          const sUuid = b.auth_user_id || b.id || '6fb2d0a9-0f80-428d-8539-3272303360a0';
+          const isOnline = checkIsOnline(b.metadata);
+
           contactsMap.set(b.public_id, {
-            id: b.auth_user_id || b.id,
+            id: sUuid,
             publicId: b.public_id,
             role: 'student',
             fullName: cleanName,
-            subtitle: 'Ученик центра • Занятия по расписанию',
+            subtitle: formatContactSubtitle('student', b.metadata, 'Ученик центра • Занятия по расписанию'),
             avatarText: cleanName[0] || 'У',
-            online: true,
+            online: isOnline,
             roomToken: 'room-4599',
           });
         }
       });
 
-      // c) Other colleague teachers
+      // c) Other colleague teachers (exclude self by public_id and UUID)
       (allBindings || []).forEach((b) => {
-        if (b.role === 'teacher' && b.public_id !== activePublicId && !contactsMap.has(b.public_id)) {
+        const bUuid = b.auth_user_id || b.id;
+        const isSelf = b.public_id === activePublicId || bUuid === currentUserId;
+        if (b.role === 'teacher' && !isSelf && !contactsMap.has(b.public_id)) {
           const cleanName = (b.full_name || 'Педагог').replace(/\s*\(.*?\)$/, '').trim();
+          const isOnline = checkIsOnline(b.metadata);
+
           contactsMap.set(b.public_id, {
-            id: b.auth_user_id || b.id,
+            id: bUuid,
             publicId: b.public_id,
             role: 'teacher',
             fullName: cleanName,
-            subtitle: 'Педагог центра • Коллега',
+            subtitle: formatContactSubtitle('teacher', b.metadata, 'Педагог центра • Коллега'),
             avatarText: cleanName[0] || 'П',
-            online: true,
+            online: isOnline,
             roomToken: 'room-4599',
           });
         }
       });
+
+      // d) Center admin / руководство (if not self)
+      if (adminPubId !== activePublicId && adminUuid !== currentUserId && !contactsMap.has(adminPubId)) {
+        const isOnline = checkIsOnline(adminBinding?.metadata);
+        contactsMap.set(adminPubId, {
+          id: adminUuid,
+          publicId: adminPubId,
+          role: 'admin',
+          fullName: 'Руководитель центра',
+          subtitle: formatContactSubtitle('admin', adminBinding?.metadata, 'Администрация центра'),
+          avatarText: 'Р',
+          online: isOnline,
+          roomToken: 'room-4599',
+        });
+      }
     } else if (activeRole === 'student') {
       // Students see:
       // a) Registered teachers
       (allBindings || []).forEach((b) => {
         if (b.role === 'teacher' && !contactsMap.has(b.public_id)) {
           const cleanName = (b.full_name || 'Педагог').replace(/\s*\(.*?\)$/, '').trim();
+          const bUuid = b.auth_user_id || b.id;
+          const isOnline = checkIsOnline(b.metadata);
+
           contactsMap.set(b.public_id, {
-            id: b.auth_user_id || b.id,
+            id: bUuid,
             publicId: b.public_id,
             role: 'teacher',
             fullName: cleanName,
-            subtitle: 'Ведущий логопед-методист',
+            subtitle: formatContactSubtitle('teacher', b.metadata, 'Ведущий педагог-методист'),
             avatarText: cleanName[0] || 'П',
-            online: true,
+            online: isOnline,
             roomToken: 'room-4599',
           });
         }
       });
+
+      // b) Center admin (if not self)
+      if (adminPubId !== activePublicId && adminUuid !== currentUserId && !contactsMap.has(adminPubId)) {
+        const isOnline = checkIsOnline(adminBinding?.metadata);
+        contactsMap.set(adminPubId, {
+          id: adminUuid,
+          publicId: adminPubId,
+          role: 'admin',
+          fullName: 'Руководитель центра',
+          subtitle: formatContactSubtitle('admin', adminBinding?.metadata, 'Администрация центра'),
+          avatarText: 'Р',
+          online: isOnline,
+          roomToken: 'room-4599',
+        });
+      }
     } else {
-      // Admin sees everyone
+      // Admin sees everyone except self
       (allBindings || []).forEach((b) => {
-        if (b.public_id !== activePublicId && !contactsMap.has(b.public_id)) {
+        const bUuid = b.auth_user_id || b.id;
+        const isSelf = b.public_id === activePublicId || bUuid === currentUserId;
+        if (!isSelf && !contactsMap.has(b.public_id)) {
           const cleanName = (b.full_name || 'Пользователь').replace(/\s*\(.*?\)$/, '').trim();
+          const isOnline = checkIsOnline(b.metadata);
+
           contactsMap.set(b.public_id, {
-            id: b.auth_user_id || b.id,
+            id: bUuid,
             publicId: b.public_id,
-            role: b.role as any,
+            role: (b.role as any) || 'student',
             fullName: cleanName,
-            subtitle: b.role === 'teacher' ? 'Педагог центра' : 'Ученик центра',
+            subtitle: formatContactSubtitle(b.role, b.metadata, b.role === 'teacher' ? 'Педагог центра' : 'Ученик центра'),
             avatarText: cleanName[0] || 'П',
-            online: true,
+            online: isOnline,
             roomToken: 'room-4599',
           });
         }
       });
     }
 
-    // Support dialog removed as requested
     const contacts = Array.from(contactsMap.values());
 
     // 4. Load or create real conversations and messages from Supabase
     const conversationList: any[] = [];
     for (const contact of contacts) {
       let conversationId: string | null = null;
-
       const userA = currentUserId;
       const userB = contact.id;
 
-      // Query existing conversation between userA and userB in Supabase
-      const { data: existingConv } = await supabaseServer
-        .from('conversations')
-        .select('*')
-        .or(`and(student_id.eq.${userA},teacher_id.eq.${userB}),and(student_id.eq.${userB},teacher_id.eq.${userA})`)
-        .maybeSingle();
+      // Only query Supabase conversations if both IDs are valid UUIDs and different
+      if (isUuid(userA) && isUuid(userB) && userA !== userB) {
+        const { data: existingConv } = await supabaseServer
+          .from('conversations')
+          .select('*')
+          .or(`and(student_id.eq.${userA},teacher_id.eq.${userB}),and(student_id.eq.${userB},teacher_id.eq.${userA})`)
+          .maybeSingle();
 
-      if (existingConv) {
-        conversationId = existingConv.id;
-      } else {
-        // Create conversation record in Supabase
-        const isStudentA = activeRole === 'student';
-        const studentId = isStudentA ? userA : userB;
-        const teacherId = isStudentA ? userB : userA;
+        if (existingConv) {
+          conversationId = existingConv.id;
+        } else {
+          // Create conversation record in Supabase
+          try {
+            const { data: createdConv } = await supabaseServer
+              .from('conversations')
+              .insert({
+                student_id: userA,
+                teacher_id: userB,
+                last_message_at: new Date().toISOString(),
+              })
+              .select()
+              .maybeSingle();
 
-        try {
-          const { data: createdConv } = await supabaseServer
-            .from('conversations')
-            .insert({
-              student_id: studentId,
-              teacher_id: teacherId,
-              last_message_at: new Date().toISOString(),
-            })
-            .select()
-            .maybeSingle();
-
-          if (createdConv) conversationId = createdConv.id;
-        } catch (convErr) {
-          console.warn('Could not insert conversation:', convErr);
+            if (createdConv) conversationId = createdConv.id;
+          } catch (convErr) {
+            console.warn('Could not insert conversation between', userA, userB, convErr);
+          }
         }
       }
 
       // Fetch messages from Supabase for this conversation
       let messages: any[] = [];
-      if (conversationId) {
+      if (conversationId && isUuid(conversationId)) {
         const { data: msgs } = await supabaseServer
           .from('messages')
           .select('*')
@@ -265,7 +336,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { conversationId, text, senderId, fileUrl, fileType } = body;
+    const { conversationId, text, senderId, senderPublicId, fileUrl, fileType } = body;
 
     if (!conversationId) {
       return NextResponse.json({ error: 'conversationId обязателен' }, { status: 400 });
@@ -275,12 +346,33 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Сообщение не может быть пустым' }, { status: 400 });
     }
 
-    const effectiveSenderId = senderId || 'c51ef5b0-3bc0-456f-bd31-7dbba439846c';
+    // Determine effective sender UUID safely
+    let effectiveSenderId = senderId;
+    if (!effectiveSenderId || !isUuid(effectiveSenderId)) {
+      if (senderPublicId) {
+        const { data: b } = await supabaseServer
+          .from('user_bindings')
+          .select('auth_user_id, id')
+          .eq('public_id', senderPublicId)
+          .maybeSingle();
+        if (b) effectiveSenderId = b.auth_user_id || b.id;
+      }
+    }
+
+    if (!effectiveSenderId || !isUuid(effectiveSenderId)) {
+      effectiveSenderId = 'c51ef5b0-3bc0-456f-bd31-7dbba439846c';
+    }
+
+    // If conversationId is a fallback string (e.g. conv_id180457), ensure conversation is created
+    let realConvId = conversationId;
+    if (!isUuid(conversationId)) {
+      return NextResponse.json({ error: 'Неверный идентификатор диалога' }, { status: 400 });
+    }
 
     const { data: newMsg, error: insertError } = await supabaseServer
       .from('messages')
       .insert({
-        conversation_id: conversationId,
+        conversation_id: realConvId,
         sender_id: effectiveSenderId,
         text: text ? text.trim() : null,
         file_url: fileUrl || null,
@@ -299,7 +391,7 @@ export async function POST(req: NextRequest) {
     await supabaseServer
       .from('conversations')
       .update({ last_message_at: new Date().toISOString() })
-      .eq('id', conversationId);
+      .eq('id', realConvId);
 
     return NextResponse.json({
       success: true,

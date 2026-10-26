@@ -144,8 +144,25 @@ export default function MessengerPage() {
         }
         setConversations(data.conversations || []);
 
-        // Default to first conversation if none selected
-        if (!activeConvId && data.conversations?.length > 0) {
+        // Check if chatWith target is specified in query parameters
+        let chatWithTarget = '';
+        if (typeof window !== 'undefined') {
+          const sp = new URLSearchParams(window.location.search);
+          chatWithTarget = sp.get('chatWith') || '';
+        }
+
+        if (chatWithTarget && data.conversations?.length > 0) {
+          const targetConv = data.conversations.find(
+            (c: Conversation) => c.contact.publicId === chatWithTarget || c.contact.id === chatWithTarget
+          );
+          if (targetConv) {
+            setActiveConvId(targetConv.id);
+            if (targetConv.contact.role === 'teacher') setActiveTab('teachers');
+            else if (targetConv.contact.role === 'student') setActiveTab('students');
+          } else if (!activeConvId) {
+            setActiveConvId(data.conversations[0].id);
+          }
+        } else if (!activeConvId && data.conversations?.length > 0) {
           setActiveConvId(data.conversations[0].id);
         }
       }
@@ -342,6 +359,7 @@ export default function MessengerPage() {
           fileUrl,
           fileType,
           senderId: currentUser?.id,
+          senderPublicId: currentUser?.publicId,
           senderRole: currentUser?.role,
         }),
       });
@@ -464,6 +482,7 @@ export default function MessengerPage() {
             fileUrl,
             fileType: 'audio/webm',
             senderId: currentUser?.id,
+            senderPublicId: currentUser?.publicId,
             senderRole: currentUser?.role,
           }),
         });
@@ -674,9 +693,12 @@ export default function MessengerPage() {
                       <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#FF6B4A] to-[#FFA259] text-white flex items-center justify-center font-black text-base shadow-xs border border-white">
                         <span>{conv.contact.avatarText}</span>
                       </div>
-                      {conv.contact.online && (
-                        <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-[#5C8519] border-2 border-white" />
-                      )}
+                      <span
+                        className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white ${
+                          conv.contact.online ? 'bg-[#5C8519]' : 'bg-[#CBD5E1]'
+                        }`}
+                        title={conv.contact.online ? 'В сети' : 'Не в сети'}
+                      />
                     </div>
 
                     {/* Chat Text Details */}
@@ -784,9 +806,17 @@ export default function MessengerPage() {
                     <h2 className="font-extrabold text-sm sm:text-base text-[#161F38] truncate">
                       {activeConversation.contact.fullName}
                     </h2>
-                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-[#5C8519]">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#5C8519] animate-pulse" />
-                      <span>{activeConversation.contact.online ? 'в сети (online)' : 'был(а) недавно'}</span>
+                    <div className="flex items-center gap-1.5 text-[11px] font-bold">
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full ${
+                          activeConversation.contact.online
+                            ? 'bg-[#5C8519] animate-pulse'
+                            : 'bg-[#8E99AF]'
+                        }`}
+                      />
+                      <span className={activeConversation.contact.online ? 'text-[#5C8519]' : 'text-[#8E99AF]'}>
+                        {activeConversation.contact.online ? 'в сети (online)' : 'не в сети'}
+                      </span>
                     </div>
                   </div>
                 </div>

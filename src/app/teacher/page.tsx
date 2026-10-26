@@ -1105,7 +1105,11 @@ export default function TeacherDashboard() {
                       <div className="w-10 h-10 rounded-xl bg-[#FFF2E6] text-coralAccent border border-[#FCDDC7] flex items-center justify-center font-black text-sm shadow-2xs">
                         {teacher.avatarLetter}
                       </div>
-                      <span className="w-2.5 h-2.5 rounded-full absolute -bottom-0.5 -right-0.5 border-2 border-white bg-[#5C8519]" />
+                      <span
+                        className={`w-2.5 h-2.5 rounded-full absolute -bottom-0.5 -right-0.5 border-2 border-white ${
+                          teacher.status === 'online' ? 'bg-[#5C8519]' : 'bg-[#8A95A8]'
+                        }`}
+                      />
                     </div>
 
                     <div className="min-w-0 flex-1">
@@ -1132,12 +1136,16 @@ export default function TeacherDashboard() {
                 {/* Status footer */}
                 <div className="pt-2 border-t border-[#F8EDE1] flex items-center justify-between text-[10px]">
                   <span className="text-[#6B758E] flex items-center gap-1 font-medium">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#5C8519]" />
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        teacher.status === 'online' ? 'bg-[#5C8519]' : 'bg-[#8A95A8]'
+                      }`}
+                    />
                     {teacher.statusText}
                   </span>
 
                   <a
-                    href={`/messenger?id=${teacherPublicId}`}
+                    href={`/messenger?id=${teacherPublicId}&chatWith=${teacher.publicId}`}
                     className="font-bold text-coralAccent hover:text-coralAccent-hover flex items-center gap-0.5 cursor-pointer active:scale-95"
                   >
                     <span>Чат</span>

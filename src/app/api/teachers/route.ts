@@ -12,10 +12,39 @@ export interface TeacherRecord {
   role: 'teacher' | 'admin';
   email: string | null;
   phone: string | null;
-  status: 'online' | 'available';
+  status: 'online' | 'offline' | 'available';
   statusText: string;
   avatarLetter: string;
   createdAt: string;
+}
+
+function getPresenceInfo(metadata?: any) {
+  const lastSeenAt = metadata?.last_seen_at;
+  const isOnline = Boolean(
+    lastSeenAt && Date.now() - new Date(lastSeenAt).getTime() < 90_000
+  );
+
+  let statusText = 'Не в сети';
+  if (isOnline) {
+    statusText = 'В сети • Готов к занятиям';
+  } else if (lastSeenAt) {
+    const diffMs = Date.now() - new Date(lastSeenAt).getTime();
+    const mins = Math.floor(diffMs / 60_000);
+    if (mins < 60) {
+      statusText = `Был(а) ${mins} мин. назад`;
+    } else if (mins < 24 * 60) {
+      const d = new Date(lastSeenAt);
+      const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+      statusText = `Был(а) сегодня в ${timeStr}`;
+    } else {
+      statusText = 'Не в сети';
+    }
+  }
+
+  return {
+    status: (isOnline ? 'online' : 'offline') as 'online' | 'offline',
+    statusText,
+  };
 }
 
 export async function GET() {
@@ -62,6 +91,8 @@ export async function GET() {
         }
       }
 
+      const presence = getPresenceInfo(b.metadata);
+
       map.set(key, {
         id: b.id,
         publicId: b.public_id || 'id_teacher',
@@ -71,8 +102,8 @@ export async function GET() {
         role: b.role as 'teacher' | 'admin',
         email: b.email || null,
         phone: b.phone || null,
-        status: 'online',
-        statusText: 'В сети • Готов к занятиям',
+        status: presence.status,
+        statusText: presence.statusText,
         avatarLetter: cleanName[0] || 'П',
         createdAt: b.created_at,
       });
@@ -104,8 +135,8 @@ export async function GET() {
           role: p.role as 'teacher' | 'admin',
           email: null,
           phone: p.phone || null,
-          status: 'online',
-          statusText: 'В сети • Готов к занятиям',
+          status: 'offline',
+          statusText: 'Не в сети',
           avatarLetter: cleanName[0] || 'П',
           createdAt: p.created_at,
         });
