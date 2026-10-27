@@ -26,7 +26,8 @@ import {
   Search,
   Copy,
   Check,
-  ExternalLink
+  ExternalLink,
+  Minus
 } from 'lucide-react';
 import type { TeacherRecord } from '@/app/api/teachers/route';
 
@@ -36,6 +37,7 @@ interface SupabaseStudent {
   fullName: string;
   phone?: string;
   email?: string;
+  balanceLessons?: number;
 }
 
 interface BoundStudentItem {
@@ -45,6 +47,7 @@ interface BoundStudentItem {
   phone?: string;
   notes?: string;
   addedAt?: string;
+  balanceLessons?: number;
 }
 
 interface TeacherHomeworkItem {
@@ -81,6 +84,10 @@ export default function TeacherDashboard() {
   // Supabase Students state
   const [supabaseStudents, setSupabaseStudents] = useState<SupabaseStudent[]>([]);
   const [loadingStudents, setLoadingStudents] = useState<boolean>(true);
+
+  // Student balance map & loading state
+  const [studentBalances, setStudentBalances] = useState<Record<string, number>>({});
+  const [updatingBalanceStudentId, setUpdatingBalanceStudentId] = useState<string | null>(null);
 
   // Bound Students roster (saved in Supabase teacher_students)
   const [boundStudents, setBoundStudents] = useState<BoundStudentItem[]>([]);
@@ -137,6 +144,15 @@ export default function TeacherDashboard() {
       const data = await res.json();
       if (data?.students) {
         setSupabaseStudents(data.students);
+        setStudentBalances((prev) => {
+          const updated = { ...prev };
+          data.students.forEach((s: any) => {
+            if (s.publicId && typeof s.balanceLessons === 'number') {
+              updated[s.publicId.toLowerCase()] = s.balanceLessons;
+            }
+          });
+          return updated;
+        });
       }
     } catch (err) {
       console.warn('Failed to load students:', err);
@@ -158,9 +174,19 @@ export default function TeacherDashboard() {
           publicId: st.student_public_id,
           fullName: st.student_name,
           notes: st.notes,
+          balanceLessons: typeof st.balance_lessons === 'number' ? st.balance_lessons : 1,
           addedAt: st.created_at ? new Date(st.created_at).toLocaleDateString('ru-RU') : '',
         }));
         setBoundStudents(mapped);
+        setStudentBalances((prev) => {
+          const updated = { ...prev };
+          data.students.forEach((st: any) => {
+            if (st.student_public_id && typeof st.balance_lessons === 'number') {
+              updated[st.student_public_id.toLowerCase()] = st.balance_lessons;
+            }
+          });
+          return updated;
+        });
       } else {
         // Fallback to local storage if DB is initially empty
         const saved = localStorage.getItem('aida_teacher_students_v1');
@@ -170,6 +196,72 @@ export default function TeacherDashboard() {
       }
     } catch (err) {
       console.warn('Failed to load bound students:', err);
+    }
+  };
+
+  // Helper to read current student balance
+  const getStudentBalance = (st: BoundStudentItem): number => {
+    const pubKey = (st.publicId || '').toLowerCase();
+    if (pubKey && studentBalances[pubKey] !== undefined) {
+      return studentBalances[pubKey];
+    }
+    const match = supabaseStudents.find(
+      (s) => s.publicId && s.publicId.toLowerCase() === pubKey
+    );
+    if (match && typeof match.balanceLessons === 'number') {
+      return match.balanceLessons;
+    }
+    return typeof st.balanceLessons === 'number' ? st.balanceLessons : 1;
+  };
+
+  // Adjust student lesson balance (+1 or -1)
+  const handleAdjustBalance = async (st: BoundStudentItem, delta: number) => {
+    const pubId = st.publicId || '';
+    const studentIdentifier = pubId || st.id;
+    if (!studentIdentifier) return;
+
+    const currentBal = getStudentBalance(st);
+    const nextBal = Math.max(0, currentBal + delta);
+    if (nextBal === currentBal && delta < 0) return;
+
+    const key = pubId.toLowerCase() || st.id;
+    setUpdatingBalanceStudentId(key);
+
+    // Optimistic UI update
+    setStudentBalances((prev) => ({
+      ...prev,
+      [key]: nextBal,
+      ...(pubId ? { [pubId.toLowerCase()]: nextBal } : {}),
+    }));
+
+    try {
+      const res = await fetch('/api/students/balance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentPublicId: pubId || st.id,
+          newBalance: nextBal,
+          isTeacherVerified: true,
+          description: delta > 0 ? 'Преподаватель добавил урок' : 'Преподаватель списал урок',
+        }),
+      });
+      const data = await res.json();
+      if (data.success && typeof data.newBalance === 'number') {
+        setStudentBalances((prev) => ({
+          ...prev,
+          [key]: data.newBalance,
+          ...(pubId ? { [pubId.toLowerCase()]: data.newBalance } : {}),
+        }));
+      }
+    } catch (err) {
+      console.error('Failed to update student balance:', err);
+      // Rollback on network failure
+      setStudentBalances((prev) => ({
+        ...prev,
+        [key]: currentBal,
+      }));
+    } finally {
+      setUpdatingBalanceStudentId(null);
     }
   };
 
@@ -797,7 +889,7 @@ export default function TeacherDashboard() {
                       return (
                         <div
                           key={st.id}
-                          className="p-3 bg-[#FDFEFC] hover:bg-white rounded-2xl border border-[#E5EED8] hover:border-[#5C8519]/60 shadow-2xs flex items-center justify-between gap-2.5 transition-all"
+                          className="p-3 bg-[#FDFEFC] hover:bg-white rounded-2xl border border-[#E5EED8] hover:border-[#5C8519]/60 shadow-2xs flex items-center justify-between gap-2.5 transition-all flex-wrap sm:flex-nowrap"
                         >
                           <div className="flex items-center gap-2.5 min-w-0">
                             <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#5C8519] to-[#8BC34A] text-white font-black text-xs flex items-center justify-center shrink-0 shadow-2xs">
@@ -821,6 +913,53 @@ export default function TeacherDashboard() {
                           </div>
 
                           <div className="flex items-center gap-2 shrink-0">
+                            {/* Student Lesson Balance & Quick Adjust (+/-) - Teacher Only */}
+                            <div
+                              className="inline-flex items-center gap-1 bg-[#F5F8F1] border border-[#D5E5B8] rounded-full px-2 py-1 text-xs shadow-2xs"
+                              title="Баланс занятий ученика из Supabase (нажмите + или - для изменения)"
+                            >
+                              <span className="text-[10px] font-bold text-[#5C8519] uppercase tracking-wider hidden sm:inline">
+                                Баланс:
+                              </span>
+                              <span className="font-black text-xs text-[#161F38] min-w-[14px] text-center">
+                                {getStudentBalance(st)}
+                              </span>
+                              <span className="text-[10px] text-[#6B758E] font-medium mr-0.5">зан.</span>
+
+                              {/* Minus 1 lesson */}
+                              <button
+                                type="button"
+                                disabled={
+                                  updatingBalanceStudentId === (st.publicId?.toLowerCase() || st.id) ||
+                                  getStudentBalance(st) <= 0
+                                }
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleAdjustBalance(st, -1);
+                                }}
+                                className="w-5 h-5 rounded-full bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 flex items-center justify-center transition-all active:scale-90 cursor-pointer disabled:opacity-30 disabled:pointer-events-none hover:shadow-xs"
+                                title="Списать 1 урок"
+                              >
+                                <Minus className="w-3 h-3 stroke-[3]" />
+                              </button>
+
+                              {/* Plus 1 lesson */}
+                              <button
+                                type="button"
+                                disabled={updatingBalanceStudentId === (st.publicId?.toLowerCase() || st.id)}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleAdjustBalance(st, 1);
+                                }}
+                                className="w-5 h-5 rounded-full bg-[#5C8519] hover:bg-[#4d6f14] text-white flex items-center justify-center transition-all active:scale-90 cursor-pointer disabled:opacity-40 hover:shadow-xs"
+                                title="Добавить 1 урок"
+                              >
+                                <Plus className="w-3 h-3 stroke-[3]" />
+                              </button>
+                            </div>
+
                             {/* "Перейти к ДЗ" Button opening dedicated page in new tab */}
                             <Link
                               href={`/teacher/homework?studentId=${encodeURIComponent(info.publicId || '')}&studentName=${encodeURIComponent(info.displayName)}&teacherId=${encodeURIComponent(teacherPublicId || '')}`}

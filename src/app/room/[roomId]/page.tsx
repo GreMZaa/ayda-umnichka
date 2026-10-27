@@ -14,12 +14,13 @@ export default function LessonRoomPage() {
   const roomId = (params?.roomId as string) || 'live-room';
   const roleParam = searchParams.get('role');
   const topicParam = searchParams.get('topic');
+  const studentParam = searchParams.get('studentId') || searchParams.get('student');
 
   const [isWhiteboardActive, setIsWhiteboardActive] = useState(false);
   const [isTeacher, setIsTeacher] = useState(false);
   const [topic, setTopic] = useState('Индивидуальное занятие: Логопедия');
   const [participantName, setParticipantName] = useState('');
-  const [targetStudentId, setTargetStudentId] = useState('');
+  const [targetStudentId, setTargetStudentId] = useState(studentParam || '');
   const [targetStudentName, setTargetStudentName] = useState('Ученик');
 
   // Post-lesson Homework Modal for Teacher
@@ -29,6 +30,12 @@ export default function LessonRoomPage() {
   const [hwDescription, setHwDescription] = useState('');
   const [hwDueDate, setHwDueDate] = useState('');
   const [isSubmittingHw, setIsSubmittingHw] = useState(false);
+
+  useEffect(() => {
+    if (studentParam) {
+      setTargetStudentId(studentParam);
+    }
+  }, [studentParam]);
 
   useEffect(() => {
     // 1. Determine role
@@ -109,7 +116,7 @@ export default function LessonRoomPage() {
     fetchLessonDetails();
   }, [roomId, isTeacher]);
 
-  const handleEndLesson = (durationSec: number) => {
+  const handleEndLesson = async (durationSec: number, deductBalance: boolean = false) => {
     // Clear active room state upon completion
     try {
       localStorage.removeItem('aida_active_lesson_room');
@@ -131,11 +138,13 @@ export default function LessonRoomPage() {
     const durationMin = Math.max(1, Math.round(durationSec / 60));
     setCompletedDurationMin(durationMin);
 
-    // If student: deduct lesson from balance and return to cabinet
+    // If student: return to cabinet (only deduct local balance if deductBalance was true)
     if (!isTeacher) {
-      const currentBalance = parseInt(localStorage.getItem('aida_student_balance') || '0', 10);
-      const updatedBalance = Math.max(0, currentBalance - 1);
-      localStorage.setItem('aida_student_balance', updatedBalance.toString());
+      if (deductBalance) {
+        const currentBalance = parseInt(localStorage.getItem('aida_student_balance') || '0', 10);
+        const updatedBalance = Math.max(0, currentBalance - 1);
+        localStorage.setItem('aida_student_balance', updatedBalance.toString());
+      }
 
       const savedUserId =
         localStorage.getItem('aida_auth_user_id') ||
@@ -150,7 +159,26 @@ export default function LessonRoomPage() {
       return;
     }
 
-    // If teacher: Show homework assignment modal window
+    // If teacher: Deduct balance in Supabase if teacher confirmed deduction
+    if (deductBalance) {
+      try {
+        await fetch('/api/students/balance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            studentPublicId: targetStudentId || null,
+            studentName: targetStudentName || participantName || null,
+            amount: -1,
+            isTeacherVerified: true,
+            description: `Списание за проведённый урок (${topic || 'Индивидуальное занятие'})`,
+          }),
+        });
+      } catch (err) {
+        console.warn('Failed to deduct student balance upon lesson completion:', err);
+      }
+    }
+
+    // Show homework assignment modal window
     setShowHomeworkModal(true);
   };
 

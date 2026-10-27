@@ -31,6 +31,8 @@ import {
   RefreshCw,
   Hand,
   LayoutGrid,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
 import { formatTime } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
@@ -58,7 +60,7 @@ interface VideoCallProps {
   isTeacher?: boolean;
   participantName?: string;
   topic?: string;
-  onEndLesson?: (durationSec: number) => void;
+  onEndLesson?: (durationSec: number, deductBalance?: boolean) => void;
   onToggleWhiteboard?: () => void;
   isWhiteboardActive?: boolean;
   isPlatformMinimized?: boolean;
@@ -147,6 +149,7 @@ export default function VideoCall({
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isParticipantsOpen, setIsParticipantsOpen] = useState(false);
   const [areControlsVisible, setAreControlsVisible] = useState(true);
+  const [showTeacherEndModal, setShowTeacherEndModal] = useState(false);
 
   // Lesson In-Call Chat states
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -1010,7 +1013,7 @@ export default function VideoCall({
         if (!isTeacher) {
           const durationMin = Math.round((payload?.durationSec || 0) / 60) || 1;
           alert(`Преподаватель завершил урок! Длительность: ${durationMin} мин.`);
-          if (onEndLesson) onEndLesson(payload?.durationSec || 0);
+          if (onEndLesson) onEndLesson(payload?.durationSec || 0, payload?.deductBalance);
         }
       })
       .on('broadcast', { event: 'user-left' }, ({ payload }) => {
@@ -1538,25 +1541,125 @@ export default function VideoCall({
     }, 60);
   };
 
-  const handleEnd = () => {
-    if (confirm('Завершить урок? Будет зафиксировано время и открыто окно для отправки домашнего задания.')) {
-      const finalDuration = timerStartTimeRef.current
-        ? Math.max(callDuration, Math.floor((Date.now() - timerStartTimeRef.current) / 1000))
-        : callDuration;
-
+  const handleStudentLeave = () => {
+    if (confirm('Покинуть комнату? Преподаватель продолжит урок.')) {
       try {
         localStorage.removeItem(`aida_lesson_started_${roomToken}`);
       } catch (_) {}
-
       if (channelRef.current) {
         channelRef.current.send({
           type: 'broadcast',
-          event: 'lesson-ended',
-          payload: { durationSec: finalDuration },
+          event: 'user-left',
+          payload: { senderId: myPeerIdRef.current, name: resolvedParticipantName },
         });
       }
-      if (onEndLesson) onEndLesson(finalDuration);
+      const savedUserId =
+        localStorage.getItem('aida_auth_user_id') ||
+        localStorage.getItem('aida_user_id') ||
+        '';
+      if (savedUserId) {
+        router.push(`/${savedUserId}`);
+      } else {
+        router.push('/student');
+      }
     }
+  };
+
+  const handleEndClick = () => {
+    // Only teachers are allowed to terminate lessons
+    if (!isTeacher) {
+      handleStudentLeave();
+      return;
+    }
+    setShowTeacherEndModal(true);
+  };
+
+  const confirmEndLesson = (deductBalance: boolean) => {
+    setShowTeacherEndModal(false);
+    const finalDuration = timerStartTimeRef.current
+      ? Math.max(callDuration, Math.floor((Date.now() - timerStartTimeRef.current) / 1000))
+      : callDuration;
+
+    try {
+      localStorage.removeItem(`aida_lesson_started_${roomToken}`);
+    } catch (_) {}
+
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'lesson-ended',
+        payload: { durationSec: finalDuration, deductBalance },
+      });
+    }
+    if (onEndLesson) onEndLesson(finalDuration, deductBalance);
+  };
+
+  const renderTeacherEndModal = () => {
+    if (!showTeacherEndModal) return null;
+
+    return (
+      <div className="fixed inset-0 z-[120] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+        <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl border border-[#F2DECE] space-y-5 animate-in zoom-in-95 duration-200">
+          <div className="flex items-center justify-between pb-1">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-coralAccent to-[#FF453A] text-white flex items-center justify-center shadow-md shadow-coralAccent/20 shrink-0">
+                <PhoneOff className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-[#161F38]">Завершение урока</h3>
+                <p className="text-xs text-[#6B758E]">
+                  Ученик: <strong className="text-[#161F38]">{resolvedParticipantName || 'Ученик'}</strong>
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowTeacherEndModal(false)}
+              className="text-[#8A95A8] hover:text-[#161F38] p-1.5 rounded-full hover:bg-gray-100 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-[#FFF9F2] border border-[#FEE6D1] space-y-1.5">
+            <div className="flex items-center gap-2 text-coralAccent font-bold text-xs">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>Списание занятия с баланса</span>
+            </div>
+            <p className="text-xs text-[#4A5568] leading-relaxed">
+              Списать 1 занятие с баланса ученика <strong>{resolvedParticipantName || 'Ученик'}</strong> за проведённый урок?
+            </p>
+          </div>
+
+          <div className="space-y-2 pt-1">
+            <button
+              type="button"
+              onClick={() => confirmEndLesson(true)}
+              className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-coralAccent to-[#FF453A] hover:opacity-95 text-white font-black text-xs shadow-md shadow-coralAccent/20 flex items-center justify-center gap-2 transition-all active:scale-98 cursor-pointer"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              <span>Да, списать урок (-1) и завершить</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => confirmEndLesson(false)}
+              className="w-full py-2.5 px-4 rounded-2xl bg-[#F4F6F8] hover:bg-[#E5E9EE] text-[#475467] font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-98 cursor-pointer"
+            >
+              <span>Завершить урок без списания</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowTeacherEndModal(false)}
+              className="w-full py-2 text-xs font-semibold text-[#8A95A8] hover:text-[#161F38] transition-colors cursor-pointer"
+            >
+              Отмена (продолжить урок)
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   // PiP (Picture in Picture) mode when Whiteboard is open — strictly displays the REMOTE participant (student or teacher)
@@ -1846,14 +1949,15 @@ export default function VideoCall({
             </button>
             <button
               type="button"
-              onClick={handleEnd}
+              onClick={handleEndClick}
               className="p-2 bg-[#FF334B] hover:bg-[#E0243C] text-white rounded-full transition-transform active:scale-90 cursor-pointer shadow-md border border-red-400/30"
-              title="Завершить звонок"
+              title={isTeacher ? 'Завершить урок' : 'Покинуть комнату'}
             >
               <PhoneOff className="w-4 h-4" />
             </button>
           </div>
         </div>
+        {renderTeacherEndModal()}
       </>
     );
   }
@@ -2242,9 +2346,9 @@ export default function VideoCall({
             {/* 5. End Call (Завершить звонок - красный круг) */}
             <button
               type="button"
-              onClick={handleEnd}
+              onClick={handleEndClick}
               className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#FF334B] hover:bg-[#E0243C] text-white flex items-center justify-center transition-all active:scale-90 shadow-2xl shadow-red-500/40 cursor-pointer border border-red-400/40"
-              title="Завершить урок"
+              title={isTeacher ? 'Завершить урок' : 'Покинуть комнату'}
             >
               <PhoneOff className="w-5 h-5 sm:w-6 sm:h-6" />
             </button>
@@ -2726,6 +2830,7 @@ export default function VideoCall({
         )}
       </div>
 
-  </>
+      {renderTeacherEndModal()}
+    </>
   );
 }

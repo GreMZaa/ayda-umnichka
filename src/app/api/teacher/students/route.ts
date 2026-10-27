@@ -23,7 +23,52 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ students: [], error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ students: data || [] });
+    const rawStudents = data || [];
+    const publicIds = rawStudents
+      .map((s: any) => s.student_public_id)
+      .filter(Boolean);
+
+    const balanceMap = new Map<string, number>();
+
+    if (publicIds.length > 0) {
+      // Fetch balances from user_bindings
+      const { data: bindings } = await supabase
+        .from('user_bindings')
+        .select('public_id, balance_lessons')
+        .in('public_id', publicIds);
+
+      (bindings || []).forEach((b: any) => {
+        if (b.public_id && typeof b.balance_lessons === 'number') {
+          balanceMap.set(b.public_id.toLowerCase(), b.balance_lessons);
+        }
+      });
+
+      // Also check profiles for any missing
+      const missing = publicIds.filter((p: string) => !balanceMap.has(p.toLowerCase()));
+      if (missing.length > 0) {
+        const { data: profs } = await supabase
+          .from('profiles')
+          .select('public_id, balance_lessons')
+          .in('public_id', missing);
+
+        (profs || []).forEach((p: any) => {
+          if (p.public_id && typeof p.balance_lessons === 'number') {
+            balanceMap.set(p.public_id.toLowerCase(), p.balance_lessons);
+          }
+        });
+      }
+    }
+
+    const students = rawStudents.map((s: any) => {
+      const pubId = (s.student_public_id || '').toLowerCase();
+      const balance = pubId && balanceMap.has(pubId) ? balanceMap.get(pubId) : 1;
+      return {
+        ...s,
+        balance_lessons: balance,
+      };
+    });
+
+    return NextResponse.json({ students });
   } catch (err: any) {
     console.error('Teacher students GET handler error:', err);
     return NextResponse.json({ students: [], error: err.message }, { status: 500 });
