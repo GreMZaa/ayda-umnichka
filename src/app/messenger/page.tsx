@@ -468,7 +468,12 @@ export default function MessengerPage() {
         channel.send({
           type: 'broadcast',
           event: 'new-message',
-          payload: result.message,
+          payload: {
+            ...result.message,
+            senderName: currentUser?.fullName,
+            senderPublicId: currentUser?.publicId || currentPublicId,
+            senderRole: currentUser?.role,
+          },
         });
       }
     } catch (err) {
@@ -609,7 +614,12 @@ export default function MessengerPage() {
           channel.send({
             type: 'broadcast',
             event: 'new-message',
-            payload: result.message,
+            payload: {
+              ...result.message,
+              senderName: currentUser?.fullName,
+              senderPublicId: currentUser?.publicId || currentPublicId,
+              senderRole: currentUser?.role,
+            },
           });
         }
       } catch (err) {

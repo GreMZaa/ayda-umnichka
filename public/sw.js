@@ -1,5 +1,5 @@
 // Service Worker for АйДаУмничка PWA
-const CACHE_NAME = 'ayda-umnichka-pwa-v3';
+const CACHE_NAME = 'ayda-umnichka-pwa-v4';
 const STATIC_ASSETS = [
   '/manifest.json',
   '/icon-192.png',
@@ -45,7 +45,65 @@ self.addEventListener('message', (event) => {
         Promise.all(keys.map((key) => caches.delete(key)));
       });
     }
+    if (event.data.type === 'SHOW_NOTIFICATION') {
+      const { title, options } = event.data;
+      if (self.registration && self.registration.showNotification) {
+        self.registration.showNotification(title, options);
+      }
+    }
   }
+});
+
+// Handle clicking on an OS notification: focus or open PWA window
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data?.url || '/messenger';
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      // If a window is already open, focus it and navigate
+      for (const client of windowClients) {
+        if ('focus' in client) {
+          client.focus();
+          if ('navigate' in client) {
+            return client.navigate(targetUrl);
+          }
+          return;
+        }
+      }
+      // If no window is open, open a new window
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl);
+      }
+    })
+  );
+});
+
+// Handle incoming Web Push
+self.addEventListener('push', (event) => {
+  let data = {};
+  if (event.data) {
+    try {
+      data = event.data.json();
+    } catch {
+      data = { title: 'АйДаУмничка', body: event.data.text() };
+    }
+  }
+
+  const title = data.title || 'АйДаУмничка: Новое сообщение';
+  const options = {
+    body: data.body || 'Вам пришло новое сообщение в чате',
+    icon: data.icon || '/icon-192.png',
+    badge: data.badge || '/icon.png',
+    data: {
+      url: data.url || '/messenger',
+    },
+    vibrate: [150, 50, 150],
+    tag: data.tag || 'chat-notification',
+    renotify: true,
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
 });
 
 self.addEventListener('fetch', (event) => {

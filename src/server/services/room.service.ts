@@ -158,6 +158,22 @@ export class RoomService {
               .from('conversations')
               .update({ last_message_at: new Date().toISOString() })
               .eq('id', conv.id);
+
+            try {
+              const ch = supabaseServer.channel('platform_messenger_global');
+              await ch.send({
+                type: 'broadcast',
+                event: 'new-message',
+                payload: {
+                  conversation_id: conv.id,
+                  sender_id: senderId,
+                  senderName: message.senderName || (isTeacherSender ? 'Преподаватель' : 'Ученик'),
+                  senderPublicId: isTeacherSender ? (lesson.teacher_id || 'teacher') : (lesson.student_public_id || 'student'),
+                  senderRole: message.senderRole,
+                  text: message.text || (message.attachment?.name ? `Прикреплен файл: ${message.attachment.name}` : 'Сообщение с урока'),
+                },
+              });
+            } catch (_) {}
           }
         }
       }
