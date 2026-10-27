@@ -281,9 +281,12 @@ function LoginFormContent() {
 
         // Save role and verified auth cookies
         localStorage.setItem('aida_active_role', userRole);
+        localStorage.setItem('aida_auth_user_id', targetId);
+        localStorage.setItem('aida_user_id', targetId);
         document.cookie = `aida_active_role=${userRole}; path=/; max-age=2592000; SameSite=Lax`;
         document.cookie = `aida_auth_user_id=${encodeURIComponent(targetId)}; path=/; max-age=2592000; SameSite=Lax`;
         document.cookie = `aida_user_id=${encodeURIComponent(targetId)}; path=/; max-age=2592000; SameSite=Lax`;
+        window.dispatchEvent(new Event('aida-user-updated'));
 
         setTimeout(() => {
           const fallback =
@@ -292,9 +295,14 @@ function LoginFormContent() {
               : userRole === 'admin'
               ? '/admin'
               : `/${targetId}`;
-          const safeDest = getSafeRedirect(redirectParam, fallback);
+          let safeDest = getSafeRedirect(redirectParam, fallback);
+          if (userRole === 'teacher' && !safeDest.includes('id=')) {
+            safeDest = `/teacher?id=${targetId}`;
+          } else if (userRole === 'student' && safeDest === '/student') {
+            safeDest = `/${targetId}`;
+          }
           router.push(safeDest);
-        }, 500);
+        }, 300);
       }
     } catch (err: unknown) {
       const errObj = err as { message?: string };

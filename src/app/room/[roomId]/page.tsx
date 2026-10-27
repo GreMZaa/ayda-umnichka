@@ -17,8 +17,15 @@ export default function LessonRoomPage() {
   const topicParam = searchParams.get('topic');
   const studentParam = searchParams.get('studentId') || searchParams.get('student');
 
+  const isTeacherInitial =
+    roleParam === 'teacher' ||
+    roleParam === 'admin' ||
+    (typeof window !== 'undefined' &&
+      (localStorage.getItem('aida_active_role') === 'teacher' ||
+        localStorage.getItem('aida_active_role') === 'admin'));
+
   const [isWhiteboardActive, setIsWhiteboardActive] = useState(false);
-  const [isTeacher, setIsTeacher] = useState(false);
+  const [isTeacher, setIsTeacher] = useState<boolean>(isTeacherInitial);
   const [topic, setTopic] = useState('Индивидуальное занятие: Логопедия');
   const [participantName, setParticipantName] = useState('');
   const [targetStudentId, setTargetStudentId] = useState(studentParam || '');

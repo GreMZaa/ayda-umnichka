@@ -76,22 +76,7 @@ const rtcConfig: RTCConfiguration = {
     { urls: 'stun:stun3.l.google.com:19302' },
     { urls: 'stun:stun4.l.google.com:19302' },
     { urls: 'stun:stun.services.mozilla.com' },
-    // Free open-relay TURN servers to bypass strict NAT / symmetric mobile firewall
-    {
-      urls: 'turn:openrelay.metered.ca:80',
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
-    },
-    {
-      urls: 'turn:openrelay.metered.ca:443',
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
-    },
-    {
-      urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
-    },
+    { urls: 'stun:stun.cloudflare.com:3478' },
   ],
   iceCandidatePoolSize: 10,
 };
@@ -499,6 +484,43 @@ export default function VideoCall({
   // WebRTC PeerConnection management & stream helpers
   const cameraPromiseRef = useRef<Promise<MediaStream | null> | null>(null);
 
+  // Helper to create a dummy video track so WebRTC negotiation never fails if camera is unavailable
+  const createDummyVideoTrack = (): MediaStreamTrack => {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 640;
+      canvas.height = 480;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = '#161F38';
+        ctx.fillRect(0, 0, 640, 480);
+      }
+      const stream = (canvas as any).captureStream ? (canvas as any).captureStream(10) : null;
+      if (stream && stream.getVideoTracks()[0]) return stream.getVideoTracks()[0];
+    } catch (_) {}
+    return new MediaStreamTrack();
+  };
+
+  // Helper to create a silent audio track so WebRTC negotiation never fails if mic is unavailable
+  const createSilentAudioTrack = (): MediaStreamTrack => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtx) {
+        const ctx = new AudioCtx();
+        const osc = ctx.createOscillator();
+        const dst = ctx.createMediaStreamDestination();
+        osc.connect(dst);
+        osc.start();
+        const track = dst.stream.getAudioTracks()[0];
+        if (track) {
+          track.enabled = false;
+          return track;
+        }
+      }
+    } catch (_) {}
+    return new MediaStreamTrack();
+  };
+
   const resetPeerConnection = () => {
     if (pcRef.current) {
       try {
@@ -507,18 +529,21 @@ export default function VideoCall({
       pcRef.current = null;
     }
     candidateQueueRef.current = [];
+    remoteStreamRef.current = new MediaStream();
   };
 
-  const ensureLocalStream = async (): Promise<MediaStream | null> => {
+  const ensureLocalStream = async (): Promise<MediaStream> => {
     if (streamRef.current && streamRef.current.active) {
       return streamRef.current;
     }
     if (cameraPromiseRef.current) {
-      return await cameraPromiseRef.current;
+      const existing = await cameraPromiseRef.current;
+      if (existing && existing.active) return existing;
     }
     const p = startCamera();
     cameraPromiseRef.current = p;
-    return await p;
+    const res = await p;
+    return res || streamRef.current || new MediaStream();
   };
 
   // WebRTC PeerConnection factory
@@ -719,7 +744,7 @@ export default function VideoCall({
     }
   };
 
-  // Start local camera & microphone (supports flipping between selfie and rear camera)
+  // Start local camera & microphone with progressive fallback
   const startCamera = async (targetFacing?: 'user' | 'environment'): Promise<MediaStream | null> => {
     try {
       const mode = targetFacing || facingModeRef.current;
@@ -727,7 +752,11 @@ export default function VideoCall({
         streamRef.current.getTracks().forEach((track) => track.stop());
       }
 
-      let stream: MediaStream;
+      let stream: MediaStream | null = null;
+      let acquiredVideo = false;
+      let acquiredAudio = false;
+
+      // 1. Try ideal video + audio
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
@@ -741,12 +770,47 @@ export default function VideoCall({
             autoGainControl: true,
           },
         });
-      } catch (err) {
-        console.warn('getUserMedia strict audio constraints fallback:', err);
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: mode },
-          audio: true,
-        });
+        acquiredVideo = true;
+        acquiredAudio = true;
+      } catch (err1) {
+        console.warn('[WebRTC] Ideal constraints failed, trying basic video + audio...', err1);
+        // 2. Try basic video + audio
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: mode },
+            audio: true,
+          });
+          acquiredVideo = true;
+          acquiredAudio = true;
+        } catch (err2) {
+          console.warn('[WebRTC] Basic video+audio failed, trying audio-only...', err2);
+          // 3. Try audio-only (e.g. camera is busy or unavailable)
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            acquiredAudio = true;
+            setCamActive(false);
+          } catch (err3) {
+            console.warn('[WebRTC] Audio-only failed, trying video-only...', err3);
+            // 4. Try video-only
+            try {
+              stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: mode } });
+              acquiredVideo = true;
+              setMicActive(false);
+            } catch (err4) {
+              console.warn('[WebRTC] Neither camera nor microphone accessible:', err4);
+            }
+          }
+        }
+      }
+
+      if (!stream) {
+        stream = new MediaStream();
+      }
+      if (!acquiredVideo || stream.getVideoTracks().length === 0) {
+        stream.addTrack(createDummyVideoTrack());
+      }
+      if (!acquiredAudio || stream.getAudioTracks().length === 0) {
+        stream.addTrack(createSilentAudioTrack());
       }
 
       // Preserve current microphone and camera states
@@ -777,7 +841,7 @@ export default function VideoCall({
           if (sender) {
             sender.replaceTrack(newTrack);
           } else {
-            pcRef.current?.addTrack(newTrack, stream);
+            pcRef.current?.addTrack(newTrack, stream!);
           }
         });
       }
@@ -798,7 +862,9 @@ export default function VideoCall({
       return stream;
     } catch (err) {
       console.warn('WebRTC camera preview error:', err);
-      return null;
+      const fallbackStream = new MediaStream([createDummyVideoTrack(), createSilentAudioTrack()]);
+      streamRef.current = fallbackStream;
+      return fallbackStream;
     } finally {
       cameraPromiseRef.current = null;
     }

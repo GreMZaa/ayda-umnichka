@@ -73,7 +73,7 @@ export default function TeacherDashboard() {
   const router = useRouter();
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
   const [teacherName, setTeacherName] = useState<string>('Преподаватель');
-  const [teacherPublicId, setTeacherPublicId] = useState<string>('id179017');
+  const [teacherPublicId, setTeacherPublicId] = useState<string>('');
   const [copiedLink, setCopiedLink] = useState(false);
   const [notifState, setNotifState] = useState<'granted' | 'default' | 'denied'>('default');
 
@@ -303,21 +303,46 @@ export default function TeacherDashboard() {
     }
   };
 
+  // Fetch teacher's personal binding directly from Supabase
+  const fetchTeacherIdentity = async (targetId: string) => {
+    if (!targetId) return;
+    try {
+      const res = await fetch(`/api/user/bind?publicId=${encodeURIComponent(targetId)}`, { cache: 'no-store' });
+      const data = await res.json();
+      if (data?.binding?.full_name) {
+        const raw = data.binding.full_name;
+        const clean = raw.replace(/\s*\(.*?\)$/, '').trim() || raw;
+        setTeacherName(clean);
+        try {
+          localStorage.setItem('aida_full_name', clean);
+          window.dispatchEvent(new Event('aida-user-updated'));
+        } catch (_) {}
+      }
+    } catch (err) {
+      console.warn('Failed to load teacher identity:', err);
+    }
+  };
+
   // 3. Fetch teachers
-  const fetchTeachers = async () => {
+  const fetchTeachers = async (targetId?: string) => {
     try {
       setLoadingTeachers(true);
       const res = await fetch('/api/teachers', { cache: 'no-store' });
       const data = await res.json();
       if (data?.teachers) {
         setSupabaseTeachers(data.teachers);
-        const me = (data.teachers as TeacherRecord[]).find((t) => t.publicId === teacherPublicId);
-        if (me?.cleanName) {
-          setTeacherName(me.cleanName);
-          try {
-            localStorage.setItem('aida_full_name', me.cleanName);
-            window.dispatchEvent(new Event('aida-user-updated'));
-          } catch (_) {}
+        const checkId = (targetId || teacherPublicId || '').toLowerCase();
+        if (checkId) {
+          const me = (data.teachers as TeacherRecord[]).find(
+            (t) => (t.publicId || '').toLowerCase() === checkId
+          );
+          if (me?.cleanName) {
+            setTeacherName(me.cleanName);
+            try {
+              localStorage.setItem('aida_full_name', me.cleanName);
+              window.dispatchEvent(new Event('aida-user-updated'));
+            } catch (_) {}
+          }
         }
       }
     } catch (err) {
@@ -393,9 +418,6 @@ export default function TeacherDashboard() {
     }
     setIsAuthorized(true);
 
-    const savedName = localStorage.getItem('aida_full_name');
-    if (savedName) setTeacherName(savedName);
-
     let urlId = '';
     if (typeof window !== 'undefined') {
       let raw = window.location.search || '';
@@ -411,7 +433,14 @@ export default function TeacherDashboard() {
       urlId ||
       localStorage.getItem('aida_auth_user_id') ||
       document.cookie.match(/(?:^|; )aida_auth_user_id=([^;]*)/)?.[1] ||
-      'id179017';
+      localStorage.getItem('aida_user_id') ||
+      '';
+
+    if (!savedUserId) {
+      router.replace('/login?redirect=/teacher');
+      return;
+    }
+
     setTeacherPublicId(savedUserId);
 
     try {
@@ -423,6 +452,9 @@ export default function TeacherDashboard() {
       document.cookie = `aida_user_id=${savedUserId}; path=/; max-age=2592000; SameSite=Lax`;
       window.dispatchEvent(new Event('aida-user-updated'));
     } catch (_) {}
+
+    // Load actual teacher identity for this specific ID from database
+    fetchTeacherIdentity(savedUserId);
 
     // Keep personal ID in URL address bar while strictly preserving all other query parameters (e.g. agentation=1)
     if (typeof window !== 'undefined') {
@@ -443,7 +475,7 @@ export default function TeacherDashboard() {
 
     fetchSupabaseStudents();
     fetchBoundStudents(savedUserId);
-    fetchTeachers();
+    fetchTeachers(savedUserId);
     fetchAllHomework();
   }, [router]);
 
@@ -1076,7 +1108,7 @@ export default function TeacherDashboard() {
         <div className="flex items-center gap-2 self-start sm:self-auto">
           <button
             type="button"
-            onClick={fetchTeachers}
+            onClick={() => fetchTeachers()}
             disabled={loadingTeachers}
             title="Обновить список коллег"
             className="p-1 text-[#8A95A8] hover:text-[#161F38] transition-colors rounded-lg active:scale-95 cursor-pointer"
