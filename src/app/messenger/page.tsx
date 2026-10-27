@@ -662,12 +662,6 @@ export default function MessengerPage() {
     }
   };
 
-  // Launch direct lesson room with contact
-  const handleLaunchCall = (roomToken = 'room-4599') => {
-    const roleParam = currentUser?.role === 'teacher' ? 'teacher' : 'student';
-    router.push(`/room/${roomToken}?role=${roleParam}`);
-  };
-
   const returnLkUrl =
     currentUser?.role === 'teacher'
       ? `/teacher?id=${encodeURIComponent(currentUser.publicId || currentPublicId)}`
@@ -720,16 +714,8 @@ export default function MessengerPage() {
               </div>
             </div>
 
-            {/* Quick Actions (Call room & Refresh) */}
+            {/* Refresh Action */}
             <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => handleLaunchCall()}
-                className="p-2 text-[#5C8519] hover:bg-[#EAF7CF] rounded-full transition-colors cursor-pointer"
-                title="Начать видеозвонок"
-              >
-                <Phone className="w-4 h-4" />
-              </button>
               <button
                 type="button"
                 onClick={() => fetchMessengerData()}
