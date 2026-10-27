@@ -498,40 +498,46 @@ export default function VideoCall({
   const isNegotiatingRef = useRef(false);
 
   // Helper to create a dummy video track so WebRTC negotiation never fails if camera is unavailable
-  const createDummyVideoTrack = (): MediaStreamTrack => {
+  const createDummyVideoTrack = (): MediaStreamTrack | null => {
     try {
-      const canvas = document.createElement('canvas');
-      canvas.width = 640;
-      canvas.height = 480;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.fillStyle = '#161F38';
-        ctx.fillRect(0, 0, 640, 480);
-      }
-      const stream = (canvas as any).captureStream ? (canvas as any).captureStream(10) : null;
-      if (stream && stream.getVideoTracks()[0]) return stream.getVideoTracks()[0];
-    } catch (_) {}
-    return new MediaStreamTrack();
-  };
-
-  // Helper to create a silent audio track so WebRTC negotiation never fails if mic is unavailable
-  const createSilentAudioTrack = (): MediaStreamTrack => {
-    try {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      if (AudioCtx) {
-        const ctx = new AudioCtx();
-        const osc = ctx.createOscillator();
-        const dst = ctx.createMediaStreamDestination();
-        osc.connect(dst);
-        osc.start();
-        const track = dst.stream.getAudioTracks()[0];
-        if (track) {
-          track.enabled = false;
-          return track;
+      if (typeof document !== 'undefined') {
+        const canvas = document.createElement('canvas');
+        canvas.width = 320;
+        canvas.height = 240;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.fillStyle = '#161F38';
+          ctx.fillRect(0, 0, 320, 240);
+        }
+        if (typeof (canvas as any).captureStream === 'function') {
+          const stream = (canvas as any).captureStream(1);
+          if (stream && stream.getVideoTracks()[0]) return stream.getVideoTracks()[0];
         }
       }
     } catch (_) {}
-    return new MediaStreamTrack();
+    return null;
+  };
+
+  // Helper to create a silent audio track so WebRTC negotiation never fails if mic is unavailable
+  const createSilentAudioTrack = (): MediaStreamTrack | null => {
+    try {
+      if (typeof window !== 'undefined') {
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioCtx) {
+          const ctx = new AudioCtx();
+          const osc = ctx.createOscillator();
+          const dst = ctx.createMediaStreamDestination();
+          osc.connect(dst);
+          osc.start();
+          const track = dst.stream.getAudioTracks()[0];
+          if (track) {
+            track.enabled = false;
+            return track;
+          }
+        }
+      }
+    } catch (_) {}
+    return null;
   };
 
   const resetPeerConnection = () => {
@@ -593,9 +599,25 @@ export default function VideoCall({
     pcRef.current = pc;
 
     // Attach local media tracks (video & audio)
+    const attachedKinds = new Set<string>();
     stream.getTracks().forEach((track) => {
-      pc.addTrack(track, stream);
+      try {
+        pc.addTrack(track, stream);
+        attachedKinds.add(track.kind);
+      } catch (_) {}
     });
+
+    // Ensure audio and video transceivers exist so remote media can always be negotiated & received
+    if (!attachedKinds.has('audio')) {
+      try {
+        pc.addTransceiver('audio', { direction: 'sendrecv' });
+      } catch (_) {}
+    }
+    if (!attachedKinds.has('video')) {
+      try {
+        pc.addTransceiver('video', { direction: 'sendrecv' });
+      } catch (_) {}
+    }
 
     // Handle remote tracks (audio & video from student or teacher)
     pc.ontrack = (event) => {
@@ -656,14 +678,20 @@ export default function VideoCall({
       }
     };
 
-    // Send local ICE candidates to peer
+    // Send local ICE candidates to peer with explicit fields
     pc.onicecandidate = (event) => {
       if (event.candidate && channelRef.current) {
+        const c = event.candidate;
         channelRef.current.send({
           type: 'broadcast',
           event: 'ice-candidate',
           payload: {
-            candidate: event.candidate.toJSON(),
+            candidate: {
+              candidate: c.candidate,
+              sdpMid: c.sdpMid,
+              sdpMLineIndex: c.sdpMLineIndex,
+              usernameFragment: c.usernameFragment,
+            },
             senderId: myPeerIdRef.current,
           },
         });
@@ -721,12 +749,15 @@ export default function VideoCall({
       await waitForIceGathering(pc);
 
       const finalOffer = pc.localDescription || offer;
-      if (channelRef.current) {
+      if (channelRef.current && finalOffer) {
         channelRef.current.send({
           type: 'broadcast',
           event: 'offer',
           payload: {
-            sdp: finalOffer,
+            sdp: {
+              type: finalOffer.type,
+              sdp: finalOffer.sdp,
+            },
             senderId: myPeerIdRef.current,
           },
         });
@@ -759,7 +790,7 @@ export default function VideoCall({
       // Flush queued ICE candidates
       while (candidateQueueRef.current.length > 0) {
         const cand = candidateQueueRef.current.shift();
-        if (cand) {
+        if (cand && (cand.candidate || cand.candidate === '')) {
           try {
             await pc.addIceCandidate(new RTCIceCandidate(cand));
           } catch (_) {}
@@ -771,12 +802,15 @@ export default function VideoCall({
       await waitForIceGathering(pc);
 
       const finalAnswer = pc.localDescription || answer;
-      if (channelRef.current) {
+      if (channelRef.current && finalAnswer) {
         channelRef.current.send({
           type: 'broadcast',
           event: 'answer',
           payload: {
-            sdp: finalAnswer,
+            sdp: {
+              type: finalAnswer.type,
+              sdp: finalAnswer.sdp,
+            },
             senderId: myPeerIdRef.current,
           },
         });
@@ -792,12 +826,16 @@ export default function VideoCall({
     try {
       console.log('[WebRTC] Handling remote answer...');
       if (!pcRef.current) return;
+      if (pcRef.current.signalingState !== 'have-local-offer') {
+        console.warn('[WebRTC] Ignoring remote answer in unexpected state:', pcRef.current.signalingState);
+        return;
+      }
       await pcRef.current.setRemoteDescription(new RTCSessionDescription(sdp));
 
       // Flush queued ICE candidates
       while (candidateQueueRef.current.length > 0) {
         const cand = candidateQueueRef.current.shift();
-        if (cand) {
+        if (cand && (cand.candidate || cand.candidate === '')) {
           try {
             await pcRef.current.addIceCandidate(new RTCIceCandidate(cand));
           } catch (_) {}
@@ -809,9 +847,10 @@ export default function VideoCall({
   };
 
   // Handle incoming ICE candidate
-  const handleRemoteIceCandidate = async (candidate: RTCIceCandidateInit) => {
+  const handleRemoteIceCandidate = async (candidate: any) => {
     try {
-      if (pcRef.current && pcRef.current.remoteDescription) {
+      if (!candidate || (!candidate.candidate && candidate.candidate !== '')) return;
+      if (pcRef.current && pcRef.current.remoteDescription && pcRef.current.remoteDescription.type) {
         await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate));
       } else {
         candidateQueueRef.current.push(candidate);
@@ -833,28 +872,38 @@ export default function VideoCall({
       let acquiredVideo = false;
       let acquiredAudio = false;
 
-      // 1. Try ideal video + audio
+      const isMobile =
+        typeof window !== 'undefined' &&
+        (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth < 768);
+
+      // 1. Try mobile-friendly or ideal constraints
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: mode,
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-          },
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-          },
-        });
+        stream = await navigator.mediaDevices.getUserMedia(
+          isMobile
+            ? {
+                video: { facingMode: { ideal: mode } },
+                audio: { echoCancellation: true, noiseSuppression: true },
+              }
+            : {
+                video: {
+                  facingMode: mode,
+                  width: { ideal: 1280 },
+                  height: { ideal: 720 },
+                },
+                audio: {
+                  echoCancellation: true,
+                  noiseSuppression: true,
+                },
+              }
+        );
         acquiredVideo = true;
         acquiredAudio = true;
       } catch (err1) {
-        console.warn('[WebRTC] Ideal constraints failed, trying basic video + audio...', err1);
+        console.warn('[WebRTC] Preferred constraints failed, trying basic video + audio...', err1);
         // 2. Try basic video + audio
         try {
           stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: mode },
+            video: isMobile ? true : { facingMode: mode },
             audio: true,
           });
           acquiredVideo = true;
@@ -870,7 +919,7 @@ export default function VideoCall({
             console.warn('[WebRTC] Audio-only failed, trying video-only...', err3);
             // 4. Try video-only
             try {
-              stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: mode } });
+              stream = await navigator.mediaDevices.getUserMedia({ video: true });
               acquiredVideo = true;
               setMicActive(false);
             } catch (err4) {
@@ -884,10 +933,12 @@ export default function VideoCall({
         stream = new MediaStream();
       }
       if (!acquiredVideo || stream.getVideoTracks().length === 0) {
-        stream.addTrack(createDummyVideoTrack());
+        const dummyV = createDummyVideoTrack();
+        if (dummyV) stream.addTrack(dummyV);
       }
       if (!acquiredAudio || stream.getAudioTracks().length === 0) {
-        stream.addTrack(createSilentAudioTrack());
+        const silentA = createSilentAudioTrack();
+        if (silentA) stream.addTrack(silentA);
       }
 
       // Preserve current microphone and camera states
@@ -914,7 +965,7 @@ export default function VideoCall({
       if (pcRef.current && pcRef.current.signalingState !== 'closed') {
         const senders = pcRef.current.getSenders();
         stream.getTracks().forEach((newTrack) => {
-          const sender = senders.find((s) => s.track?.kind === newTrack.kind);
+          const sender = senders.find((s) => s.track?.kind === newTrack.kind || (s as any).kind === newTrack.kind);
           if (sender) {
             sender.replaceTrack(newTrack);
           } else {
@@ -947,7 +998,11 @@ export default function VideoCall({
       return stream;
     } catch (err) {
       console.warn('WebRTC camera preview error:', err);
-      const fallbackStream = new MediaStream([createDummyVideoTrack(), createSilentAudioTrack()]);
+      const fallbackStream = new MediaStream();
+      const dummyV = createDummyVideoTrack();
+      const silentA = createSilentAudioTrack();
+      if (dummyV) fallbackStream.addTrack(dummyV);
+      if (silentA) fallbackStream.addTrack(silentA);
       streamRef.current = fallbackStream;
       return fallbackStream;
     } finally {
@@ -1520,13 +1575,21 @@ export default function VideoCall({
     } else {
       // 2. Re-acquire camera stream
       try {
-        const newStream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: 'user',
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-          },
-        });
+        const isMobile =
+          typeof window !== 'undefined' &&
+          (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth < 768);
+
+        let newStream: MediaStream;
+        try {
+          newStream = await navigator.mediaDevices.getUserMedia(
+            isMobile
+              ? { video: { facingMode: { ideal: 'user' } } }
+              : { video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } } }
+          );
+        } catch (_) {
+          newStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        }
+
         const newVideoTrack = newStream.getVideoTracks()[0];
         if (newVideoTrack && streamRef.current) {
           // Remove old stopped tracks
@@ -1538,9 +1601,21 @@ export default function VideoCall({
           }
 
           if (pcRef.current && pcRef.current.signalingState !== 'closed') {
-            const videoSender = pcRef.current.getSenders().find((s) => s.track?.kind === 'video');
-            if (videoSender) {
-              await videoSender.replaceTrack(newVideoTrack);
+            const transceivers = pcRef.current.getTransceivers ? pcRef.current.getTransceivers() : [];
+            const videoTransceiver = transceivers.find(
+              (t) => t.receiver?.track?.kind === 'video' || t.sender?.track?.kind === 'video'
+            );
+            if (videoTransceiver && videoTransceiver.sender) {
+              await videoTransceiver.sender.replaceTrack(newVideoTrack);
+            } else {
+              const videoSender = pcRef.current
+                .getSenders()
+                .find((s) => s.track?.kind === 'video' || (s as any).kind === 'video');
+              if (videoSender) {
+                await videoSender.replaceTrack(newVideoTrack);
+              } else {
+                pcRef.current.addTrack(newVideoTrack, streamRef.current);
+              }
             }
           }
         }
