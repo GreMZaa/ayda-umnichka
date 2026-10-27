@@ -818,13 +818,21 @@ export default function VideoCall({
     }
   };
 
-  // Minimize or expand video call to floating camera in top-right ("справа сверху")
-  const handleMinimizeOrReturn = () => {
-    const nextVal = !isPlatformMinimized;
-    setInternalPlatformMinimized(nextVal);
-    onTogglePlatformMinimize?.(nextVal);
-    if (nextVal) {
-      togglePictureInPicture().catch(() => {});
+  // Navigate back to user cabinet while preserving ongoing lesson room state in localStorage
+  const handleExitToCabinet = () => {
+    const activeRole = isTeacher ? 'teacher' : 'student';
+    const savedUserId =
+      (typeof window !== 'undefined' &&
+        (localStorage.getItem('aida_auth_user_id') ||
+          localStorage.getItem('aida_user_id'))) ||
+      '';
+
+    if (activeRole === 'teacher') {
+      router.push(`/teacher?id=${encodeURIComponent(savedUserId || 'id179017')}`);
+    } else if (savedUserId) {
+      router.push(`/${encodeURIComponent(savedUserId)}`);
+    } else {
+      router.push('/student');
     }
   };
 
@@ -2066,7 +2074,7 @@ export default function VideoCall({
             </div>
           </div>
 
-          {/* Top Right: Picture-in-Picture & Minimize */}
+          {/* Top Right: Picture-in-Picture & Exit to Cabinet */}
           <div className="pointer-events-auto flex items-center gap-2">
             <button
               type="button"
@@ -2078,9 +2086,9 @@ export default function VideoCall({
             </button>
             <button
               type="button"
-              onClick={handleMinimizeOrReturn}
+              onClick={handleExitToCabinet}
               className="p-2.5 sm:p-3 rounded-full bg-black/40 hover:bg-black/60 text-white backdrop-blur-md border border-white/15 transition-all active:scale-95 cursor-pointer shadow-lg"
-              title="Свернуть в мини-окно справа сверху"
+              title="Выйти в личный кабинет (не завершая урок)"
             >
               <ChevronDown className="w-5 h-5" />
             </button>
