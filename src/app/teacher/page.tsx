@@ -770,9 +770,6 @@ export default function TeacherDashboard() {
                   <h3 className="font-black text-sm sm:text-base text-[#161F38]">Закрепленные ученики</h3>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] bg-[#EAF7CF] text-[#5C8519] border border-[#CCE8A2] px-2.5 py-0.5 rounded-full font-bold">
-                    {boundStudents.length} активных
-                  </span>
                   <button
                     type="button"
                     onClick={() => setShowAddStudentForm(!showAddStudentForm)}
@@ -889,36 +886,50 @@ export default function TeacherDashboard() {
                       return (
                         <div
                           key={st.id}
-                          className="p-3 bg-[#FDFEFC] hover:bg-white rounded-2xl border border-[#E5EED8] hover:border-[#5C8519]/60 shadow-2xs flex items-center justify-between gap-2.5 transition-all flex-wrap sm:flex-nowrap"
+                          className="p-3 bg-[#FDFEFC] hover:bg-white rounded-2xl border border-[#E5EED8] hover:border-[#5C8519]/60 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 transition-all"
                         >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#5C8519] to-[#8BC34A] text-white font-black text-xs flex items-center justify-center shrink-0 shadow-2xs">
-                              {info.displayName[0] || 'У'}
-                            </div>
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="text-xs font-black text-[#161F38] truncate">
-                                  {info.displayName}
-                                </span>
-                                {info.publicId && (
-                                  <span className="text-[10px] text-[#6B758E] font-medium shrink-0">
-                                    (ID: {info.publicId})
+                          {/* Student Info (with mobile delete button) */}
+                          <div className="flex items-center justify-between gap-2 min-w-0">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#5C8519] to-[#8BC34A] text-white font-black text-xs flex items-center justify-center shrink-0 shadow-2xs">
+                                {info.displayName[0] || 'У'}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-xs font-black text-[#161F38] truncate">
+                                    {info.displayName}
                                   </span>
-                                )}
-                              </div>
-                              <div className="text-[10px] text-[#6B758E] truncate">
-                                {st.notes || 'Индивидуальное сопровождение'} {st.phone ? `• ${st.phone}` : ''}
+                                  {info.publicId && (
+                                    <span className="text-[10px] text-[#6B758E] font-medium shrink-0">
+                                      (ID: {info.publicId})
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[10px] text-[#6B758E] truncate">
+                                  {st.notes || 'Индивидуальное сопровождение'} {st.phone ? `• ${st.phone}` : ''}
+                                </div>
                               </div>
                             </div>
+
+                            {/* Delete button (Mobile only - top right) */}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveStudent(st.id, st.publicId)}
+                              title="Удалить ученика из списка"
+                              className="sm:hidden text-[#8A95A8] hover:text-red-500 p-1.5 hover:bg-red-50 rounded-lg transition-colors cursor-pointer shrink-0"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </div>
 
-                          <div className="flex items-center gap-2 shrink-0">
+                          {/* Action Controls: Balance badge + "Перейти к ДЗ" + Desktop delete */}
+                          <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto pt-2 sm:pt-0 border-t border-[#E5EED8]/60 sm:border-t-0 shrink-0">
                             {/* Student Lesson Balance & Quick Adjust (+/-) - Teacher Only */}
                             <div
                               className="inline-flex items-center gap-1 bg-[#F5F8F1] border border-[#D5E5B8] rounded-full px-2 py-1 text-xs shadow-2xs"
                               title="Баланс занятий ученика из Supabase (нажмите + или - для изменения)"
                             >
-                              <span className="text-[10px] font-bold text-[#5C8519] uppercase tracking-wider hidden sm:inline">
+                              <span className="text-[10px] font-bold text-[#5C8519] uppercase tracking-wider">
                                 Баланс:
                               </span>
                               <span className="font-black text-xs text-[#161F38] min-w-[14px] text-center">
@@ -960,33 +971,35 @@ export default function TeacherDashboard() {
                               </button>
                             </div>
 
-                            {/* "Перейти к ДЗ" Button opening dedicated page in new tab */}
-                            <Link
-                              href={`/teacher/homework?studentId=${encodeURIComponent(info.publicId || '')}&studentName=${encodeURIComponent(info.displayName)}&teacherId=${encodeURIComponent(teacherPublicId || '')}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1.5 text-xs font-black bg-[#EEF2FF] hover:bg-[#E0E7FF] text-[#4F46E5] border border-[#DCDAF7] px-3 py-1.5 rounded-full transition-all active:scale-95 shadow-2xs cursor-pointer"
-                              title="Открыть домашние задания этого ученика в новой вкладке"
-                            >
-                              <BookOpen className="w-3.5 h-3.5" />
-                              <span>Перейти к ДЗ</span>
-                              {stHwList.length > 0 && (
-                                <span className="bg-[#4F46E5] text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold ml-0.5">
-                                  {stHwList.length}
-                                </span>
-                              )}
-                              <ExternalLink className="w-3 h-3 text-[#4F46E5]/70" />
-                            </Link>
+                            <div className="flex items-center gap-2">
+                              {/* "Перейти к ДЗ" Button opening dedicated page in new tab */}
+                              <Link
+                                href={`/teacher/homework?studentId=${encodeURIComponent(info.publicId || '')}&studentName=${encodeURIComponent(info.displayName)}&teacherId=${encodeURIComponent(teacherPublicId || '')}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 text-xs font-black bg-[#EEF2FF] hover:bg-[#E0E7FF] text-[#4F46E5] border border-[#DCDAF7] px-3 py-1.5 rounded-full transition-all active:scale-95 shadow-2xs cursor-pointer"
+                                title="Открыть домашние задания этого ученика в новой вкладке"
+                              >
+                                <BookOpen className="w-3.5 h-3.5" />
+                                <span>Перейти к ДЗ</span>
+                                {stHwList.length > 0 && (
+                                  <span className="bg-[#4F46E5] text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold ml-0.5">
+                                    {stHwList.length}
+                                  </span>
+                                )}
+                                <ExternalLink className="w-3 h-3 text-[#4F46E5]/70" />
+                              </Link>
 
-                            {/* Delete button */}
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveStudent(st.id, st.publicId)}
-                              title="Удалить ученика из списка"
-                              className="text-[#8A95A8] hover:text-red-500 p-1.5 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                              {/* Delete button (Desktop only) */}
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveStudent(st.id, st.publicId)}
+                                title="Удалить ученика из списка"
+                                className="hidden sm:inline-flex text-[#8A95A8] hover:text-red-500 p-1.5 hover:bg-red-50 rounded-lg transition-colors cursor-pointer shrink-0"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
                         </div>
                       );
