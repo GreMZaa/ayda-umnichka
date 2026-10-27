@@ -28,7 +28,8 @@ import {
   Check,
   ExternalLink,
   Minus,
-  Bell
+  Bell,
+  UserPlus
 } from 'lucide-react';
 import { broadcastPlatformEvent } from '@/lib/platformNotifications';
 import { showSystemNotification, playNotificationChime } from '@/components/NotificationManager';
@@ -128,6 +129,7 @@ export default function TeacherDashboard() {
   // Bound Students roster (saved in Supabase teacher_students)
   const [boundStudents, setBoundStudents] = useState<BoundStudentItem[]>([]);
   const [showAddStudentForm, setShowAddStudentForm] = useState(false);
+  const [addStudentTab, setAddStudentTab] = useState<'registered' | 'manual'>('registered');
   const [selectedStudentToAdd, setSelectedStudentToAdd] = useState('');
   const [customStudentName, setCustomStudentName] = useState('');
   const [customStudentNote, setCustomStudentNote] = useState('');
@@ -490,7 +492,7 @@ export default function TeacherDashboard() {
     let nameToSave = customStudentName.trim();
     let publicIdToSave = '';
 
-    if (selectedStudentToAdd) {
+    if (addStudentTab === 'registered' && selectedStudentToAdd) {
       const found = supabaseStudents.find((s) => s.publicId === selectedStudentToAdd);
       if (found) {
         nameToSave = found.fullName;
@@ -712,6 +714,23 @@ export default function TeacherDashboard() {
       });
   }, [boundStudents]);
 
+  // Students available in database to be bound to this teacher
+  const availableStudentsToAdd = useMemo(() => {
+    return supabaseStudents.filter((st) => {
+      return !boundStudents.some(
+        (b) =>
+          (b.publicId && b.publicId.toLowerCase() === st.publicId.toLowerCase()) ||
+          (b.fullName && b.fullName.trim().toLowerCase() === st.fullName.trim().toLowerCase())
+      );
+    });
+  }, [supabaseStudents, boundStudents]);
+
+  // Selected student object from available students
+  const selectedStudentObj = useMemo(() => {
+    if (!selectedStudentToAdd) return null;
+    return availableStudentsToAdd.find((s) => s.publicId === selectedStudentToAdd) || null;
+  }, [selectedStudentToAdd, availableStudentsToAdd]);
+
   return (
     <div className="space-y-4 sm:space-y-5">
       {/* Teacher Profile Header — Distinct Warm Hero Card */}
@@ -842,101 +861,23 @@ export default function TeacherDashboard() {
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setShowAddStudentForm(!showAddStudentForm)}
-                    className="inline-flex items-center gap-1 text-[11px] font-black bg-[#5C8519] hover:bg-[#4E7214] text-white px-3 py-1.5 rounded-full transition-colors duration-140 cursor-pointer active:scale-95 shadow-2xs"
+                    onClick={() => {
+                      if (availableStudentsToAdd.length > 0) {
+                        setAddStudentTab('registered');
+                      } else {
+                        setAddStudentTab('manual');
+                      }
+                      setShowAddStudentForm(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 text-xs font-black bg-[#5C8519] hover:bg-[#4E7214] text-white px-3.5 py-1.5 rounded-full transition-all duration-140 cursor-pointer active:scale-95 shadow-2xs hover:shadow-xs"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>{showAddStudentForm ? 'Скрыть форму' : 'Добавить ученика'}</span>
+                    <span>Добавить ученика</span>
                   </button>
                 </div>
               </div>
 
-              {/* Form to Add Student */}
-              {showAddStudentForm && (
-                <form onSubmit={handleAddStudent} className="shrink-0 p-3 bg-[#FFF8F1] border border-[#F2DECE] rounded-xl space-y-2 animate-in fade-in">
-                <div className="text-[11px] font-black text-[#161F38]">Привязать ученика к кабинету:</div>
-
-                {supabaseStudents.length > 0 && (
-                  <div>
-                    <label className="block text-[10px] font-bold text-[#6B758E] mb-1">
-                      Выбрать из зарегистрированных учеников:
-                    </label>
-                    <select
-                      value={selectedStudentToAdd}
-                      onChange={(e) => {
-                        setSelectedStudentToAdd(e.target.value);
-                        if (e.target.value) {
-                          setCustomStudentName('');
-                        }
-                      }}
-                      className="w-full bg-white border border-[#EADBCC] rounded-lg px-2.5 py-1.5 text-xs text-[#161F38] focus:outline-none focus:border-coralAccent"
-                    >
-                      <option value="">-- Выберите ученика из базы --</option>
-                      {supabaseStudents
-                        .filter((st) => {
-                          return !boundStudents.some(
-                            (b) =>
-                              (b.publicId && b.publicId.toLowerCase() === st.publicId.toLowerCase()) ||
-                              (b.fullName && b.fullName.trim().toLowerCase() === st.fullName.trim().toLowerCase())
-                          );
-                        })
-                        .map((st) => (
-                          <option key={st.publicId} value={st.publicId}>
-                            {st.fullName} ({st.publicId}) {st.phone ? `• ${st.phone}` : ''}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[10px] font-bold text-[#6B758E] mb-0.5">
-                      Или введите ФИО:
-                    </label>
-                    <input
-                      type="text"
-                      disabled={Boolean(selectedStudentToAdd)}
-                      value={customStudentName}
-                      onChange={(e) => setCustomStudentName(e.target.value)}
-                      placeholder="ФИО ученика"
-                      className="w-full bg-white border border-[#EADBCC] rounded-lg px-2.5 py-1.5 text-xs text-[#161F38] focus:outline-none focus:border-coralAccent disabled:bg-gray-100"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-[#6B758E] mb-0.5">
-                      Направление / примечание:
-                    </label>
-                    <input
-                      type="text"
-                      value={customStudentNote}
-                      onChange={(e) => setCustomStudentNote(e.target.value)}
-                      placeholder="Логопедия, запуск речи..."
-                      className="w-full bg-white border border-[#EADBCC] rounded-lg px-2.5 py-1.5 text-xs text-[#161F38] focus:outline-none focus:border-coralAccent"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setShowAddStudentForm(false)}
-                    className="text-xs font-bold text-[#8A95A8] hover:text-[#161F38] px-3 py-1 rounded-lg"
-                  >
-                    Отмена
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isBindingStudent}
-                    className="text-xs font-black bg-coralAccent hover:bg-coralAccent-hover text-white px-4 py-1.5 rounded-full shadow-2xs active:scale-95 cursor-pointer disabled:opacity-50"
-                  >
-                    {isBindingStudent ? 'Сохранение...' : 'Закрепить ученика'}
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {/* Students List Container with Interactive Homework Accordion & Pagination */}
+              {/* Students List Container with Interactive Homework Accordion & Pagination */}
             <div className="space-y-3">
               {boundStudents.length === 0 ? (
                 <div className="p-5 rounded-xl border border-dashed border-[#F2DECE] bg-[#FFFAF5] text-center space-y-1.5">
@@ -1224,6 +1165,236 @@ export default function TeacherDashboard() {
           </div>
         )}
       </div>
+
+      {/* Modern Modal Overlay: Add Student into Cabinet */}
+      {showAddStudentForm && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setShowAddStudentForm(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#161F38]/50 backdrop-blur-xs animate-in fade-in duration-150"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-md bg-white rounded-3xl p-5 sm:p-6 shadow-2xl border border-[#F2DECE] space-y-4 animate-in zoom-in-95 duration-150"
+          >
+            {/* Header */}
+            <div className="flex items-start justify-between gap-3 pb-3 border-b border-[#F5E8DC]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-[#EAF7CF] text-[#5C8519] border border-[#CCE8A2] flex items-center justify-center shrink-0 shadow-2xs">
+                  <UserPlus className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base text-[#161F38] tracking-tight">
+                    Добавить ученика
+                  </h3>
+                  <p className="text-[11px] text-[#6B758E] mt-0.5">
+                    Закрепите ученика за своим кабинетом
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddStudentForm(false)}
+                className="w-8 h-8 rounded-full bg-[#F5F7FB] hover:bg-[#E5E9F2] text-[#8A95A8] hover:text-[#161F38] flex items-center justify-center transition-colors cursor-pointer"
+                title="Закрыть окно"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Segmented Switcher */}
+            <div className="grid grid-cols-2 gap-1.5 p-1 bg-[#F5F7FB] rounded-2xl border border-[#EBEFF5]">
+              <button
+                type="button"
+                onClick={() => {
+                  setAddStudentTab('registered');
+                  setCustomStudentName('');
+                }}
+                className={`py-2 px-3 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  addStudentTab === 'registered'
+                    ? 'bg-white text-[#161F38] shadow-xs border border-[#E2E8F0]'
+                    : 'text-[#6B758E] hover:text-[#161F38]'
+                }`}
+              >
+                <span>Из базы сайта</span>
+                {availableStudentsToAdd.length > 0 && (
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${
+                      addStudentTab === 'registered'
+                        ? 'bg-[#EAF7CF] text-[#5C8519]'
+                        : 'bg-black/5 text-[#8A95A8]'
+                    }`}
+                  >
+                    {availableStudentsToAdd.length}
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setAddStudentTab('manual');
+                  setSelectedStudentToAdd('');
+                }}
+                className={`py-2 px-3 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  addStudentTab === 'manual'
+                    ? 'bg-white text-[#161F38] shadow-xs border border-[#E2E8F0]'
+                    : 'text-[#6B758E] hover:text-[#161F38]'
+                }`}
+              >
+                <span>Ввести вручную</span>
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleAddStudent} className="space-y-3.5">
+              {addStudentTab === 'registered' ? (
+                <div className="space-y-2.5">
+                  <div>
+                    <label className="block text-[11px] font-bold text-[#6B758E] mb-1.5">
+                      Выберите ученика из списка:
+                    </label>
+
+                    {availableStudentsToAdd.length === 0 ? (
+                      <div className="p-3.5 rounded-2xl border border-dashed border-[#F0DCCD] bg-[#FFF8F1] text-center space-y-1">
+                        <p className="text-xs font-bold text-[#161F38]">Все зарегистрированные ученики уже закреплены</p>
+                        <p className="text-[11px] text-[#6B758E]">
+                          Используйте вкладку «Ввести вручную» для нового ученика.
+                        </p>
+                      </div>
+                    ) : (
+                      <select
+                        value={selectedStudentToAdd}
+                        onChange={(e) => setSelectedStudentToAdd(e.target.value)}
+                        className="w-full bg-[#FAFBFD] hover:bg-white border border-[#E3E8EE] focus:border-[#5C8519] rounded-xl px-3 py-2 text-xs text-[#161F38] font-bold focus:outline-none transition-colors cursor-pointer"
+                      >
+                        <option value="">-- Выберите ученика из базы --</option>
+                        {availableStudentsToAdd.map((st) => (
+                          <option key={st.publicId} value={st.publicId}>
+                            {st.fullName} ({st.publicId}){st.phone ? ` • ${st.phone}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+
+                  {/* Selected Preview Card */}
+                  {selectedStudentObj && (
+                    <div className="p-3 bg-[#F9FCF2] border border-[#CCE8A2] rounded-2xl flex items-center justify-between gap-3 animate-in fade-in">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#5C8519] to-[#88B834] text-white flex items-center justify-center font-black text-xs shrink-0 shadow-2xs">
+                          {selectedStudentObj.fullName[0] || 'У'}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-black text-[#161F38] truncate">
+                            {selectedStudentObj.fullName}
+                          </div>
+                          <div className="text-[10px] text-[#5C8519] font-bold flex items-center gap-1.5">
+                            <span>ID: {selectedStudentObj.publicId}</span>
+                            {selectedStudentObj.phone && (
+                              <>
+                                <span className="text-[#8A95A8]">•</span>
+                                <span className="text-[#6B758E]">{selectedStudentObj.phone}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedStudentToAdd('')}
+                        className="text-[#8A95A8] hover:text-[#161F38] text-xs p-1 rounded-lg hover:bg-black/5 cursor-pointer"
+                        title="Очистить"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold text-[#6B758E]">
+                    ФИО ученика:
+                  </label>
+                  <input
+                    type="text"
+                    value={customStudentName}
+                    onChange={(e) => setCustomStudentName(e.target.value)}
+                    placeholder="Например: Смирнов Артём"
+                    autoFocus
+                    className="w-full bg-[#FAFBFD] hover:bg-white border border-[#E3E8EE] focus:border-[#5C8519] rounded-xl px-3 py-2 text-xs text-[#161F38] font-bold focus:outline-none transition-colors"
+                  />
+                </div>
+              )}
+
+              {/* Direction & Notes Field with Quick Chips */}
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-[#6B758E]">
+                  Направление занятий / примечание:
+                </label>
+                <input
+                  type="text"
+                  value={customStudentNote}
+                  onChange={(e) => setCustomStudentNote(e.target.value)}
+                  placeholder="Например: Логопедия, запуск речи..."
+                  className="w-full bg-[#FAFBFD] hover:bg-white border border-[#E3E8EE] focus:border-[#5C8519] rounded-xl px-3 py-2 text-xs text-[#161F38] font-medium focus:outline-none transition-colors"
+                />
+
+                {/* Quick chip suggestions */}
+                <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                  {['Логопедия', 'Запуск речи', 'Подготовка к школе', 'Чтение', 'Развитие внимания'].map((chip) => (
+                    <button
+                      key={chip}
+                      type="button"
+                      onClick={() => setCustomStudentNote(chip)}
+                      className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border transition-all cursor-pointer ${
+                        customStudentNote === chip
+                          ? 'bg-[#EAF7CF] text-[#5C8519] border-[#CCE8A2]'
+                          : 'bg-[#F5F7FB] text-[#6B758E] border-[#E8ECF2] hover:bg-white hover:text-[#161F38]'
+                      }`}
+                    >
+                      {chip}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Actions Footer */}
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[#F5E8DC]">
+                <button
+                  type="button"
+                  onClick={() => setShowAddStudentForm(false)}
+                  className="text-xs font-bold text-[#6B758E] hover:text-[#161F38] px-3.5 py-2 rounded-xl transition-colors cursor-pointer hover:bg-black/5"
+                >
+                  Отмена
+                </button>
+                <button
+                  type="submit"
+                  disabled={
+                    isBindingStudent ||
+                    (addStudentTab === 'registered' && !selectedStudentToAdd) ||
+                    (addStudentTab === 'manual' && !customStudentName.trim())
+                  }
+                  className="inline-flex items-center gap-1.5 text-xs font-black bg-[#5C8519] hover:bg-[#4E7214] text-white px-5 py-2 rounded-full shadow-2xs active:scale-95 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {isBindingStudent ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Сохранение...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Закрепить ученика</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
