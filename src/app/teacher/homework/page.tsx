@@ -38,6 +38,17 @@ interface HomeworkItem {
   updated_at?: string;
 }
 
+const formatDateSafe = (dateStr?: string | null) => {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+  } catch {
+    return dateStr || '';
+  }
+};
+
 function TeacherHomeworkContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -483,11 +494,11 @@ function TeacherHomeworkContent() {
                         {hw.due_date && (
                           <span className="text-[10px] text-[#6B758E] font-bold flex items-center gap-1">
                             <Calendar className="w-3 h-3 text-coralAccent" />
-                            Срок: {new Date(hw.due_date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+                            Срок: {formatDateSafe(hw.due_date)}
                           </span>
                         )}
                         <span className="text-[10px] text-[#8A95A8]">
-                          Создано: {new Date(hw.created_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+                          Создано: {formatDateSafe(hw.created_at)}
                         </span>
                       </div>
                       <h4 className="font-black text-sm sm:text-base text-[#161F38] leading-tight">

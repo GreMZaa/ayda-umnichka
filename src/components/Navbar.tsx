@@ -40,7 +40,7 @@ export default function Navbar() {
   const [userName, setUserName] = useState<string>('');
   const [userRole, setUserRole] = useState<string>('');
   const [userId, setUserId] = useState<string>('');
-  const [lkUrl, setLkUrl] = useState<string>('https://lk-ayda-umnichka.vercel.app/login');
+  const [lkUrl, setLkUrl] = useState<string>('/login');
   const [logoClicks, setLogoClicks] = useState(0);
   const [profileOpen, setProfileOpen] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);

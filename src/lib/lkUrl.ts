@@ -14,12 +14,9 @@ export function getLkUrl(path: string = ''): string {
 
     const { hostname, protocol } = window.location;
 
-    // 1. If currently on Vercel (e.g. aidaumnichka.vercel.app)
+    // 1. If currently on Vercel (e.g. ayda-umnichka.vercel.app or lk-ayda-umnichka.vercel.app)
     if (hostname.endsWith('.vercel.app')) {
-      if (hostname.startsWith('lk-')) {
-        return `${protocol}//${hostname}${path}`;
-      }
-      return `${protocol}//lk-${hostname}${path}`;
+      return `${protocol}//${hostname}${path}`;
     }
 
     // 2. If running locally on localhost, point to the vercel lk- subdomain
