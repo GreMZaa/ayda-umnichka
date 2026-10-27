@@ -437,14 +437,14 @@ export default function VideoCall({
 
     // Tick every second if timer is active
     const timer = setInterval(() => {
-      if (timerStartTimeRef.current && (hasRemoteStream || callDuration > 0)) {
+      if (timerStartTimeRef.current) {
         const elapsed = Math.max(0, Math.floor((Date.now() - timerStartTimeRef.current) / 1000));
         setCallDuration(elapsed);
       }
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [hasRemoteStream, roomToken, callDuration]);
+  }, [hasRemoteStream, roomToken]);
 
   // Keep remote audio & video elements updated with remoteStreamRef
   useEffect(() => {
@@ -537,12 +537,12 @@ export default function VideoCall({
   };
 
   const ensureLocalStream = async (): Promise<MediaStream> => {
-    if (streamRef.current && streamRef.current.active) {
+    if (streamRef.current && streamRef.current.getTracks().length > 0) {
       return streamRef.current;
     }
     if (cameraPromiseRef.current) {
       const existing = await cameraPromiseRef.current;
-      if (existing && existing.active) return existing;
+      if (existing && existing.getTracks().length > 0) return existing;
     }
     const p = startCamera();
     cameraPromiseRef.current = p;
@@ -617,7 +617,7 @@ export default function VideoCall({
 
       // 2. Video element
       if (remoteVideoRef.current) {
-        if (remoteVideoRef.current.srcObject !== incomingStream) {
+        if (event.track.kind === 'video' || remoteVideoRef.current.srcObject !== incomingStream) {
           remoteVideoRef.current.srcObject = incomingStream;
         }
         remoteVideoRef.current.muted = true;
@@ -627,7 +627,12 @@ export default function VideoCall({
       // 3. Listen to unmute
       event.track.onunmute = () => {
         console.log('[WebRTC] Remote track unmuted:', event.track.kind);
-        if (remoteVideoRef.current) remoteVideoRef.current.play().catch(() => {});
+        if (remoteVideoRef.current) {
+          if (event.track.kind === 'video') {
+            remoteVideoRef.current.srcObject = incomingStream;
+          }
+          remoteVideoRef.current.play().catch(() => {});
+        }
         if (remoteAudioRef.current) remoteAudioRef.current.play().catch(() => {});
       };
 
@@ -951,14 +956,22 @@ export default function VideoCall({
     }
   };
 
-  // Minimize video call to floating camera in top-right ("картинка в картинке") over user cabinet
+  // Navigate back to user cabinet while preserving ongoing lesson room state in localStorage
   const handleExitToCabinet = () => {
-    // 1. Switch room to minimized platform view (shows full personal cabinet in iframe)
-    setInternalPlatformMinimized(true);
-    onTogglePlatformMinimize?.(true);
+    const activeRole = isTeacher ? 'teacher' : 'student';
+    const savedUserId =
+      (typeof window !== 'undefined' &&
+        (localStorage.getItem('aida_auth_user_id') ||
+          localStorage.getItem('aida_user_id'))) ||
+      '';
 
-    // 2. Also try native browser OS Picture-in-Picture
-    togglePictureInPicture().catch(() => {});
+    if (activeRole === 'teacher') {
+      router.push(savedUserId ? `/teacher?id=${encodeURIComponent(savedUserId)}` : '/teacher');
+    } else if (savedUserId) {
+      router.push(`/${encodeURIComponent(savedUserId)}`);
+    } else {
+      router.push('/student');
+    }
   };
 
   // Supabase Realtime Signaling setup
@@ -2177,6 +2190,13 @@ export default function VideoCall({
                 }}
                 autoPlay
                 playsInline
+                muted
+                onLoadedMetadata={(e) => {
+                  (e.target as HTMLVideoElement).play().catch(() => {});
+                }}
+                onCanPlay={(e) => {
+                  (e.target as HTMLVideoElement).play().catch(() => {});
+                }}
                 className={`w-full h-full ${
                   isScreenSharing || isVerticalMode ? 'object-contain bg-black' : 'object-cover'
                 } ${hasRemoteStream && remoteCamActive ? 'block' : 'hidden'}`}
@@ -2221,6 +2241,12 @@ export default function VideoCall({
                 autoPlay
                 playsInline
                 muted
+                onLoadedMetadata={(e) => {
+                  (e.target as HTMLVideoElement).play().catch(() => {});
+                }}
+                onCanPlay={(e) => {
+                  (e.target as HTMLVideoElement).play().catch(() => {});
+                }}
                 className={`w-full h-full ${
                   isScreenSharing || isVerticalMode ? 'object-contain bg-[#FFF7EE]' : 'object-cover'
                 } ${facingMode === 'user' ? '-scale-x-100' : ''} ${!camActive ? 'hidden' : 'block'}`}
@@ -2257,6 +2283,12 @@ export default function VideoCall({
                 autoPlay
                 playsInline
                 muted
+                onLoadedMetadata={(e) => {
+                  (e.target as HTMLVideoElement).play().catch(() => {});
+                }}
+                onCanPlay={(e) => {
+                  (e.target as HTMLVideoElement).play().catch(() => {});
+                }}
                 className={`w-full h-full object-cover ${
                   facingMode === 'user' ? '-scale-x-100' : ''
                 } ${!camActive ? 'hidden' : 'block'}`}
@@ -2291,6 +2323,13 @@ export default function VideoCall({
                 }}
                 autoPlay
                 playsInline
+                muted
+                onLoadedMetadata={(e) => {
+                  (e.target as HTMLVideoElement).play().catch(() => {});
+                }}
+                onCanPlay={(e) => {
+                  (e.target as HTMLVideoElement).play().catch(() => {});
+                }}
                 className={`w-full h-full object-cover ${
                   hasRemoteStream && remoteCamActive ? 'block' : 'hidden'
                 }`}
@@ -2694,6 +2733,12 @@ export default function VideoCall({
                 autoPlay
                 playsInline
                 muted
+                onLoadedMetadata={(e) => {
+                  (e.target as HTMLVideoElement).play().catch(() => {});
+                }}
+                onCanPlay={(e) => {
+                  (e.target as HTMLVideoElement).play().catch(() => {});
+                }}
                 className={`w-full h-full object-cover ${
                   hasRemoteStream && remoteCamActive ? 'block' : 'hidden'
                 }`}
