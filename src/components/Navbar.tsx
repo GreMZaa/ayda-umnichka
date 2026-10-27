@@ -372,27 +372,22 @@ export default function Navbar() {
             ) : isInsideLk ? (
               // Inside LK: Modern Messenger shortcut & Interactive Profile Capsule with Popover
               <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-                {/* Messenger Quick Access Pill — Redesigned modern capsule with unread badge */}
+                {/* Messenger Quick Access — Circular button matching profile height & shape */}
                 <Link
                   href={myMessengerUrl}
                   title="Мессенджер и чаты"
-                  className={`relative inline-flex items-center justify-center gap-1.5 px-3.5 h-8.5 rounded-full text-xs font-black transition-all duration-140 border shadow-2xs active:scale-95 cursor-pointer text-center leading-none ${
+                  aria-label="Мессенджер и чаты"
+                  className={`relative flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full transition-all duration-140 border shadow-2xs active:scale-95 cursor-pointer shrink-0 ${
                     pathname === '/messenger'
-                      ? 'bg-gradient-to-r from-[#FF7A59] to-[#FF5E36] text-white border-transparent shadow-xs shadow-orange-500/25 ring-2 ring-orange-400/20'
-                      : 'bg-white hover:bg-[#FFF9F3] text-[#161F38] border-[#EADBCC] hover:border-coralAccent hover:text-coralAccent'
+                      ? 'bg-gradient-to-tr from-[#FF6B4A] to-[#FFA259] text-white border-transparent shadow-xs shadow-orange-500/25 ring-2 ring-orange-400/20'
+                      : 'bg-white hover:bg-[#FFF9F3] text-coralAccent border-[#EADBCC] hover:border-coralAccent/70 hover:shadow-xs'
                   }`}
                 >
-                  <div className="relative flex items-center justify-center">
-                    <MessageCircle className={`w-3.5 h-3.5 shrink-0 ${pathname === '/messenger' ? 'text-white' : 'text-coralAccent'}`} />
-                    {unreadMessagesCount > 0 && pathname !== '/messenger' && (
-                      <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-red-500 ring-2 ring-white animate-pulse" />
-                    )}
-                  </div>
-                  <span className="hidden md:inline leading-none pt-0.5">Чаты</span>
+                  <MessageCircle className={`w-4 h-4 sm:w-4.5 sm:h-4.5 shrink-0 ${pathname === '/messenger' ? 'text-white' : 'text-coralAccent'}`} />
 
-                  {/* Unread Counter Badge */}
+                  {/* Unread Counter Badge (Floating circle on top right) */}
                   {unreadMessagesCount > 0 && (
-                    <span className="inline-flex items-center justify-center px-1.5 py-0.2 text-[10px] font-black rounded-full bg-gradient-to-r from-red-500 to-rose-600 text-white min-w-[17px] h-4 leading-none shadow-2xs shadow-red-500/30">
+                    <span className="absolute -top-1 -right-1 px-1 min-w-[18px] h-[18px] rounded-full bg-gradient-to-r from-red-500 to-rose-600 text-white text-[10px] font-black flex items-center justify-center border-2 border-white shadow-xs leading-none animate-pulse">
                       {unreadMessagesCount > 99 ? '99+' : unreadMessagesCount}
                     </span>
                   )}
