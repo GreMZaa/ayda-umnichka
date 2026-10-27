@@ -212,21 +212,12 @@ export default function NotificationManager() {
   };
 
   const triggerPlatformAlert = async (alert: InAppAlert, tag: string) => {
-    // Play bell chime
-    playNotificationChime();
-
     // Notify other components (Navbar badge, lists)
-    window.dispatchEvent(new Event('aida-user-updated'));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('aida-user-updated'));
+    }
 
-    // Show in-app banner
-    setActiveAlert(alert);
-
-    // Auto-hide in-app toast after 6 seconds
-    setTimeout(() => {
-      setActiveAlert((curr) => (curr?.id === alert.id ? null : curr));
-    }, 6000);
-
-    // Always dispatch system OS / PWA notification into notification shade
+    // Always dispatch system OS / PWA notification strictly into phone/desktop notification shade
     await showSystemNotification({
       title: alert.title,
       body: alert.body,
@@ -326,7 +317,7 @@ export default function NotificationManager() {
             category: 'Расписание уроков',
             title: '📅 АйДаУмничка: Назначен урок!',
             body: `${teacher}: ${topic}${timeStr}`,
-            url: l.room_token ? `/room/${l.room_token}` : `/${publicId || targetStudent || 'student'}`,
+            url: targetStudent ? `/${targetStudent}` : publicId ? `/${publicId}` : '/student',
             iconBg: 'bg-[#EFF6FF]',
             iconColor: 'text-[#2563EB]',
           },
@@ -447,38 +438,6 @@ export default function NotificationManager() {
       }
     });
 
-    // 1.6 Also listen to direct Supabase Database postgres_changes on lessons table!
-    channel.on(
-      'postgres_changes',
-      { event: 'INSERT', schema: 'public', table: 'lessons' },
-      async (changePayload) => {
-        const newLesson = changePayload.new as any;
-        if (!newLesson) return;
-
-        const eventKey = `db-lesson-${newLesson.id}`;
-        if (seenEventsRef.current.has(eventKey)) return;
-        seenEventsRef.current.add(eventKey);
-
-        const { publicId } = getUserContext();
-        const targetStudent = (newLesson.student_public_id || '').toLowerCase();
-        if (targetStudent === publicId || pathname.toLowerCase().includes(targetStudent)) {
-          await triggerPlatformAlert(
-            {
-              id: `lesson-${newLesson.id}`,
-              type: 'lesson',
-              category: 'Расписание уроков',
-              title: '📅 АйДаУмничка: Назначен урок!',
-              body: `${newLesson.teacher_name || 'Преподаватель'}: ${newLesson.topic || 'Индивидуальное занятие'}`,
-              url: newLesson.room_token ? `/room/${newLesson.room_token}` : `/${publicId || targetStudent}`,
-              iconBg: 'bg-[#EFF6FF]',
-              iconColor: 'text-[#2563EB]',
-            },
-            `lesson-${newLesson.id}`
-          );
-        }
-      }
-    );
-
     channel.subscribe();
 
     return () => {
@@ -486,148 +445,9 @@ export default function NotificationManager() {
     };
   }, [pathname]);
 
-  // 2. Active Catch-Up Check: Pull recent lessons & homework if user resumed tab or had screen locked
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const checkRecentUpdates = async () => {
-      const { publicId, role } = getUserContext();
-      if (!publicId || role === 'teacher') return;
-
-      try {
-        const res = await fetch(`/api/lessons?studentPublicId=${encodeURIComponent(publicId)}`, {
-          cache: 'no-store',
-        });
-        const data = await res.json();
-        if (data?.lessons && Array.isArray(data.lessons)) {
-          const storedSeen = JSON.parse(localStorage.getItem('aida_notified_lessons') || '[]');
-          const seenSet = new Set(storedSeen);
-
-          for (const l of data.lessons) {
-            const ageMs = Date.now() - new Date(l.created_at).getTime();
-            // Lessons scheduled within the last 2 hours that haven't triggered OS notification yet
-            if (l.status === 'pending' && ageMs < 2 * 3600 * 1000 && !seenSet.has(l.id)) {
-              seenSet.add(l.id);
-              localStorage.setItem('aida_notified_lessons', JSON.stringify(Array.from(seenSet).slice(-50)));
-
-              let timeStr = '';
-              if (l.scheduled_for) {
-                try {
-                  const d = new Date(l.scheduled_for);
-                  timeStr = ` на ${d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })} в ${d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`;
-                } catch (_) {}
-              }
-
-              const teacher = l.teacher_name || 'Преподаватель';
-              const topic = l.topic || 'Индивидуальное занятие';
-
-              await triggerPlatformAlert(
-                {
-                  id: `lesson-${l.id}`,
-                  type: 'lesson',
-                  category: 'Расписание уроков',
-                  title: '📅 АйДаУмничка: Назначен урок!',
-                  body: `${teacher}: ${topic}${timeStr}`,
-                  url: l.room_token ? `/room/${l.room_token}` : `/${publicId}`,
-                  iconBg: 'bg-[#EFF6FF]',
-                  iconColor: 'text-[#2563EB]',
-                },
-                `lesson-${l.id}`
-              );
-            }
-          }
-        }
-      } catch (err) {
-        console.warn('Catch-up check error:', err);
-      }
-    };
-
-    checkRecentUpdates();
-    const handleVisChange = () => {
-      if (document.visibilityState === 'visible') {
-        checkRecentUpdates();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisChange);
-    window.addEventListener('focus', handleVisChange);
-    const poller = setInterval(checkRecentUpdates, 12000);
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisChange);
-      window.removeEventListener('focus', handleVisChange);
-      clearInterval(poller);
-    };
-  }, [pathname]);
-
-  const handleNavigateAlert = (url: string) => {
-    setActiveAlert(null);
-    if (url.startsWith('/')) {
-      router.push(url);
-    } else {
-      window.location.href = url;
-    }
-  };
-
   return (
     <>
-      {/* 1. Floating In-App Toast Alert (Modern, Animated, Clickable) */}
-      {activeAlert && (
-        <div className="fixed top-4 left-4 right-4 sm:left-auto sm:right-6 sm:max-w-md z-[9999] animate-in slide-in-from-top-4 fade-in duration-300">
-          <div className="bg-white/95 backdrop-blur-md border border-[#F2DECE] rounded-2xl p-3.5 shadow-2xl shadow-orange-950/15 flex items-start gap-3">
-            <div
-              className={`w-10 h-10 rounded-xl ${activeAlert.iconBg} ${activeAlert.iconColor} flex items-center justify-center shrink-0 border border-black/5 shadow-2xs`}
-            >
-              {activeAlert.type === 'message' && <MessageCircle className="w-5 h-5" />}
-              {activeAlert.type === 'lesson' && <Calendar className="w-5 h-5" />}
-              {activeAlert.type === 'live' && <Video className="w-5 h-5 animate-pulse" />}
-              {activeAlert.type === 'homework' && <BookOpen className="w-5 h-5" />}
-            </div>
-
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-2 mb-0.5">
-                <span className="text-[10px] font-black uppercase tracking-wider text-[#A06132]">
-                  {activeAlert.category}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setActiveAlert(null)}
-                  className="text-[#8A95A8] hover:text-[#161F38] p-0.5 rounded cursor-pointer"
-                  title="Закрыть"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
-              <h4 className="font-black text-xs text-[#161F38] leading-tight truncate">
-                {activeAlert.title}
-              </h4>
-              <p className="text-[11px] text-[#6B758E] leading-relaxed line-clamp-2 mt-0.5">
-                {activeAlert.body}
-              </p>
-
-              <div className="mt-2 flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleNavigateAlert(activeAlert.url)}
-                  className="inline-flex items-center gap-1.5 bg-coralAccent hover:bg-coralAccent-hover text-white text-xs font-bold px-3 py-1 rounded-full shadow-xs active:scale-95 transition-all cursor-pointer"
-                >
-                  <span>Открыть</span>
-                  <ExternalLink className="w-3 h-3" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveAlert(null)}
-                  className="text-xs text-[#8A95A8] hover:text-[#161F38] px-2 py-1 transition-colors cursor-pointer"
-                >
-                  Скрыть
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 2. Toast confirmation when permission granted */}
+      {/* Toast confirmation when permission granted */}
       {justEnabled && (
         <div className="fixed bottom-5 right-5 z-[9999] bg-[#161F38] text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs animate-in slide-in-from-bottom-3 duration-200">
           <div className="w-6 h-6 rounded-full bg-[#5C8519] flex items-center justify-center shrink-0">
