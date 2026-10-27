@@ -48,6 +48,16 @@ export class MessengerController {
       const body = await req.json();
       const effectiveSenderPublicId = (!auth.isAdmin && cookieUserId) ? cookieUserId : (body.senderPublicId || cookieUserId);
 
+      // Action: mark conversation messages as read
+      if (body.action === 'mark_read') {
+        const markResult = await MessengerService.markConversationRead({
+          conversationId: body.conversationId,
+          userId: body.userId,
+          userPublicId: effectiveSenderPublicId,
+        });
+        return apiSuccess(markResult, 200);
+      }
+
       const result = await MessengerService.sendMessage({
         ...body,
         senderPublicId: effectiveSenderPublicId,

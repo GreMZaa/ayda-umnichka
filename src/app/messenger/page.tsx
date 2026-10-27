@@ -32,6 +32,8 @@ import {
   Edit3,
   Loader2,
   ArrowRight,
+  ArrowLeft,
+  RefreshCw,
   LogOut,
   User,
   ShieldCheck,
@@ -100,6 +102,7 @@ export default function MessengerPage() {
   const [playingAudio, setPlayingAudio] = useState<{
     id: string;
     title: string;
+    url: string;
     duration: string;
     speed: number;
     isPlaying: boolean;
@@ -157,9 +160,15 @@ export default function MessengerPage() {
             window.dispatchEvent(new Event('aida-user-updated'));
           } catch (_) {}
         }
-        setConversations(data.conversations || []);
+        const updatedConvs = (data.conversations || []).map((c: Conversation) => {
+          if (activeConvId && c.id === activeConvId) {
+            return { ...c, unreadCount: 0 };
+          }
+          return c;
+        });
+        setConversations(updatedConvs);
 
-        // Only select initial conversation once; NEVER override user selection during polling!
+        // Only select initial conversation IF explicitly specified by chatWith in URL; NEVER auto-open the first chat!
         if (!initialChatSelectedRef.current && data.conversations?.length > 0) {
           let chatWithTarget = '';
           if (typeof window !== 'undefined') {
@@ -174,20 +183,13 @@ export default function MessengerPage() {
             if (targetConv) {
               setActiveConvId(targetConv.id);
               initialChatSelectedRef.current = true;
-              // Clean up chatWith parameter so it doesn't persist or re-lock on future actions
               if (typeof window !== 'undefined') {
                 const sp = new URLSearchParams(window.location.search);
                 sp.delete('chatWith');
                 const cleanQuery = sp.toString();
                 window.history.replaceState(null, '', `/messenger${cleanQuery ? '?' + cleanQuery : ''}`);
               }
-            } else if (!activeConvId) {
-              setActiveConvId(data.conversations[0].id);
-              initialChatSelectedRef.current = true;
             }
-          } else if (!activeConvId) {
-            setActiveConvId(data.conversations[0].id);
-            initialChatSelectedRef.current = true;
           }
         }
       }
@@ -310,6 +312,65 @@ export default function MessengerPage() {
   const activeConversation = conversations.find((c) => c.id === activeConvId);
 
   // 3. Filtered conversations
+  // Audio element sync with playingAudio state
+  useEffect(() => {
+    if (!audioPlayerRef.current) return;
+    if (playingAudio?.url) {
+      if (audioPlayerRef.current.src !== playingAudio.url) {
+        audioPlayerRef.current.src = playingAudio.url;
+      }
+      audioPlayerRef.current.playbackRate = playingAudio.speed || 1;
+      if (playingAudio.isPlaying) {
+        audioPlayerRef.current.play().catch(() => {});
+      } else {
+        audioPlayerRef.current.pause();
+      }
+    } else {
+      audioPlayerRef.current.pause();
+    }
+  }, [playingAudio?.url, playingAudio?.isPlaying, playingAudio?.speed]);
+
+  const markAsRead = async (convId: string) => {
+    if (!convId) return;
+    try {
+      await fetch('/api/messenger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'mark_read',
+          conversationId: convId,
+          userId: currentUser?.id,
+          senderPublicId: currentPublicId,
+        }),
+      });
+      window.dispatchEvent(new Event('aida-user-updated'));
+    } catch (err) {
+      console.warn('Failed to mark conversation read:', err);
+    }
+  };
+
+  const handleSelectConversation = (convId: string) => {
+    setActiveConvId(convId);
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.id === convId
+          ? {
+              ...c,
+              unreadCount: 0,
+              messages: c.messages.map((m) => ({ ...m, is_read: true })),
+            }
+          : c
+      )
+    );
+    markAsRead(convId);
+  };
+
+  useEffect(() => {
+    if (activeConvId) {
+      markAsRead(activeConvId);
+    }
+  }, [activeConvId]);
+
   const filteredConversations = conversations.filter((c) => {
     // Search query filter
     const matchesSearch =
@@ -319,10 +380,6 @@ export default function MessengerPage() {
 
     // Unread only toggle
     if (onlyUnread && c.unreadCount === 0) return false;
-
-    // Tab filter: Все / Ученики / Педагоги
-    if (activeTab === 'students') return c.contact.role === 'student';
-    if (activeTab === 'teachers') return c.contact.role === 'teacher' || c.contact.role === 'admin';
     return true;
   });
 
@@ -424,13 +481,30 @@ export default function MessengerPage() {
   // 5. Real MediaRecorder Voice Recording (Telegram & VK style)
   const startRecordingVoice = async () => {
     try {
+      if (!navigator?.mediaDevices?.getUserMedia) {
+        alert('Ваш браузер не поддерживает запись аудио с микрофона.');
+        return;
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioChunksRef.current = [];
-      const recorder = new MediaRecorder(stream);
+
+      let options: MediaRecorderOptions = {};
+      if (typeof MediaRecorder !== 'undefined') {
+        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+          options = { mimeType: 'audio/webm;codecs=opus' };
+        } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+          options = { mimeType: 'audio/webm' };
+        } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+          options = { mimeType: 'audio/mp4' };
+        }
+      }
+
+      const recorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = recorder;
 
       recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+        if (e.data && e.data.size > 0) audioChunksRef.current.push(e.data);
       };
 
       recorder.start(100);
@@ -471,20 +545,22 @@ export default function MessengerPage() {
     recorder.onstop = async () => {
       try {
         recorder.stream.getTracks().forEach((t) => t.stop());
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const mimeType = recorder.mimeType || 'audio/webm';
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
         if (audioBlob.size === 0) return;
 
         setIsSending(true);
 
-        // Upload recorded audio file
+        const ext = mimeType.includes('mp4') ? 'mp4' : mimeType.includes('ogg') ? 'ogg' : 'webm';
         const fd = new FormData();
-        fd.append('file', audioBlob, `voice_${Date.now()}.webm`);
+        fd.append('file', audioBlob, `voice_${Date.now()}.${ext}`);
+
         const upRes = await fetch('/api/room/upload', {
           method: 'POST',
           body: fd,
         });
         const upData = await upRes.json();
-        const fileUrl = upData.url || null;
+        const fileUrl = upData?.url || null;
 
         const tempId = `voice_${Date.now()}`;
         const newMsg: Message = {
@@ -493,7 +569,7 @@ export default function MessengerPage() {
           sender_id: currentUser?.id || 'c51ef5b0-3bc0-456f-bd31-7dbba439846c',
           text: `🎙 Голосовое сообщение (${durationSec || 1} сек.)`,
           file_url: fileUrl,
-          file_type: 'audio/webm',
+          file_type: mimeType,
           voice_duration_sec: durationSec || 1,
           is_read: false,
           created_at: new Date().toISOString(),
@@ -520,7 +596,7 @@ export default function MessengerPage() {
             conversationId: activeConvId,
             text: `🎙 Голосовое сообщение (${durationSec || 1} сек.)`,
             fileUrl,
-            fileType: 'audio/webm',
+            fileType: mimeType,
             senderId: currentUser?.id,
             senderPublicId: currentUser?.publicId,
             senderRole: currentUser?.role,
@@ -592,8 +668,24 @@ export default function MessengerPage() {
     router.push(`/room/${roomToken}?role=${roleParam}`);
   };
 
+  const returnLkUrl =
+    currentUser?.role === 'teacher'
+      ? `/teacher?id=${encodeURIComponent(currentUser.publicId || currentPublicId)}`
+      : currentUser?.role === 'admin'
+      ? '/admin'
+      : (currentUser?.publicId || currentPublicId)
+      ? `/${encodeURIComponent(currentUser?.publicId || currentPublicId)}`
+      : '/';
+
   return (
     <div className="flex-1 w-full h-[calc(100dvh-5rem)] min-h-[560px] bg-[#FFF7EE] flex flex-col overflow-hidden select-none">
+      {/* Hidden audio element for voice message playback */}
+      <audio
+        ref={audioPlayerRef}
+        onEnded={() => setPlayingAudio((p) => (p ? { ...p, isPlaying: false } : null))}
+        className="hidden"
+      />
+
       {/* Telegram-style 2-Column Messenger Layout with warm Ayda-Umnichka brand colors */}
       <div className="flex-1 w-full max-w-7xl mx-auto my-0 sm:my-3 lg:my-4 bg-white sm:rounded-[32px] sm:border border-[#F2DECE] shadow-lg flex overflow-hidden">
         
@@ -603,22 +695,32 @@ export default function MessengerPage() {
             activeConvId ? 'hidden sm:flex' : 'flex'
           }`}
         >
-          {/* 1. Sidebar Header (Burger removed as requested) */}
+          {/* 1. Sidebar Header with Back to LK button */}
           <div className="p-3.5 sm:p-4 bg-white border-b border-[#F2DECE] flex items-center justify-between gap-2 shrink-0">
-            <div className="flex items-center gap-3">
-              <div>
-                <h1 className="font-black text-lg text-[#161F38] tracking-tight leading-tight">
+            <div className="flex items-center gap-2 min-w-0">
+              {/* Back to LK button */}
+              <Link
+                href={returnLkUrl}
+                className="p-1.5 -ml-1 text-[#6B758E] hover:text-[#161F38] hover:bg-[#FFF2E6] rounded-xl transition-all cursor-pointer flex items-center gap-1 group shrink-0"
+                title="Вернуться в личный кабинет"
+              >
+                <ArrowLeft className="w-4 h-4 text-coralAccent group-hover:-translate-x-0.5 transition-transform" />
+                <span className="text-xs font-black hidden md:inline">В кабинет</span>
+              </Link>
+
+              <div className="min-w-0">
+                <h1 className="font-black text-base sm:text-lg text-[#161F38] tracking-tight leading-tight truncate">
                   Мессенджер
                 </h1>
                 {(currentUser?.publicId || currentPublicId) && (
-                  <span className="text-[10px] bg-[#FFF0E2] text-coralAccent border border-[#FCDDC7] font-extrabold px-2 py-0.5 rounded-full inline-block mt-0.5 shadow-2xs">
+                  <span className="text-[10px] bg-[#FFF0E2] text-coralAccent border border-[#FCDDC7] font-extrabold px-2 py-0.2 rounded-full inline-block shadow-2xs">
                     ★ ID: {currentUser?.publicId || currentPublicId}
                   </span>
                 )}
               </div>
             </div>
 
-            {/* Quick Actions (Call room & New chat) */}
+            {/* Quick Actions (Call room & Refresh) */}
             <div className="flex items-center gap-1">
               <button
                 type="button"
@@ -634,7 +736,7 @@ export default function MessengerPage() {
                 className="p-2 text-[#6B758E] hover:text-[#161F38] hover:bg-[#FFF7EE] rounded-full transition-colors cursor-pointer"
                 title="Обновить диалоги"
               >
-                <Sparkles className="w-4 h-4 text-[#FF6B4A]" />
+                <RefreshCw className={`w-4 h-4 text-[#FF6B4A] ${isLoading ? 'animate-spin' : ''}`} />
               </button>
             </div>
           </div>
@@ -662,44 +764,7 @@ export default function MessengerPage() {
             </div>
           </div>
 
-          {/* 3. Filter Tabs: Все / Ученики / Педагоги (Поддержка and Settings button removed) */}
-          <div className="px-3 pt-2 pb-1.5 bg-white border-b border-[#F2DECE] flex items-center gap-1 shrink-0 text-xs font-black overflow-x-auto no-scrollbar">
-            <button
-              type="button"
-              onClick={() => setActiveTab('all')}
-              className={`px-3.5 py-1.5 rounded-full transition-all cursor-pointer ${
-                activeTab === 'all'
-                  ? 'bg-[#161F38] text-white shadow-xs'
-                  : 'text-[#6B758E] hover:bg-[#FFF7EE] hover:text-[#161F38]'
-              }`}
-            >
-              Все
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('students')}
-              className={`px-3.5 py-1.5 rounded-full transition-all cursor-pointer ${
-                activeTab === 'students'
-                  ? 'bg-[#161F38] text-white shadow-xs'
-                  : 'text-[#6B758E] hover:bg-[#FFF7EE] hover:text-[#161F38]'
-              }`}
-            >
-              Ученики
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('teachers')}
-              className={`px-3.5 py-1.5 rounded-full transition-all cursor-pointer ${
-                activeTab === 'teachers'
-                  ? 'bg-[#161F38] text-white shadow-xs'
-                  : 'text-[#6B758E] hover:bg-[#FFF7EE] hover:text-[#161F38]'
-              }`}
-            >
-              Педагоги
-            </button>
-          </div>
-
-          {/* 4. Conversations List (Clean, Supabase backed, no spam!) */}
+          {/* 3. Conversations List (Clean, Supabase backed, filter buttons removed as requested) */}
           <div className="flex-1 overflow-y-auto divide-y divide-[#F7EBE0] p-1.5 space-y-1">
             {isLoading ? (
               <div className="flex flex-col items-center justify-center p-8 text-center text-xs text-[#8E99AF]">
@@ -721,7 +786,7 @@ export default function MessengerPage() {
                   <button
                     key={conv.id}
                     type="button"
-                    onClick={() => setActiveConvId(conv.id)}
+                    onClick={() => handleSelectConversation(conv.id)}
                     className={`w-full p-2.5 sm:p-3 rounded-2xl text-left transition-all flex items-start gap-3 cursor-pointer group ${
                       isSelected
                         ? 'bg-[#FFF0E6] border border-[#F2DECE] shadow-xs'
@@ -784,7 +849,13 @@ export default function MessengerPage() {
                             {conv.unreadCount}
                           </span>
                         ) : isMe && last ? (
-                          <CheckCheck className="w-3.5 h-3.5 text-[#5C8519] shrink-0" />
+                          <span title={last.is_read ? 'Прочитано собеседником' : 'Доставлено'} className="shrink-0 flex items-center">
+                            {last.is_read ? (
+                              <CheckCheck className="w-3.5 h-3.5 text-[#5C8519]" />
+                            ) : (
+                              <Check className="w-3.5 h-3.5 text-[#8E99AF]" />
+                            )}
+                          </span>
                         ) : null}
                       </div>
                     </div>
@@ -962,20 +1033,32 @@ export default function MessengerPage() {
                           <div className="flex items-center gap-3 py-1 min-w-[220px]">
                             <button
                               type="button"
-                              onClick={() =>
-                                setPlayingAudio({
-                                  id: msg.id,
-                                  title: isMe ? 'Ваше голосовое' : activeConversation.contact.fullName,
-                                  duration: `0:${String(msg.voice_duration_sec || 30).padStart(2, '0')}`,
-                                  speed: 1,
-                                  isPlaying: true,
-                                })
-                              }
-                              className={`w-9 h-9 rounded-full flex items-center justify-center cursor-pointer shadow-xs shrink-0 ${
+                              onClick={() => {
+                                if (!msg.file_url) return;
+                                if (playingAudio?.id === msg.id) {
+                                  setPlayingAudio((prev) =>
+                                    prev ? { ...prev, isPlaying: !prev.isPlaying } : null
+                                  );
+                                } else {
+                                  setPlayingAudio({
+                                    id: msg.id,
+                                    title: isMe ? 'Ваше голосовое' : activeConversation.contact.fullName,
+                                    url: msg.file_url,
+                                    duration: `0:${String(msg.voice_duration_sec || 30).padStart(2, '0')}`,
+                                    speed: 1,
+                                    isPlaying: true,
+                                  });
+                                }
+                              }}
+                              className={`w-9 h-9 rounded-full flex items-center justify-center cursor-pointer shadow-xs shrink-0 transition-transform active:scale-90 ${
                                 isMe ? 'bg-white text-[#FF6B4A]' : 'bg-[#FF6B4A] text-white'
                               }`}
                             >
-                              <Play className="w-4 h-4 ml-0.5" />
+                              {playingAudio?.id === msg.id && playingAudio.isPlaying ? (
+                                <Pause className="w-4 h-4" />
+                              ) : (
+                                <Play className="w-4 h-4 ml-0.5" />
+                              )}
                             </button>
 
                             {/* Simulated Telegram Audio Waveform */}
@@ -984,7 +1067,9 @@ export default function MessengerPage() {
                                 <span
                                   key={i}
                                   style={{ height: `${h}px` }}
-                                  className={`w-1 rounded-full ${isMe ? 'bg-white/70' : 'bg-[#FF6B4A]/60'}`}
+                                  className={`w-1 rounded-full ${isMe ? 'bg-white/70' : 'bg-[#FF6B4A]/60'} ${
+                                    playingAudio?.id === msg.id && playingAudio.isPlaying ? 'animate-pulse' : ''
+                                  }`}
                                 />
                               ))}
                             </div>
@@ -1037,7 +1122,15 @@ export default function MessengerPage() {
                           }`}
                         >
                           <span>{formatMsgTime(msg.created_at)}</span>
-                          {isMe && <CheckCheck className="w-3 h-3 text-white" />}
+                          {isMe && (
+                            <span title={msg.is_read ? 'Прочитано собеседником' : 'Доставлено'} className="shrink-0 flex items-center">
+                              {msg.is_read ? (
+                                <CheckCheck className="w-3.5 h-3.5 text-white/95" />
+                              ) : (
+                                <Check className="w-3.5 h-3.5 text-white/70" />
+                              )}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>

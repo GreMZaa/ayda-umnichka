@@ -337,6 +337,11 @@ export class MessengerService {
       });
     }
 
+    const totalUnreadCount = conversationList.reduce(
+      (acc, c) => acc + (c.unreadCount || 0),
+      0
+    );
+
     return {
       success: true,
       currentUser: {
@@ -346,7 +351,49 @@ export class MessengerService {
         fullName: currentFullName,
       },
       conversations: conversationList,
+      totalUnreadCount,
     };
+  }
+
+  static async markConversationRead(params: {
+    conversationId: string;
+    userId?: string;
+    userPublicId?: string;
+  }) {
+    const { conversationId, userId, userPublicId } = params;
+    if (!conversationId || !isUuid(conversationId)) {
+      return { success: false, updatedCount: 0 };
+    }
+
+    let effectiveUserId = userId;
+    if (!effectiveUserId || !isUuid(effectiveUserId)) {
+      if (userPublicId) {
+        const { data: b } = await supabaseServer
+          .from('user_bindings')
+          .select('auth_user_id, id')
+          .eq('public_id', userPublicId)
+          .maybeSingle();
+        if (b) effectiveUserId = b.auth_user_id || b.id;
+      }
+    }
+
+    let query = supabaseServer
+      .from('messages')
+      .update({ is_read: true })
+      .eq('conversation_id', conversationId)
+      .eq('is_read', false);
+
+    if (effectiveUserId && isUuid(effectiveUserId)) {
+      query = query.neq('sender_id', effectiveUserId);
+    }
+
+    const { error, count } = await query;
+    if (error) {
+      console.warn('Error marking messages as read:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, updatedCount: count ?? 0 };
   }
 
   static async sendMessage(body: {

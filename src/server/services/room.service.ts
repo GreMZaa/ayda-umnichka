@@ -47,7 +47,7 @@ export class RoomService {
 
     const { data: lesson, error: fetchError } = await supabaseServer
       .from('lessons')
-      .select('id, room_token, teacher_summary')
+      .select('id, room_token, teacher_summary, teacher_id, student_public_id')
       .eq('room_token', roomToken)
       .maybeSingle();
 
@@ -99,6 +99,70 @@ export class RoomService {
         console.error('Error creating lesson for message insert:', insertError);
         throw new AppError(insertError.message, 500);
       }
+    }
+
+    // PS: Synchronize message from lesson room into main messenger conversation
+    try {
+      if (lesson?.student_public_id && lesson?.teacher_id) {
+        const { data: stBinding } = await supabaseServer
+          .from('user_bindings')
+          .select('auth_user_id, id')
+          .eq('public_id', lesson.student_public_id)
+          .maybeSingle();
+
+        const studentUuid = stBinding?.auth_user_id || stBinding?.id;
+        let teacherUuid = lesson.teacher_id;
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(teacherUuid)) {
+          const { data: tBinding } = await supabaseServer
+            .from('user_bindings')
+            .select('auth_user_id, id')
+            .eq('public_id', teacherUuid)
+            .maybeSingle();
+          if (tBinding) teacherUuid = tBinding.auth_user_id || tBinding.id;
+        }
+
+        if (studentUuid && teacherUuid) {
+          let { data: conv } = await supabaseServer
+            .from('conversations')
+            .select('id')
+            .or(`and(student_id.eq.${studentUuid},teacher_id.eq.${teacherUuid}),and(student_id.eq.${teacherUuid},teacher_id.eq.${studentUuid})`)
+            .maybeSingle();
+
+          if (!conv) {
+            const { data: newConv } = await supabaseServer
+              .from('conversations')
+              .insert({
+                student_id: studentUuid,
+                teacher_id: teacherUuid,
+                last_message_at: new Date().toISOString(),
+              })
+              .select('id')
+              .maybeSingle();
+            conv = newConv;
+          }
+
+          if (conv?.id) {
+            const isTeacherSender = message.senderRole === 'teacher';
+            const senderId = isTeacherSender ? teacherUuid : studentUuid;
+
+            await supabaseServer.from('messages').insert({
+              conversation_id: conv.id,
+              sender_id: senderId,
+              text: message.text || (message.attachment?.name ? `Прикреплен файл: ${message.attachment.name}` : 'Сообщение с урока'),
+              file_url: message.attachment?.url || null,
+              file_type: message.attachment?.type || null,
+              is_read: false,
+            });
+
+            await supabaseServer
+              .from('conversations')
+              .update({ last_message_at: new Date().toISOString() })
+              .eq('id', conv.id);
+          }
+        }
+      }
+    } catch (syncErr) {
+      console.warn('Could not sync lesson room message to messenger:', syncErr);
     }
 
     return { success: true, message };
