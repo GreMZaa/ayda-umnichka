@@ -33,6 +33,13 @@ import {
   LayoutGrid,
   CheckCircle2,
   AlertCircle,
+  Activity,
+  Copy,
+  Check,
+  Wrench,
+  HelpCircle,
+  Info,
+  ShieldAlert,
 } from 'lucide-react';
 import { broadcastPlatformEvent } from '@/lib/platformNotifications';
 import { formatTime } from '@/lib/utils';
@@ -249,6 +256,52 @@ export default function VideoCall({
   // WebRTC Audio element & playback unlock states
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const [isAudioAutoplayBlocked, setIsAudioAutoplayBlocked] = useState(false);
+
+  // Diagnostic Logs & Real-time Breakdown Alerts
+  const [diagnosticLogs, setDiagnosticLogs] = useState<
+    Array<{ id: string; time: string; level: 'info' | 'warn' | 'error' | 'success'; message: string; detail?: string }>
+  >([]);
+  const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
+  const [copiedLogSuccess, setCopiedLogSuccess] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [microphoneError, setMicrophoneError] = useState<string | null>(null);
+  const [currentIceState, setCurrentIceState] = useState<string>('new');
+  const [currentSignalingStatus, setCurrentSignalingStatus] = useState<'connecting' | 'connected' | 'error'>('connecting');
+  const [dismissedAlertKey, setDismissedAlertKey] = useState<string | null>(null);
+
+  const addLog = (level: 'info' | 'warn' | 'error' | 'success', message: string, detail?: any) => {
+    const timeStr =
+      new Date().toLocaleTimeString('ru-RU', { hour12: false }) +
+      '.' +
+      String(new Date().getMilliseconds()).padStart(3, '0');
+    const detailStr = detail ? (typeof detail === 'object' ? JSON.stringify(detail) : String(detail)) : undefined;
+    setDiagnosticLogs((prev) => [
+      { id: Math.random().toString(36).slice(2, 9), time: timeStr, level, message, detail: detailStr },
+      ...prev.slice(0, 49),
+    ]);
+  };
+
+  // Global error listener to capture any unhandled exceptions on device
+  useEffect(() => {
+    const handleGlobalError = (event: ErrorEvent) => {
+      addLog(
+        'error',
+        `Сбой в JS: ${event.message}`,
+        event.filename ? `${event.filename}:${event.lineno}` : undefined
+      );
+    };
+    const handleRejection = (event: PromiseRejectionEvent) => {
+      const reason = event.reason;
+      const msg = reason?.message || String(reason);
+      addLog('error', `Необработанная ошибка (Promise): ${msg}`, reason?.stack);
+    };
+    window.addEventListener('error', handleGlobalError);
+    window.addEventListener('unhandledrejection', handleRejection);
+    return () => {
+      window.removeEventListener('error', handleGlobalError);
+      window.removeEventListener('unhandledrejection', handleRejection);
+    };
+  }, []);
 
   // Sync deafen state to remote audio & video tracks
   useEffect(() => {
@@ -622,6 +675,7 @@ export default function VideoCall({
     // Handle remote tracks (audio & video from student or teacher)
     pc.ontrack = (event) => {
       console.log('[WebRTC] Received remote track:', event.track.kind, event.track.id);
+      addLog('success', `Получен удаленный медиа-трек: ${event.track.kind}`);
       const incomingStream = event.streams && event.streams[0] ? event.streams[0] : (remoteStreamRef.current || new MediaStream());
       if (!incomingStream.getTracks().some((t) => t.id === event.track.id)) {
         incomingStream.addTrack(event.track);
@@ -646,6 +700,7 @@ export default function VideoCall({
           .catch((err) => {
             console.warn('[WebRTC] Remote audio autoPlay blocked:', err);
             setIsAudioAutoplayBlocked(true);
+            addLog('warn', 'Звук собеседника заглушен браузером (требуется нажатие на экран)');
           });
       }
 
@@ -661,6 +716,7 @@ export default function VideoCall({
       // 3. Listen to unmute (first actual data packets received over network)
       event.track.onunmute = () => {
         console.log('[WebRTC] Remote track unmuted (media flowing):', event.track.kind);
+        addLog('success', `Медиа-поток ${event.track.kind} активен (данные идут)`);
         setHasRemoteStream(true);
         setConnectionStatus('connected');
         if (remoteVideoRef.current) {
@@ -700,6 +756,10 @@ export default function VideoCall({
 
     pc.onconnectionstatechange = () => {
       console.log('[WebRTC] Connection state change:', pc.connectionState);
+      addLog(
+        pc.connectionState === 'connected' ? 'success' : pc.connectionState === 'failed' ? 'error' : 'info',
+        `WebRTC соединение: ${pc.connectionState}`
+      );
       if (pc.connectionState === 'connected') {
         setConnectionStatus('connected');
         setHasRemoteStream(true);
@@ -707,8 +767,10 @@ export default function VideoCall({
         setConnectionStatus('connecting');
       } else if (pc.connectionState === 'disconnected') {
         console.warn('[WebRTC] Connection disconnected, waiting for reconnection...');
+        addLog('warn', 'WebRTC соединение отключилось, ожидание переподключения...');
       } else if (pc.connectionState === 'failed') {
         console.warn('[WebRTC] Connection failed, attempting ICE restart...');
+        addLog('error', 'Сбой WebRTC соединения (failed), попытка ICE restart...');
         if (typeof (pc as any).restartIce === 'function') {
           try {
             (pc as any).restartIce();
@@ -719,11 +781,21 @@ export default function VideoCall({
 
     pc.oniceconnectionstatechange = () => {
       console.log('[WebRTC] ICE connection state:', pc.iceConnectionState);
+      setCurrentIceState(pc.iceConnectionState);
+      addLog(
+        pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed'
+          ? 'success'
+          : pc.iceConnectionState === 'failed'
+          ? 'error'
+          : 'info',
+        `ICE статус (P2P): ${pc.iceConnectionState}`
+      );
       if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
         setConnectionStatus('connected');
         setHasRemoteStream(true);
       } else if (pc.iceConnectionState === 'failed') {
         console.warn('[WebRTC] ICE failed across direct route, attempting ICE restart...');
+        addLog('error', 'Сбой ICE (P2P маршрут не найден), попытка перезапуска...');
         if (typeof (pc as any).restartIce === 'function') {
           try {
             (pc as any).restartIce();
@@ -741,6 +813,7 @@ export default function VideoCall({
       if (isNegotiatingRef.current || pc.signalingState !== 'stable') return;
       isNegotiatingRef.current = true;
       console.log('[WebRTC] Creating SDP offer...');
+      addLog('info', 'Формирование и отправка WebRTC Offer...');
       const offer = await pc.createOffer({
         offerToReceiveAudio: true,
         offerToReceiveVideo: true,
@@ -762,9 +835,11 @@ export default function VideoCall({
           },
         });
         console.log('[WebRTC] SDP offer sent with embedded candidates');
+        addLog('success', 'WebRTC Offer успешно отправлен собеседнику');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.warn('[WebRTC] Error creating offer:', err);
+      addLog('error', 'Сбой формирования WebRTC Offer', err?.message || String(err));
     } finally {
       isNegotiatingRef.current = false;
     }
@@ -774,6 +849,7 @@ export default function VideoCall({
   const handleRemoteOffer = async (sdp: RTCSessionDescriptionInit, stream: MediaStream) => {
     try {
       console.log('[WebRTC] Handling remote offer...');
+      addLog('info', 'Получен WebRTC Offer, формирование ответа (Answer)...');
       const pc = getOrCreatePeerConnection(stream);
       if (pc.signalingState !== 'stable') {
         console.log('[WebRTC] Handling offer collision in state:', pc.signalingState);
@@ -815,9 +891,11 @@ export default function VideoCall({
           },
         });
         console.log('[WebRTC] SDP answer sent with embedded candidates');
+        addLog('success', 'WebRTC Answer отправлен собеседнику');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.warn('[WebRTC] Error handling offer:', err);
+      addLog('error', 'Сбой обработки WebRTC Offer', err?.message || String(err));
     }
   };
 
@@ -831,6 +909,7 @@ export default function VideoCall({
         return;
       }
       await pcRef.current.setRemoteDescription(new RTCSessionDescription(sdp));
+      addLog('success', 'Получен и применён WebRTC Answer от собеседника');
 
       // Flush queued ICE candidates
       while (candidateQueueRef.current.length > 0) {
@@ -841,9 +920,75 @@ export default function VideoCall({
           } catch (_) {}
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.warn('[WebRTC] Error handling answer:', err);
+      addLog('error', 'Сбой обработки WebRTC Answer', err?.message || String(err));
     }
+  };
+
+  // Manual reset & re-negotiation of WebRTC connection
+  const handleRestartCall = async () => {
+    addLog('warn', 'Инициирован ручной перезапуск видеосвязи...');
+    resetPeerConnection();
+    setHasRemoteStream(false);
+    setConnectionStatus('connecting');
+    setCurrentIceState('new');
+    try {
+      const stream = await ensureLocalStream();
+      if (stream && channelRef.current) {
+        const pc = getOrCreatePeerConnection(stream);
+        await createAndSendOffer(pc);
+        addLog('info', 'Новый WebRTC Offer сформирован после перезапуска');
+      }
+    } catch (err: any) {
+      addLog('error', 'Ошибка при перезапуске видеосвязи', err?.message || String(err));
+    }
+  };
+
+  // Copy structured diagnostic report for technical support / developer
+  const copyDiagnosticReport = () => {
+    const report = [
+      `=== ОТЧЕТ ДИАГНОСТИКИ СВЯЗИ АЙДАУМНИЧКА ===`,
+      `Время отчета: ${new Date().toISOString()}`,
+      `Комната: ${roomToken}`,
+      `Роль: ${isTeacher ? 'Учитель' : 'Ученик'} (${resolvedParticipantName})`,
+      `Устройство: ${typeof navigator !== 'undefined' ? navigator.userAgent : 'Unknown'}`,
+      `Экран: ${typeof window !== 'undefined' ? `${window.innerWidth}x${window.innerHeight}` : 'N/A'}`,
+      `--- СТАТУСЫ СЕТИ И МЕДИА ---`,
+      `Сигналинг Supabase: ${currentSignalingStatus}`,
+      `Собеседник в сети: ${isPeerInRoom ? 'ДА' : 'НЕТ'}`,
+      `Удаленный стрим: ${hasRemoteStream ? 'ПОЛУЧЕН' : 'НЕТ'}`,
+      `WebRTC Connection State: ${pcRef.current?.connectionState || 'null'}`,
+      `WebRTC ICE State: ${pcRef.current?.iceConnectionState || currentIceState}`,
+      `WebRTC Signaling State: ${pcRef.current?.signalingState || 'null'}`,
+      `Локальная камера: ${camActive ? 'ВКЛ' : 'ВЫКЛ'} (ошибка: ${cameraError || 'нет'})`,
+      `Локальный микрофон: ${micActive ? 'ВКЛ' : 'ВЫКЛ'} (ошибка: ${microphoneError || 'нет'})`,
+      `Звук заблокирован iOS: ${isAudioAutoplayBlocked ? 'ДА (требуется нажатие)' : 'НЕТ'}`,
+      `Локальные треки: ${
+        streamRef.current
+          ?.getTracks()
+          .map((t) => `${t.kind}:${t.enabled ? 'live' : 'disabled'}`)
+          .join(', ') || 'нет'
+      }`,
+      `Удаленные треки: ${
+        remoteStreamRef.current
+          ?.getTracks()
+          .map((t) => `${t.kind}:${t.enabled ? 'live' : 'disabled'}`)
+          .join(', ') || 'нет'
+      }`,
+      `--- ЖУРНАЛ СОБЫТИЙ (ПОСЛЕДНИЕ ${diagnosticLogs.length}) ---`,
+      ...diagnosticLogs.map(
+        (l) => `[${l.time}] [${l.level.toUpperCase()}] ${l.message}${l.detail ? ` (${l.detail})` : ''}`
+      ),
+    ].join('\n');
+
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        navigator.clipboard.writeText(report);
+        setCopiedLogSuccess(true);
+        setTimeout(() => setCopiedLogSuccess(false), 3000);
+      }
+    } catch (_) {}
   };
 
   // Handle incoming ICE candidate
@@ -875,6 +1020,8 @@ export default function VideoCall({
       const isMobile =
         typeof window !== 'undefined' &&
         (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth < 768);
+
+      addLog('info', `Запрос камеры и микрофона (${isMobile ? 'мобильный' : 'ПК'})...`);
 
       // 1. Try mobile-friendly or ideal constraints
       try {
@@ -935,10 +1082,21 @@ export default function VideoCall({
       if (!acquiredVideo || stream.getVideoTracks().length === 0) {
         const dummyV = createDummyVideoTrack();
         if (dummyV) stream.addTrack(dummyV);
+        setCameraError('Видеопоток недоступен (камера выключена или заблокирована)');
+        addLog('warn', 'Видеопоток недоступен, создана виртуальная видео-заглушка');
+      } else {
+        setCameraError(null);
+        addLog('success', 'Локальная камера успешно активирована');
       }
+
       if (!acquiredAudio || stream.getAudioTracks().length === 0) {
         const silentA = createSilentAudioTrack();
         if (silentA) stream.addTrack(silentA);
+        setMicrophoneError('Микрофон недоступен');
+        addLog('warn', 'Микрофон недоступен, создан беззвучный аудио-трек');
+      } else {
+        setMicrophoneError(null);
+        addLog('success', 'Локальный микрофон успешно активирован');
       }
 
       // Preserve current microphone and camera states
@@ -996,8 +1154,18 @@ export default function VideoCall({
       }
 
       return stream;
-    } catch (err) {
+    } catch (err: any) {
       console.warn('WebRTC camera preview error:', err);
+      let errMsg = 'Сбой доступа к камере или микрофону';
+      if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
+        errMsg = 'Доступ к камере заблокирован в настройках браузера';
+      } else if (err?.name === 'NotFoundError' || err?.name === 'DevicesNotFoundError') {
+        errMsg = 'Камера или микрофон не найдены на устройстве';
+      } else if (err?.name === 'NotReadableError' || err?.name === 'TrackStartError') {
+        errMsg = 'Камера занята другим приложением (Telegram/Zoom)';
+      }
+      setCameraError(errMsg);
+      addLog('error', errMsg, err?.message || String(err));
       const fallbackStream = new MediaStream();
       const dummyV = createDummyVideoTrack();
       const silentA = createSilentAudioTrack();
@@ -1069,6 +1237,10 @@ export default function VideoCall({
         if (payload?.senderId === myPeerIdRef.current) return;
         console.log('[WebRTC] Peer joined room:', payload);
         setIsPeerInRoom(true);
+        addLog(
+          'success',
+          `Собеседник вошел в комнату: ${payload?.userName || 'Участник'} (${payload?.isTeacher ? 'Учитель' : 'Ученик'})`
+        );
 
         // Sync timer start with peer if available
         syncTimerWithTimestamp(payload?.startedAt);
@@ -1129,6 +1301,7 @@ export default function VideoCall({
         if (payload?.senderId === myPeerIdRef.current) return;
         console.log('[WebRTC] Peer is already in room (user-here):', payload);
         setIsPeerInRoom(true);
+        addLog('success', `Собеседник уже в комнате: ${payload?.userName || 'Участник'}`);
 
         // Sync timer start with peer if available
         syncTimerWithTimestamp(payload?.startedAt);
@@ -1246,6 +1419,7 @@ export default function VideoCall({
       .on('broadcast', { event: 'user-left' }, ({ payload }) => {
         if (payload?.senderId === myPeerIdRef.current) return;
         console.log('[WebRTC] Peer left room:', payload);
+        addLog('warn', 'Собеседник покинул комнату');
         setIsPeerInRoom(false);
         resetPeerConnection();
         setHasRemoteStream(false);
@@ -1254,6 +1428,8 @@ export default function VideoCall({
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           console.log('[WebRTC] Connected to signaling channel');
+          setCurrentSignalingStatus('connected');
+          addLog('success', 'Подключено к серверу сигналинга Supabase');
           const myLocalName =
             (typeof window !== 'undefined' &&
               (localStorage.getItem('aida_full_name') ||
@@ -1271,6 +1447,9 @@ export default function VideoCall({
               startedAt: timerStartTimeRef.current,
             },
           });
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          setCurrentSignalingStatus('error');
+          addLog('error', `Сбой подключения к серверу сигналинга: ${status}`);
         }
       });
 
@@ -1907,6 +2086,389 @@ export default function VideoCall({
     );
   };
 
+  // Real-time System Breakdown Alert Banner
+  const renderBreakdownAlertBanner = () => {
+    // 1. Camera Error Banner
+    if (cameraError && dismissedAlertKey !== 'camera_err') {
+      return (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-lg bg-rose-950/90 border border-rose-500/50 backdrop-blur-md text-white rounded-2xl p-3 shadow-2xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 select-auto">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="p-2 rounded-xl bg-rose-500/20 text-rose-400 shrink-0">
+              <AlertCircle className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-rose-200">Камера недоступна</p>
+              <p className="text-[11px] text-white/80 truncate">{cameraError}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsDiagnosticsOpen(true)}
+              className="px-2.5 py-1.5 bg-rose-500 hover:bg-rose-600 text-white font-bold text-[11px] rounded-xl transition-all cursor-pointer shadow-sm"
+            >
+              Как починить
+            </button>
+            <button
+              type="button"
+              onClick={() => setDismissedAlertKey('camera_err')}
+              className="p-1 text-white/50 hover:text-white rounded-lg cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // 2. ICE / P2P Connection Failed
+    if (
+      (currentIceState === 'failed' || currentIceState === 'disconnected') &&
+      dismissedAlertKey !== 'ice_err'
+    ) {
+      return (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-lg bg-rose-950/90 border border-rose-500/50 backdrop-blur-md text-white rounded-2xl p-3 shadow-2xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 select-auto">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="p-2 rounded-xl bg-rose-500/20 text-rose-400 shrink-0">
+              <Wifi className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-rose-200">Сбой видеосвязи (P2P сеть)</p>
+              <p className="text-[11px] text-white/80 truncate">
+                Маршрут между устройствами заблокирован сетью или NAT
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={handleRestartCall}
+              className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] rounded-xl transition-all cursor-pointer shadow-sm flex items-center gap-1"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Переподключить</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsDiagnosticsOpen(true)}
+              className="px-2 py-1.5 bg-white/20 hover:bg-white/30 text-white font-bold text-[11px] rounded-xl transition-all cursor-pointer"
+            >
+              Логи
+            </button>
+            <button
+              type="button"
+              onClick={() => setDismissedAlertKey('ice_err')}
+              className="p-1 text-white/50 hover:text-white rounded-lg cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // 3. Audio Autoplay Blocked on iOS
+    if (isAudioAutoplayBlocked && hasRemoteStream && !isDeafened) {
+      return (
+        <div
+          onClick={() => {
+            if (remoteAudioRef.current) {
+              remoteAudioRef.current
+                .play()
+                .then(() => setIsAudioAutoplayBlocked(false))
+                .catch(() => {});
+            }
+          }}
+          className="fixed top-16 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-lg bg-gradient-to-r from-amber-600/95 to-orange-600/95 border border-amber-400/50 backdrop-blur-md text-white rounded-2xl p-3 shadow-2xl flex items-center justify-between gap-3 animate-pulse cursor-pointer select-auto"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="p-2 rounded-xl bg-white/20 text-white shrink-0">
+              <Volume2 className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-amber-100">Звук собеседника заглушен iOS</p>
+              <p className="text-[11px] text-white/90 truncate">
+                Нажмите в любое место экрана, чтобы включить звук собеседника
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="px-3 py-1.5 bg-white text-orange-700 font-extrabold text-[11px] rounded-xl shadow-md shrink-0 cursor-pointer"
+          >
+            Включить звук 🔊
+          </button>
+        </div>
+      );
+    }
+
+    // 4. Signaling Channel Error
+    if (currentSignalingStatus === 'error' && dismissedAlertKey !== 'sig_err') {
+      return (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-lg bg-rose-950/90 border border-rose-500/50 backdrop-blur-md text-white rounded-2xl p-3 shadow-2xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 select-auto">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="p-2 rounded-xl bg-rose-500/20 text-rose-400 shrink-0">
+              <AlertCircle className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-rose-200">Ошибка сервера сигналинга</p>
+              <p className="text-[11px] text-white/80 truncate">Нет связи с сервером Supabase Realtime</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="px-2.5 py-1.5 bg-rose-500 hover:bg-rose-600 text-white font-bold text-[11px] rounded-xl transition-all cursor-pointer shadow-sm"
+            >
+              Обновить
+            </button>
+            <button
+              type="button"
+              onClick={() => setDismissedAlertKey('sig_err')}
+              className="p-1 text-white/50 hover:text-white rounded-lg cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
+  // Full Diagnostics & Log Breakdown Modal
+  const renderDiagnosticsModal = () => {
+    if (!isDiagnosticsOpen) return null;
+
+    let issueSummary = 'Все системы работают штатно';
+    let issueType: 'good' | 'warn' | 'error' = 'good';
+    let fixStep1 = 'Связь активна, критических ошибок не обнаружено.';
+    let fixStep2 = '';
+
+    if (cameraError) {
+      issueType = 'error';
+      issueSummary = 'Камера заблокирована или недоступна';
+      fixStep1 = isIPhone
+        ? 'На iPhone в Safari: нажмите значок «aA» слева в строке адреса сайта -> «Настройки веб-сайта» -> «Камера» поставьте в «Разрешить», затем обновите страницу.'
+        : 'В браузере на ПК: нажмите значок настроек/замка слева от адреса сайта и переключите камеру в положение «Разрешить».';
+      fixStep2 = 'Убедитесь, что камера не используется другим приложением (Telegram, Zoom, Skype).';
+    } else if (currentIceState === 'failed' || currentIceState === 'disconnected') {
+      issueType = 'error';
+      issueSummary = 'Сбой прямого соединения WebRTC (P2P)';
+      fixStep1 = 'Нажмите кнопку «Переподключить связь» ниже для перезапуска соединения.';
+      fixStep2 =
+        'Если связь между странами (РФ — Вьетнам) глушится мобильной сетью: попробуйте переключить Wi-Fi на 4G (или наоборот), либо отключите VPN.';
+    } else if (isAudioAutoplayBlocked) {
+      issueType = 'warn';
+      issueSummary = 'Звук собеседника заблокирован политикой браузера';
+      fixStep1 = 'Политика iOS Safari запрещает воспроизводить звук до первого нажатия на экран.';
+      fixStep2 = 'Нажмите кнопку «Включить звук» или коснитесь экрана.';
+    } else if (!isPeerInRoom) {
+      issueType = 'warn';
+      issueSummary = 'Ожидание входа собеседника в комнату';
+      fixStep1 = `Собеседник (${resolvedParticipantName}) ещё не открыл ссылку на урок.`;
+      fixStep2 = 'Убедитесь, что собеседник зашёл именно в эту комнату.';
+    } else if (isPeerInRoom && !hasRemoteStream) {
+      issueType = 'warn';
+      issueSummary = 'Собеседник в сети, идёт согласование видеосвязи';
+      fixStep1 = 'Оба участника в комнате. Идёт обмен сетевыми кандидатами (ICE).';
+      fixStep2 = 'Если видео не появится в течение 10 секунд — нажмите «Переподключить связь».';
+    }
+
+    return (
+      <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 animate-in fade-in duration-200 select-auto">
+        <div className="w-full max-w-xl max-h-[92vh] bg-[#161F38] border border-white/20 rounded-3xl flex flex-col overflow-hidden shadow-2xl text-white">
+          {/* Header */}
+          <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between shrink-0 bg-white/5">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-blue-500/20 text-blue-400">
+                <Activity className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-base">Диагностика связи и логи</h3>
+                <p className="text-[11px] text-white/60">Отслеживание ошибок и инструкция по устранению</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsDiagnosticsOpen(false)}
+              className="p-2 text-white/60 hover:text-white rounded-full bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Body Content */}
+          <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
+            {/* System Status Indicators (Traffic lights) */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {/* 1. Signaling */}
+              <div className="p-2.5 rounded-2xl bg-white/5 border border-white/10 flex flex-col justify-between">
+                <span className="text-[10px] text-white/50">Сигналинг</span>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      currentSignalingStatus === 'connected' ? 'bg-emerald-400' : 'bg-rose-400 animate-ping'
+                    }`}
+                  />
+                  <span className="font-bold text-[11px] truncate">
+                    {currentSignalingStatus === 'connected' ? 'Подключен' : 'Ошибка'}
+                  </span>
+                </div>
+              </div>
+
+              {/* 2. Peer presence */}
+              <div className="p-2.5 rounded-2xl bg-white/5 border border-white/10 flex flex-col justify-between">
+                <span className="text-[10px] text-white/50">Собеседник</span>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      hasRemoteStream
+                        ? 'bg-emerald-400'
+                        : isPeerInRoom
+                        ? 'bg-amber-400 animate-pulse'
+                        : 'bg-white/30'
+                    }`}
+                  />
+                  <span className="font-bold text-[11px] truncate">
+                    {hasRemoteStream ? 'В звонке' : isPeerInRoom ? 'В сети' : 'Ждем'}
+                  </span>
+                </div>
+              </div>
+
+              {/* 3. ICE P2P */}
+              <div className="p-2.5 rounded-2xl bg-white/5 border border-white/10 flex flex-col justify-between">
+                <span className="text-[10px] text-white/50">P2P Связь (ICE)</span>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      currentIceState === 'connected' || currentIceState === 'completed'
+                        ? 'bg-emerald-400'
+                        : currentIceState === 'failed'
+                        ? 'bg-rose-500 animate-ping'
+                        : 'bg-amber-400'
+                    }`}
+                  />
+                  <span className="font-bold text-[11px] truncate">
+                    {currentIceState || 'new'}
+                  </span>
+                </div>
+              </div>
+
+              {/* 4. Local Cam */}
+              <div className="p-2.5 rounded-2xl bg-white/5 border border-white/10 flex flex-col justify-between">
+                <span className="text-[10px] text-white/50">Ваша камера</span>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      camActive && !cameraError ? 'bg-emerald-400' : cameraError ? 'bg-rose-500' : 'bg-white/30'
+                    }`}
+                  />
+                  <span className="font-bold text-[11px] truncate">
+                    {cameraError ? 'Ошибка' : camActive ? 'Вкл' : 'Выкл'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Diagnosis & How to Fix Card */}
+            <div
+              className={`p-4 rounded-2xl border ${
+                issueType === 'error'
+                  ? 'bg-rose-950/40 border-rose-500/40'
+                  : issueType === 'warn'
+                  ? 'bg-amber-950/40 border-amber-500/40'
+                  : 'bg-emerald-950/40 border-emerald-500/40'
+              }`}
+            >
+              <div className="flex items-center gap-2 mb-2 font-bold text-sm">
+                <Wrench className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>Что случилось и как починить:</span>
+              </div>
+              <p className="font-semibold text-white/95 text-xs mb-1.5">{issueSummary}</p>
+              <div className="space-y-1 text-white/80 text-[11px] leading-relaxed">
+                <p>1. {fixStep1}</p>
+                {fixStep2 && <p>2. {fixStep2}</p>}
+              </div>
+            </div>
+
+            {/* Quick Action Buttons */}
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={handleRestartCall}
+                className="flex-1 min-w-[140px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-transform active:scale-95 cursor-pointer shadow-md"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span>Переподключить связь</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={copyDiagnosticReport}
+                className="flex-1 min-w-[140px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold transition-transform active:scale-95 cursor-pointer border border-white/15"
+              >
+                {copiedLogSuccess ? (
+                  <>
+                    <Check className="w-4 h-4 text-emerald-400" />
+                    <span className="text-emerald-300">Отчет скопирован!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4" />
+                    <span>Скопировать отчет для разработчика</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Live Logs Terminal */}
+            <div className="rounded-2xl bg-black/60 border border-white/10 overflow-hidden">
+              <div className="px-3 py-2 bg-white/5 border-b border-white/10 flex items-center justify-between">
+                <span className="text-[10px] font-mono text-white/60 uppercase tracking-wider">
+                  Журнал событий в реальном времени ({diagnosticLogs.length})
+                </span>
+                <span className="text-[9px] text-white/40">Автообновление</span>
+              </div>
+              <div className="p-3 max-h-48 overflow-y-auto font-mono text-[11px] space-y-1 select-text">
+                {diagnosticLogs.length === 0 ? (
+                  <p className="text-white/40 text-center py-2">Событий пока нет...</p>
+                ) : (
+                  diagnosticLogs.map((log) => (
+                    <div key={log.id} className="flex items-start gap-2 leading-tight">
+                      <span className="text-white/40 shrink-0 text-[10px]">{log.time}</span>
+                      <span
+                        className={`font-semibold shrink-0 ${
+                          log.level === 'error'
+                            ? 'text-rose-400'
+                            : log.level === 'warn'
+                            ? 'text-amber-400'
+                            : log.level === 'success'
+                            ? 'text-emerald-400'
+                            : 'text-blue-300'
+                        }`}
+                      >
+                        [{log.level.toUpperCase()}]
+                      </span>
+                      <span className="text-white/90 break-words flex-1">
+                        {log.message}
+                        {log.detail && (
+                          <span className="text-white/50 block text-[10px] mt-0.5">{log.detail}</span>
+                        )}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // PiP (Picture in Picture) mode when Whiteboard is open — strictly displays the REMOTE participant (student or teacher)
   if (isWhiteboardActive) {
     if (isPipMinimized) {
@@ -2203,6 +2765,7 @@ export default function VideoCall({
           </div>
         </div>
         {renderTeacherEndModal()}
+        {renderDiagnosticsModal()}
       </>
     );
   }
@@ -2228,23 +2791,8 @@ export default function VideoCall({
       />
       {/* VK Calls Layout */}
       <div className="relative w-full h-full min-h-[100dvh] bg-[#FFF7EE] overflow-hidden select-none">
-        {/* Banner if browser autoplay policy blocked sound until interaction */}
-        {isAudioAutoplayBlocked && hasRemoteStream && !isDeafened && (
-          <div
-            onClick={() => {
-              if (remoteAudioRef.current) {
-                remoteAudioRef.current
-                  .play()
-                  .then(() => setIsAudioAutoplayBlocked(false))
-                  .catch(() => {});
-              }
-            }}
-            className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-gradient-to-r from-amber-500 to-rose-500 text-white font-bold text-xs rounded-full flex items-center gap-2 shadow-2xl cursor-pointer animate-pulse active:scale-95"
-          >
-            <Volume2 className="w-4 h-4 shrink-0" />
-            <span>Нажмите, чтобы включить звук собеседника 🔊</span>
-          </div>
-        )}
+        {/* Real-time System Breakdown Alert Banner */}
+        {renderBreakdownAlertBanner()}
 
         {/* Hand Raise Notification Toast */}
         {peerHandNotification && (
@@ -2502,6 +3050,32 @@ export default function VideoCall({
               />
               <span>{formatTime(callDuration)}</span>
             </div>
+
+            {/* Diagnostics & Logs Button */}
+            <button
+              type="button"
+              onClick={() => setIsDiagnosticsOpen(true)}
+              className={`flex items-center gap-1.5 px-3 py-2 sm:py-2.5 rounded-full backdrop-blur-md border text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-lg ${
+                currentIceState === 'failed' || cameraError
+                  ? 'bg-rose-600/80 hover:bg-rose-700/90 border-rose-400 text-white animate-pulse'
+                  : hasRemoteStream
+                  ? 'bg-black/40 hover:bg-black/60 border-white/15 text-emerald-400'
+                  : 'bg-black/40 hover:bg-black/60 border-white/15 text-amber-300'
+              }`}
+              title="Диагностика связи и логи"
+            >
+              <Activity className="w-4 h-4" />
+              <span className="hidden xs:inline">Диагностика</span>
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  currentIceState === 'failed' || cameraError
+                    ? 'bg-rose-400'
+                    : hasRemoteStream
+                    ? 'bg-emerald-400'
+                    : 'bg-amber-400 animate-ping'
+                }`}
+              />
+            </button>
           </div>
 
           {/* Top Right: Picture-in-Picture & Exit to Cabinet */}
@@ -2667,6 +3241,18 @@ export default function VideoCall({
                   <span>Доска урока</span>
                 </button>
               )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsDiagnosticsOpen(true);
+                  setIsDrawerOpen(false);
+                }}
+                className="flex items-center justify-center gap-2 p-3 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/10 text-xs font-bold text-white transition-all text-center col-span-2 cursor-pointer"
+              >
+                <Activity className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>Диагностика связи и логи</span>
+              </button>
             </div>
           </div>
         )}
@@ -3110,6 +3696,7 @@ export default function VideoCall({
       </div>
 
       {renderTeacherEndModal()}
+      {renderDiagnosticsModal()}
     </>
   );
 }

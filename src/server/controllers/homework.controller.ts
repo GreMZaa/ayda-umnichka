@@ -14,9 +14,12 @@ export class HomeworkController {
       const { searchParams } = new URL(req.url);
       const studentPublicId = searchParams.get('studentPublicId')?.trim();
 
-      // If user is a student, restrict query strictly to their own ID
+      // If user is a student or unauthenticated guest, restrict query strictly to their own ID
       let effectiveId = studentPublicId;
-      if (!auth.isTeacher && !auth.isAdmin && auth.userId) {
+      if (!auth.isTeacher && !auth.isAdmin) {
+        if (!auth.userId) {
+          return apiSuccess({ homework: [] });
+        }
         effectiveId = auth.userId;
       }
 
