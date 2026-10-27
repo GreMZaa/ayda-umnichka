@@ -67,15 +67,26 @@ export function middleware(request: NextRequest) {
   // ─────────────────────────────────────────────────────────
   if (pathname === '/') {
     // On LK subdomain:
-    // If authenticated student, forward to their assigned personal ID
+    // If authenticated user, forward to their assigned personal cabinet
     // If NOT authenticated, forward to /login (ID is only issued after registration!)
     if (isLkSubdomain) {
       const targetId = authUserId || cookieUserId;
-      if (targetId && activeRole) {
+      let effectiveRole = activeRole;
+      if (!effectiveRole && targetId) {
+        if (targetId.startsWith('admin_') || targetId === 'admin_head' || targetId === 'admin_session') {
+          effectiveRole = 'admin';
+        } else if (targetId.startsWith('teacher_') || targetId.startsWith('id17') || targetId.startsWith('id18')) {
+          effectiveRole = 'teacher';
+        } else {
+          effectiveRole = 'student';
+        }
+      }
+
+      if (targetId && effectiveRole) {
         const url = request.nextUrl.clone();
-        if (activeRole === 'admin') {
+        if (effectiveRole === 'admin') {
           url.pathname = '/admin';
-        } else if (activeRole === 'teacher') {
+        } else if (effectiveRole === 'teacher') {
           url.pathname = '/teacher';
           url.searchParams.set('id', targetId);
         } else {
@@ -121,23 +132,26 @@ export function middleware(request: NextRequest) {
   // Teacher Portal: strictly for 'teacher' or 'admin'
   if (pathname.startsWith('/teacher')) {
     const isTeacher =
-      (activeRole === 'teacher' &&
-        Boolean(
-          cookieUserId &&
-            (cookieUserId.startsWith('teacher_') ||
-              cookieUserId.startsWith('id17') ||
-              cookieUserId.startsWith('id18') ||
-              cookieUserId.includes('teacher'))
-        )) ||
-      (activeRole === 'admin' &&
-        (cookieUserId === 'admin_session' ||
-          cookieUserId === 'admin_head' ||
-          Boolean(cookieUserId && cookieUserId.startsWith('admin_')) ||
-          Boolean(authUserId && authUserId.startsWith('admin_'))));
+      activeRole === 'teacher' ||
+      activeRole === 'admin' ||
+      Boolean(
+        cookieUserId &&
+          (cookieUserId.startsWith('teacher_') ||
+            cookieUserId.startsWith('id17') ||
+            cookieUserId.startsWith('id18') ||
+            cookieUserId.includes('teacher'))
+      ) ||
+      Boolean(
+        authUserId &&
+          (authUserId.startsWith('teacher_') ||
+            authUserId.startsWith('id17') ||
+            authUserId.startsWith('id18') ||
+            authUserId.includes('teacher'))
+      );
 
     if (!isTeacher) {
       const loginUrl = new URL('/login', request.url);
-      loginUrl.searchParams.set('redirect', pathname);
+      loginUrl.searchParams.set('redirect', pathname + search);
       loginUrl.searchParams.set('error', 'forbidden');
       const response = NextResponse.redirect(loginUrl);
       return applySecurityHeaders(response);
@@ -181,7 +195,9 @@ export function middleware(request: NextRequest) {
     const requestedId = pathParts[0].toLowerCase();
     const isOwner =
       cookieUserId?.toLowerCase() === requestedId ||
-      authUserId?.toLowerCase() === requestedId;
+      authUserId?.toLowerCase() === requestedId ||
+      activeRole === 'teacher' ||
+      activeRole === 'admin';
 
     // If caller does not own this cabinet ID or is not authenticated:
     // Require logging in or registering through our official login page!

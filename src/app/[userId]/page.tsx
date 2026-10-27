@@ -100,7 +100,9 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
         document.cookie.match(/(?:^|; )aida_active_role=([^;]*)/)?.[1];
 
       const decodedAuth = activeAuthUser ? decodeURIComponent(activeAuthUser).toLowerCase() : '';
-      const isOwner = Boolean(activeRole) && (decodedAuth === uid.toLowerCase() || activeRole === 'admin');
+      const isOwner =
+        Boolean(activeRole) &&
+        (decodedAuth === uid.toLowerCase() || activeRole === 'admin' || activeRole === 'teacher');
 
       if (!isOwner) {
         setIsAccessBlocked(true);
@@ -108,8 +110,8 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
         return;
       }
 
-      // If authenticated user is a teacher, route to teacher cabinet
-      if (data.binding?.role === 'teacher' || activeRole === 'teacher') {
+      // If this cabinet ID belongs to a teacher, route to teacher cabinet
+      if (data.binding?.role === 'teacher') {
         router.replace(`/teacher?id=${encodeURIComponent(uid)}`);
         return;
       }
@@ -120,8 +122,14 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
         const cleanName = data.binding.full_name.replace(/\s*\(.*?\)$/, '').trim() || data.binding.full_name;
         try {
           localStorage.setItem('aida_full_name', cleanName);
-          localStorage.setItem('aida_active_role', 'student');
-          localStorage.setItem('aida_auth_user_id', uid);
+          if (activeRole !== 'admin' && activeRole !== 'teacher') {
+            localStorage.setItem('aida_active_role', 'student');
+            localStorage.setItem('aida_auth_user_id', uid);
+            localStorage.setItem('aida_user_id', uid);
+            document.cookie = `aida_active_role=student; path=/; max-age=2592000; SameSite=Lax`;
+            document.cookie = `aida_auth_user_id=${encodeURIComponent(uid)}; path=/; max-age=2592000; SameSite=Lax`;
+            document.cookie = `aida_user_id=${encodeURIComponent(uid)}; path=/; max-age=2592000; SameSite=Lax`;
+          }
           window.dispatchEvent(new Event('aida-user-updated'));
         } catch (_) {}
       }

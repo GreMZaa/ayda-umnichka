@@ -38,9 +38,11 @@ function LoginFormContent() {
   const searchParams = useSearchParams();
   const redirectParam = searchParams.get('redirect');
   const errorParam = searchParams.get('error');
+  const isLogout = searchParams.get('logout') === '1';
 
   const [tab, setTab] = useState<'login' | 'register'>('login');
   const [selectedRole, setSelectedRole] = useState<'student' | 'teacher'>('student');
+  const [isCheckingSession, setIsCheckingSession] = useState<boolean>(!isLogout);
   
   // Form states
   const [emailOrPhone, setEmailOrPhone] = useState('');
@@ -52,12 +54,89 @@ function LoginFormContent() {
   const [errorMessage, setErrorMessage] = useState(errorParam === 'forbidden' ? 'Доступ ограничен. Войдите с соответствующими правами.' : '');
   const [successMessage, setSuccessMessage] = useState('');
 
-  // Enforce redirection from main landing domain to official LK subdomain
+  // 1. Enforce redirection from main landing domain to official LK subdomain
   useEffect(() => {
     if (typeof window !== 'undefined' && window.location.hostname === 'ayda-umnichka.vercel.app') {
       window.location.replace(`https://lk-ayda-umnichka.vercel.app/login${window.location.search}`);
     }
   }, []);
+
+  // 2. Seamlessly restore active session so users don't have to re-enter password on refresh or when entering from main page
+  useEffect(() => {
+    if (typeof window === 'undefined' || isLogout) {
+      setIsCheckingSession(false);
+      return;
+    }
+
+    const restoreSession = async () => {
+      try {
+        const savedRole =
+          localStorage.getItem('aida_active_role') ||
+          document.cookie.match(/(?:^|; )aida_active_role=([^;]*)/)?.[1];
+        const savedUid =
+          localStorage.getItem('aida_auth_user_id') ||
+          localStorage.getItem('aida_user_id') ||
+          document.cookie.match(/(?:^|; )aida_auth_user_id=([^;]*)/)?.[1] ||
+          document.cookie.match(/(?:^|; )aida_user_id=([^;]*)/)?.[1];
+
+        if (savedRole && savedUid) {
+          // Keep cookies fresh for 30 days
+          document.cookie = `aida_active_role=${savedRole}; path=/; max-age=2592000; SameSite=Lax`;
+          document.cookie = `aida_auth_user_id=${encodeURIComponent(savedUid)}; path=/; max-age=2592000; SameSite=Lax`;
+          document.cookie = `aida_user_id=${encodeURIComponent(savedUid)}; path=/; max-age=2592000; SameSite=Lax`;
+
+          const fallback =
+            savedRole === 'teacher'
+              ? `/teacher?id=${encodeURIComponent(savedUid)}`
+              : savedRole === 'admin'
+              ? '/admin'
+              : `/${encodeURIComponent(savedUid)}`;
+          const dest = getSafeRedirect(redirectParam, fallback);
+          router.replace(dest);
+          return;
+        }
+
+        // Check Supabase session if not in localStorage
+        if (isSupabaseConfigured) {
+          const { data } = await supabase.auth.getSession();
+          if (data?.session?.user) {
+            const authUser = data.session.user;
+            const res = await fetch(`/api/user/bind?authUserId=${encodeURIComponent(authUser.id)}`).catch(() => null);
+            const bindData = res ? await res.json().catch(() => null) : null;
+            const role = bindData?.binding?.role || 'student';
+            const pubId = bindData?.binding?.public_id || authUser.id;
+
+            localStorage.setItem('aida_active_role', role);
+            localStorage.setItem('aida_auth_user_id', pubId);
+            localStorage.setItem('aida_user_id', pubId);
+            if (bindData?.binding?.full_name) {
+              localStorage.setItem('aida_full_name', bindData.binding.full_name);
+            }
+
+            document.cookie = `aida_active_role=${role}; path=/; max-age=2592000; SameSite=Lax`;
+            document.cookie = `aida_auth_user_id=${encodeURIComponent(pubId)}; path=/; max-age=2592000; SameSite=Lax`;
+            document.cookie = `aida_user_id=${encodeURIComponent(pubId)}; path=/; max-age=2592000; SameSite=Lax`;
+
+            const fallback =
+              role === 'teacher'
+                ? `/teacher?id=${encodeURIComponent(pubId)}`
+                : role === 'admin'
+                ? '/admin'
+                : `/${encodeURIComponent(pubId)}`;
+            const dest = getSafeRedirect(redirectParam, fallback);
+            router.replace(dest);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('Session restore check error:', err);
+      } finally {
+        setIsCheckingSession(false);
+      }
+    };
+
+    restoreSession();
+  }, [isLogout, redirectParam, router]);
 
   // Select registration role from the right block (admin registration is strictly forbidden)
   const handleSelectRegistrationRole = (role: 'student' | 'teacher') => {
@@ -223,6 +302,17 @@ function LoginFormContent() {
       setLoading(false);
     }
   };
+
+  if (isCheckingSession) {
+    return (
+      <div className="w-full h-[calc(100dvh-4rem)] sm:h-[calc(100dvh-5rem)] flex items-center justify-center bg-[#FFF7EE]">
+        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#F2E0CF] shadow-sm flex flex-col items-center gap-3 animate-in fade-in duration-200">
+          <div className="w-8 h-8 border-3 border-coralAccent border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs font-black text-[#161F38]">Вход в личный кабинет...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full h-[calc(100dvh-4rem)] sm:h-[calc(100dvh-5rem)] overflow-hidden bg-[#FFF7EE] flex items-center justify-center p-2 sm:p-4 select-none">

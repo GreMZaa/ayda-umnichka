@@ -196,10 +196,19 @@ export default function Navbar() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch (_) {}
     localStorage.removeItem('aida_active_role');
+    localStorage.removeItem('aida_auth_user_id');
+    localStorage.removeItem('aida_user_id');
+    localStorage.removeItem('aida_full_name');
+    localStorage.removeItem('aida_student_balance');
     document.cookie = 'aida_active_role=; path=/; max-age=0';
-    window.location.href = '/login';
+    document.cookie = 'aida_auth_user_id=; path=/; max-age=0';
+    document.cookie = 'aida_user_id=; path=/; max-age=0';
+    window.location.href = '/login?logout=1';
   };
 
   const navigateToSlide = (index: number) => {
