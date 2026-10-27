@@ -73,7 +73,24 @@ const rtcConfig: RTCConfiguration = {
     { urls: 'stun:stun3.l.google.com:19302' },
     { urls: 'stun:stun4.l.google.com:19302' },
     { urls: 'stun:stun.services.mozilla.com' },
+    // Free open-relay TURN servers to bypass strict NAT / symmetric mobile firewall
+    {
+      urls: 'turn:openrelay.metered.ca:80',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
   ],
+  iceCandidatePoolSize: 10,
 };
 
 export default function VideoCall({
@@ -423,21 +440,34 @@ export default function VideoCall({
     return () => clearInterval(timer);
   }, [hasRemoteStream, roomToken, callDuration]);
 
-  // Keep remote audio element updated with remoteStreamRef (strictly audio tracks)
+  // Keep remote audio & video elements updated with remoteStreamRef
   useEffect(() => {
-    if (remoteAudioRef.current && remoteStreamRef.current) {
+    if (remoteStreamRef.current) {
       const audioTracks = remoteStreamRef.current.getAudioTracks();
-      if (audioTracks.length > 0) {
-        remoteAudioRef.current.srcObject = new MediaStream(audioTracks);
+      if (remoteAudioRef.current && audioTracks.length > 0) {
+        if (!remoteAudioRef.current.srcObject || (remoteAudioRef.current.srcObject as MediaStream).getAudioTracks()[0]?.id !== audioTracks[0].id) {
+          remoteAudioRef.current.srcObject = new MediaStream(audioTracks);
+        }
+        remoteAudioRef.current.muted = isDeafened;
+        remoteAudioRef.current
+          .play()
+          .then(() => setIsAudioAutoplayBlocked(false))
+          .catch((err) => {
+            console.warn('[WebRTC] Audio autoPlay blocked by policy:', err);
+            setIsAudioAutoplayBlocked(true);
+          });
       }
-      remoteAudioRef.current.muted = isDeafened;
-      remoteAudioRef.current
-        .play()
-        .then(() => setIsAudioAutoplayBlocked(false))
-        .catch((err) => {
-          console.warn('[WebRTC] Audio autoPlay blocked by policy:', err);
-          setIsAudioAutoplayBlocked(true);
-        });
+
+      const videoTracks = remoteStreamRef.current.getVideoTracks();
+      if (videoTracks.length > 0) {
+        if (remoteVideoRef.current && !isSwapped) {
+          if (!remoteVideoRef.current.srcObject || (remoteVideoRef.current.srcObject as MediaStream).getVideoTracks()[0]?.id !== videoTracks[0].id) {
+            remoteVideoRef.current.srcObject = new MediaStream(videoTracks);
+          }
+          remoteVideoRef.current.muted = true;
+          remoteVideoRef.current.play().catch(() => {});
+        }
+      }
     }
 
     // Re-verify local microphone tracks are enabled
@@ -856,8 +886,9 @@ export default function VideoCall({
         resetPeerConnection();
         setConnectionStatus('connecting');
 
-        // 3. Teacher initiates the offer when a peer joins
-        if (isTeacher) {
+        // 3. Initiate offer: Teacher initiates if present, or if newcomer's peerId is lexicographically greater
+        const shouldInitiate = isTeacher || (!payload?.isTeacher && myPeerIdRef.current > (payload?.senderId || ''));
+        if (shouldInitiate) {
           const stream = await ensureLocalStream();
           if (stream) {
             const pc = getOrCreatePeerConnection(stream);
@@ -880,8 +911,9 @@ export default function VideoCall({
         resetPeerConnection();
         setConnectionStatus('connecting');
 
-        // If I am the teacher and just joined/rejoined, send offer to the peer who was already waiting
-        if (isTeacher) {
+        // If I should initiate the offer
+        const shouldInitiate = isTeacher || (!payload?.isTeacher && myPeerIdRef.current > (payload?.senderId || ''));
+        if (shouldInitiate) {
           const stream = await ensureLocalStream();
           if (stream) {
             const pc = getOrCreatePeerConnection(stream);
