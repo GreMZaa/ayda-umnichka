@@ -448,10 +448,6 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
         {/* Header Right Stat Cards */}
         <div className="flex items-center gap-2 self-stretch md:self-auto justify-end">
           <div className="bg-[#FFF8F1] border border-[#F2DECE] px-3 py-1.5 rounded-xl text-center min-w-[70px]">
-            <span className="text-[9px] text-[#6B758E] font-extrabold uppercase tracking-wider block">Баланс</span>
-            <p className="text-sm font-black text-[#5C8519]">{balance} зан.</p>
-          </div>
-          <div className="bg-[#FFF8F1] border border-[#F2DECE] px-3 py-1.5 rounded-xl text-center min-w-[70px]">
             <span className="text-[9px] text-[#6B758E] font-extrabold uppercase tracking-wider block">Домашек</span>
             <p className="text-sm font-black text-[#161F38]">{homeworks.length}</p>
           </div>

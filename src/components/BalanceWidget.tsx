@@ -131,11 +131,6 @@ export default function BalanceWidget({
               </p>
             </div>
           </div>
-
-          <span className="inline-flex items-center gap-1.5 text-xs font-black bg-[#EAF7CF] text-[#5C8519] border border-[#D5ECA3] px-3 py-1 rounded-full shadow-2xs">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#5C8519] animate-pulse" />
-            {liveBalance} {getBalanceEnding(liveBalance)}
-          </span>
         </div>
 
         {/* ─────────────────────────────────────────────────────────────
