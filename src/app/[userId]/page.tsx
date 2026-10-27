@@ -443,9 +443,9 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
       )}
 
       {/* 2. Main Student Dashboard: Left (Balance & Card Widget) | Right (Schedule & Lessons) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 items-start">
-        {/* Left Column: Balance & Subscription Card with Photo */}
-        <div className="lg:col-span-5 xl:col-span-5">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 items-stretch">
+        {/* Left Column: Balance & Subscription Card */}
+        <div className="lg:col-span-5 xl:col-span-5 h-full flex flex-col">
           <BalanceWidget
             balance={balance}
             studentName={cleanStudentDisplayName}
@@ -454,7 +454,7 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
         </div>
 
         {/* Right Column: Lessons Schedule & History */}
-        <div className="lg:col-span-7 xl:col-span-7">
+        <div className="lg:col-span-7 xl:col-span-7 h-full flex flex-col">
           <LessonsScheduleHistory
             role="student"
             studentPublicId={currentId}

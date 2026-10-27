@@ -43,7 +43,6 @@ export default function StudentHomeworkBlock({
 }: StudentHomeworkBlockProps) {
   // Filter tabs: 'all' | 'pending' | 'submitted'
   const [filter, setFilter] = useState<'all' | 'pending' | 'submitted'>('all');
-  const [showGuide, setShowGuide] = useState(true);
 
   // Active submission editing per homework ID
   const [openSubmitId, setOpenSubmitId] = useState<string | null>(null);
@@ -191,30 +190,30 @@ export default function StudentHomeworkBlock({
   };
 
   return (
-    <div className="bg-white rounded-2xl p-4 sm:p-6 border border-[#F2E0CF] shadow-xs space-y-4">
+    <div className="bg-white rounded-3xl p-4 sm:p-5 border border-[#F2E0CF] shadow-xs space-y-3.5 hover:shadow-sm transition-shadow">
       {/* 1. Header with title & counter badge */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#F8EDE1] pb-3.5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#F8EDE1] pb-3">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-[#FFF2E6] border border-[#FCDDC7] flex items-center justify-center text-coralAccent shrink-0">
-            <BookOpen className="w-5 h-5" />
+          <div className="w-8 h-8 rounded-xl bg-[#FFF2E6] border border-[#FCDDC7] flex items-center justify-center text-coralAccent shrink-0 shadow-2xs">
+            <BookOpen className="w-4 h-4" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="font-black text-base sm:text-lg text-[#161F38] tracking-tight">
+              <h3 className="font-black text-sm sm:text-base text-[#161F38] leading-tight">
                 Домашние задания
               </h3>
               {pendingCount > 0 ? (
-                <span className="text-[10px] font-black bg-[#FFF2E6] text-coralAccent px-2.5 py-0.5 rounded-full border border-[#FCDDC7] animate-pulse">
-                  {pendingCount} ждет решения
+                <span className="text-[10px] font-black bg-[#FFF2E6] text-coralAccent px-2 py-0.5 rounded-full border border-[#FCDDC7] animate-pulse">
+                  {pendingCount} к сдаче
                 </span>
               ) : (
-                <span className="text-[10px] font-extrabold bg-[#EAF7CF] text-[#5C8519] px-2.5 py-0.5 rounded-full border border-[#D5ECA3]">
-                  Все сделано ✓
+                <span className="text-[10px] font-extrabold bg-[#EAF7CF] text-[#5C8519] px-2 py-0.5 rounded-full border border-[#D5ECA3]">
+                  Все выполнено ✓
                 </span>
               )}
             </div>
-            <p className="text-xs text-[#6B758E] mt-0.5">
-              Задания, материалы к урокам и проверка от преподавателя
+            <p className="text-[11px] text-[#6B758E]">
+              Упражнения и материалы от педагога
             </p>
           </div>
         </div>
@@ -224,7 +223,7 @@ export default function StudentHomeworkBlock({
           <button
             type="button"
             onClick={() => setFilter('all')}
-            className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+            className={`text-xs font-bold px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
               filter === 'all'
                 ? 'bg-white text-[#161F38] shadow-xs font-black'
                 : 'text-[#6B758E] hover:text-[#161F38]'
@@ -235,7 +234,7 @@ export default function StudentHomeworkBlock({
           <button
             type="button"
             onClick={() => setFilter('pending')}
-            className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`text-xs font-bold px-2.5 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
               filter === 'pending'
                 ? 'bg-coralAccent text-white shadow-xs font-black'
                 : 'text-[#6B758E] hover:text-[#161F38]'
@@ -253,7 +252,7 @@ export default function StudentHomeworkBlock({
           <button
             type="button"
             onClick={() => setFilter('submitted')}
-            className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`text-xs font-bold px-2.5 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
               filter === 'submitted'
                 ? 'bg-[#5C8519] text-white shadow-xs font-black'
                 : 'text-[#6B758E] hover:text-[#161F38]'
@@ -269,79 +268,27 @@ export default function StudentHomeworkBlock({
         </div>
       </div>
 
-      {/* 2. Visual "How it works" banner (makes everything 100% clear) */}
-      {showGuide && (
-        <div className="p-3.5 bg-gradient-to-r from-[#FFF8F1] to-[#FFF3E8] border border-[#FCDDC7] rounded-xl space-y-2 relative transition-all">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-xs font-black text-[#161F38]">
-              <Sparkles className="w-4 h-4 text-coralAccent" />
-              <span>Как выполнять и сдавать домашние задания:</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowGuide(false)}
-              className="text-[#8A95A8] hover:text-[#161F38] text-xs p-1"
-              title="Скрыть подсказку"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1 text-[11px] text-[#505D75]">
-            <div className="bg-white/90 p-2.5 rounded-lg border border-[#F2DECE] flex items-start gap-2">
-              <span className="w-5 h-5 rounded-full bg-coralAccent/15 text-coralAccent font-black flex items-center justify-center shrink-0 text-xs">
-                1
-              </span>
-              <div>
-                <strong className="block text-[#161F38] font-bold">Прочитайте задание</strong>
-                Скачайте прикрепленные файлы и ознакомьтесь с темой урока.
-              </div>
-            </div>
-
-            <div className="bg-white/90 p-2.5 rounded-lg border border-[#F2DECE] flex items-start gap-2">
-              <span className="w-5 h-5 rounded-full bg-coralAccent/15 text-coralAccent font-black flex items-center justify-center shrink-0 text-xs">
-                2
-              </span>
-              <div>
-                <strong className="block text-[#161F38] font-bold">Решите упражнение</strong>
-                Напишите в тетради, выполните на компьютере или подготовьте устный ответ.
-              </div>
-            </div>
-
-            <div className="bg-white/90 p-2.5 rounded-lg border border-[#F2DECE] flex items-start gap-2">
-              <span className="w-5 h-5 rounded-full bg-[#5C8519]/15 text-[#5C8519] font-black flex items-center justify-center shrink-0 text-xs">
-                3
-              </span>
-              <div>
-                <strong className="block text-[#161F38] font-bold">Нажмите «Отправить решение»</strong>
-                Прикрепите фото тетради, введите текст или запишите голос для педагога.
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 3. Homework Cards List */}
+      {/* 2. Homework Cards List */}
       {filteredHomeworks.length === 0 ? (
-        <div className="p-8 rounded-2xl border-2 border-dashed border-[#F2DECE] bg-[#FFFAF5] text-center space-y-2">
-          <div className="w-12 h-12 rounded-2xl bg-[#EAF7CF] text-[#5C8519] border border-[#CCE8A2] flex items-center justify-center mx-auto shadow-2xs">
-            <CheckCircle2 className="w-6 h-6" />
+        <div className="p-5 rounded-2xl border border-dashed border-[#F2DECE] bg-[#FFFAF5] text-center space-y-1.5">
+          <div className="w-9 h-9 rounded-xl bg-[#EAF7CF] text-[#5C8519] border border-[#CCE8A2] flex items-center justify-center mx-auto shadow-2xs">
+            <CheckCircle2 className="w-5 h-5" />
           </div>
-          <h4 className="font-black text-sm text-[#161F38]">
+          <h4 className="font-black text-xs text-[#161F38]">
             {filter === 'pending'
               ? 'Все задания уже выполнены!'
               : filter === 'submitted'
               ? 'Пока нет сданных заданий'
               : 'Домашних заданий пока нет'}
           </h4>
-          <p className="text-xs text-[#6B758E] max-w-sm mx-auto leading-relaxed">
+          <p className="text-[11px] text-[#6B758E] max-w-sm mx-auto">
             {filter === 'pending'
-              ? 'Вы отлично поработали. Как только педагог назначит новое упражнение, оно сразу отобразится здесь.'
+              ? 'Вы отлично поработали. Новые задания появятся здесь после урока.'
               : 'Новые упражнения от преподавателя появятся здесь сразу после проведения занятия.'}
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {filteredHomeworks.map((hw) => {
             const isSubmitted = hw.status === 'submitted' || Boolean(hw.studentSolutionText) || Boolean(hw.studentSolutionFileUrl);
             const isReviewed = hw.status === 'reviewed';
@@ -360,7 +307,7 @@ export default function StudentHomeworkBlock({
                 }`}
               >
                 {/* Card Top Banner */}
-                <div className="p-4 sm:p-5 space-y-3">
+                <div className="p-3.5 sm:p-4 space-y-2.5">
                   <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2.5">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">

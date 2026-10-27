@@ -228,15 +228,6 @@ export default function Navbar() {
 
   const myMessengerUrl = `/messenger?id=${effectiveUserId}&role=${effectiveRole}`;
 
-  const showStudentBalance =
-    !isActuallyTeacher &&
-    !isActuallyAdmin &&
-    effectiveRole === 'student' &&
-    !isRoom &&
-    !pathname.startsWith('/messenger') &&
-    pathname !== '/' &&
-    pathname !== '/login';
-
   return (
     <header className="sticky top-0 z-50 bg-[#FFF7EE] border-b border-[#F4E4D3] shadow-2xs">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
