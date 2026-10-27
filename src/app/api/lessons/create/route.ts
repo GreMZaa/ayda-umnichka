@@ -1,24 +1,7 @@
-import { NextResponse } from 'next/server';
+import { LessonController } from '@/server/controllers/lesson.controller';
 
-export async function POST(request: Request) {
-  try {
-    const body = await request.json();
-    const { student_id, topic } = body;
+export const dynamic = 'force-dynamic';
 
-    const roomToken = `room-${Math.floor(1000 + Math.random() * 9000)}`;
-
-    return NextResponse.json({
-      success: true,
-      lesson_id: `lesson-${Date.now()}`,
-      room_token: roomToken,
-      student_id: student_id || null,
-      topic: topic || 'Индивидуальное занятие',
-      join_url: `https://app.aidaumnichka.ru/room/${roomToken}`,
-      status: 'pending',
-      created_at: new Date().toISOString(),
-    });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Internal error' }, { status: 400 });
-  }
+export async function POST(req: Request) {
+  return LessonController.createQuickLesson(req);
 }
-
