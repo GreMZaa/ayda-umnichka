@@ -25,8 +25,10 @@ import {
   Coins,
   Send,
   MessageCircle,
-  ExternalLink
+  ExternalLink,
+  Bell
 } from 'lucide-react';
+import { showSystemNotification, playNotificationChime } from '@/components/NotificationManager';
 import {
   setCustomSlug,
   updateSlugInSupabase,
@@ -45,6 +47,39 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
   const [isEditingSlug, setIsEditingSlug] = useState(false);
   const [newSlugInput, setNewSlugInput] = useState(routeUserId);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [notifState, setNotifState] = useState<'granted' | 'default' | 'denied'>('default');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setNotifState(Notification.permission);
+    }
+  }, []);
+
+  const handleToggleOrTestNotif = async () => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      alert('Ваш браузер не поддерживает системные уведомления в шторку.');
+      return;
+    }
+    if (Notification.permission !== 'granted') {
+      const res = await Notification.requestPermission();
+      setNotifState(res);
+      if (res === 'granted') {
+        playNotificationChime();
+        await showSystemNotification({
+          title: '🎉 Уведомления в шторку включены!',
+          body: 'Отлично! Теперь все напоминания об уроках и сообщениях будут приходить прямо в шторку.',
+          url: `/${currentId}`,
+        });
+      }
+    } else {
+      playNotificationChime();
+      await showSystemNotification({
+        title: '🔔 АйДаУмничка: Проверка шторки',
+        body: 'Системные уведомления работают отлично! Напоминания об уроках придут сюда.',
+        url: `/${currentId}`,
+      });
+    }
+  };
 
   // Verification & Status states
   const [isChecking, setIsChecking] = useState(true);
@@ -343,6 +378,25 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
               >
                 {copiedLink ? <Check className="w-3 h-3 text-[#5C8519]" /> : <Copy className="w-3 h-3 text-[#8A95A8]" />}
                 <span>{copiedLink ? 'Скопировано!' : 'Ссылка'}</span>
+              </button>
+
+              {/* Notification Shade Toggle / Test Button */}
+              <button
+                type="button"
+                onClick={handleToggleOrTestNotif}
+                className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg border transition-all cursor-pointer ${
+                  notifState === 'granted'
+                    ? 'bg-[#EAF7CF] text-[#5C8519] border-[#CCE8A2] hover:bg-[#DDF3B8]'
+                    : 'bg-[#FFF2E6] text-coralAccent border-[#FCDDC7] hover:bg-[#FFE6D2] animate-pulse'
+                }`}
+                title={
+                  notifState === 'granted'
+                    ? 'Уведомления в шторку активны. Нажмите для теста.'
+                    : 'Нажмите, чтобы включить уведомления об уроках в шторку телефона'
+                }
+              >
+                <Bell className="w-3 h-3" />
+                <span>{notifState === 'granted' ? 'Шторка: Вкл' : 'Включить в шторку'}</span>
               </button>
 
               {/* Edit Vanity Handle */}

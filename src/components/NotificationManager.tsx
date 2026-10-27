@@ -12,6 +12,7 @@ import {
   Video,
   MessageCircle,
   ExternalLink,
+  Volume2,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
@@ -50,43 +51,56 @@ export const playNotificationChime = () => {
   } catch (_) {}
 };
 
-// Dispatch native system OS notification
+// Dispatch native system OS notification (Appears directly in the Android / iOS / Windows notification shade)
 export const showSystemNotification = async (payload: {
   title: string;
   body: string;
   url?: string;
   tag?: string;
 }) => {
-  if (typeof window === 'undefined' || !('Notification' in window)) return;
+  if (typeof window === 'undefined') return;
+  if (!('Notification' in window)) return;
   if (Notification.permission !== 'granted') return;
 
-  const options: NotificationOptions & { renotify?: boolean } = {
+  const targetUrl = payload.url || '/messenger';
+  const uniqueTag = payload.tag ? `${payload.tag}-${Date.now()}` : `aida-${Date.now()}`;
+
+  const options: any = {
     body: payload.body,
     icon: '/icon-192.png',
     badge: '/icon.png',
-    data: { url: payload.url || '/messenger' },
-    tag: payload.tag || 'aida-notif',
+    data: { url: targetUrl },
+    tag: uniqueTag,
     renotify: true,
+    requireInteraction: true,
+    vibrate: [300, 100, 300, 100, 300],
+    actions: [{ action: 'open', title: 'Открыть' }],
   };
 
-  // Try service worker registration first (optimal for PWA on Android, Windows, Mac)
+  // 1. Try Service Worker first (Required for PWA & Android notification shade)
   if ('serviceWorker' in navigator) {
     try {
-      const reg = await navigator.serviceWorker.ready;
+      const reg = await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 1200)),
+      ]);
+
       if (reg && 'showNotification' in reg) {
         await reg.showNotification(payload.title, options);
         return;
       }
-    } catch (_) {}
+    } catch (swErr) {
+      console.warn('SW notification error:', swErr);
+    }
   }
 
-  // Fallback to standard Notification API
+  // 2. Fallback to standard Notification API
   try {
     const notif = new Notification(payload.title, options);
     notif.onclick = () => {
       window.focus();
-      if (payload.url) {
-        window.location.href = payload.url;
+      if (targetUrl) {
+        window.location.href = targetUrl;
       }
       notif.close();
     };
@@ -112,16 +126,21 @@ export default function NotificationManager() {
   const [justEnabled, setJustEnabled] = useState(false);
   const [activeAlert, setActiveAlert] = useState<InAppAlert | null>(null);
 
-  // Deduplication cache to prevent twin alerts from client + server triggers
+  // Deduplication cache to prevent twin alerts
   const seenEventsRef = useRef<Set<string>>(new Set());
 
-  // Helper to get active user ID and role
+  // Helper to get active user ID, role and name
   const getUserContext = () => {
     if (typeof window === 'undefined') {
-      return { publicId: '', role: 'student' };
+      return { publicId: '', role: 'student', fullName: '' };
     }
 
+    const pathPart = pathname.match(/^\/([^/?#]+)/)?.[1]?.toLowerCase();
+    const isSpecialPath = ['admin', 'teacher', 'student', 'login', 'messenger', 'room', 'api'].includes(pathPart || '');
+    
+    // Check path ID first (e.g. /id571210) so student is recognized immediately on their page
     const publicId = (
+      (!isSpecialPath && pathPart ? pathPart : '') ||
       localStorage.getItem('aida_auth_user_id') ||
       localStorage.getItem('aida_user_id') ||
       localStorage.getItem('aida_custom_slug') ||
@@ -142,7 +161,13 @@ export default function NotificationManager() {
         : 'student')
     ).toLowerCase();
 
-    return { publicId, role };
+    const fullName = (
+      localStorage.getItem('aida_full_name') ||
+      localStorage.getItem('aida_user_name') ||
+      ''
+    ).toLowerCase();
+
+    return { publicId, role, fullName };
   };
 
   useEffect(() => {
@@ -151,7 +176,7 @@ export default function NotificationManager() {
 
     const dismissed = localStorage.getItem('aida_notification_prompt_dismissed');
     if (Notification.permission === 'default' && !dismissed) {
-      const timer = setTimeout(() => setShowPromptBanner(true), 2500);
+      const timer = setTimeout(() => setShowPromptBanner(true), 2000);
       return () => clearTimeout(timer);
     }
   }, [pathname]);
@@ -169,8 +194,8 @@ export default function NotificationManager() {
 
         playNotificationChime();
         await showSystemNotification({
-          title: 'АйДаУмничка: Уведомления включены!',
-          body: 'Теперь вы мгновенно узнаете о новых уроках, домашних заданиях и сообщениях.',
+          title: '🎉 АйДаУмничка: Уведомления в шторку включены!',
+          body: 'Отлично! Теперь все напоминания об уроках, домашних заданиях и сообщениях будут приходить прямо сюда.',
           url: '/messenger',
         });
       }
@@ -187,7 +212,7 @@ export default function NotificationManager() {
   };
 
   const triggerPlatformAlert = async (alert: InAppAlert, tag: string) => {
-    // Play bell sound
+    // Play bell chime
     playNotificationChime();
 
     // Notify other components (Navbar badge, lists)
@@ -201,7 +226,7 @@ export default function NotificationManager() {
       setActiveAlert((curr) => (curr?.id === alert.id ? null : curr));
     }, 6000);
 
-    // Always dispatch system OS / PWA notification
+    // Always dispatch system OS / PWA notification into notification shade
     await showSystemNotification({
       title: alert.title,
       body: alert.body,
@@ -210,13 +235,13 @@ export default function NotificationManager() {
     });
   };
 
-  // Global listener for platform events via Supabase Realtime
+  // 1. Global listener for platform events via Supabase Realtime
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
     const channel = supabase.channel('platform_messenger_global');
 
-    // 1. New Messenger & Lesson Chat Messages
+    // 1.1 New Messenger & Lesson Chat Messages
     channel.on('broadcast', { event: 'new-message' }, async (eventPayload) => {
       const msg = eventPayload?.payload;
       if (!msg) return;
@@ -240,7 +265,7 @@ export default function NotificationManager() {
         previewText = '📎 Прикреплен файл или фото';
       }
 
-      const isCurrentChat = pathname.startsWith('/messenger') && (window.location.search.includes(senderPubId));
+      const isCurrentChat = pathname.startsWith('/messenger') && window.location.search.includes(senderPubId);
       if (!isCurrentChat) {
         await triggerPlatformAlert(
           {
@@ -258,7 +283,7 @@ export default function NotificationManager() {
       }
     });
 
-    // 2. Lesson Scheduled / Created
+    // 1.2 Lesson Scheduled / Created (Realtime)
     channel.on('broadcast', { event: 'lesson-scheduled' }, async (eventPayload) => {
       const l = eventPayload?.payload;
       if (!l) return;
@@ -268,16 +293,19 @@ export default function NotificationManager() {
       seenEventsRef.current.add(eventKey);
       setTimeout(() => seenEventsRef.current.delete(eventKey), 5000);
 
-      const { publicId, role } = getUserContext();
-      if (l.creator_id && l.creator_id.toLowerCase() === publicId) {
+      const { publicId, role, fullName } = getUserContext();
+      if (l.creator_id && l.creator_id.toLowerCase() === publicId && publicId !== '') {
         return; // Don't notify creator
       }
 
-      // Check if this student should receive notification
+      // Check if student matches by publicId, by name, or if user is on student cabinet
       const targetStudent = (l.student_public_id || '').toLowerCase();
+      const targetName = (l.student_name || '').toLowerCase();
       const isRecipient =
-        role === 'student' &&
-        (!targetStudent || targetStudent === publicId || targetStudent === 'all');
+        targetStudent === publicId ||
+        (targetStudent && pathname.toLowerCase().includes(targetStudent)) ||
+        (targetName && fullName && (targetName.includes(fullName) || fullName.includes(targetName))) ||
+        (role === 'student' && (!targetStudent || targetStudent === 'all'));
 
       if (isRecipient || role === 'admin') {
         let timeStr = '';
@@ -298,16 +326,16 @@ export default function NotificationManager() {
             category: 'Расписание уроков',
             title: '📅 АйДаУмничка: Назначен урок!',
             body: `${teacher}: ${topic}${timeStr}`,
-            url: l.room_token ? `/room/${l.room_token}` : `/${publicId || 'student'}`,
+            url: l.room_token ? `/room/${l.room_token}` : `/${publicId || targetStudent || 'student'}`,
             iconBg: 'bg-[#EFF6FF]',
             iconColor: 'text-[#2563EB]',
           },
-          `lesson-${l.room_token || 'sched'}`
+          `lesson-${l.room_token || l.id || 'sched'}`
         );
       }
     });
 
-    // 3. Lesson Started / Teacher Active in Room
+    // 1.3 Lesson Started / Teacher in Room
     channel.on('broadcast', { event: 'lesson-started' }, async (eventPayload) => {
       const l = eventPayload?.payload;
       if (!l || !l.room_token) return;
@@ -318,14 +346,13 @@ export default function NotificationManager() {
       setTimeout(() => seenEventsRef.current.delete(eventKey), 10000);
 
       const { publicId, role } = getUserContext();
-      // Only notify student if not on room page
-      const isOnRoomPage = pathname.includes(`/room/${l.room_token}`);
-      if (isOnRoomPage) return;
+      if (pathname.includes(`/room/${l.room_token}`)) return;
 
       const targetStudent = (l.student_public_id || '').toLowerCase();
       const isRecipient =
-        role === 'student' &&
-        (!targetStudent || targetStudent === publicId || targetStudent === 'all');
+        targetStudent === publicId ||
+        (targetStudent && pathname.toLowerCase().includes(targetStudent)) ||
+        (role === 'student' && (!targetStudent || targetStudent === 'all'));
 
       if (isRecipient) {
         const teacher = l.teacher_name || 'Преподаватель';
@@ -347,7 +374,7 @@ export default function NotificationManager() {
       }
     });
 
-    // 4. Homework Assigned / Uploaded by Teacher
+    // 1.4 Homework Assigned
     channel.on('broadcast', { event: 'homework-assigned' }, async (eventPayload) => {
       const hw = eventPayload?.payload;
       if (!hw) return;
@@ -358,14 +385,15 @@ export default function NotificationManager() {
       setTimeout(() => seenEventsRef.current.delete(eventKey), 5000);
 
       const { publicId, role } = getUserContext();
-      if (hw.creator_id && hw.creator_id.toLowerCase() === publicId) {
-        return; // Don't notify creator teacher
+      if (hw.creator_id && hw.creator_id.toLowerCase() === publicId && publicId !== '') {
+        return;
       }
 
       const targetStudent = (hw.student_public_id || '').toLowerCase();
       const isRecipient =
-        role === 'student' &&
-        (!targetStudent || targetStudent === publicId || targetStudent === 'all');
+        targetStudent === publicId ||
+        (targetStudent && pathname.toLowerCase().includes(targetStudent)) ||
+        (role === 'student' && (!targetStudent || targetStudent === 'all'));
 
       if (isRecipient || role === 'admin') {
         const teacher = hw.teacher_name || 'Преподаватель';
@@ -388,7 +416,7 @@ export default function NotificationManager() {
       }
     });
 
-    // 5. Homework Submitted by Student
+    // 1.5 Homework Submitted
     channel.on('broadcast', { event: 'homework-submitted' }, async (eventPayload) => {
       const hw = eventPayload?.payload;
       if (!hw) return;
@@ -399,8 +427,6 @@ export default function NotificationManager() {
       setTimeout(() => seenEventsRef.current.delete(eventKey), 5000);
 
       const { role } = getUserContext();
-
-      // Only notify teachers and admins
       if (role === 'teacher' || role === 'admin') {
         const student = hw.student_name || 'Ученик';
         const title = hw.title || 'Задание';
@@ -421,10 +447,115 @@ export default function NotificationManager() {
       }
     });
 
+    // 1.6 Also listen to direct Supabase Database postgres_changes on lessons table!
+    channel.on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'lessons' },
+      async (changePayload) => {
+        const newLesson = changePayload.new as any;
+        if (!newLesson) return;
+
+        const eventKey = `db-lesson-${newLesson.id}`;
+        if (seenEventsRef.current.has(eventKey)) return;
+        seenEventsRef.current.add(eventKey);
+
+        const { publicId } = getUserContext();
+        const targetStudent = (newLesson.student_public_id || '').toLowerCase();
+        if (targetStudent === publicId || pathname.toLowerCase().includes(targetStudent)) {
+          await triggerPlatformAlert(
+            {
+              id: `lesson-${newLesson.id}`,
+              type: 'lesson',
+              category: 'Расписание уроков',
+              title: '📅 АйДаУмничка: Назначен урок!',
+              body: `${newLesson.teacher_name || 'Преподаватель'}: ${newLesson.topic || 'Индивидуальное занятие'}`,
+              url: newLesson.room_token ? `/room/${newLesson.room_token}` : `/${publicId || targetStudent}`,
+              iconBg: 'bg-[#EFF6FF]',
+              iconColor: 'text-[#2563EB]',
+            },
+            `lesson-${newLesson.id}`
+          );
+        }
+      }
+    );
+
     channel.subscribe();
 
     return () => {
       supabase.removeChannel(channel);
+    };
+  }, [pathname]);
+
+  // 2. Active Catch-Up Check: Pull recent lessons & homework if user resumed tab or had screen locked
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const checkRecentUpdates = async () => {
+      const { publicId, role } = getUserContext();
+      if (!publicId || role === 'teacher') return;
+
+      try {
+        const res = await fetch(`/api/lessons?studentPublicId=${encodeURIComponent(publicId)}`, {
+          cache: 'no-store',
+        });
+        const data = await res.json();
+        if (data?.lessons && Array.isArray(data.lessons)) {
+          const storedSeen = JSON.parse(localStorage.getItem('aida_notified_lessons') || '[]');
+          const seenSet = new Set(storedSeen);
+
+          for (const l of data.lessons) {
+            const ageMs = Date.now() - new Date(l.created_at).getTime();
+            // Lessons scheduled within the last 2 hours that haven't triggered OS notification yet
+            if (l.status === 'pending' && ageMs < 2 * 3600 * 1000 && !seenSet.has(l.id)) {
+              seenSet.add(l.id);
+              localStorage.setItem('aida_notified_lessons', JSON.stringify(Array.from(seenSet).slice(-50)));
+
+              let timeStr = '';
+              if (l.scheduled_for) {
+                try {
+                  const d = new Date(l.scheduled_for);
+                  timeStr = ` на ${d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })} в ${d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`;
+                } catch (_) {}
+              }
+
+              const teacher = l.teacher_name || 'Преподаватель';
+              const topic = l.topic || 'Индивидуальное занятие';
+
+              await triggerPlatformAlert(
+                {
+                  id: `lesson-${l.id}`,
+                  type: 'lesson',
+                  category: 'Расписание уроков',
+                  title: '📅 АйДаУмничка: Назначен урок!',
+                  body: `${teacher}: ${topic}${timeStr}`,
+                  url: l.room_token ? `/room/${l.room_token}` : `/${publicId}`,
+                  iconBg: 'bg-[#EFF6FF]',
+                  iconColor: 'text-[#2563EB]',
+                },
+                `lesson-${l.id}`
+              );
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Catch-up check error:', err);
+      }
+    };
+
+    checkRecentUpdates();
+    const handleVisChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkRecentUpdates();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisChange);
+    window.addEventListener('focus', handleVisChange);
+    const poller = setInterval(checkRecentUpdates, 12000);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisChange);
+      window.removeEventListener('focus', handleVisChange);
+      clearInterval(poller);
     };
   }, [pathname]);
 
@@ -502,11 +633,11 @@ export default function NotificationManager() {
           <div className="w-6 h-6 rounded-full bg-[#5C8519] flex items-center justify-center shrink-0">
             <Check className="w-3.5 h-3.5 text-white" />
           </div>
-          <span className="font-bold">Уведомления PWA успешно подключены!</span>
+          <span className="font-bold">Уведомления в шторку успешно подключены!</span>
         </div>
       )}
 
-      {/* 3. Discreet Banner to request notification permission */}
+      {/* 3. Banner to request notification permission for Android / iOS shade */}
       {showPromptBanner && permission === 'default' && (
         <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:max-w-md z-[9999] bg-white border border-[#F2DECE] rounded-3xl p-4 shadow-xl shadow-orange-950/10 animate-in slide-in-from-bottom-4 duration-300">
           <div className="flex items-start gap-3">
@@ -516,10 +647,10 @@ export default function NotificationManager() {
 
             <div className="flex-1 min-w-0 space-y-1">
               <h4 className="font-black text-xs sm:text-sm text-[#161F38] leading-tight">
-                Включить уведомления о событиях?
+                Включить уведомления в шторку?
               </h4>
               <p className="text-[11px] text-[#6B758E] leading-relaxed">
-                Вы будете моментально узнавать о назначенных уроках, загруженных домашних заданиях и новых сообщениях, даже когда приложение свёрнуто.
+                Вы будете моментально получать пуши в шторку телефона при назначении уроков, новых домашних заданиях и сообщениях, даже когда приложение свёрнуто.
               </p>
 
               <div className="flex items-center gap-2 pt-2">
@@ -528,7 +659,7 @@ export default function NotificationManager() {
                   onClick={requestPermission}
                   className="bg-coralAccent hover:bg-coralAccent-hover text-white text-xs font-black px-4 py-1.5 rounded-full shadow-xs active:scale-95 transition-all cursor-pointer"
                 >
-                  Включить
+                  Включить в шторку
                 </button>
                 <button
                   type="button"

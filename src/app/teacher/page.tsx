@@ -27,9 +27,11 @@ import {
   Copy,
   Check,
   ExternalLink,
-  Minus
+  Minus,
+  Bell
 } from 'lucide-react';
 import { broadcastPlatformEvent } from '@/lib/platformNotifications';
+import { showSystemNotification, playNotificationChime } from '@/components/NotificationManager';
 import type { TeacherRecord } from '@/app/api/teachers/route';
 
 interface SupabaseStudent {
@@ -72,6 +74,39 @@ export default function TeacherDashboard() {
   const [teacherName, setTeacherName] = useState<string>('Преподаватель');
   const [teacherPublicId, setTeacherPublicId] = useState<string>('id179017');
   const [copiedLink, setCopiedLink] = useState(false);
+  const [notifState, setNotifState] = useState<'granted' | 'default' | 'denied'>('default');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setNotifState(Notification.permission);
+    }
+  }, []);
+
+  const handleToggleOrTestNotif = async () => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      alert('Ваш браузер не поддерживает системные уведомления в шторку.');
+      return;
+    }
+    if (Notification.permission !== 'granted') {
+      const res = await Notification.requestPermission();
+      setNotifState(res);
+      if (res === 'granted') {
+        playNotificationChime();
+        await showSystemNotification({
+          title: '🎉 Уведомления в шторку включены!',
+          body: 'Отлично! Теперь вы будете получать уведомления в шторку при сдаче ДЗ и новых сообщениях.',
+          url: `/teacher?id=${teacherPublicId}`,
+        });
+      }
+    } else {
+      playNotificationChime();
+      await showSystemNotification({
+        title: '🔔 АйДаУмничка: Проверка шторки',
+        body: 'Системные уведомления работают отлично! Уведомления от учеников придут сюда.',
+        url: `/teacher?id=${teacherPublicId}`,
+      });
+    }
+  };
 
   const copyCabinetLink = () => {
     if (typeof window !== 'undefined') {
@@ -694,6 +729,25 @@ export default function TeacherDashboard() {
               <span className="text-[10px] bg-[#FFF0E2] text-coralAccent border border-[#FCDDC7] font-extrabold px-2.5 py-0.5 rounded-full shadow-2xs">
                 ★ ID: {teacherPublicId}
               </span>
+
+              {/* Notification Shade Toggle / Test Button */}
+              <button
+                type="button"
+                onClick={handleToggleOrTestNotif}
+                className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg border transition-all cursor-pointer ${
+                  notifState === 'granted'
+                    ? 'bg-[#EAF7CF] text-[#5C8519] border-[#CCE8A2] hover:bg-[#DDF3B8]'
+                    : 'bg-[#FFF2E6] text-coralAccent border-[#FCDDC7] hover:bg-[#FFE6D2] animate-pulse'
+                }`}
+                title={
+                  notifState === 'granted'
+                    ? 'Уведомления в шторку активны. Нажмите для теста.'
+                    : 'Нажмите, чтобы включить уведомления в шторку телефона'
+                }
+              >
+                <Bell className="w-3 h-3" />
+                <span>{notifState === 'granted' ? 'Шторка: Вкл' : 'Включить в шторку'}</span>
+              </button>
             </div>
             <p className="text-[11px] text-[#6B758E] mt-0.5">
               Детский развивающий центр «АйДаУмничка», г. Тольятти • Онлайн-кабинет занятий

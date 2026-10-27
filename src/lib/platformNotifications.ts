@@ -57,14 +57,30 @@ export interface HomeworkSubmittedPayload {
 /**
  * Broadcasts an instant platform notification to all connected PWA and browser clients
  * via the shared Supabase Realtime channel.
+ * Ensures channel is subscribed before sending.
  */
-export function broadcastPlatformEvent(
+export async function broadcastPlatformEvent(
   event: PlatformNotificationEvent,
   payload: Record<string, any>
 ) {
   try {
-    const channel = supabase.channel('platform_messenger_global');
-    channel.send({
+    let channel = supabase.getChannels().find(
+      (c) => c.topic === 'realtime:platform_messenger_global'
+    );
+
+    if (!channel || channel.state !== 'joined') {
+      channel = supabase.channel('platform_messenger_global');
+      await new Promise<void>((resolve) => {
+        channel!.subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            resolve();
+          }
+        });
+        setTimeout(resolve, 1500);
+      });
+    }
+
+    await channel.send({
       type: 'broadcast',
       event,
       payload: {

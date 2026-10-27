@@ -204,6 +204,10 @@ export default function LessonsScheduleHistory({
       const selectedStudentObj = availableStudents.find(
         (s) => s.publicId === formStudent || s.fullName === formStudent
       );
+      const studentId =
+        selectedStudentObj?.publicId ||
+        formStudent.match(/id\d+/i)?.[0] ||
+        (formStudent.startsWith('id') ? formStudent : null);
 
       const res = await fetch('/api/lessons', {
         method: 'POST',
@@ -211,7 +215,7 @@ export default function LessonsScheduleHistory({
         body: JSON.stringify({
           topic: formTopic,
           student_name: selectedStudentObj?.fullName || formStudent || 'Ученик центра',
-          student_public_id: selectedStudentObj?.publicId || (formStudent.startsWith('id') ? formStudent : null),
+          student_public_id: studentId,
           teacher_name: teacherName || 'Преподаватель',
           scheduled_for: formDateTime,
           status: 'pending',
@@ -227,12 +231,12 @@ export default function LessonsScheduleHistory({
           id: createdLesson?.id || `lesson-${Date.now()}`,
           room_token: createdLesson?.room_token || '',
           topic: formTopic,
-          student_public_id: selectedStudentObj?.publicId || (formStudent.startsWith('id') ? formStudent : null),
+          student_public_id: studentId,
           student_name: selectedStudentObj?.fullName || formStudent || 'Ученик центра',
           teacher_name: teacherName || 'Преподаватель',
           scheduled_for: formDateTime,
           duration_minutes: 45,
-          creator_id: studentPublicId || '',
+          creator_id: 'teacher',
         });
 
         setShowScheduleForm(false);
