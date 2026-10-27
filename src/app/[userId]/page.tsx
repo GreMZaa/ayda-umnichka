@@ -4,7 +4,6 @@ import React, { useState, useEffect, use } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import LessonsScheduleHistory from '@/components/LessonsScheduleHistory';
-import StudentHomeworkBlock from '@/components/StudentHomeworkBlock';
 import BalanceWidget from '@/components/BalanceWidget';
 import { LessonSession, HomeworkItem } from '@/types';
 import {
@@ -25,7 +24,8 @@ import {
   Shield,
   Coins,
   Send,
-  MessageCircle
+  MessageCircle,
+  ExternalLink
 } from 'lucide-react';
 import {
   setCustomSlug,
@@ -466,14 +466,129 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
         </div>
       </div>
 
-      {/* 3. Homeworks Block */}
-      <div className="w-full">
-        <StudentHomeworkBlock
-          homeworks={homeworks}
-          currentUserId={currentId}
-          onHomeworkUpdated={() => fetchStudentData(currentId)}
-        />
-      </div>
+      {/* 3. Homeworks Block — Compact teacher & homework card with "Перейти к ДЗ" button */}
+      {(() => {
+        // Extract teachers who created lessons or assigned homework
+        // "только вместо ученика преподаватель кто сделал урок ему"
+        const teachersMap = new Map<string, { name: string; totalCount: number; pendingCount: number }>();
+
+        homeworks.forEach((h) => {
+          const tName = h.teacherName?.trim() || 'Преподаватель центра';
+          const entry = teachersMap.get(tName) || { name: tName, totalCount: 0, pendingCount: 0 };
+          entry.totalCount += 1;
+          if (h.status === 'assigned') {
+            entry.pendingCount += 1;
+          }
+          teachersMap.set(tName, entry);
+        });
+
+        lessons.forEach((l) => {
+          const tName = l.teacherName?.trim();
+          if (tName && !teachersMap.has(tName)) {
+            teachersMap.set(tName, { name: tName, totalCount: 0, pendingCount: 0 });
+          }
+        });
+
+        if (teachersMap.size === 0) {
+          teachersMap.set('Преподаватель центра', {
+            name: 'Преподаватель центра',
+            totalCount: homeworks.length,
+            pendingCount: homeworks.filter((h) => h.status === 'assigned').length,
+          });
+        }
+
+        const teacherEntries = Array.from(teachersMap.values());
+        const pendingHomeworkCount = homeworks.filter((h) => h.status === 'assigned').length;
+
+        return (
+          <div className="w-full">
+            <div className="bg-white rounded-3xl p-4 sm:p-5 border border-[#F2DECE] shadow-xs space-y-3.5 hover:shadow-sm transition-shadow">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-[#F8EDE1]">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-[#FFF2E6] border border-[#FCDDC7] flex items-center justify-center text-coralAccent shrink-0 shadow-2xs">
+                    <BookOpen className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-sm sm:text-base text-[#161F38] leading-tight">
+                      Домашние задания
+                    </h3>
+                    <p className="text-[11px] text-[#6B758E]">
+                      Упражнения и материалы от педагога
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  {pendingHomeworkCount > 0 ? (
+                    <span className="text-[10px] font-black bg-[#FFF2E6] text-coralAccent px-2.5 py-1 rounded-full border border-[#FCDDC7] animate-pulse">
+                      {pendingHomeworkCount} к сдаче
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-extrabold bg-[#EAF7CF] text-[#5C8519] px-2.5 py-1 rounded-full border border-[#D5ECA3]">
+                      Все выполнено ✓
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* List of Teachers who gave lessons/homework */}
+              <div className="space-y-2.5">
+                {teacherEntries.map((teacher) => (
+                  <div
+                    key={teacher.name}
+                    className="p-3 sm:p-3.5 bg-[#FDFEFC] hover:bg-white rounded-2xl border border-[#E5EED8] hover:border-[#5C8519]/60 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all"
+                  >
+                    {/* Teacher info */}
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#5C8519] to-[#8BC34A] text-white font-black text-sm flex items-center justify-center shrink-0 shadow-2xs">
+                        {teacher.name[0] || 'П'}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-xs sm:text-sm font-black text-[#161F38] truncate">
+                            {teacher.name}
+                          </span>
+                          <span className="text-[10px] text-[#5C8519] font-bold bg-[#EAF7CF] px-2 py-0.2 rounded-full border border-[#D5ECA3] shrink-0">
+                            Преподаватель
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-[#6B758E] truncate">
+                          {teacher.pendingCount > 0
+                            ? `${teacher.pendingCount} заданий ожидает вашего решения`
+                            : teacher.totalCount > 0
+                            ? `Все ${teacher.totalCount} заданий сданы на проверку`
+                            : 'Новые упражнения появятся сразу после занятия'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* "Перейти к ДЗ" Button opening dedicated page in new tab */}
+                    <div className="flex items-center justify-end shrink-0">
+                      <Link
+                        href={`/student/homework?studentId=${encodeURIComponent(currentId)}&teacherName=${encodeURIComponent(teacher.name)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center justify-center gap-1.5 text-xs font-black bg-[#EEF2FF] hover:bg-[#E0E7FF] text-[#4F46E5] border border-[#DCDAF7] px-3.5 py-2 rounded-full transition-all active:scale-95 shadow-2xs cursor-pointer w-full sm:w-auto"
+                        title="Открыть домашние задания в новой вкладке"
+                      >
+                        <BookOpen className="w-3.5 h-3.5" />
+                        <span>Перейти к ДЗ</span>
+                        {teacher.totalCount > 0 && (
+                          <span className="bg-[#4F46E5] text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold ml-0.5">
+                            {teacher.totalCount}
+                          </span>
+                        )}
+                        <ExternalLink className="w-3 h-3 text-[#4F46E5]/70" />
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
