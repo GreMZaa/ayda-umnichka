@@ -68,12 +68,22 @@ export default function LessonRoomPage() {
     d.setDate(d.getDate() + 2);
     setHwDueDate(d.toISOString().slice(0, 10));
 
-    // 3. Resolve participant label
-    if (teacherFlag) {
-      setParticipantName('Ученик центра');
-    } else {
-      setParticipantName('Преподаватель');
-    }
+    // 3. Resolve participant label from cache if available to prevent generic flickering
+    let initialName = teacherFlag ? 'Ученик центра' : 'Преподаватель';
+    try {
+      const activeRoom = localStorage.getItem('aida_active_lesson_room');
+      if (activeRoom) {
+        const parsed = JSON.parse(activeRoom);
+        if (parsed.roomId === roomId) {
+          if (!teacherFlag && parsed.teacher_name) {
+            initialName = parsed.teacher_name;
+          } else if (teacherFlag && parsed.student_name) {
+            initialName = parsed.student_name;
+          }
+        }
+      }
+    } catch (_) {}
+    setParticipantName(initialName);
 
     // 4. Save active lesson room state so user can re-enter from personal cabinet if navigated away
     try {
@@ -115,6 +125,14 @@ export default function LessonRoomPage() {
               const cleanTeacher = currentLesson.teacher_name.replace(/\s*\(.*?\)$/, '').trim();
               if (cleanTeacher && cleanTeacher !== 'Преподаватель') {
                 setParticipantName(cleanTeacher);
+                try {
+                  const ar = localStorage.getItem('aida_active_lesson_room');
+                  if (ar) {
+                    const parsed = JSON.parse(ar);
+                    parsed.teacher_name = cleanTeacher;
+                    localStorage.setItem('aida_active_lesson_room', JSON.stringify(parsed));
+                  }
+                } catch (_) {}
               }
             } else if (isTeacher && currentLesson.teacher_name) {
               const cleanTeacher = currentLesson.teacher_name.replace(/\s*\(.*?\)$/, '').trim();

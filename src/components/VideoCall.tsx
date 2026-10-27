@@ -70,13 +70,42 @@ interface VideoCallProps {
 
 const rtcConfig: RTCConfiguration = {
   iceServers: [
+    // Global Google & Cloudflare STUN for fast direct UDP discovery
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
-    { urls: 'stun:stun3.l.google.com:19302' },
-    { urls: 'stun:stun4.l.google.com:19302' },
     { urls: 'stun:stun.services.mozilla.com' },
     { urls: 'stun:stun.cloudflare.com:3478' },
+    // TURN Relay servers to traverse international NATs and firewalls (Vietnam <-> Russia / Tolyatti)
+    // 1. Secure TURNS over TLS on port 443 (bypasses ISP firewalls, DPI and symmetric mobile/hotel NAT)
+    {
+      urls: 'turns:openrelay.metered.live:443?transport=tcp',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+    // 2. TURN over TCP on port 443 (guaranteed delivery across restrictive networks)
+    {
+      urls: 'turn:openrelay.metered.live:443?transport=tcp',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+    // 3. TURN over TCP on port 80
+    {
+      urls: 'turn:openrelay.metered.live:80?transport=tcp',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+    // 4. TURN over UDP on port 443 and 80 for low latency media relay
+    {
+      urls: 'turn:openrelay.metered.live:443',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+    {
+      urls: 'turn:openrelay.metered.live:80',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
   ],
   iceCandidatePoolSize: 10,
 };
@@ -569,7 +598,7 @@ export default function VideoCall({
       timeoutId = setTimeout(() => {
         pc.removeEventListener('icegatheringstatechange', checkState);
         resolve();
-      }, 500);
+      }, 1800); // 1.8s timeout allows relay candidate gathering across international networks
     });
   };
 
@@ -624,9 +653,11 @@ export default function VideoCall({
         remoteVideoRef.current.play().catch(() => {});
       }
 
-      // 3. Listen to unmute
+      // 3. Listen to unmute (first actual data packets received over network)
       event.track.onunmute = () => {
-        console.log('[WebRTC] Remote track unmuted:', event.track.kind);
+        console.log('[WebRTC] Remote track unmuted (media flowing):', event.track.kind);
+        setHasRemoteStream(true);
+        setConnectionStatus('connected');
         if (remoteVideoRef.current) {
           if (event.track.kind === 'video') {
             remoteVideoRef.current.srcObject = incomingStream;
@@ -636,8 +667,10 @@ export default function VideoCall({
         if (remoteAudioRef.current) remoteAudioRef.current.play().catch(() => {});
       };
 
-      setHasRemoteStream(true);
-      setConnectionStatus('connected');
+      if (event.track.readyState === 'live' && !event.track.muted) {
+        setHasRemoteStream(true);
+        setConnectionStatus('connected');
+      }
     };
 
     // Send local ICE candidates to peer
@@ -677,6 +710,11 @@ export default function VideoCall({
       if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
         setConnectionStatus('connected');
         setHasRemoteStream(true);
+      } else if (pc.iceConnectionState === 'failed') {
+        console.warn('[WebRTC] ICE failed across direct route, restarting ICE with TURN relays...');
+        if (typeof (pc as any).restartIce === 'function') {
+          (pc as any).restartIce();
+        }
       }
     };
 
