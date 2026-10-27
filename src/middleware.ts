@@ -47,6 +47,8 @@ export function middleware(request: NextRequest) {
     res.headers.set('X-Frame-Options', 'DENY');
     res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
     res.headers.set('X-XSS-Protection', '1; mode=block');
+    res.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+    res.headers.set('Permissions-Policy', 'camera=(self), microphone=(self), display-capture=(self)');
 
     return res;
   };
@@ -91,7 +93,14 @@ export function middleware(request: NextRequest) {
 
   // Admin Portal: strictly for verified 'admin'
   if (pathname.startsWith('/admin')) {
-    if (activeRole !== 'admin') {
+    const isAdmin =
+      activeRole === 'admin' &&
+      (cookieUserId === 'admin_session' ||
+        cookieUserId === 'admin_head' ||
+        Boolean(cookieUserId && cookieUserId.startsWith('admin_')) ||
+        Boolean(authUserId && authUserId.startsWith('admin_')));
+
+    if (!isAdmin) {
       const loginUrl = new URL('/login', request.url);
       loginUrl.searchParams.set('redirect', pathname);
       loginUrl.searchParams.set('error', 'forbidden');
@@ -102,7 +111,22 @@ export function middleware(request: NextRequest) {
 
   // Teacher Portal: strictly for 'teacher' or 'admin'
   if (pathname.startsWith('/teacher')) {
-    if (activeRole !== 'teacher' && activeRole !== 'admin') {
+    const isTeacher =
+      (activeRole === 'teacher' &&
+        Boolean(
+          cookieUserId &&
+            (cookieUserId.startsWith('teacher_') ||
+              cookieUserId.startsWith('id17') ||
+              cookieUserId.startsWith('id18') ||
+              cookieUserId.includes('teacher'))
+        )) ||
+      (activeRole === 'admin' &&
+        (cookieUserId === 'admin_session' ||
+          cookieUserId === 'admin_head' ||
+          Boolean(cookieUserId && cookieUserId.startsWith('admin_')) ||
+          Boolean(authUserId && authUserId.startsWith('admin_'))));
+
+    if (!isTeacher) {
       const loginUrl = new URL('/login', request.url);
       loginUrl.searchParams.set('redirect', pathname);
       loginUrl.searchParams.set('error', 'forbidden');

@@ -339,20 +339,6 @@ export default function Navbar() {
 
           {/* Right Section */}
           <div className="flex items-center gap-3">
-            {/* Balance Pill — Only visible for student */}
-            {showStudentBalance && (
-              <Link
-                href={userId ? `/${userId}` : '/student'}
-                suppressHydrationWarning
-                className="hidden sm:flex items-center gap-2 bg-white border border-[#EADBCC] px-3.5 py-1.5 rounded-full text-xs font-bold text-[#161F38] shadow-xs hover:border-coralAccent transition-[border-color,box-shadow,transform] duration-140 ease-out-emil active:scale-[0.98]"
-              >
-                <Coins className="w-4 h-4 text-coralAccent" />
-                <span suppressHydrationWarning>
-                  Баланс: <strong className="text-[#161F38]">{balance}</strong> зан.
-                </span>
-              </Link>
-            )}
-
             {isRoom ? (
               // Inside Video Lesson Room: Clean button to return to personal cabinet
               <Link

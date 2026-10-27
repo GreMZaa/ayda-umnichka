@@ -114,12 +114,48 @@ export class RoomService {
       throw new AppError('Размер файла превышает 15 МБ', 400);
     }
 
+    const rawName = file.name || 'file';
+    const extMatch = rawName.match(/\.([a-zA-Z0-9]+)$/);
+    const ext = extMatch ? extMatch[1].toLowerCase() : '';
+
+    // Strictly forbid dangerous scripts, HTML and SVG (Stored XSS / RCE vectors)
+    const dangerousExts = new Set([
+      'exe', 'bat', 'cmd', 'sh', 'php', 'phtml', 'js', 'mjs', 'ts', 'jsx', 'tsx',
+      'html', 'htm', 'xhtml', 'svg', 'vbs', 'scr', 'dll', 'com', 'jar', 'py', 'pl'
+    ]);
+    if (dangerousExts.has(ext)) {
+      throw new AppError('Загрузка исполняемых файлов, HTML и скриптов запрещена в целях безопасности', 400);
+    }
+
+    // Allowed extensions whitelist
+    const allowedExts = new Set([
+      'jpg', 'jpeg', 'png', 'webp', 'gif',
+      'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'rtf',
+      'mp3', 'wav', 'ogg', 'webm', 'm4a', 'mp4'
+    ]);
+    if (!allowedExts.has(ext)) {
+      throw new AppError(`Формат файла .${ext || 'unknown'} не поддерживается. Разрешены только изображения, документы и аудио.`, 400);
+    }
+
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // Sanitize file name
-    const sanitizedName = (file.name || 'file').replace(/[^a-zA-Z0-9._-]/g, '_');
-    const storagePath = `room-files/${Date.now()}_${Math.random().toString(36).slice(2, 7)}_${sanitizedName}`;
+    // Validate magic bytes for common formats
+    if (ext === 'png') {
+      const isPng = buffer.length >= 8 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47;
+      if (!isPng) throw new AppError('Файл повреждён или не соответствует формату PNG', 400);
+    } else if (ext === 'jpg' || ext === 'jpeg') {
+      const isJpg = buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+      if (!isJpg) throw new AppError('Файл повреждён или не соответствует формату JPEG', 400);
+    } else if (ext === 'pdf') {
+      const isPdf = buffer.length >= 4 && buffer.toString('ascii', 0, 4) === '%PDF';
+      if (!isPdf) throw new AppError('Файл повреждён или не соответствует формату PDF', 400);
+    }
+
+    // Sanitize file name to avoid path traversal
+    const baseName = rawName.substring(0, rawName.lastIndexOf('.')) || 'file';
+    const cleanBaseName = baseName.replace(/[^a-zA-Z0-9а-яА-Я._-]/g, '_').slice(0, 40);
+    const storagePath = `room-files/${Date.now()}_${Math.random().toString(36).slice(2, 7)}_${cleanBaseName}.${ext}`;
 
     const { error: uploadError } = await supabaseServer.storage
       .from('chat-attachments')

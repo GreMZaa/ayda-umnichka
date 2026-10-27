@@ -256,20 +256,52 @@ export class MessengerService {
     const contacts = Array.from(contactsMap.values());
     const conversationList: any[] = [];
 
+    // Batch fetch all conversations for current user in ONE query (eliminates N+1 queries)
+    const userA = currentUserId;
+    const isUserAUuid = isUuid(userA);
+    const convMapByPeer = new Map<string, any>();
+    const convIds: string[] = [];
+
+    if (isUserAUuid) {
+      const { data: convData } = await supabaseServer
+        .from('conversations')
+        .select('*')
+        .or(`student_id.eq.${userA},teacher_id.eq.${userA}`);
+
+      if (convData) {
+        for (const c of convData) {
+          const peer = c.student_id === userA ? c.teacher_id : c.student_id;
+          convMapByPeer.set(peer, c);
+          convIds.push(c.id);
+        }
+      }
+    }
+
+    // Batch fetch all messages for all conversations in ONE query
+    const messagesByConv = new Map<string, any[]>();
+    if (convIds.length > 0) {
+      const { data: allMsgs } = await supabaseServer
+        .from('messages')
+        .select('*')
+        .in('conversation_id', convIds)
+        .order('created_at', { ascending: true });
+
+      if (allMsgs) {
+        for (const m of allMsgs) {
+          const list = messagesByConv.get(m.conversation_id) || [];
+          list.push(m);
+          messagesByConv.set(m.conversation_id, list);
+        }
+      }
+    }
+
+    // Assemble conversations in memory O(1)
     for (const contact of contacts) {
-      let conversationId: string | null = null;
-      const userA = currentUserId;
       const userB = contact.id;
+      let conversationId: string | null = null;
 
-      if (isUuid(userA) && isUuid(userB) && userA !== userB) {
-        const { data: existingConv } = await supabaseServer
-          .from('conversations')
-          .select('*')
-          .or(
-            `and(student_id.eq.${userA},teacher_id.eq.${userB}),and(student_id.eq.${userB},teacher_id.eq.${userA})`
-          )
-          .maybeSingle();
-
+      if (isUserAUuid && isUuid(userB) && userA !== userB) {
+        const existingConv = convMapByPeer.get(userB);
         if (existingConv) {
           conversationId = existingConv.id;
         } else {
@@ -284,23 +316,17 @@ export class MessengerService {
               .select()
               .maybeSingle();
 
-            if (createdConv) conversationId = createdConv.id;
+            if (createdConv) {
+              conversationId = createdConv.id;
+              convMapByPeer.set(userB, createdConv);
+            }
           } catch (convErr) {
             console.warn('Could not insert conversation between', userA, userB, convErr);
           }
         }
       }
 
-      let messages: any[] = [];
-      if (conversationId && isUuid(conversationId)) {
-        const { data: msgs } = await supabaseServer
-          .from('messages')
-          .select('*')
-          .eq('conversation_id', conversationId)
-          .order('created_at', { ascending: true });
-
-        if (msgs) messages = msgs;
-      }
+      const messages: any[] = conversationId ? (messagesByConv.get(conversationId) || []) : [];
 
       conversationList.push({
         id: conversationId || `conv_${contact.publicId}`,

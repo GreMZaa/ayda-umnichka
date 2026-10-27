@@ -7,10 +7,21 @@ import {
 } from '../validators/auth.validator';
 import { extractAuthContext } from '../middleware/authGuard';
 import { apiSuccess, apiError } from '../middleware/apiErrors';
+import { checkRateLimit, getClientIp } from '../middleware/rateLimiter';
 
 export class AuthController {
   static async register(req: NextRequest) {
     try {
+      const ip = getClientIp(req);
+      // Rate limit: max 15 registrations per 15 minutes per IP
+      const rateCheck = checkRateLimit(`register_${ip}`, 15, 15 * 60 * 1000);
+      if (!rateCheck.allowed) {
+        return apiError(
+          `Слишком много попыток регистрации. Пожалуйста, повторите через ${rateCheck.retryAfter} сек.`,
+          429
+        );
+      }
+
       const body = await req.json();
       const validated = validateRegisterInput(body);
       const result = await AuthService.register(validated);

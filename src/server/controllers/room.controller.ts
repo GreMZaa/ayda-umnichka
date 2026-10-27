@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server';
 import { RoomService } from '../services/room.service';
 import { apiSuccess, apiError } from '../middleware/apiErrors';
+import { checkRateLimit, getClientIp } from '../middleware/rateLimiter';
+import { extractAuthContext } from '../middleware/authGuard';
 
 export class RoomController {
   static async getMessages(req: NextRequest) {
@@ -34,6 +36,15 @@ export class RoomController {
 
   static async uploadFile(req: NextRequest) {
     try {
+      const auth = extractAuthContext(req);
+      const ip = getClientIp(req);
+
+      // Rate limit: max 25 uploads per 10 minutes per IP
+      const rateCheck = checkRateLimit(`upload_${ip}`, 25, 10 * 60 * 1000);
+      if (!rateCheck.allowed) {
+        return apiError(`Слишком много загрузок. Повторите попытку через ${rateCheck.retryAfter} сек.`, 429);
+      }
+
       const formData = await req.formData();
       const file = formData.get('file') as File | null;
 

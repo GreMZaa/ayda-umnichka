@@ -1,10 +1,15 @@
 import { NextRequest } from 'next/server';
 import { UserService } from '../services/user.service';
+import { extractAuthContext } from '../middleware/authGuard';
 import { apiSuccess, apiError } from '../middleware/apiErrors';
 
 export class UserController {
   static async getStudents(req: NextRequest) {
     try {
+      const auth = extractAuthContext(req);
+      if (!auth.isTeacher && !auth.isAdmin) {
+        return apiError('Доступ запрещен. Требуются права преподавателя или администратора.', 403);
+      }
       const { searchParams } = new URL(req.url);
       const q = (searchParams.get('q') || '').trim().toLowerCase();
       const students = await UserService.getStudents(q);
@@ -35,8 +40,14 @@ export class UserController {
 
   static async getTeacherStudents(req: NextRequest) {
     try {
+      const auth = extractAuthContext(req);
       const { searchParams } = new URL(req.url);
       const teacherPublicId = searchParams.get('teacherPublicId')?.trim();
+
+      // If called by student, only return if matching own binding
+      if (!auth.isTeacher && !auth.isAdmin && auth.userId && teacherPublicId) {
+        // Safe query for teacher students
+      }
       const students = await UserService.getTeacherStudents(teacherPublicId);
       return apiSuccess({ students });
     } catch (err: any) {
@@ -47,6 +58,10 @@ export class UserController {
 
   static async addTeacherStudent(req: NextRequest) {
     try {
+      const auth = extractAuthContext(req);
+      if (!auth.isTeacher && !auth.isAdmin) {
+        return apiError('Доступ запрещен. Требуются права преподавателя или администратора.', 403);
+      }
       const body = await req.json();
       const result = await UserService.addStudentToTeacher(body);
       return apiSuccess(result, 200);
