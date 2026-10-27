@@ -1817,7 +1817,7 @@ export default function VideoCall({
         }}
       />
       {/* VK Calls Layout */}
-      <div className="relative w-full h-full min-h-[100dvh] bg-[#0A0E1A] overflow-hidden select-none">
+      <div className="relative w-full h-full min-h-[100dvh] bg-[#FFF7EE] overflow-hidden select-none">
         {/* Banner if browser autoplay policy blocked sound until interaction */}
         {isAudioAutoplayBlocked && hasRemoteStream && !isDeafened && (
           <div
@@ -1853,7 +1853,7 @@ export default function VideoCall({
         )}
 
         {/* 1. Main Fullscreen Video (Remote by default, or Local if isSwapped) */}
-        <div className="absolute inset-0 w-full h-full overflow-hidden bg-[#0A0E1A]">
+        <div className="absolute inset-0 w-full h-full overflow-hidden bg-[#FFF7EE]">
           {!isSwapped ? (
             /* Main View: Remote stream */
             <>
@@ -1862,30 +1862,30 @@ export default function VideoCall({
                 autoPlay
                 playsInline
                 className={`w-full h-full ${
-                  isScreenSharing || isVerticalMode ? 'object-contain bg-black' : 'object-cover'
+                  isScreenSharing || isVerticalMode ? 'object-contain bg-[#FFF7EE]' : 'object-cover'
                 } ${hasRemoteStream && remoteCamActive ? 'block' : 'hidden'}`}
               />
 
               {(!hasRemoteStream || !remoteCamActive) && (
-                <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-radial from-[#1e293b] via-[#0f172a] to-[#0A0E1A]">
+                <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-[#FFFDFB] via-[#FFF7EE] to-[#FFEFE0]">
                   <div className="relative mb-4">
-                    <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gradient-to-tr from-[#3b5998] to-[#6389e8] text-white flex items-center justify-center text-3xl sm:text-4xl font-black shadow-2xl border-4 border-white/20">
+                    <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gradient-to-tr from-[#FF6B4A] to-[#FFA259] text-white flex items-center justify-center text-3xl sm:text-4xl font-black shadow-xl shadow-orange-500/15 border-4 border-white">
                       <span>{resolvedParticipantName[0] || 'П'}</span>
                     </div>
                     {hasRemoteStream && (
-                      <div className="absolute bottom-1 right-1 w-7 h-7 rounded-full bg-black/60 backdrop-blur-md border border-white/20 shadow-sm flex items-center justify-center">
+                      <div className="absolute bottom-1 right-1 w-7 h-7 rounded-full bg-white border border-[#F2DECE] shadow-sm flex items-center justify-center">
                         {!remoteMicActive ? (
-                          <MicOff className="w-4 h-4 text-rose-400" />
+                          <MicOff className="w-4 h-4 text-rose-500" />
                         ) : (
-                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                          <span className="w-2.5 h-2.5 rounded-full bg-[#5C8519] animate-pulse" />
                         )}
                       </div>
                     )}
                   </div>
-                  <h3 className="text-white font-extrabold text-xl sm:text-2xl tracking-tight">
+                  <h3 className="text-[#161F38] font-black text-xl sm:text-2xl tracking-tight">
                     {resolvedParticipantName}
                   </h3>
-                  <p className="text-white/60 font-medium text-xs sm:text-sm mt-1">
+                  <p className="text-[#6B758E] font-medium text-xs sm:text-sm mt-1">
                     {hasRemoteStream ? 'Камера выключена' : 'Ожидание подключения собеседника...'}
                   </p>
                 </div>
@@ -1900,15 +1900,15 @@ export default function VideoCall({
                 playsInline
                 muted
                 className={`w-full h-full ${
-                  isScreenSharing || isVerticalMode ? 'object-contain bg-black' : 'object-cover'
+                  isScreenSharing || isVerticalMode ? 'object-contain bg-[#FFF7EE]' : 'object-cover'
                 } ${facingMode === 'user' ? '-scale-x-100' : ''} ${!camActive ? 'hidden' : 'block'}`}
               />
               {!camActive && (
-                <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-radial from-[#1e293b] via-[#0f172a] to-[#0A0E1A]">
-                  <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gradient-to-tr from-[#FF6B4A] to-[#FFA259] text-white flex items-center justify-center text-3xl sm:text-4xl font-black shadow-2xl border-4 border-white/20 mb-4">
+                <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-[#FFFDFB] via-[#FFF7EE] to-[#FFEFE0]">
+                  <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gradient-to-tr from-[#FF6B4A] to-[#FFA259] text-white flex items-center justify-center text-3xl sm:text-4xl font-black shadow-xl shadow-orange-500/15 border-4 border-white mb-4">
                     <span>Вы</span>
                   </div>
-                  <h3 className="text-white font-extrabold text-xl sm:text-2xl">Ваша камера выключена</h3>
+                  <h3 className="text-[#161F38] font-black text-xl sm:text-2xl">Ваша камера выключена</h3>
                 </div>
               )}
             </>

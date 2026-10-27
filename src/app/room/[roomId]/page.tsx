@@ -211,11 +211,11 @@ export default function LessonRoomPage() {
     setSavedUserId(uid);
   }, []);
 
-  // Seamless status bar and background color in video call room (dynamically adapts when minimized)
+  // Seamless status bar and background color in video call room matching website theme (#FFF7EE)
   useEffect(() => {
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     const originalTheme = metaThemeColor?.getAttribute('content') || '#FFF7EE';
-    const targetTheme = isPlatformMinimized ? '#FFF7EE' : '#0A0E1A';
+    const targetTheme = '#FFF7EE';
     if (metaThemeColor) {
       metaThemeColor.setAttribute('content', targetTheme);
     }
@@ -228,12 +228,12 @@ export default function LessonRoomPage() {
       }
       document.body.style.backgroundColor = origBodyBg;
     };
-  }, [isPlatformMinimized]);
+  }, []);
 
   return (
-    <div className={`fixed inset-0 w-full h-full z-40 overflow-hidden ${isPlatformMinimized ? 'bg-[#FFF7EE]' : 'bg-[#0A0E1A]'} flex flex-col select-none`}>
+    <div className="fixed inset-0 w-full h-full z-40 overflow-hidden bg-[#FFF7EE] flex flex-col select-none">
       {/* 100% Immersive Full-Screen Workspace — WebRTC call stays continuously connected */}
-      <div className={`w-full h-full relative overflow-hidden flex flex-col ${isPlatformMinimized ? 'bg-[#FFF7EE]' : 'bg-[#0A0E1A]'}`}>
+      <div className="w-full h-full relative overflow-hidden flex flex-col bg-[#FFF7EE]">
         {/* Interactive Whiteboard Canvas */}
         <div className={`w-full h-full ${isWhiteboardActive && !isPlatformMinimized ? 'block' : 'hidden'}`}>
           <Whiteboard roomId={roomId} isActive={isWhiteboardActive && !isPlatformMinimized} onClose={() => setIsWhiteboardActive(false)} />
