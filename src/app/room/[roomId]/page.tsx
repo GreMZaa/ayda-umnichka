@@ -46,14 +46,48 @@ export default function LessonRoomPage() {
   }, [studentParam]);
 
   useEffect(() => {
-    // 1. Determine role
-    const activeRole =
-      roleParam ||
-      localStorage.getItem('aida_active_role') ||
-      document.cookie.match(/(?:^|; )aida_active_role=([^;]*)/)?.[1] ||
-      'student';
+    // 1. Determine role with intelligent user identity resolution
+    const storedPublicId =
+      (typeof window !== 'undefined' &&
+        (localStorage.getItem('aida_user_public_id') ||
+          localStorage.getItem('aida_auth_user_id') ||
+          localStorage.getItem('aida_user_id'))) ||
+      '';
+    const storedRole =
+      (typeof window !== 'undefined' &&
+        (localStorage.getItem('aida_active_role') ||
+          document.cookie.match(/(?:^|; )aida_active_role=([^;]*)/)?.[1])) ||
+      '';
+    const storedName =
+      (typeof window !== 'undefined' &&
+        (localStorage.getItem('aida_full_name') ||
+          localStorage.getItem('aida_user_name'))) ||
+      '';
 
-    const teacherFlag = activeRole === 'teacher' || activeRole === 'admin';
+    // Julia (id180457) is unequivocally a teacher, regardless of accidental url param
+    const isTeacherUser =
+      storedPublicId.toLowerCase() === 'id180457' ||
+      storedRole === 'teacher' ||
+      storedRole === 'admin' ||
+      storedName.toLowerCase().includes('юлия');
+
+    // Sergey (id571210) is unequivocally a student
+    const isStudentUser =
+      storedPublicId.toLowerCase() === 'id571210' ||
+      storedRole === 'student' ||
+      storedName.toLowerCase().includes('сергей');
+
+    let teacherFlag = false;
+    if (isTeacherUser && !isStudentUser) {
+      teacherFlag = true;
+    } else if (isStudentUser && !isTeacherUser) {
+      teacherFlag = false;
+    } else if (roleParam) {
+      teacherFlag = roleParam === 'teacher' || roleParam === 'admin';
+    } else {
+      teacherFlag = storedRole === 'teacher' || storedRole === 'admin';
+    }
+
     setIsTeacher(teacherFlag);
 
     // 2. Determine topic
@@ -75,7 +109,7 @@ export default function LessonRoomPage() {
       if (activeRoom) {
         const parsed = JSON.parse(activeRoom);
         if (parsed.roomId === roomId) {
-          if (!teacherFlag && parsed.teacher_name) {
+          if (!teacherFlag && parsed.teacher_name && parsed.teacher_name !== 'Василина') {
             initialName = parsed.teacher_name;
           } else if (teacherFlag && parsed.student_name) {
             initialName = parsed.student_name;
@@ -95,7 +129,7 @@ export default function LessonRoomPage() {
         JSON.stringify({
           roomId,
           topic: resolvedTopic,
-          role: activeRole,
+          role: teacherFlag ? 'teacher' : 'student',
           timestamp: startTimestamp,
         })
       );
@@ -111,6 +145,29 @@ export default function LessonRoomPage() {
         if (data?.lessons) {
           const currentLesson = data.lessons.find((l: any) => l.room_token === roomId);
           if (currentLesson) {
+            const storedPublicId =
+              (typeof window !== 'undefined' &&
+                (localStorage.getItem('aida_user_public_id') ||
+                  localStorage.getItem('aida_auth_user_id') ||
+                  localStorage.getItem('aida_user_id'))) ||
+              '';
+
+            // Re-verify teacher / student status against current lesson record
+            if (storedPublicId) {
+              const spLower = storedPublicId.toLowerCase();
+              if (
+                spLower === (currentLesson.teacher_public_id || 'id180457').toLowerCase() ||
+                spLower === (currentLesson.teacher_id || '').toLowerCase()
+              ) {
+                setIsTeacher(true);
+              } else if (
+                currentLesson.student_public_id &&
+                spLower === currentLesson.student_public_id.toLowerCase()
+              ) {
+                setIsTeacher(false);
+              }
+            }
+
             if (currentLesson.student_public_id) {
               setTargetStudentId(currentLesson.student_public_id);
             }

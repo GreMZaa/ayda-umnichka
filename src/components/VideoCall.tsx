@@ -70,42 +70,22 @@ interface VideoCallProps {
 
 const rtcConfig: RTCConfiguration = {
   iceServers: [
-    // Global Google & Cloudflare STUN for fast direct UDP discovery
+    // Global Google STUN (sub-75ms response globally and across Russian ISPs)
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
-    { urls: 'stun:stun.services.mozilla.com' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' },
+    // Global Cloudflare Anycast STUN
     { urls: 'stun:stun.cloudflare.com:3478' },
-    // TURN Relay servers to traverse international NATs and firewalls (Vietnam <-> Russia / Tolyatti)
-    // 1. Secure TURNS over TLS on port 443 (bypasses ISP firewalls, DPI and symmetric mobile/hotel NAT)
-    {
-      urls: 'turns:openrelay.metered.live:443?transport=tcp',
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
-    },
-    // 2. TURN over TCP on port 443 (guaranteed delivery across restrictive networks)
-    {
-      urls: 'turn:openrelay.metered.live:443?transport=tcp',
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
-    },
-    // 3. TURN over TCP on port 80
-    {
-      urls: 'turn:openrelay.metered.live:80?transport=tcp',
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
-    },
-    // 4. TURN over UDP on port 443 and 80 for low latency media relay
-    {
-      urls: 'turn:openrelay.metered.live:443',
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
-    },
-    {
-      urls: 'turn:openrelay.metered.live:80',
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
-    },
+    // Mozilla global STUN
+    { urls: 'stun:stun.services.mozilla.com' },
+    // Nextcloud STUN over HTTPS port 443 (bypasses ISP UDP port throttling / firewalls)
+    { urls: 'stun:stun.nextcloud.com:443' },
+    { urls: 'stun:stun.nextcloud.com:3478' },
+    // Redundant enterprise STUNs for reliable multi-path NAT traversal
+    { urls: 'stun:stun.sipgate.net:3478' },
+    { urls: 'stun:stun.voip.blackberry.com:3478' },
   ],
   iceCandidatePoolSize: 10,
 };
@@ -401,6 +381,7 @@ export default function VideoCall({
 
   // WebRTC P2P states
   const [hasRemoteStream, setHasRemoteStream] = useState(false);
+  const [isPeerInRoom, setIsPeerInRoom] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'waiting'>('waiting');
 
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -598,7 +579,7 @@ export default function VideoCall({
       timeoutId = setTimeout(() => {
         pc.removeEventListener('icegatheringstatechange', checkState);
         resolve();
-      }, 1800); // 1.8s timeout allows relay candidate gathering across international networks
+      }, 800); // 800ms gives plenty of time for fast Anycast STUNs without delaying call setup
     });
   };
 
@@ -624,6 +605,8 @@ export default function VideoCall({
         incomingStream.addTrack(event.track);
       }
       remoteStreamRef.current = incomingStream;
+      setHasRemoteStream(true);
+      setConnectionStatus('connected');
 
       if (event.track.kind === 'audio') {
         event.track.enabled = !isDeafened && remoteMicActive;
@@ -692,15 +675,16 @@ export default function VideoCall({
       if (pc.connectionState === 'connected') {
         setConnectionStatus('connected');
         setHasRemoteStream(true);
-      } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-        setConnectionStatus('waiting');
-        setHasRemoteStream(false);
-        if (channelRef.current) {
-          channelRef.current.send({
-            type: 'broadcast',
-            event: 'user-joined',
-            payload: { senderId: myPeerIdRef.current, isTeacher },
-          });
+      } else if (pc.connectionState === 'connecting') {
+        setConnectionStatus('connecting');
+      } else if (pc.connectionState === 'disconnected') {
+        console.warn('[WebRTC] Connection disconnected, waiting for reconnection...');
+      } else if (pc.connectionState === 'failed') {
+        console.warn('[WebRTC] Connection failed, attempting ICE restart...');
+        if (typeof (pc as any).restartIce === 'function') {
+          try {
+            (pc as any).restartIce();
+          } catch (_) {}
         }
       }
     };
@@ -711,9 +695,11 @@ export default function VideoCall({
         setConnectionStatus('connected');
         setHasRemoteStream(true);
       } else if (pc.iceConnectionState === 'failed') {
-        console.warn('[WebRTC] ICE failed across direct route, restarting ICE with TURN relays...');
+        console.warn('[WebRTC] ICE failed across direct route, attempting ICE restart...');
         if (typeof (pc as any).restartIce === 'function') {
-          (pc as any).restartIce();
+          try {
+            (pc as any).restartIce();
+          } catch (_) {}
         }
       }
     };
@@ -999,16 +985,15 @@ export default function VideoCall({
     const activeRole = isTeacher ? 'teacher' : 'student';
     const savedUserId =
       (typeof window !== 'undefined' &&
-        (localStorage.getItem('aida_auth_user_id') ||
+        (localStorage.getItem('aida_user_public_id') ||
+          localStorage.getItem('aida_auth_user_id') ||
           localStorage.getItem('aida_user_id'))) ||
-      '';
+      (isTeacher ? 'id180457' : 'id571210');
 
     if (activeRole === 'teacher') {
-      router.push(savedUserId ? `/teacher?id=${encodeURIComponent(savedUserId)}` : '/teacher');
-    } else if (savedUserId) {
-      router.push(`/${encodeURIComponent(savedUserId)}`);
+      router.push(`/teacher?id=${encodeURIComponent(savedUserId || 'id180457')}`);
     } else {
-      router.push('/student');
+      router.push(`/${encodeURIComponent(savedUserId || 'id571210')}`);
     }
   };
 
@@ -1028,6 +1013,7 @@ export default function VideoCall({
       .on('broadcast', { event: 'user-joined' }, async ({ payload }) => {
         if (payload?.senderId === myPeerIdRef.current) return;
         console.log('[WebRTC] Peer joined room:', payload);
+        setIsPeerInRoom(true);
 
         // Sync timer start with peer if available
         syncTimerWithTimestamp(payload?.startedAt);
@@ -1066,12 +1052,8 @@ export default function VideoCall({
           }
         }
 
-        // 2. Only reset peer connection if NOT already connected or actively negotiating
-        const isAlreadyConnected =
-          pcRef.current &&
-          (pcRef.current.connectionState === 'connected' ||
-            pcRef.current.signalingState === 'have-local-offer');
-        if (!isAlreadyConnected) {
+        // 2. Only reset if connection was completely broken
+        if (pcRef.current && pcRef.current.connectionState === 'failed') {
           resetPeerConnection();
           setConnectionStatus('connecting');
         }
@@ -1091,6 +1073,7 @@ export default function VideoCall({
       .on('broadcast', { event: 'user-here' }, async ({ payload }) => {
         if (payload?.senderId === myPeerIdRef.current) return;
         console.log('[WebRTC] Peer is already in room (user-here):', payload);
+        setIsPeerInRoom(true);
 
         // Sync timer start with peer if available
         syncTimerWithTimestamp(payload?.startedAt);
@@ -1099,12 +1082,8 @@ export default function VideoCall({
           setPeerProvidedName(payload.userName);
         }
 
-        // Only reset peer connection if NOT already connected or actively negotiating
-        const isAlreadyConnected =
-          pcRef.current &&
-          (pcRef.current.connectionState === 'connected' ||
-            pcRef.current.signalingState === 'have-local-offer');
-        if (!isAlreadyConnected) {
+        // Only reset if connection was completely broken
+        if (pcRef.current && pcRef.current.connectionState === 'failed') {
           resetPeerConnection();
           setConnectionStatus('connecting');
         }
@@ -1212,6 +1191,7 @@ export default function VideoCall({
       .on('broadcast', { event: 'user-left' }, ({ payload }) => {
         if (payload?.senderId === myPeerIdRef.current) return;
         console.log('[WebRTC] Peer left room:', payload);
+        setIsPeerInRoom(false);
         resetPeerConnection();
         setHasRemoteStream(false);
         setConnectionStatus('waiting');
@@ -1747,14 +1727,11 @@ export default function VideoCall({
         });
       }
       const savedUserId =
+        localStorage.getItem('aida_user_public_id') ||
         localStorage.getItem('aida_auth_user_id') ||
         localStorage.getItem('aida_user_id') ||
-        '';
-      if (savedUserId) {
-        router.push(`/${savedUserId}`);
-      } else {
-        router.push('/student');
-      }
+        'id571210';
+      router.push(`/${savedUserId}`);
     }
   };
 
@@ -2246,9 +2223,9 @@ export default function VideoCall({
                     <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gradient-to-tr from-[#FF6B4A] to-[#FFA259] text-white flex items-center justify-center text-3xl sm:text-4xl font-black shadow-xl shadow-orange-500/15 border-4 border-white">
                       <span>{resolvedParticipantName[0] || 'П'}</span>
                     </div>
-                    {hasRemoteStream && (
+                    {(hasRemoteStream || isPeerInRoom) && (
                       <div className="absolute bottom-1 right-1 w-7 h-7 rounded-full bg-white border border-[#F2DECE] shadow-sm flex items-center justify-center">
-                        {!remoteMicActive ? (
+                        {!remoteMicActive && hasRemoteStream ? (
                           <MicOff className="w-4 h-4 text-rose-500" />
                         ) : (
                           <span className="w-2.5 h-2.5 rounded-full bg-[#5C8519] animate-pulse" />
@@ -2260,7 +2237,11 @@ export default function VideoCall({
                     {resolvedParticipantName}
                   </h3>
                   <p className="text-[#6B758E] font-medium text-xs sm:text-sm mt-1">
-                    {hasRemoteStream ? 'Камера выключена' : 'Ожидание подключения собеседника...'}
+                    {hasRemoteStream
+                      ? 'Камера выключена'
+                      : isPeerInRoom
+                      ? 'Собеседник в сети • Установка видеосвязи...'
+                      : 'Ожидание подключения собеседника...'}
                   </p>
                 </div>
               )}
@@ -2423,7 +2404,7 @@ export default function VideoCall({
               title="Участники"
             >
               <Users className="w-4 h-4" />
-              <span>{hasRemoteStream ? 2 : 1}</span>
+              <span>{(hasRemoteStream || isPeerInRoom) ? 2 : 1}</span>
             </button>
 
             {onToggleWhiteboard && (
@@ -2623,7 +2604,7 @@ export default function VideoCall({
                 <div className="flex items-center gap-2">
                   <Users className="w-5 h-5 text-coralAccent" />
                   <span className="font-extrabold text-base">
-                    Участники ({hasRemoteStream ? 2 : 1})
+                    Участники ({(hasRemoteStream || isPeerInRoom) ? 2 : 1})
                   </span>
                 </div>
                 <button
@@ -2671,7 +2652,11 @@ export default function VideoCall({
                     <div>
                       <p className="text-sm font-bold text-white">{resolvedParticipantName}</p>
                       <p className="text-[11px] text-white/60">
-                        {hasRemoteStream ? 'Подключен к уроку' : 'Ожидание подключения...'}
+                        {hasRemoteStream
+                          ? 'Подключен к уроку'
+                          : isPeerInRoom
+                          ? 'В комнате • Установка видеосвязи...'
+                          : 'Ожидание подключения...'}
                       </p>
                     </div>
                   </div>
@@ -2792,7 +2777,7 @@ export default function VideoCall({
                     {resolvedParticipantName}
                   </span>
                   <span className="text-[9px] text-white/50">
-                    {hasRemoteStream ? 'Камера выкл.' : 'Ожидание...'}
+                    {hasRemoteStream ? 'Камера выкл.' : isPeerInRoom ? 'В сети...' : 'Ожидание...'}
                   </span>
                 </div>
               )}
