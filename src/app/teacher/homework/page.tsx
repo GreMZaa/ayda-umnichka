@@ -19,7 +19,6 @@ import {
   Check,
   X
 } from 'lucide-react';
-import Navbar from '@/components/Navbar';
 
 interface HomeworkItem {
   id: string;
@@ -231,11 +230,8 @@ function TeacherHomeworkContent() {
     : '/teacher';
 
   return (
-    <div className="min-h-screen bg-[#FFF7EE] flex flex-col">
-      <Navbar />
-
-      <main className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 py-5 sm:py-8 space-y-5">
-        {/* Navigation & Header */}
+    <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 py-5 sm:py-8 space-y-5">
+      {/* Navigation & Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white rounded-3xl p-4 sm:p-6 border border-[#F2DECE] shadow-xs">
           <div className="space-y-1.5">
             <Link
@@ -608,7 +604,6 @@ function TeacherHomeworkContent() {
             })}
           </div>
         )}
-      </main>
     </div>
   );
 }
