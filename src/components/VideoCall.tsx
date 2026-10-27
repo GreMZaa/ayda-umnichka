@@ -103,8 +103,18 @@ export default function VideoCall({
   // Resolve participant label based on role
   const [peerProvidedName, setPeerProvidedName] = useState<string>('');
 
+  const isGeneric = (n?: string) =>
+    !n ||
+    n === 'Преподаватель' ||
+    n === 'Ученик' ||
+    n === 'Ученик центра';
+
+  // Priority: 1. If lesson already specified exact teacher/student name (e.g. 'Юлия Павловна'), keep it!
+  // 2. Otherwise use peerProvidedName
+  // 3. Fallback to generic role title
   const rawParticipant =
-    peerProvidedName ||
+    (!isGeneric(participantName) ? participantName : null) ||
+    (!isGeneric(peerProvidedName) ? peerProvidedName : null) ||
     participantName ||
     (isTeacher ? 'Ученик центра' : 'Преподаватель');
   const resolvedParticipantName = cleanDisplayName(rawParticipant);
@@ -439,11 +449,8 @@ export default function VideoCall({
   // Keep remote audio & video elements updated with remoteStreamRef
   useEffect(() => {
     if (remoteStreamRef.current) {
-      const audioTracks = remoteStreamRef.current.getAudioTracks();
-      if (remoteAudioRef.current && audioTracks.length > 0) {
-        if (!remoteAudioRef.current.srcObject || (remoteAudioRef.current.srcObject as MediaStream).getAudioTracks()[0]?.id !== audioTracks[0].id) {
-          remoteAudioRef.current.srcObject = new MediaStream(audioTracks);
-        }
+      if (remoteAudioRef.current && remoteAudioRef.current.srcObject !== remoteStreamRef.current) {
+        remoteAudioRef.current.srcObject = remoteStreamRef.current;
         remoteAudioRef.current.muted = isDeafened;
         remoteAudioRef.current
           .play()
@@ -454,15 +461,10 @@ export default function VideoCall({
           });
       }
 
-      const videoTracks = remoteStreamRef.current.getVideoTracks();
-      if (videoTracks.length > 0) {
-        if (remoteVideoRef.current && !isSwapped) {
-          if (!remoteVideoRef.current.srcObject || (remoteVideoRef.current.srcObject as MediaStream).getVideoTracks()[0]?.id !== videoTracks[0].id) {
-            remoteVideoRef.current.srcObject = new MediaStream(videoTracks);
-          }
-          remoteVideoRef.current.muted = true;
-          remoteVideoRef.current.play().catch(() => {});
-        }
+      if (remoteVideoRef.current && !isSwapped && remoteVideoRef.current.srcObject !== remoteStreamRef.current) {
+        remoteVideoRef.current.srcObject = remoteStreamRef.current;
+        remoteVideoRef.current.muted = true;
+        remoteVideoRef.current.play().catch(() => {});
       }
     }
 
@@ -483,6 +485,7 @@ export default function VideoCall({
 
   // WebRTC PeerConnection management & stream helpers
   const cameraPromiseRef = useRef<Promise<MediaStream | null> | null>(null);
+  const isNegotiatingRef = useRef(false);
 
   // Helper to create a dummy video track so WebRTC negotiation never fails if camera is unavailable
   const createDummyVideoTrack = (): MediaStreamTrack => {
@@ -529,7 +532,8 @@ export default function VideoCall({
       pcRef.current = null;
     }
     candidateQueueRef.current = [];
-    remoteStreamRef.current = new MediaStream();
+    remoteStreamRef.current = null;
+    isNegotiatingRef.current = false;
   };
 
   const ensureLocalStream = async (): Promise<MediaStream> => {
@@ -544,6 +548,29 @@ export default function VideoCall({
     cameraPromiseRef.current = p;
     const res = await p;
     return res || streamRef.current || new MediaStream();
+  };
+
+  // Helper to wait for ICE gathering completion or timeout so candidates are embedded in SDP
+  const waitForIceGathering = (pc: RTCPeerConnection): Promise<void> => {
+    return new Promise((resolve) => {
+      if (pc.iceGatheringState === 'complete') {
+        resolve();
+        return;
+      }
+      let timeoutId: NodeJS.Timeout;
+      const checkState = () => {
+        if (pc.iceGatheringState === 'complete') {
+          pc.removeEventListener('icegatheringstatechange', checkState);
+          clearTimeout(timeoutId);
+          resolve();
+        }
+      };
+      pc.addEventListener('icegatheringstatechange', checkState);
+      timeoutId = setTimeout(() => {
+        pc.removeEventListener('icegatheringstatechange', checkState);
+        resolve();
+      }, 500);
+    });
   };
 
   // WebRTC PeerConnection factory
@@ -563,43 +590,46 @@ export default function VideoCall({
     // Handle remote tracks (audio & video from student or teacher)
     pc.ontrack = (event) => {
       console.log('[WebRTC] Received remote track:', event.track.kind, event.track.id);
-      if (!remoteStreamRef.current) {
-        remoteStreamRef.current = event.streams[0] || new MediaStream();
+      const incomingStream = event.streams && event.streams[0] ? event.streams[0] : (remoteStreamRef.current || new MediaStream());
+      if (!incomingStream.getTracks().some((t) => t.id === event.track.id)) {
+        incomingStream.addTrack(event.track);
       }
-      if (!remoteStreamRef.current.getTracks().some((t) => t.id === event.track.id)) {
-        remoteStreamRef.current.addTrack(event.track);
-      }
+      remoteStreamRef.current = incomingStream;
 
       if (event.track.kind === 'audio') {
         event.track.enabled = !isDeafened && remoteMicActive;
       }
 
-      // 1. Dedicated audio element for crystal-clear sound that never pauses
+      // 1. Dedicated audio element
       if (remoteAudioRef.current) {
-        const aTracks = remoteStreamRef.current.getAudioTracks();
-        if (aTracks.length > 0) {
-          remoteAudioRef.current.srcObject = new MediaStream(aTracks);
+        if (remoteAudioRef.current.srcObject !== incomingStream) {
+          remoteAudioRef.current.srcObject = incomingStream;
         }
         remoteAudioRef.current.muted = isDeafened;
         remoteAudioRef.current
           .play()
           .then(() => setIsAudioAutoplayBlocked(false))
           .catch((err) => {
-            console.warn('[WebRTC] Remote audio autoPlay blocked, waiting for user gesture:', err);
+            console.warn('[WebRTC] Remote audio autoPlay blocked:', err);
             setIsAudioAutoplayBlocked(true);
           });
       }
 
-      // 2. Video element (muted so browser never blocks video playback)
+      // 2. Video element
       if (remoteVideoRef.current) {
-        const vTracks = remoteStreamRef.current.getVideoTracks();
-        if (vTracks.length > 0) {
-          remoteVideoRef.current.srcObject = new MediaStream(vTracks);
+        if (remoteVideoRef.current.srcObject !== incomingStream) {
+          remoteVideoRef.current.srcObject = incomingStream;
         }
         remoteVideoRef.current.muted = true;
-        (remoteVideoRef.current as any).autoPictureInPicture = true;
         remoteVideoRef.current.play().catch(() => {});
       }
+
+      // 3. Listen to unmute
+      event.track.onunmute = () => {
+        console.log('[WebRTC] Remote track unmuted:', event.track.kind);
+        if (remoteVideoRef.current) remoteVideoRef.current.play().catch(() => {});
+        if (remoteAudioRef.current) remoteAudioRef.current.play().catch(() => {});
+      };
 
       setHasRemoteStream(true);
       setConnectionStatus('connected');
@@ -627,7 +657,6 @@ export default function VideoCall({
       } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
         setConnectionStatus('waiting');
         setHasRemoteStream(false);
-        // Automatically attempt reconnection
         if (channelRef.current) {
           channelRef.current.send({
             type: 'broadcast',
@@ -652,26 +681,32 @@ export default function VideoCall({
   // Create and send SDP Offer
   const createAndSendOffer = async (pc: RTCPeerConnection) => {
     try {
+      if (isNegotiatingRef.current || pc.signalingState !== 'stable') return;
+      isNegotiatingRef.current = true;
       console.log('[WebRTC] Creating SDP offer...');
       const offer = await pc.createOffer({
         offerToReceiveAudio: true,
         offerToReceiveVideo: true,
       });
       await pc.setLocalDescription(offer);
+      await waitForIceGathering(pc);
 
+      const finalOffer = pc.localDescription || offer;
       if (channelRef.current) {
         channelRef.current.send({
           type: 'broadcast',
           event: 'offer',
           payload: {
-            sdp: offer,
+            sdp: finalOffer,
             senderId: myPeerIdRef.current,
           },
         });
-        console.log('[WebRTC] SDP offer sent');
+        console.log('[WebRTC] SDP offer sent with embedded candidates');
       }
     } catch (err) {
       console.warn('[WebRTC] Error creating offer:', err);
+    } finally {
+      isNegotiatingRef.current = false;
     }
   };
 
@@ -680,32 +715,43 @@ export default function VideoCall({
     try {
       console.log('[WebRTC] Handling remote offer...');
       const pc = getOrCreatePeerConnection(stream);
+      if (pc.signalingState !== 'stable') {
+        console.log('[WebRTC] Handling offer collision in state:', pc.signalingState);
+        if (pc.signalingState === 'have-local-offer') {
+          if (!isTeacher) {
+            await pc.setLocalDescription({ type: 'rollback' } as any).catch(() => {});
+          } else {
+            return;
+          }
+        }
+      }
       await pc.setRemoteDescription(new RTCSessionDescription(sdp));
 
       // Flush queued ICE candidates
       while (candidateQueueRef.current.length > 0) {
         const cand = candidateQueueRef.current.shift();
         if (cand) {
-          await pc.addIceCandidate(new RTCIceCandidate(cand));
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(cand));
+          } catch (_) {}
         }
       }
 
-      const answer = await pc.createAnswer({
-        offerToReceiveAudio: true,
-        offerToReceiveVideo: true,
-      } as any);
+      const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
+      await waitForIceGathering(pc);
 
+      const finalAnswer = pc.localDescription || answer;
       if (channelRef.current) {
         channelRef.current.send({
           type: 'broadcast',
           event: 'answer',
           payload: {
-            sdp: answer,
+            sdp: finalAnswer,
             senderId: myPeerIdRef.current,
           },
         });
-        console.log('[WebRTC] SDP answer sent');
+        console.log('[WebRTC] SDP answer sent with embedded candidates');
       }
     } catch (err) {
       console.warn('[WebRTC] Error handling offer:', err);
@@ -723,7 +769,9 @@ export default function VideoCall({
       while (candidateQueueRef.current.length > 0) {
         const cand = candidateQueueRef.current.shift();
         if (cand) {
-          await pcRef.current.addIceCandidate(new RTCIceCandidate(cand));
+          try {
+            await pcRef.current.addIceCandidate(new RTCIceCandidate(cand));
+          } catch (_) {}
         }
       }
     } catch (err) {
@@ -848,12 +896,20 @@ export default function VideoCall({
 
       // Announce ready in room
       if (channelRef.current) {
+        const myLocalName =
+          (typeof window !== 'undefined' &&
+            (localStorage.getItem('aida_full_name') ||
+              localStorage.getItem('aida_user_name'))) ||
+          '';
+        const cleanLocalName = myLocalName.replace(/\s*\(.*?\)$/, '').trim();
+
         channelRef.current.send({
           type: 'broadcast',
           event: 'user-joined',
           payload: {
             senderId: myPeerIdRef.current,
             isTeacher,
+            userName: cleanLocalName || (isTeacher ? 'Преподаватель' : 'Ученик'),
             startedAt: timerStartTimeRef.current,
           },
         });
@@ -959,15 +1015,21 @@ export default function VideoCall({
           }
         }
 
-        // 2. Reset old peer connection to negotiate clean session
-        resetPeerConnection();
-        setConnectionStatus('connecting');
+        // 2. Only reset peer connection if NOT already connected or actively negotiating
+        const isAlreadyConnected =
+          pcRef.current &&
+          (pcRef.current.connectionState === 'connected' ||
+            pcRef.current.signalingState === 'have-local-offer');
+        if (!isAlreadyConnected) {
+          resetPeerConnection();
+          setConnectionStatus('connecting');
+        }
 
         // 3. Initiate offer: Teacher initiates if present, or deterministic tie-breaker by peerId
         const shouldInitiate =
           (isTeacher && !payload?.isTeacher) ||
           (isTeacher === Boolean(payload?.isTeacher) && myPeerIdRef.current > (payload?.senderId || ''));
-        if (shouldInitiate) {
+        if (shouldInitiate && (!pcRef.current || pcRef.current.connectionState !== 'connected')) {
           const stream = await ensureLocalStream();
           if (stream) {
             const pc = getOrCreatePeerConnection(stream);
@@ -986,15 +1048,21 @@ export default function VideoCall({
           setPeerProvidedName(payload.userName);
         }
 
-        // Reset old peer connection to negotiate clean session
-        resetPeerConnection();
-        setConnectionStatus('connecting');
+        // Only reset peer connection if NOT already connected or actively negotiating
+        const isAlreadyConnected =
+          pcRef.current &&
+          (pcRef.current.connectionState === 'connected' ||
+            pcRef.current.signalingState === 'have-local-offer');
+        if (!isAlreadyConnected) {
+          resetPeerConnection();
+          setConnectionStatus('connecting');
+        }
 
         // If I should initiate the offer (Teacher initiates or deterministic tie-breaker)
         const shouldInitiate =
           (isTeacher && !payload?.isTeacher) ||
           (isTeacher === Boolean(payload?.isTeacher) && myPeerIdRef.current > (payload?.senderId || ''));
-        if (shouldInitiate) {
+        if (shouldInitiate && (!pcRef.current || pcRef.current.connectionState !== 'connected')) {
           const stream = await ensureLocalStream();
           if (stream) {
             const pc = getOrCreatePeerConnection(stream);
@@ -2100,11 +2168,8 @@ export default function VideoCall({
                 ref={(el) => {
                   remoteVideoRef.current = el;
                   if (el) {
-                    if (remoteStreamRef.current) {
-                      const vTracks = remoteStreamRef.current.getVideoTracks();
-                      if (vTracks.length > 0 && (!el.srcObject || (el.srcObject as MediaStream).getVideoTracks()[0]?.id !== vTracks[0].id)) {
-                        el.srcObject = new MediaStream(vTracks);
-                      }
+                    if (remoteStreamRef.current && el.srcObject !== remoteStreamRef.current) {
+                      el.srcObject = remoteStreamRef.current;
                     }
                     el.muted = true;
                     el.play().catch(() => {});
@@ -2113,7 +2178,7 @@ export default function VideoCall({
                 autoPlay
                 playsInline
                 className={`w-full h-full ${
-                  isScreenSharing || isVerticalMode ? 'object-contain bg-[#FFF7EE]' : 'object-cover'
+                  isScreenSharing || isVerticalMode ? 'object-contain bg-black' : 'object-cover'
                 } ${hasRemoteStream && remoteCamActive ? 'block' : 'hidden'}`}
               />
 
@@ -2217,11 +2282,8 @@ export default function VideoCall({
                 ref={(el) => {
                   remoteVideoRef.current = el;
                   if (el) {
-                    if (remoteStreamRef.current) {
-                      const vTracks = remoteStreamRef.current.getVideoTracks();
-                      if (vTracks.length > 0 && (!el.srcObject || (el.srcObject as MediaStream).getVideoTracks()[0]?.id !== vTracks[0].id)) {
-                        el.srcObject = new MediaStream(vTracks);
-                      }
+                    if (remoteStreamRef.current && el.srcObject !== remoteStreamRef.current) {
+                      el.srcObject = remoteStreamRef.current;
                     }
                     el.muted = true;
                     el.play().catch(() => {});

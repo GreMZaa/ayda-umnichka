@@ -221,23 +221,32 @@ export default function Navbar() {
   if (typeof window !== 'undefined') {
     const sp = new URLSearchParams(window.location.search);
     currentUrlId = sp.get('id') || sp.get('userId') || '';
+    if (!currentUrlId && pathname && pathname !== '/' && !pathname.startsWith('/login') && !pathname.startsWith('/admin') && !pathname.startsWith('/teacher') && !pathname.startsWith('/messenger') && !pathname.startsWith('/room')) {
+      const pathMatch = pathname.match(/^\/([^/?#]+)/);
+      if (pathMatch) currentUrlId = pathMatch[1];
+    }
   }
 
-  const effectiveTeacherId =
-    (pathname.startsWith('/teacher') && (currentUrlId || (userId?.startsWith('id1') ? userId : 'id179017'))) ||
-    'id179017';
-
-  const effectiveUserId = pathname.startsWith('/teacher')
-    ? effectiveTeacherId
-    : pathname.startsWith('/admin')
-    ? (currentUrlId || 'admin_head')
-    : currentUrlId || userId || (isTeacher ? 'id179017' : 'id571210');
+  const effectiveUserId =
+    currentUrlId ||
+    userId ||
+    (typeof window !== 'undefined'
+      ? localStorage.getItem('aida_auth_user_id') ||
+        localStorage.getItem('aida_user_id') ||
+        document.cookie.match(/(?:^|; )aida_auth_user_id=([^;]*)/)?.[1]
+      : '') ||
+    '';
 
   const effectiveRole = pathname.startsWith('/teacher')
     ? 'teacher'
     : pathname.startsWith('/admin')
     ? 'admin'
-    : userRole || (effectiveUserId?.startsWith('id17') || effectiveUserId?.startsWith('id18') ? 'teacher' : 'student');
+    : userRole ||
+      (typeof window !== 'undefined'
+        ? localStorage.getItem('aida_active_role') ||
+          document.cookie.match(/(?:^|; )aida_active_role=([^;]*)/)?.[1]
+        : '') ||
+      'student';
 
   const isActuallyTeacher = effectiveRole === 'teacher';
   const isActuallyAdmin = effectiveRole === 'admin';
@@ -252,12 +261,14 @@ export default function Navbar() {
     : 'Ученик';
   const initialLetter = displayName ? displayName[0].toUpperCase() : (isActuallyTeacher ? 'П' : 'У');
   const myCabinetUrl = isActuallyTeacher
-    ? `/teacher?id=${effectiveUserId}`
+    ? (effectiveUserId ? `/teacher?id=${effectiveUserId}` : '/teacher')
     : isActuallyAdmin
     ? '/admin'
-    : `/${effectiveUserId}`;
+    : (effectiveUserId ? `/${effectiveUserId}` : '/login');
 
-  const myMessengerUrl = `/messenger?id=${effectiveUserId}&role=${effectiveRole}`;
+  const myMessengerUrl = effectiveUserId
+    ? `/messenger?id=${effectiveUserId}&role=${effectiveRole}`
+    : `/messenger`;
 
   return (
     <header className="sticky top-0 z-50 bg-[#FFF7EE] border-b border-[#F4E4D3] shadow-2xs">
@@ -366,7 +377,7 @@ export default function Navbar() {
               <Link
                 href={
                   userRole === 'teacher'
-                    ? `/teacher?id=${userId || 'id179017'}`
+                    ? (userId ? `/teacher?id=${userId}` : '/teacher')
                     : userRole === 'admin'
                     ? '/admin'
                     : userId

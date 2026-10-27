@@ -19,7 +19,7 @@ export class MessengerController {
         req.cookies.get('aida_role')?.value?.trim();
 
       // IDOR guard: non-admin/teacher cannot spy on someone else's messages
-      let targetUserId = cookieUserId || queryUserId || 'id179017';
+      let targetUserId = cookieUserId || queryUserId || '';
       if (!auth.isTeacher && !auth.isAdmin && cookieUserId && queryUserId && queryUserId !== cookieUserId) {
         targetUserId = cookieUserId;
       }

@@ -42,7 +42,14 @@ export class MessengerService {
     cookieUserId?: string;
     cookieRole?: string;
   }) {
-    const activePublicId = params.queryUserId || params.cookieUserId || 'id179017';
+    const activePublicId = params.queryUserId || params.cookieUserId || '';
+    if (!activePublicId) {
+      return {
+        currentUser: null,
+        contacts: [],
+        messages: [],
+      };
+    }
     const isIdUuid = isUuid(activePublicId);
 
     let bindingQuery = supabaseServer.from('user_bindings').select('*');
@@ -65,22 +72,14 @@ export class MessengerService {
       binding?.auth_user_id ||
       profile?.id ||
       binding?.id ||
-      (activePublicId === 'id180457'
-        ? '94ac1a5b-c8cd-40ee-9ee8-914be2cc47ef'
-        : activePublicId === 'id571210'
-        ? '6fb2d0a9-0f80-428d-8539-3272303360a0'
-        : activePublicId === 'admin_head'
-        ? '03106a99-4793-4fce-bd94-0e8ddaeed4f5'
-        : 'c51ef5b0-3bc0-456f-bd31-7dbba439846c');
+      null;
 
     const activeRole =
       binding?.role ||
       profile?.role ||
       params.queryRole ||
       params.cookieRole ||
-      (activePublicId.startsWith('id17') || activePublicId.startsWith('id18')
-        ? 'teacher'
-        : 'student');
+      'student';
 
     const rawFullName = binding?.full_name || profile?.full_name || '';
     const currentFullName =
@@ -112,7 +111,7 @@ export class MessengerService {
 
     if (activeRole === 'teacher') {
       (boundStudents || []).forEach((st) => {
-        const sPubId = st.student_public_id || 'id571210';
+        const sPubId = st.student_public_id || st.id || '';
         const rawName = st.student_name || 'Ученик';
         const cleanName = rawName.replace(/\s*\(.*?\)$/, '').trim();
         const studentBinding = allBindings?.find((b) => b.public_id === sPubId);

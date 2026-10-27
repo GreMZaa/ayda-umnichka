@@ -116,6 +116,14 @@ export default function LessonRoomPage() {
               if (cleanTeacher && cleanTeacher !== 'Преподаватель') {
                 setParticipantName(cleanTeacher);
               }
+            } else if (isTeacher && currentLesson.teacher_name) {
+              const cleanTeacher = currentLesson.teacher_name.replace(/\s*\(.*?\)$/, '').trim();
+              if (cleanTeacher && cleanTeacher !== 'Преподаватель') {
+                try {
+                  localStorage.setItem('aida_full_name', cleanTeacher);
+                  localStorage.setItem('aida_user_name', cleanTeacher);
+                } catch (_) {}
+              }
             }
           }
         }
@@ -237,7 +245,7 @@ export default function LessonRoomPage() {
       localStorage.getItem('aida_user_id') ||
       '';
 
-    router.push(`/teacher?id=${savedUserId || 'id179017'}`);
+    router.push(savedUserId ? `/teacher?id=${savedUserId}` : '/teacher');
   };
 
   const handleSkipHomeworkAndLeave = () => {
@@ -246,7 +254,7 @@ export default function LessonRoomPage() {
       localStorage.getItem('aida_user_id') ||
       '';
 
-    router.push(`/teacher?id=${savedUserId || 'id179017'}`);
+    router.push(savedUserId ? `/teacher?id=${savedUserId}` : '/teacher');
   };
 
   const [isPlatformMinimized, setIsPlatformMinimized] = useState(false);
@@ -258,6 +266,21 @@ export default function LessonRoomPage() {
       localStorage.getItem('aida_user_id') ||
       '';
     setSavedUserId(uid);
+
+    if (uid) {
+      fetch(`/api/user/bind?publicId=${uid}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (d?.binding?.full_name) {
+            const clean = d.binding.full_name.replace(/\s*\(.*?\)$/, '').trim();
+            if (clean) {
+              localStorage.setItem('aida_full_name', clean);
+              localStorage.setItem('aida_user_name', clean);
+            }
+          }
+        })
+        .catch(() => {});
+    }
 
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'MAXIMIZE_LESSON_ROOM') {
@@ -302,7 +325,7 @@ export default function LessonRoomPage() {
             <iframe
               src={
                 isTeacher
-                  ? `/teacher?id=${savedUserId || 'id179017'}`
+                  ? (savedUserId ? `/teacher?id=${savedUserId}` : '/teacher')
                   : savedUserId
                   ? `/${savedUserId}`
                   : '/student'

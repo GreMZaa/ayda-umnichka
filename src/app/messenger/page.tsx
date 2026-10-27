@@ -134,7 +134,11 @@ export default function MessengerPage() {
   const fetchMessengerData = async (silent = false, explicitId?: string, explicitRole?: string) => {
     try {
       if (!silent) setIsLoading(true);
-      const targetId = explicitId || currentPublicId || 'id179017';
+      const targetId = explicitId || currentPublicId || '';
+      if (!targetId) {
+        setIsLoading(false);
+        return;
+      }
       const params = new URLSearchParams({ userId: targetId });
       if (explicitRole) params.set('role', explicitRole);
 
@@ -226,7 +230,7 @@ export default function MessengerPage() {
       localStorage.getItem('aida_auth_user_id') ||
       localStorage.getItem('aida_user_id') ||
       document.cookie.match(/(?:^|; )aida_auth_user_id=([^;]*)/)?.[1] ||
-      (savedRole === 'student' ? 'id571210' : 'id179017');
+      '';
 
     setCurrentPublicId(savedUserId);
 

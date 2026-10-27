@@ -244,11 +244,14 @@ export class UserService {
   }) {
     const { teacher_public_id, student_public_id, student_name, notes } = body;
 
+    if (!teacher_public_id) {
+      throw new AppError('Необходимо указать ID преподавателя', 400);
+    }
     if (!student_name && !student_public_id) {
       throw new AppError('Необходимо указать имя или ID ученика', 400);
     }
 
-    const teacherId = teacher_public_id || 'id179017';
+    const teacherId = teacher_public_id;
     const existing = await TeacherStudentRepository.findExisting(
       teacherId,
       student_public_id,
