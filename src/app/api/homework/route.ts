@@ -116,3 +116,29 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ error: 'Не передан ID домашнего задания' }, { status: 400 });
+    }
+
+    const { error } = await supabase
+      .from('homework')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error deleting homework:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (err: any) {
+    console.error('Homework DELETE handler error:', err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}

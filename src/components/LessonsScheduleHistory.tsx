@@ -351,8 +351,8 @@ export default function LessonsScheduleHistory({
   };
 
   return (
-    <div className="bg-white rounded-3xl p-4 sm:p-5 border-t-4 border-t-coralAccent border-x border-b border-[#F0DCCD] shadow-xs space-y-3.5 hover:shadow-sm transition-shadow">
-      <div className="space-y-3">
+    <div className="bg-white rounded-3xl p-4 sm:p-5 border-t-4 border-t-coralAccent border-x border-b border-[#F0DCCD] shadow-xs space-y-3.5 hover:shadow-sm transition-shadow h-full flex flex-col justify-between">
+      <div className="space-y-3 flex-1 flex flex-col">
         {/* Header with Title and Tabs */}
         <div className="shrink-0 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5">

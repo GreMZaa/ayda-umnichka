@@ -44,8 +44,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Необходимо указать имя или ID ученика' }, { status: 400 });
     }
 
+    const teacherId = teacher_public_id || 'id179017';
+
+    // Prevent duplicate student bindings for the same teacher
+    let existingQuery = supabase
+      .from('teacher_students')
+      .select('*')
+      .eq('teacher_public_id', teacherId);
+
+    if (student_public_id) {
+      existingQuery = existingQuery.eq('student_public_id', student_public_id);
+    } else {
+      existingQuery = existingQuery.eq('student_name', student_name);
+    }
+
+    const { data: existing } = await existingQuery.maybeSingle();
+    if (existing) {
+      return NextResponse.json({ success: true, student: existing, isDuplicate: true });
+    }
+
     const newBinding = {
-      teacher_public_id: teacher_public_id || 'id179017',
+      teacher_public_id: teacherId,
       student_public_id: student_public_id || null,
       student_name: student_name || 'Ученик центра',
       notes: notes || 'Индивидуальное сопровождение',

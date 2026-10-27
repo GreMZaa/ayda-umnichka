@@ -25,7 +25,8 @@ import {
   X,
   Search,
   Copy,
-  Check
+  Check,
+  ExternalLink
 } from 'lucide-react';
 import type { TeacherRecord } from '@/app/api/teachers/route';
 
@@ -374,6 +375,20 @@ export default function TeacherDashboard() {
       return;
     }
 
+    // Prevent adding the same child more than once
+    const isAlreadyBound = boundStudents.some((b) => {
+      if (publicIdToSave && b.publicId && b.publicId.toLowerCase() === publicIdToSave.toLowerCase()) return true;
+      const bNorm = (b.fullName || '').replace(/\s*\(.*?\)$/, '').trim().toLowerCase();
+      const nNorm = nameToSave.replace(/\s*\(.*?\)$/, '').trim().toLowerCase();
+      return bNorm && bNorm === nNorm;
+    });
+
+    if (isAlreadyBound) {
+      alert('Этот ребёнок уже добавлен в список закреплённых учеников!');
+      setIsBindingStudent(false);
+      return;
+    }
+
     try {
       const res = await fetch('/api/teacher/students', {
         method: 'POST',
@@ -637,9 +652,9 @@ export default function TeacherDashboard() {
       )}
 
       {/* 2-Column Dashboard Grid: Left (Schedule & Lessons) | Right (Assigned Students & Homework) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 items-stretch">
         {/* Left Column: Schedule & Lesson History */}
-        <div className="w-full">
+        <div className="w-full h-full flex flex-col">
           <LessonsScheduleHistory
             role="teacher"
             teacherName={cleanTeacherDisplayName || teacherName || 'Преподаватель'}
@@ -650,11 +665,11 @@ export default function TeacherDashboard() {
           />
         </div>
 
-        {/* Right Column: Assigned Students with Homework Accordion */}
-        <div className="w-full">
+        {/* Right Column: Assigned Students with Homework */}
+        <div className="w-full h-full flex flex-col">
           {/* Assigned Students List — Emerald Growth Accent */}
-          <div className="bg-white rounded-3xl p-4 sm:p-5 border-t-4 border-t-[#5C8519] border-x border-b border-[#D8E6C3] shadow-xs space-y-3.5 hover:shadow-sm transition-shadow">
-            <div className="space-y-3">
+          <div className="bg-white rounded-3xl p-4 sm:p-5 border-t-4 border-t-[#5C8519] border-x border-b border-[#D8E6C3] shadow-xs space-y-3.5 hover:shadow-sm transition-shadow h-full flex flex-col justify-between">
+            <div className="space-y-3 flex-1 flex flex-col">
               <div className="shrink-0 flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-xl bg-[#EAF7CF] text-[#5C8519] border border-[#CCE8A2] flex items-center justify-center shrink-0 shadow-2xs">
@@ -698,11 +713,19 @@ export default function TeacherDashboard() {
                       className="w-full bg-white border border-[#EADBCC] rounded-lg px-2.5 py-1.5 text-xs text-[#161F38] focus:outline-none focus:border-coralAccent"
                     >
                       <option value="">-- Выберите ученика из базы --</option>
-                      {supabaseStudents.map((st) => (
-                        <option key={st.publicId} value={st.publicId}>
-                          {st.fullName} ({st.publicId}) {st.phone ? `• ${st.phone}` : ''}
-                        </option>
-                      ))}
+                      {supabaseStudents
+                        .filter((st) => {
+                          return !boundStudents.some(
+                            (b) =>
+                              (b.publicId && b.publicId.toLowerCase() === st.publicId.toLowerCase()) ||
+                              (b.fullName && b.fullName.trim().toLowerCase() === st.fullName.trim().toLowerCase())
+                          );
+                        })
+                        .map((st) => (
+                          <option key={st.publicId} value={st.publicId}>
+                            {st.fullName} ({st.publicId}) {st.phone ? `• ${st.phone}` : ''}
+                          </option>
+                        ))}
                     </select>
                   </div>
                 )}
@@ -770,321 +793,65 @@ export default function TeacherDashboard() {
                     {paginatedStudents.map((st) => {
                       const info = getCleanStudentInfo(st);
                       const stHwList = getStudentHomeworkList(st);
-                      const isExpanded = selectedStudentHwId === st.id;
 
                       return (
                         <div
                           key={st.id}
-                          className={`rounded-2xl border transition-all duration-140 ${
-                            isExpanded
-                              ? 'border-[#5C8519] bg-[#F7FAEF] shadow-xs'
-                              : 'border-[#E5EED8] bg-[#FDFEFC] hover:bg-white hover:border-[#5C8519]/60 shadow-2xs'
-                          }`}
+                          className="p-3 bg-[#FDFEFC] hover:bg-white rounded-2xl border border-[#E5EED8] hover:border-[#5C8519]/60 shadow-2xs flex items-center justify-between gap-2.5 transition-all"
                         >
-                      {/* Student Card Row (Click to toggle Homework list) */}
-                      <div
-                        onClick={() => setSelectedStudentHwId(isExpanded ? null : st.id)}
-                        className="p-3 flex items-center justify-between gap-2 cursor-pointer select-none"
-                        title="Нажмите, чтобы посмотреть список домашних заданий ученика"
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#5C8519] to-[#8BC34A] text-white font-black text-xs flex items-center justify-center shrink-0 shadow-2xs">
-                            {info.displayName[0] || 'У'}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-xs font-black text-[#161F38] truncate">
-                                {info.displayName}
-                              </span>
-                              {info.publicId && (
-                                <span className="text-[10px] text-[#6B758E] font-medium shrink-0">
-                                  (ID: {info.publicId})
-                                </span>
-                              )}
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#5C8519] to-[#8BC34A] text-white font-black text-xs flex items-center justify-center shrink-0 shadow-2xs">
+                              {info.displayName[0] || 'У'}
                             </div>
-                            <div className="text-[10px] text-[#6B758E] truncate">
-                              {st.notes || 'Индивидуальное сопровождение'} {st.phone ? `• ${st.phone}` : ''}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          {/* Homework count indicator pill */}
-                          <div
-                            className={`inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full border transition-colors ${
-                              stHwList.length > 0
-                                ? 'bg-[#EEF2FF] text-[#4F46E5] border-[#DCDAF7]'
-                                : 'bg-gray-50 text-[#8A95A8] border-gray-200'
-                            }`}
-                          >
-                            <BookOpen className="w-3 h-3" />
-                            <span>{stHwList.length} ДЗ</span>
-                          </div>
-
-                          {/* Expand chevron */}
-                          <div
-                            className={`p-1 text-[#8A95A8] transition-transform duration-200 ${
-                              isExpanded ? 'rotate-180 text-[#5C8519]' : ''
-                            }`}
-                          >
-                            <ChevronDown className="w-3.5 h-3.5" />
-                          </div>
-
-                          {/* Delete button */}
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleRemoveStudent(st.id, st.publicId);
-                            }}
-                            title="Удалить из списка"
-                            className="text-[#8A95A8] hover:text-red-500 p-1 transition-colors cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Expandable Homework List Panel */}
-                      {isExpanded && (
-                        <div className="px-3 pb-3 pt-1 border-t border-[#E2ECCF] space-y-2 animate-in fade-in duration-140">
-                          <div className="flex items-center justify-between pt-1">
-                            <span className="text-[11px] font-black text-[#161F38]">
-                              Домашние задания: {info.displayName}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setHwStudentInput(info.displayName);
-                                setHwStudentPublicId(info.publicId);
-                                setHwTitle(`Упражнение для ${info.displayName}`);
-                                setActiveHwStudentId(activeHwStudentId === st.id ? null : st.id);
-                              }}
-                              className="inline-flex items-center gap-1 text-[10px] font-black bg-[#4F46E5] hover:bg-[#4338CA] text-white px-2.5 py-1 rounded-full shadow-2xs cursor-pointer active:scale-95 transition-transform"
-                            >
-                              <Plus className="w-3 h-3" />
-                              <span>{activeHwStudentId === st.id ? 'Скрыть форму' : 'Назначить ДЗ'}</span>
-                            </button>
-                          </div>
-
-                          {/* Inline Homework Assignment Form */}
-                          {activeHwStudentId === st.id && (
-                            <form
-                              onSubmit={assignHomework}
-                              onClick={(e) => e.stopPropagation()}
-                              className="p-3 bg-[#FFFDFB] border border-[#CCE8A2] rounded-xl space-y-2.5 animate-in fade-in"
-                            >
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs font-black text-[#161F38]">
-                                  Новое задание: {info.displayName}
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-xs font-black text-[#161F38] truncate">
+                                  {info.displayName}
                                 </span>
-                                {hwSuccess && (
-                                  <span className="text-[10px] font-bold text-[#5C8519] bg-[#EAF7CF] px-2 py-0.5 rounded-full">
-                                    ✓ Назначено!
+                                {info.publicId && (
+                                  <span className="text-[10px] text-[#6B758E] font-medium shrink-0">
+                                    (ID: {info.publicId})
                                   </span>
                                 )}
                               </div>
-
-                              <div>
-                                <label className="block text-[10px] font-bold text-[#6B758E] mb-1">
-                                  Тема / название задания:
-                                </label>
-                                <input
-                                  type="text"
-                                  required
-                                  value={hwTitle}
-                                  onChange={(e) => setHwTitle(e.target.value)}
-                                  placeholder="Например: Артикуляционная гимнастика «Лошадка»"
-                                  className="w-full bg-white border border-[#EADBCC] rounded-lg px-2.5 py-1.5 text-xs text-[#161F38] focus:outline-none focus:border-[#4F46E5]"
-                                />
+                              <div className="text-[10px] text-[#6B758E] truncate">
+                                {st.notes || 'Индивидуальное сопровождение'} {st.phone ? `• ${st.phone}` : ''}
                               </div>
-
-                              <div>
-                                <label className="block text-[10px] font-bold text-[#6B758E] mb-1">
-                                  Описание упражнения и инструкции:
-                                </label>
-                                <textarea
-                                  required
-                                  rows={3}
-                                  value={hwDesc}
-                                  onChange={(e) => setHwDesc(e.target.value)}
-                                  placeholder="Опишите, что нужно сделать ребенку (упражнения перед зеркалом, повторение звуков...)"
-                                  className="w-full bg-white border border-[#EADBCC] rounded-lg px-2.5 py-1.5 text-xs text-[#161F38] focus:outline-none focus:border-[#4F46E5] resize-none"
-                                />
-                              </div>
-
-                              {/* File attachment */}
-                              <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
-                                <div>
-                                  <input
-                                    type="file"
-                                    ref={fileInputRef}
-                                    onChange={handleFileChange}
-                                    className="hidden"
-                                    accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.mp3,.wav,.m4a"
-                                  />
-                                  {hwFile ? (
-                                    <div className="inline-flex items-center gap-1.5 bg-[#FFF2E6] text-coralAccent border border-[#FCDDC7] px-2.5 py-1 rounded-lg text-[10px] font-bold">
-                                      <Paperclip className="w-3 h-3" />
-                                      <span className="truncate max-w-[130px]">{hwFile.name}</span>
-                                      <button
-                                        type="button"
-                                        onClick={removeFileAttachment}
-                                        className="text-red-500 hover:text-red-700 ml-1 font-bold"
-                                      >
-                                        ×
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      onClick={() => fileInputRef.current?.click()}
-                                      className="inline-flex items-center gap-1 text-[10px] font-bold text-[#6B758E] hover:text-[#161F38] bg-gray-100 hover:bg-gray-200 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
-                                    >
-                                      <Paperclip className="w-3 h-3" />
-                                      <span>Прикрепить файл</span>
-                                    </button>
-                                  )}
-                                </div>
-
-                                <div className="flex items-center gap-1.5 ml-auto">
-                                  <button
-                                    type="button"
-                                    onClick={() => setActiveHwStudentId(null)}
-                                    className="text-xs font-bold text-[#8A95A8] hover:text-[#161F38] px-2.5 py-1 cursor-pointer"
-                                  >
-                                    Отмена
-                                  </button>
-                                  <button
-                                    type="submit"
-                                    disabled={isSubmittingHw || hwSuccess}
-                                    className="text-xs font-black bg-[#4F46E5] hover:bg-[#4338CA] text-white px-3.5 py-1 rounded-full shadow-2xs active:scale-95 cursor-pointer disabled:opacity-50 transition-all"
-                                  >
-                                    {isSubmittingHw ? 'Отправка...' : hwSuccess ? 'Отправлено!' : 'Назначить'}
-                                  </button>
-                                </div>
-                              </div>
-                            </form>
-                          )}
-
-                          {stHwList.length === 0 ? (
-                            <div className="py-2.5 px-3 bg-white/80 rounded-xl border border-dashed border-[#CCE8A2] text-center text-xs text-[#6B758E]">
-                              <p className="font-bold text-[#161F38]">Заданий пока нет</p>
-                              <p className="text-[10px] text-[#8A95A8] mt-0.5">
-                                Нажмите «Назначить ДЗ», чтобы отправить задание в кабинет ученика.
-                              </p>
                             </div>
-                          ) : (
-                            <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
-                              {stHwList.map((hw) => {
-                                const isSubmitted = hw.status === 'submitted' || Boolean(hw.student_solution_text);
+                          </div>
 
-                                return (
-                                  <div
-                                    key={hw.id}
-                                    className="p-2.5 bg-white rounded-xl border border-[#D5ECA3] space-y-1 shadow-2xs text-xs"
-                                  >
-                                    <div className="flex items-start justify-between gap-2">
-                                      <h5 className="font-black text-[#161F38] text-xs leading-snug">
-                                        {hw.title}
-                                      </h5>
-                                      <span
-                                        className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full shrink-0 ${
-                                          isSubmitted
-                                            ? 'bg-[#EAF7CF] text-[#5C8519] border border-[#CCE8A2]'
-                                            : 'bg-amber-50 text-amber-600 border border-amber-200'
-                                        }`}
-                                      >
-                                        {isSubmitted ? '✓ Сдано' : '⏳ В процессе'}
-                                      </span>
-                                    </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {/* "Перейти к ДЗ" Button opening dedicated page in new tab */}
+                            <Link
+                              href={`/teacher/homework?studentId=${encodeURIComponent(info.publicId || '')}&studentName=${encodeURIComponent(info.displayName)}&teacherId=${encodeURIComponent(teacherPublicId || '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 text-xs font-black bg-[#EEF2FF] hover:bg-[#E0E7FF] text-[#4F46E5] border border-[#DCDAF7] px-3 py-1.5 rounded-full transition-all active:scale-95 shadow-2xs cursor-pointer"
+                              title="Открыть домашние задания этого ученика в новой вкладке"
+                            >
+                              <BookOpen className="w-3.5 h-3.5" />
+                              <span>Перейти к ДЗ</span>
+                              {stHwList.length > 0 && (
+                                <span className="bg-[#4F46E5] text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold ml-0.5">
+                                  {stHwList.length}
+                                </span>
+                              )}
+                              <ExternalLink className="w-3 h-3 text-[#4F46E5]/70" />
+                            </Link>
 
-                                    <p className="text-[11px] text-[#6B758E] leading-relaxed">
-                                      {hw.task_description}
-                                    </p>
-
-                                    {/* Teacher attached file if any */}
-                                    {hw.task_file_url && (
-                                      <div className="pt-0.5">
-                                        <a
-                                          href={hw.task_file_url}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          download={hw.file_name || 'homework_file'}
-                                          className="inline-flex items-center gap-1 text-[10px] font-bold text-coralAccent bg-[#FFF2E6] hover:bg-[#FFE5D0] px-2 py-0.5 rounded-lg transition-colors"
-                                        >
-                                          <Paperclip className="w-3 h-3 shrink-0" />
-                                          <span className="truncate max-w-[150px]">
-                                            {hw.file_name || 'Материал к заданию'}
-                                          </span>
-                                        </a>
-                                      </div>
-                                    )}
-
-                                    {/* Student solution if submitted */}
-                                    {isSubmitted && (
-                                      <div className="p-2 bg-[#F7FAEF] border border-[#CCE8A2] rounded-lg mt-1 space-y-0.5">
-                                        <div className="text-[10px] font-black text-[#5C8519] flex items-center gap-1">
-                                          <CheckCircle2 className="w-3 h-3 text-[#5C8519]" />
-                                          <span>Ответ ученика:</span>
-                                        </div>
-                                        {hw.student_solution_text && (
-                                          <p className="text-[11px] text-[#161F38] italic">
-                                            {hw.student_solution_text}
-                                          </p>
-                                        )}
-                                        {hw.student_solution_file_url && (
-                                          <div className="mt-1.5">
-                                            {/\.(mp3|wav|ogg|webm|m4a)($|\?)/i.test(hw.student_solution_file_url) ? (
-                                              <audio
-                                                controls
-                                                src={hw.student_solution_file_url}
-                                                className="w-full h-8"
-                                              />
-                                            ) : /\.(png|jpe?g|webp|gif)($|\?)/i.test(hw.student_solution_file_url) ? (
-                                              <a
-                                                href={hw.student_solution_file_url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="block overflow-hidden rounded-lg border border-[#D5ECA3] max-w-[200px] hover:opacity-90 transition-opacity"
-                                              >
-                                                <img
-                                                  src={hw.student_solution_file_url}
-                                                  alt="Решение ученика"
-                                                  className="w-full max-h-36 object-contain bg-white"
-                                                />
-                                              </a>
-                                            ) : (
-                                              <a
-                                                href={hw.student_solution_file_url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                download
-                                                className="inline-flex items-center gap-1.5 text-[10px] font-bold text-[#5C8519] bg-white border border-[#D5ECA3] px-2 py-1 rounded-lg hover:bg-[#F2F7E5] transition-colors"
-                                              >
-                                                <Paperclip className="w-3 h-3" />
-                                                <span>Прикрепленный файл с решением</span>
-                                              </a>
-                                            )}
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-
-                                    <div className="text-[9px] text-[#8A95A8] pt-0.5 flex items-center justify-between">
-                                      <span>Выдано: {new Date(hw.created_at).toLocaleDateString('ru-RU')}</span>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
+                            {/* Delete button */}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveStudent(st.id, st.publicId)}
+                              title="Удалить ученика из списка"
+                              className="text-[#8A95A8] hover:text-red-500 p-1.5 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
+                      );
+                    })}
               </div>
 
               {/* Students pagination controls */}
