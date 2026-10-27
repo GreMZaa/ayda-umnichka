@@ -54,6 +54,15 @@ export function middleware(request: NextRequest) {
   };
 
   // ─────────────────────────────────────────────────────────
+  // 0. LOGIN ROUTE REDIRECT (MAIN DOMAIN -> LK SUBDOMAIN)
+  // ─────────────────────────────────────────────────────────
+  if (pathname.startsWith('/login') && !isLkSubdomain && !host.includes('localhost') && !host.includes('127.0.0.1')) {
+    const targetUrl = new URL(`https://lk-ayda-umnichka.vercel.app${pathname}${search}`);
+    const response = NextResponse.redirect(targetUrl, 307);
+    return applySecurityHeaders(response);
+  }
+
+  // ─────────────────────────────────────────────────────────
   // 1. ROOT PATH HANDLING
   // ─────────────────────────────────────────────────────────
   if (pathname === '/') {

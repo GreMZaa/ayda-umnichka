@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, Suspense } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -51,6 +51,13 @@ function LoginFormContent() {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState(errorParam === 'forbidden' ? 'Доступ ограничен. Войдите с соответствующими правами.' : '');
   const [successMessage, setSuccessMessage] = useState('');
+
+  // Enforce redirection from main landing domain to official LK subdomain
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.hostname === 'ayda-umnichka.vercel.app') {
+      window.location.replace(`https://lk-ayda-umnichka.vercel.app/login${window.location.search}`);
+    }
+  }, []);
 
   // Select registration role from the right block (admin registration is strictly forbidden)
   const handleSelectRegistrationRole = (role: 'student' | 'teacher') => {

@@ -526,9 +526,9 @@ export default function Navbar() {
                 <span>← На главную</span>
               </a>
             ) : (
-              // On landing page: Direct real link to LK subdomain (lk-[project].vercel.app)
+              // On landing page: Direct real link to LK subdomain (https://lk-ayda-umnichka.vercel.app/login)
               <a
-                href={lkUrl}
+                href="https://lk-ayda-umnichka.vercel.app/login"
                 className="bg-[#C5E87D] hover:bg-[#B6DC67] text-[#161F38] font-black px-3.5 py-2 sm:px-5 sm:py-2.5 rounded-full text-xs tracking-tight transition-[background-color,transform,box-shadow] duration-140 ease-out-emil shadow-xs flex items-center gap-1.5 sm:gap-2 active:scale-[0.97] cursor-pointer whitespace-nowrap"
               >
                 <LogIn className="w-3.5 h-3.5 text-[#161F38]" />
