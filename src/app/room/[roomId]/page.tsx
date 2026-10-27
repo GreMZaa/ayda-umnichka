@@ -209,6 +209,14 @@ export default function LessonRoomPage() {
       localStorage.getItem('aida_user_id') ||
       '';
     setSavedUserId(uid);
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'MAXIMIZE_LESSON_ROOM') {
+        setIsPlatformMinimized(false);
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
   }, []);
 
   // Seamless status bar and background color in video call room matching website theme (#FFF7EE)

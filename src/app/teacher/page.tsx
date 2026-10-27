@@ -610,6 +610,12 @@ export default function TeacherDashboard() {
           <div className="flex items-center gap-2 shrink-0">
             <Link
               href={`/room/${activeLessonRoom.roomId}?role=teacher&topic=${encodeURIComponent(activeLessonRoom.topic)}`}
+              onClick={(e) => {
+                if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
+                  e.preventDefault();
+                  window.parent.postMessage({ type: 'MAXIMIZE_LESSON_ROOM' }, '*');
+                }
+              }}
               className="inline-flex items-center gap-1.5 bg-[#5C8519] hover:bg-[#4E7214] text-white font-black text-xs px-4 py-2 rounded-full shadow-2xs active:scale-95 cursor-pointer"
             >
               <Video className="w-3.5 h-3.5" />

@@ -818,22 +818,14 @@ export default function VideoCall({
     }
   };
 
-  // Navigate back to user cabinet while preserving ongoing lesson room state in localStorage
+  // Minimize video call to floating camera in top-right ("картинка в картинке") over user cabinet
   const handleExitToCabinet = () => {
-    const activeRole = isTeacher ? 'teacher' : 'student';
-    const savedUserId =
-      (typeof window !== 'undefined' &&
-        (localStorage.getItem('aida_auth_user_id') ||
-          localStorage.getItem('aida_user_id'))) ||
-      '';
+    // 1. Switch room to minimized platform view (shows full personal cabinet in iframe)
+    setInternalPlatformMinimized(true);
+    onTogglePlatformMinimize?.(true);
 
-    if (activeRole === 'teacher') {
-      router.push(`/teacher?id=${encodeURIComponent(savedUserId || 'id179017')}`);
-    } else if (savedUserId) {
-      router.push(`/${encodeURIComponent(savedUserId)}`);
-    } else {
-      router.push('/student');
-    }
+    // 2. Also try native browser OS Picture-in-Picture
+    togglePictureInPicture().catch(() => {});
   };
 
   // Supabase Realtime Signaling setup
@@ -894,8 +886,10 @@ export default function VideoCall({
         resetPeerConnection();
         setConnectionStatus('connecting');
 
-        // 3. Initiate offer: Teacher initiates if present, or if newcomer's peerId is lexicographically greater
-        const shouldInitiate = isTeacher || (!payload?.isTeacher && myPeerIdRef.current > (payload?.senderId || ''));
+        // 3. Initiate offer: Teacher initiates if present, or deterministic tie-breaker by peerId
+        const shouldInitiate =
+          (isTeacher && !payload?.isTeacher) ||
+          (isTeacher === Boolean(payload?.isTeacher) && myPeerIdRef.current > (payload?.senderId || ''));
         if (shouldInitiate) {
           const stream = await ensureLocalStream();
           if (stream) {
@@ -919,8 +913,10 @@ export default function VideoCall({
         resetPeerConnection();
         setConnectionStatus('connecting');
 
-        // If I should initiate the offer
-        const shouldInitiate = isTeacher || (!payload?.isTeacher && myPeerIdRef.current > (payload?.senderId || ''));
+        // If I should initiate the offer (Teacher initiates or deterministic tie-breaker)
+        const shouldInitiate =
+          (isTeacher && !payload?.isTeacher) ||
+          (isTeacher === Boolean(payload?.isTeacher) && myPeerIdRef.current > (payload?.senderId || ''));
         if (shouldInitiate) {
           const stream = await ensureLocalStream();
           if (stream) {
@@ -1749,21 +1745,35 @@ export default function VideoCall({
             zIndex: 9999,
           }}
         />
-        {/* Floating Camera in Top Right ("справа сверху") */}
+        {/* Floating Camera in Top Right ("картинка в картинке") over Personal Cabinet */}
         <div
-          className="fixed top-[max(1rem,env(safe-area-inset-top,1rem))] right-3 sm:top-5 sm:right-6 z-50 w-36 xs:w-44 sm:w-60 aspect-[3/4] rounded-3xl overflow-hidden border-2 border-white shadow-2xl bg-black/95 backdrop-blur-md animate-in slide-in-from-top-4 duration-200 select-none group"
+          onClick={(e) => {
+            // Clicking the card area (except action buttons) maximizes back into full room
+            if ((e.target as HTMLElement).closest('button')) return;
+            setInternalPlatformMinimized(false);
+            onTogglePlatformMinimize?.(false);
+          }}
+          className="fixed top-[max(1rem,env(safe-area-inset-top,1rem))] right-3 sm:top-5 sm:right-6 z-50 w-44 xs:w-52 sm:w-64 aspect-[3/4] rounded-3xl overflow-hidden border-2 border-white shadow-2xl bg-black/95 backdrop-blur-md animate-in slide-in-from-top-4 duration-200 select-none cursor-pointer group"
+          title="Нажмите, чтобы развернуть урок на весь экран"
         >
-          {/* Remote Video Stream (strictly video tracks) */}
+          {/* Main stream inside floating PiP card:
+              Shows remote participant if active, or local camera preview with status if waiting for peer */}
           <video
             ref={(el) => {
               if (el) {
                 (el as any).autoPictureInPicture = true;
-                if (remoteStreamRef.current) {
-                  const vTracks = remoteStreamRef.current.getVideoTracks();
+                const targetStream = (hasRemoteStream && remoteCamActive && remoteStreamRef.current)
+                  ? remoteStreamRef.current
+                  : (camActive && streamRef.current)
+                  ? streamRef.current
+                  : null;
+                if (targetStream) {
+                  const vTracks = targetStream.getVideoTracks();
                   if (vTracks.length > 0 && (!el.srcObject || (el.srcObject as MediaStream).getVideoTracks()[0]?.id !== vTracks[0].id)) {
                     el.srcObject = new MediaStream(vTracks);
                   }
                 }
+                el.muted = true;
                 el.play().catch(() => {});
               }
             }}
@@ -1771,13 +1781,24 @@ export default function VideoCall({
             playsInline
             muted
             className={`w-full h-full object-cover ${
-              hasRemoteStream && remoteCamActive ? 'block' : 'hidden'
-            }`}
+              (hasRemoteStream && remoteCamActive) || (!hasRemoteStream && camActive) ? 'block' : 'hidden'
+            } ${!hasRemoteStream && facingMode === 'user' ? '-scale-x-100' : ''}`}
           />
 
-          {(!hasRemoteStream || !remoteCamActive) && (
+          {/* If waiting for peer but user camera is on: show subtle status banner */}
+          {!hasRemoteStream && camActive && (
+            <div className="absolute inset-0 pointer-events-none flex flex-col justify-end p-2 pb-14 bg-gradient-to-t from-black/80 via-transparent to-transparent">
+              <span className="text-[10px] text-amber-300 font-bold bg-black/60 px-2 py-0.5 rounded-full mx-auto backdrop-blur-xs flex items-center gap-1.5 border border-amber-400/30">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+                Ожидание собеседника...
+              </span>
+            </div>
+          )}
+
+          {/* Placeholder if neither camera is active */}
+          {((hasRemoteStream && !remoteCamActive) || (!hasRemoteStream && !camActive)) && (
             <div className="w-full h-full flex flex-col items-center justify-center bg-[#161F38] text-white p-3 text-center">
-              <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-[#3b5998] to-[#6389e8] text-white flex items-center justify-center font-black text-lg mb-2 shadow-md">
+              <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-[#FF6B4A] to-[#FFA259] text-white flex items-center justify-center font-black text-lg mb-2 shadow-md">
                 <span>{resolvedParticipantName[0] || 'П'}</span>
               </div>
               <span className="text-xs font-bold text-white truncate max-w-[120px]">
@@ -1898,7 +1919,19 @@ export default function VideoCall({
             /* Main View: Remote stream */
             <>
               <video
-                ref={remoteVideoRef}
+                ref={(el) => {
+                  remoteVideoRef.current = el;
+                  if (el) {
+                    if (remoteStreamRef.current) {
+                      const vTracks = remoteStreamRef.current.getVideoTracks();
+                      if (vTracks.length > 0 && (!el.srcObject || (el.srcObject as MediaStream).getVideoTracks()[0]?.id !== vTracks[0].id)) {
+                        el.srcObject = new MediaStream(vTracks);
+                      }
+                    }
+                    el.muted = true;
+                    el.play().catch(() => {});
+                  }
+                }}
                 autoPlay
                 playsInline
                 className={`w-full h-full ${
@@ -1935,7 +1968,13 @@ export default function VideoCall({
             /* Main View: Local stream (Swapped) */
             <>
               <video
-                ref={localVideoRef}
+                ref={(el) => {
+                  localVideoRef.current = el;
+                  if (el && streamRef.current && el.srcObject !== streamRef.current) {
+                    el.srcObject = streamRef.current;
+                  }
+                  if (el) el.play().catch(() => {});
+                }}
                 autoPlay
                 playsInline
                 muted
@@ -1965,7 +2004,13 @@ export default function VideoCall({
             /* PiP shows Local stream */
             <>
               <video
-                ref={localVideoRef}
+                ref={(el) => {
+                  localVideoRef.current = el;
+                  if (el && streamRef.current && el.srcObject !== streamRef.current) {
+                    el.srcObject = streamRef.current;
+                  }
+                  if (el) el.play().catch(() => {});
+                }}
                 autoPlay
                 playsInline
                 muted
@@ -1991,7 +2036,19 @@ export default function VideoCall({
             /* PiP shows Remote stream */
             <>
               <video
-                ref={remoteVideoRef}
+                ref={(el) => {
+                  remoteVideoRef.current = el;
+                  if (el) {
+                    if (remoteStreamRef.current) {
+                      const vTracks = remoteStreamRef.current.getVideoTracks();
+                      if (vTracks.length > 0 && (!el.srcObject || (el.srcObject as MediaStream).getVideoTracks()[0]?.id !== vTracks[0].id)) {
+                        el.srcObject = new MediaStream(vTracks);
+                      }
+                    }
+                    el.muted = true;
+                    el.play().catch(() => {});
+                  }
+                }}
                 autoPlay
                 playsInline
                 className={`w-full h-full object-cover ${
