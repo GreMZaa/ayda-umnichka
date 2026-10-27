@@ -73,9 +73,10 @@ export default function BalanceWidget({
 
     fetchLiveBalanceFromSupabase();
 
-    // Live subscription to postgres_changes on user_bindings
+    // Live subscription to postgres_changes on user_bindings with unique channel ID
+    const channelName = `widget-balance-${studentPublicId}-${Math.random().toString(36).slice(2)}`;
     const channel = supabase
-      .channel(`widget-balance-sync-${studentPublicId}`)
+      .channel(channelName)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'user_bindings', filter: `public_id=eq.${studentPublicId}` },

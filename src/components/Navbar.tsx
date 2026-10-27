@@ -98,7 +98,7 @@ export default function Navbar() {
     };
   }, []);
 
-  // Real-time Supabase sync for student balance
+  // User details sync from Supabase
   useEffect(() => {
     const pathPart = pathname.match(/^\/([^/?#]+)/)?.[1];
     const isSpecialPath = ['admin', 'teacher', 'student', 'login', 'messenger', 'room', 'api'].includes(pathPart || '');
@@ -113,7 +113,7 @@ export default function Navbar() {
 
     if (!activePublicId) return;
 
-    const fetchBalanceFromSupabase = async () => {
+    const fetchProfileFromSupabase = async () => {
       try {
         const { data } = await supabase
           .from('user_bindings')
@@ -124,11 +124,15 @@ export default function Navbar() {
         if (data) {
           if (typeof data.balance_lessons === 'number') {
             setBalance(data.balance_lessons);
-            localStorage.setItem('aida_student_balance', String(data.balance_lessons));
+            try {
+              localStorage.setItem('aida_student_balance', String(data.balance_lessons));
+            } catch (_) {}
           }
           if (data.full_name) {
             setUserName(data.full_name);
-            localStorage.setItem('aida_full_name', cleanDisplayName(data.full_name));
+            try {
+              localStorage.setItem('aida_full_name', cleanDisplayName(data.full_name));
+            } catch (_) {}
           }
           if (data.role) {
             setUserRole(data.role);
@@ -139,25 +143,7 @@ export default function Navbar() {
       }
     };
 
-    fetchBalanceFromSupabase();
-
-    const channel = supabase
-      .channel(`navbar-balance-${activePublicId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'user_bindings', filter: `public_id=eq.${activePublicId}` },
-        (payload: any) => {
-          if (payload.new && typeof payload.new.balance_lessons === 'number') {
-            setBalance(payload.new.balance_lessons);
-            localStorage.setItem('aida_student_balance', String(payload.new.balance_lessons));
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    fetchProfileFromSupabase();
   }, [pathname, userId]);
 
   if (isRoom) return null;
