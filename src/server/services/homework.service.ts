@@ -1,6 +1,7 @@
 import { HomeworkRepository } from '../repositories/homework.repository';
 import { CreateHomeworkDTO, SubmitSolutionDTO } from '../validators/homework.validator';
 import { AppError } from '../middleware/apiErrors';
+import { supabaseServer } from '../config/database';
 
 export class HomeworkService {
   static async getHomework(studentPublicId?: string) {
@@ -30,6 +31,26 @@ export class HomeworkService {
       throw new AppError(error.message, 500);
     }
 
+    const anyData = data as any;
+    try {
+      const ch = supabaseServer.channel('platform_messenger_global');
+      await ch.send({
+        type: 'broadcast',
+        event: 'homework-submitted',
+        payload: {
+          id: anyData?.id,
+          title: anyData?.title,
+          student_public_id: anyData?.student_public_id,
+          student_name: anyData?.student_name,
+          student_solution_text: anyData?.student_solution_text,
+          student_solution_file_url: anyData?.student_solution_file_url,
+          submitted_at: anyData?.updated_at,
+        },
+      });
+    } catch (bcErr) {
+      console.warn('Realtime broadcast homework-submitted warning:', bcErr);
+    }
+
     return { success: true, homework: data };
   }
 
@@ -51,6 +72,28 @@ export class HomeworkService {
     if (error) {
       console.error('Error inserting homework into Supabase:', error);
       throw new AppError(error.message, 500);
+    }
+
+    const anyData = data as any;
+    try {
+      const ch = supabaseServer.channel('platform_messenger_global');
+      await ch.send({
+        type: 'broadcast',
+        event: 'homework-assigned',
+        payload: {
+          id: anyData?.id,
+          title: anyData?.title,
+          task_description: anyData?.task_description,
+          student_public_id: anyData?.student_public_id,
+          student_name: anyData?.student_name,
+          teacher_name: anyData?.teacher_name,
+          task_file_url: anyData?.task_file_url,
+          file_name: anyData?.file_name,
+          created_at: anyData?.created_at,
+        },
+      });
+    } catch (bcErr) {
+      console.warn('Realtime broadcast homework-assigned warning:', bcErr);
     }
 
     return { success: true, homework: data };

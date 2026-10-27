@@ -25,6 +25,7 @@ import {
   Calendar
 } from 'lucide-react';
 import VoiceRecorder from '@/components/VoiceRecorder';
+import { broadcastPlatformEvent } from '@/lib/platformNotifications';
 
 interface HomeworkItem {
   id: string;
@@ -242,6 +243,16 @@ function StudentHomeworkContent() {
       const resData = await res.json();
 
       if (resData.success) {
+        const currentHw = homeworkList.find((h) => h.id === hwId);
+        broadcastPlatformEvent('homework-submitted', {
+          id: hwId,
+          title: currentHw?.title || 'Домашнее задание',
+          student_public_id: studentIdParam || studentId,
+          student_name: studentName || 'Ученик',
+          student_solution_text: finalSolutionText,
+          student_solution_file_url: finalFileUrl,
+        });
+
         setSubmitSuccessId(hwId);
         setTimeout(() => setSubmitSuccessId(null), 3500);
         setOpenSubmitId(null);

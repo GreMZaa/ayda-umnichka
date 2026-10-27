@@ -29,6 +29,7 @@ import {
   ExternalLink,
   Minus
 } from 'lucide-react';
+import { broadcastPlatformEvent } from '@/lib/platformNotifications';
 import type { TeacherRecord } from '@/app/api/teachers/route';
 
 interface SupabaseStudent {
@@ -588,6 +589,21 @@ export default function TeacherDashboard() {
       });
 
       if (res.ok) {
+        const resData = await res.json().catch(() => ({}));
+        const createdHw = resData?.homework;
+
+        broadcastPlatformEvent('homework-assigned', {
+          id: createdHw?.id || `hw-${Date.now()}`,
+          title: hwTitle.trim(),
+          task_description: hwDesc.trim(),
+          student_public_id: hwStudentPublicId || null,
+          student_name: hwStudentInput || 'Всем закрепленным ученикам',
+          teacher_name: teacherName,
+          task_file_url: hwFile?.url || null,
+          file_name: hwFile?.name || null,
+          creator_id: teacherPublicId || '',
+        });
+
         setHwSuccess(true);
         fetchAllHomework();
         setTimeout(() => {

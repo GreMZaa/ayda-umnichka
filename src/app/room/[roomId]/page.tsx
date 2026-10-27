@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { CheckCircle2, BookOpen, Send, Calendar, ArrowRight, X } from 'lucide-react';
 import VideoCall from '@/components/VideoCall';
 import Whiteboard from '@/components/Whiteboard';
+import { broadcastPlatformEvent } from '@/lib/platformNotifications';
 
 export default function LessonRoomPage() {
   const params = useParams();
@@ -194,7 +195,7 @@ export default function LessonRoomPage() {
       const cleanTName = activeTeacherName.replace(/\s*\(.*?\)$/, '').trim() || 'Преподаватель';
 
       if (hwTitle.trim() && hwDescription.trim()) {
-        await fetch('/api/homework', {
+        const res = await fetch('/api/homework', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -206,6 +207,19 @@ export default function LessonRoomPage() {
             due_date: hwDueDate || null,
           }),
         });
+
+        if (res.ok) {
+          const resData = await res.json().catch(() => ({}));
+          broadcastPlatformEvent('homework-assigned', {
+            id: resData?.homework?.id || `hw-${Date.now()}`,
+            title: hwTitle.trim(),
+            task_description: hwDescription.trim(),
+            student_public_id: targetStudentId || null,
+            student_name: targetStudentName || 'Ученик',
+            teacher_name: cleanTName,
+            due_date: hwDueDate || null,
+          });
+        }
       }
     } catch (err) {
       console.warn('Error saving homework:', err);

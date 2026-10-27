@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import VoiceRecorder from '@/components/VoiceRecorder';
 import { HomeworkItem } from '@/types';
+import { broadcastPlatformEvent } from '@/lib/platformNotifications';
 
 interface StudentHomeworkBlockProps {
   homeworks: HomeworkItem[];
@@ -171,6 +172,22 @@ export default function StudentHomeworkBlock({
       const resData = await res.json();
 
       if (resData.success) {
+        const currentHw = homeworks.find((h) => h.id === hwId);
+        const studentName =
+          (typeof window !== 'undefined' &&
+            (localStorage.getItem('aida_full_name') ||
+              localStorage.getItem('aida_user_name'))) ||
+          'Ученик';
+
+        broadcastPlatformEvent('homework-submitted', {
+          id: hwId,
+          title: currentHw?.title || 'Домашнее задание',
+          student_public_id: currentUserId,
+          student_name: studentName,
+          student_solution_text: finalSolutionText,
+          student_solution_file_url: finalFileUrl,
+        });
+
         setSubmitSuccessId(hwId);
         setTimeout(() => setSubmitSuccessId(null), 3000);
         setOpenSubmitId(null);

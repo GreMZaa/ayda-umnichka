@@ -1,5 +1,5 @@
 // Service Worker for АйДаУмничка PWA
-const CACHE_NAME = 'ayda-umnichka-pwa-v4';
+const CACHE_NAME = 'ayda-umnichka-pwa-v5';
 const STATIC_ASSETS = [
   '/manifest.json',
   '/icon-192.png',

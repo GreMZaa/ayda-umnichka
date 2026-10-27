@@ -1,6 +1,7 @@
 import { LessonRepository } from '../repositories/lesson.repository';
 import { CreateLessonDTO, UpdateLessonDTO } from '../validators/lesson.validator';
 import { AppError } from '../middleware/apiErrors';
+import { supabaseServer } from '../config/database';
 
 export class LessonService {
   static async getLessons(options: { studentPublicId?: string; status?: string }) {
@@ -71,8 +72,38 @@ export class LessonService {
         if (insertError) {
           console.error('Error inserting initial lesson row:', insertError);
         } else {
+          try {
+            const ch = supabaseServer.channel('platform_messenger_global');
+            await ch.send({
+              type: 'broadcast',
+              event: 'lesson-started',
+              payload: {
+                room_token,
+                topic: topic || 'Индивидуальное занятие',
+                student_name: student_name || 'Ученик',
+                teacher_name: teacher_name || 'Преподаватель',
+              },
+            });
+          } catch (_) {}
           return { success: true, lesson: inserted };
         }
+      }
+
+      if (action === 'start_room' || status === 'active') {
+        const anyData = data as any;
+        try {
+          const ch = supabaseServer.channel('platform_messenger_global');
+          await ch.send({
+            type: 'broadcast',
+            event: 'lesson-started',
+            payload: {
+              room_token,
+              topic: topic || (Array.isArray(anyData) ? anyData[0]?.topic : anyData?.topic) || 'Онлайн-урок',
+              student_public_id: student_public_id || (Array.isArray(anyData) ? anyData[0]?.student_public_id : anyData?.student_public_id),
+              teacher_name: teacher_name || (Array.isArray(anyData) ? anyData[0]?.teacher_name : anyData?.teacher_name) || 'Преподаватель',
+            },
+          });
+        } catch (_) {}
       }
 
       return { success: true, lesson: data };
@@ -99,6 +130,25 @@ export class LessonService {
       console.error('Error creating lesson in Supabase:', error);
       throw new AppError(error.message, 500);
     }
+
+    const createdLesson = Array.isArray(data) ? data[0] : data;
+    try {
+      const ch = supabaseServer.channel('platform_messenger_global');
+      await ch.send({
+        type: 'broadcast',
+        event: 'lesson-scheduled',
+        payload: {
+          id: createdLesson?.id,
+          room_token: createdLesson?.room_token || newLesson.room_token,
+          topic: newLesson.topic,
+          student_public_id: newLesson.student_public_id,
+          student_name: newLesson.student_name,
+          teacher_name: newLesson.teacher_name,
+          scheduled_for: newLesson.scheduled_for,
+          duration_minutes: newLesson.duration_minutes,
+        },
+      });
+    } catch (_) {}
 
     return { success: true, lesson: data };
   }

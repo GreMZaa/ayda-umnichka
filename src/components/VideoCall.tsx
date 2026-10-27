@@ -34,6 +34,7 @@ import {
   CheckCircle2,
   AlertCircle,
 } from 'lucide-react';
+import { broadcastPlatformEvent } from '@/lib/platformNotifications';
 import { formatTime } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 
@@ -419,6 +420,13 @@ export default function VideoCall({
           payload: { startedAt: now },
         });
       }
+
+      // Broadcast platform-level lesson start notification
+      broadcastPlatformEvent('lesson-started', {
+        room_token: roomToken,
+        topic: topic || 'Индивидуальное занятие',
+        teacher_name: (typeof window !== 'undefined' && (localStorage.getItem('aida_full_name') || localStorage.getItem('aida_user_name'))) || 'Преподаватель',
+      });
 
       // Persist started_at in database
       fetch('/api/lessons', {

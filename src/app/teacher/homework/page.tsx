@@ -19,6 +19,7 @@ import {
   Check,
   X
 } from 'lucide-react';
+import { broadcastPlatformEvent } from '@/lib/platformNotifications';
 
 interface HomeworkItem {
   id: string;
@@ -174,6 +175,22 @@ function TeacherHomeworkContent() {
       });
 
       if (res.ok) {
+        const resData = await res.json().catch(() => ({}));
+        const createdHw = resData?.homework;
+
+        broadcastPlatformEvent('homework-assigned', {
+          id: createdHw?.id || `hw-${Date.now()}`,
+          title: hwTitle.trim(),
+          task_description: hwDesc.trim(),
+          student_public_id: studentId || null,
+          student_name: cleanStudentName,
+          teacher_name: activeTeacherName,
+          task_file_url: fileUrl || null,
+          file_name: fileName || null,
+          due_date: hwDueDate || null,
+          creator_id: teacherIdParam || '',
+        });
+
         setHwTitle(`Упражнение: ${cleanStudentName}`);
         setHwDesc('');
         setHwFile(null);

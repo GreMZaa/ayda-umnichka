@@ -15,6 +15,7 @@ import {
   AlertCircle,
   Trash2
 } from 'lucide-react';
+import { broadcastPlatformEvent } from '@/lib/platformNotifications';
 
 export interface LessonRecord {
   id: string;
@@ -219,6 +220,21 @@ export default function LessonsScheduleHistory({
       });
 
       if (res.ok) {
+        const resData = await res.json().catch(() => ({}));
+        const createdLesson = resData?.lesson;
+
+        broadcastPlatformEvent('lesson-scheduled', {
+          id: createdLesson?.id || `lesson-${Date.now()}`,
+          room_token: createdLesson?.room_token || '',
+          topic: formTopic,
+          student_public_id: selectedStudentObj?.publicId || (formStudent.startsWith('id') ? formStudent : null),
+          student_name: selectedStudentObj?.fullName || formStudent || 'Ученик центра',
+          teacher_name: teacherName || 'Преподаватель',
+          scheduled_for: formDateTime,
+          duration_minutes: 45,
+          creator_id: studentPublicId || '',
+        });
+
         setShowScheduleForm(false);
         setFormDateTime('');
         setFormTopic('Индивидуальное занятие: Логопедия');
