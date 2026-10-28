@@ -120,6 +120,18 @@ export class LessonService {
         if (started_at) {
           updates.started_at = started_at;
         }
+        if (teacher_name && teacher_name !== 'Преподаватель') {
+          updates.teacher_name = teacher_name;
+        }
+        if (topic) {
+          updates.topic = topic;
+        }
+        if (student_name && student_name !== 'Ученик') {
+          updates.student_name = student_name;
+        }
+        if (student_public_id) {
+          updates.student_public_id = student_public_id;
+        }
       }
       if (status === 'completed') {
         updates.status = 'completed';
@@ -140,13 +152,18 @@ export class LessonService {
 
       // If room row didn't exist yet, insert it now
       if ((!data || data.length === 0) && room_token) {
+        const resolvedTeacher =
+          teacher_name && teacher_name !== 'Преподаватель'
+            ? teacher_name
+            : 'Василина Владимировна';
         const { data: inserted, error: insertError } = await LessonRepository.createLesson({
           room_token,
-          topic: topic?.trim() || 'Индивидуальное занятие',
+          topic: topic?.trim() || 'Индивидуальное занятие: Логопедия',
           status: 'active',
           started_at: started_at || new Date().toISOString(),
           student_name: student_name || 'Ученик',
-          teacher_name: teacher_name || 'Преподаватель',
+          teacher_name: resolvedTeacher,
+          student_public_id: student_public_id || null,
         });
 
         if (insertError) {
@@ -159,9 +176,9 @@ export class LessonService {
               event: 'lesson-started',
               payload: {
                 room_token,
-                topic: topic || 'Индивидуальное занятие',
+                topic: topic || 'Индивидуальное занятие: Логопедия',
                 student_name: student_name || 'Ученик',
-                teacher_name: teacher_name || 'Преподаватель',
+                teacher_name: resolvedTeacher,
               },
             });
           } catch (_) {}
@@ -191,16 +208,20 @@ export class LessonService {
 
     // 2. Insert new scheduled lesson
     const token = room_token || `room-${Math.floor(1000 + Math.random() * 9000)}`;
+    const resolvedTeacher =
+      teacher_name && teacher_name !== 'Преподаватель'
+        ? teacher_name
+        : 'Василина Владимировна';
     const newLesson = {
       room_token: token,
-      topic: topic?.trim() || 'Индивидуальное занятие',
+      topic: topic?.trim() || 'Индивидуальное занятие: Логопедия',
       student_public_id: student_public_id?.trim() || null,
       student_name: student_name?.trim() || 'Ученик центра',
-      teacher_name: teacher_name?.trim() || 'Преподаватель',
+      teacher_name: resolvedTeacher,
       scheduled_for: scheduled_for
         ? new Date(scheduled_for).toISOString()
         : new Date().toISOString(),
-      duration_minutes: duration_minutes || 45,
+      duration_minutes: duration_minutes || 20,
       status: status || 'pending',
       created_at: new Date().toISOString(),
     };

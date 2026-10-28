@@ -207,6 +207,24 @@ export default function LessonsScheduleHistory({
     return pubId || childName || 'Ученик';
   };
 
+  // Helper to resolve clean teacher name for student cabinet display
+  const getTeacherDisplayLabel = (l: LessonRecord) => {
+    const rawTeacher = l.teacher_name?.trim();
+    if (rawTeacher && rawTeacher !== 'Преподаватель') {
+      return rawTeacher
+        .replace(/\s*\(id\d+\)/i, '')
+        .replace(/\s*\(ребёнок:[^)]+\)/i, '')
+        .trim();
+    }
+    if (teacherName && teacherName !== 'Преподаватель') {
+      return teacherName
+        .replace(/\s*\(id\d+\)/i, '')
+        .replace(/\s*\(ребёнок:[^)]+\)/i, '')
+        .trim();
+    }
+    return 'Василина Владимировна';
+  };
+
   const formatElapsedTimer = (totalSec: number) => {
     const mins = Math.floor(totalSec / 60);
     const secs = totalSec % 60;
@@ -671,9 +689,7 @@ export default function LessonsScheduleHistory({
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-xs font-black text-[#161F38] truncate" title={l.student_name}>
                                 {role === 'student'
-                                  ? (l.teacher_name
-                                      ? l.teacher_name.replace(/\s*\(id\d+\)/i, '').replace(/\s*\(ребёнок:[^)]+\)/i, '').trim()
-                                      : 'Преподаватель')
+                                  ? getTeacherDisplayLabel(l)
                                   : getStudentDisplayLabel(l)}
                               </span>
                               <span className="text-[9px] font-bold bg-[#FFF2E6] text-coralAccent px-1.5 py-0.5 rounded-full shrink-0">
@@ -818,9 +834,7 @@ export default function LessonsScheduleHistory({
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="text-xs font-black text-[#161F38] truncate" title={l.student_name}>
                               {role === 'student'
-                                ? (l.teacher_name
-                                    ? l.teacher_name.replace(/\s*\(id\d+\)/i, '').replace(/\s*\(ребёнок:[^)]+\)/i, '').trim()
-                                    : 'Преподаватель')
+                                ? getTeacherDisplayLabel(l)
                                 : getStudentDisplayLabel(l)}
                             </span>
                             <span className="text-[10px] text-[#8A95A8]">

@@ -504,11 +504,28 @@ export default function VideoCall({
         });
       }
 
+      const storedName =
+        (typeof window !== 'undefined' &&
+          (localStorage.getItem('aida_full_name') || localStorage.getItem('aida_user_name'))) ||
+        '';
+      const cleanStored = storedName.replace(/\s*\(.*?\)$/, '').trim();
+      const currentTeacherName = isTeacher
+        ? cleanStored || 'Василина Владимировна'
+        : participantName && participantName !== 'Преподаватель'
+        ? participantName
+        : 'Василина Владимировна';
+      const currentStudentName = isTeacher
+        ? participantName && participantName !== 'Ученик центра'
+          ? participantName
+          : 'Ученик'
+        : cleanStored || 'Ученик';
+
       // Broadcast platform-level lesson start notification
       broadcastPlatformEvent('lesson-started', {
         room_token: roomToken,
-        topic: topic || 'Индивидуальное занятие',
-        teacher_name: (typeof window !== 'undefined' && (localStorage.getItem('aida_full_name') || localStorage.getItem('aida_user_name'))) || 'Преподаватель',
+        topic: topic || 'Индивидуальное занятие: Логопедия',
+        teacher_name: currentTeacherName,
+        student_name: currentStudentName,
       });
 
       // Persist started_at in database
@@ -519,6 +536,9 @@ export default function VideoCall({
           action: 'start_room',
           room_token: roomToken,
           started_at: new Date(now).toISOString(),
+          teacher_name: currentTeacherName,
+          student_name: currentStudentName,
+          topic: topic || 'Индивидуальное занятие: Логопедия',
         }),
       }).catch(() => {});
     }

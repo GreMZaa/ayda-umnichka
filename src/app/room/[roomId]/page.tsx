@@ -110,15 +110,15 @@ export default function LessonRoomPage() {
     setHwDueDate(d.toISOString().slice(0, 10));
 
     // 3. Resolve participant label from cache if available to prevent generic flickering
-    let initialName = teacherFlag ? 'Ученик центра' : 'Преподаватель';
+    let initialName = teacherFlag ? 'Ученик центра' : 'Василина Владимировна';
     try {
       const activeRoom = localStorage.getItem('aida_active_lesson_room');
       if (activeRoom) {
         const parsed = JSON.parse(activeRoom);
         if (parsed.roomId === roomId) {
-          if (!teacherFlag && parsed.teacher_name && parsed.teacher_name !== 'Василина') {
+          if (!teacherFlag && parsed.teacher_name && parsed.teacher_name !== 'Преподаватель') {
             initialName = parsed.teacher_name;
-          } else if (teacherFlag && parsed.student_name) {
+          } else if (teacherFlag && parsed.student_name && parsed.student_name !== 'Ученик') {
             initialName = parsed.student_name;
           }
         }

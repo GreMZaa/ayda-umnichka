@@ -365,6 +365,22 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
     );
   }
 
+  const primaryTeacherName = (() => {
+    const fromLesson = lessons.find(
+      (l) => l.teacherName && l.teacherName !== 'Преподаватель' && l.teacherName !== 'Преподаватель центра'
+    )?.teacherName;
+    if (fromLesson) {
+      return fromLesson.replace(/\s*\(.*?\)$/, '').trim();
+    }
+    const fromHw = homeworks.find(
+      (h) => h.teacherName && h.teacherName !== 'Преподаватель' && h.teacherName !== 'Преподаватель центра'
+    )?.teacherName;
+    if (fromHw) {
+      return fromHw.replace(/\s*\(.*?\)$/, '').trim();
+    }
+    return 'Василина Владимировна';
+  })();
+
   return (
     <div className="space-y-4 sm:space-y-5">
       {/* 1. Student Profile Compact Header (Unified Teacher Style) */}
@@ -463,6 +479,7 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
             role="student"
             studentPublicId={currentId}
             studentName={cleanStudentDisplayName}
+            teacherName={primaryTeacherName}
             onStartLesson={(token, topic) => {
               router.push(`/room/${token}?role=student&topic=${encodeURIComponent(topic)}`);
             }}
@@ -477,7 +494,10 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
         const teachersMap = new Map<string, { name: string; totalCount: number; pendingCount: number }>();
 
         homeworks.forEach((h) => {
-          const tName = h.teacherName?.trim() || 'Преподаватель центра';
+          let tName = h.teacherName?.trim() || primaryTeacherName;
+          if (tName === 'Преподаватель' || tName === 'Преподаватель центра') {
+            tName = primaryTeacherName;
+          }
           const entry = teachersMap.get(tName) || { name: tName, totalCount: 0, pendingCount: 0 };
           entry.totalCount += 1;
           if (h.status === 'assigned') {
@@ -487,15 +507,18 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
         });
 
         lessons.forEach((l) => {
-          const tName = l.teacherName?.trim();
+          let tName = l.teacherName?.trim() || primaryTeacherName;
+          if (tName === 'Преподаватель' || tName === 'Преподаватель центра') {
+            tName = primaryTeacherName;
+          }
           if (tName && !teachersMap.has(tName)) {
             teachersMap.set(tName, { name: tName, totalCount: 0, pendingCount: 0 });
           }
         });
 
         if (teachersMap.size === 0) {
-          teachersMap.set('Преподаватель центра', {
-            name: 'Преподаватель центра',
+          teachersMap.set(primaryTeacherName, {
+            name: primaryTeacherName,
             totalCount: homeworks.length,
             pendingCount: homeworks.filter((h) => h.status === 'assigned').length,
           });
