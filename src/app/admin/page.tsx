@@ -31,7 +31,11 @@ import {
   Phone,
   Mail,
   MoreVertical,
-  Activity
+  Activity,
+  FileText,
+  Download,
+  Paperclip,
+  Volume2
 } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
@@ -77,6 +81,26 @@ interface TeacherStudentBinding {
   created_at: string;
 }
 
+interface HomeworkRecord {
+  id: string;
+  lesson_id?: string | null;
+  teacher_id?: string | null;
+  student_id?: string | null;
+  title: string;
+  task_description: string;
+  task_file_url?: string | null;
+  file_name?: string | null;
+  student_solution_text?: string | null;
+  student_solution_file_url?: string | null;
+  status: 'assigned' | 'submitted' | 'completed' | 'in_progress';
+  teacher_feedback?: string | null;
+  created_at: string;
+  updated_at?: string;
+  student_public_id?: string | null;
+  student_name?: string | null;
+  teacher_name?: string | null;
+}
+
 // Clean topic title from any technical URL query artifacts
 function cleanTopicTitle(str?: string | null): string {
   if (!str) return 'Индивидуальное занятие';
@@ -105,15 +129,17 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState<UserBindingRecord[]>([]);
   const [lessons, setLessons] = useState<LessonRecord[]>([]);
   const [bindings, setBindings] = useState<TeacherStudentBinding[]>([]);
+  const [homeworkList, setHomeworkList] = useState<HomeworkRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
   // Active view tab
-  const [activeTab, setActiveTab] = useState<'lessons' | 'teachers' | 'students' | 'bindings'>('lessons');
+  const [activeTab, setActiveTab] = useState<'lessons' | 'teachers' | 'students' | 'homework' | 'bindings'>('lessons');
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');
   const [lessonStatusFilter, setLessonStatusFilter] = useState<'all' | 'active' | 'pending' | 'completed' | 'cancelled'>('all');
+  const [homeworkStatusFilter, setHomeworkStatusFilter] = useState<'all' | 'assigned' | 'submitted' | 'completed'>('all');
 
   // Notifications / feedback toast
   const [toastMsg, setToastMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -122,6 +148,7 @@ export default function AdminDashboard() {
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [isBalanceModalOpen, setIsBalanceModalOpen] = useState(false);
   const [isBindModalOpen, setIsBindModalOpen] = useState(false);
+  const [isHomeworkModalOpen, setIsHomeworkModalOpen] = useState(false);
 
   // Modal form states: Schedule lesson
   const [scheduleTeacherId, setScheduleTeacherId] = useState('');
@@ -140,6 +167,15 @@ export default function AdminDashboard() {
   const [bindStudentId, setBindStudentId] = useState('');
   const [isBindingSubmitting, setIsBindingSubmitting] = useState(false);
 
+  // Modal form states: Homework
+  const [hwStudentId, setHwStudentId] = useState('');
+  const [hwTeacherName, setHwTeacherName] = useState('Василина Владимировна');
+  const [hwTitle, setHwTitle] = useState('Артикуляционная гимнастика');
+  const [hwDescription, setHwDescription] = useState('');
+  const [hwFile, setHwFile] = useState<File | null>(null);
+  const [isCreatingHw, setIsCreatingHw] = useState(false);
+  const [isDeletingHwId, setIsDeletingHwId] = useState<string | null>(null);
+
   const showToast = (text: string, type: 'success' | 'error' = 'success') => {
     setToastMsg({ text, type });
     setTimeout(() => setToastMsg(null), 4000);
@@ -156,10 +192,11 @@ export default function AdminDashboard() {
       }
 
       // Parallel fetch from Supabase tables
-      const [usersRes, lessonsRes, bindingsRes] = await Promise.all([
+      const [usersRes, lessonsRes, bindingsRes, homeworkRes] = await Promise.all([
         supabase.from('user_bindings').select('*').order('created_at', { ascending: false }),
         supabase.from('lessons').select('*').order('scheduled_for', { ascending: false }),
         supabase.from('teacher_students').select('*').order('created_at', { ascending: false }),
+        supabase.from('homework').select('*').order('created_at', { ascending: false }),
       ]);
 
       if (usersRes.data) {
@@ -170,6 +207,9 @@ export default function AdminDashboard() {
       }
       if (bindingsRes.data) {
         setBindings(bindingsRes.data as TeacherStudentBinding[]);
+      }
+      if (homeworkRes.data) {
+        setHomeworkList(homeworkRes.data as HomeworkRecord[]);
       }
     } catch (err) {
       console.error('Error fetching Supabase admin data:', err);
@@ -254,6 +294,26 @@ export default function AdminDashboard() {
         (s.email && s.email.toLowerCase().includes(q))
     );
   }, [students, searchQuery]);
+
+  // Filtered homework
+  const filteredHomework = useMemo(() => {
+    return homeworkList.filter((h) => {
+      if (homeworkStatusFilter !== 'all') {
+        if (homeworkStatusFilter === 'assigned' && h.status !== 'assigned' && h.status !== 'in_progress') return false;
+        if (homeworkStatusFilter === 'submitted' && h.status !== 'submitted') return false;
+        if (homeworkStatusFilter === 'completed' && h.status !== 'completed') return false;
+      }
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        h.title.toLowerCase().includes(q) ||
+        (h.task_description && h.task_description.toLowerCase().includes(q)) ||
+        (h.student_name && h.student_name.toLowerCase().includes(q)) ||
+        (h.student_public_id && h.student_public_id.toLowerCase().includes(q)) ||
+        (h.teacher_name && h.teacher_name.toLowerCase().includes(q))
+      );
+    });
+  }, [homeworkList, homeworkStatusFilter, searchQuery]);
 
   // Action: Adjust Student Balance
   const handleAdjustBalance = async (publicId: string, amount: number, description?: string) => {
@@ -437,6 +497,128 @@ export default function AdminDashboard() {
     }
   };
 
+  // Action: Create Homework
+  const handleCreateHomework = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!hwTitle.trim() || !hwDescription.trim()) {
+      showToast('Укажите название и описание домашнего задания', 'error');
+      return;
+    }
+
+    try {
+      setIsCreatingHw(true);
+      let fileUrl: string | null = null;
+      let fileName: string | null = null;
+
+      if (hwFile) {
+        fileName = hwFile.name;
+        const formData = new FormData();
+        formData.append('file', hwFile);
+        formData.append('studentId', hwStudentId || 'common');
+
+        const uploadRes = await fetch('/api/room/upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (uploadRes.ok) {
+          const uploadData = await uploadRes.json();
+          fileUrl = uploadData.fileUrl || null;
+        }
+      }
+
+      const selectedStudent = students.find((s) => s.public_id === hwStudentId);
+      const studentName = selectedStudent
+        ? cleanPersonName(selectedStudent.full_name)
+        : hwStudentId
+        ? hwStudentId
+        : 'Всем ученикам';
+
+      const newRecord = {
+        title: hwTitle.trim(),
+        task_description: hwDescription.trim(),
+        student_public_id: hwStudentId || null,
+        student_name: studentName,
+        teacher_name: hwTeacherName || 'Василина Владимировна',
+        task_file_url: fileUrl,
+        file_name: fileName,
+        status: 'assigned' as const,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase.from('homework').insert([newRecord]).select();
+      if (error) throw error;
+
+      const createdItem = data?.[0] as HomeworkRecord;
+      if (createdItem) {
+        setHomeworkList((prev) => [createdItem, ...prev]);
+      }
+
+      // Broadcast event so student receives homework immediately in their cabinet
+      broadcastPlatformEvent('homework-assigned', {
+        id: createdItem?.id || `hw-${Date.now()}`,
+        title: hwTitle.trim(),
+        task_description: hwDescription.trim(),
+        student_public_id: hwStudentId || null,
+        student_name: studentName,
+        teacher_name: hwTeacherName || 'Василина Владимировна',
+        task_file_url: fileUrl,
+        file_name: fileName,
+        created_at: new Date().toISOString(),
+        creator_id: 'admin',
+      });
+
+      showToast(`Домашнее задание «${hwTitle}» успешно добавлено! (${studentName})`);
+      setIsHomeworkModalOpen(false);
+      setHwTitle('Артикуляционная гимнастика');
+      setHwDescription('');
+      setHwFile(null);
+      setHwStudentId('');
+    } catch (err: any) {
+      console.error('Error creating homework:', err);
+      showToast(err?.message || 'Ошибка добавления домашнего задания', 'error');
+    } finally {
+      setIsCreatingHw(false);
+    }
+  };
+
+  // Action: Delete Homework
+  const handleDeleteHomework = async (id: string, title: string) => {
+    if (!window.confirm(`Вы уверены, что хотите удалить домашнее задание «${title}»?`)) return;
+
+    try {
+      setIsDeletingHwId(id);
+      const { error } = await supabase.from('homework').delete().eq('id', id);
+      if (error) throw error;
+
+      setHomeworkList((prev) => prev.filter((h) => h.id !== id));
+      showToast(`Домашнее задание «${title}» удалено`);
+    } catch (err: any) {
+      console.error('Error deleting homework:', err);
+      showToast('Ошибка при удалении домашнего задания', 'error');
+    } finally {
+      setIsDeletingHwId(null);
+    }
+  };
+
+  // Action: Update Homework Status (Check / Complete)
+  const handleUpdateHomeworkStatus = async (id: string, nextStatus: 'assigned' | 'completed') => {
+    try {
+      const updateData = { status: nextStatus, updated_at: new Date().toISOString() };
+      const { error } = await supabase.from('homework').update(updateData).eq('id', id);
+      if (error) throw error;
+
+      setHomeworkList((prev) =>
+        prev.map((h) => (h.id === id ? { ...h, ...updateData } : h))
+      );
+      showToast(nextStatus === 'completed' ? 'ДЗ отмечено как проверенное ✓' : 'ДЗ возвращено в статус назначенного');
+    } catch (err: any) {
+      console.error('Error updating homework status:', err);
+      showToast('Ошибка при обновлении статуса задания', 'error');
+    }
+  };
+
   // Access denied screen with quick admin bypass for center manager
   if (isAuthorized === false) {
     return (
@@ -505,6 +687,14 @@ export default function AdminDashboard() {
         <div className="flex items-center gap-2 self-stretch lg:self-auto justify-end flex-wrap">
           <button
             type="button"
+            onClick={() => setIsHomeworkModalOpen(true)}
+            className="inline-flex items-center gap-1.5 text-xs font-black bg-purple-600 hover:bg-purple-700 text-white px-4 py-2.5 rounded-full shadow-xs active:scale-95 transition-all cursor-pointer"
+          >
+            <BookOpen className="w-4 h-4" />
+            <span>+ Добавить ДЗ</span>
+          </button>
+          <button
+            type="button"
             onClick={() => setIsScheduleModalOpen(true)}
             className="inline-flex items-center gap-1.5 text-xs font-black bg-coralAccent hover:bg-coralAccent-hover text-white px-4 py-2.5 rounded-full shadow-xs active:scale-95 transition-all cursor-pointer"
           >
@@ -544,7 +734,7 @@ export default function AdminDashboard() {
       )}
 
       {/* 2. Top Metric KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
         {/* KPI: Lessons */}
         <div
           onClick={() => setActiveTab('lessons')}
@@ -631,6 +821,32 @@ export default function AdminDashboard() {
             Суммарно на балансах учеников
           </span>
         </div>
+
+        {/* KPI: Homework */}
+        <div
+          onClick={() => setActiveTab('homework')}
+          className={`p-4 sm:p-5 rounded-3xl border transition-all cursor-pointer ${
+            activeTab === 'homework'
+              ? 'bg-white border-coralAccent shadow-md shadow-orange-500/10 ring-2 ring-coralAccent/20'
+              : 'bg-white border-[#F2DECE] hover:border-[#E2CBB7] shadow-xs'
+          }`}
+        >
+          <div className="flex items-center justify-between text-[#8A95A8] mb-2">
+            <span className="text-[10px] font-black uppercase tracking-wider">Домашка</span>
+            <BookOpen className="w-4 h-4 text-purple-600" />
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl sm:text-3xl font-black text-[#161F38]">{homeworkList.length}</span>
+            {homeworkList.filter((h) => h.status === 'submitted').length > 0 && (
+              <span className="text-[10px] font-black text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full flex items-center gap-1 border border-blue-200 animate-pulse">
+                {homeworkList.filter((h) => h.status === 'submitted').length} на проверке
+              </span>
+            )}
+          </div>
+          <span className="text-[11px] text-[#8A95A8] mt-1 block">
+            {homeworkList.filter((h) => h.status === 'assigned' || h.status === 'in_progress').length} в процессе решения
+          </span>
+        </div>
       </div>
 
       {/* 3. Navigation Tabs Bar */}
@@ -681,6 +897,22 @@ export default function AdminDashboard() {
             <span>Ученики и Балансы</span>
             <span className="bg-[#EAF7CF] text-[#5C8519] text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5">
               {students.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('homework')}
+            className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+              activeTab === 'homework'
+                ? 'bg-white text-[#161F38] shadow-xs'
+                : 'text-[#6B758E] hover:text-[#161F38]'
+            }`}
+          >
+            <BookOpen className="w-3.5 h-3.5 text-purple-600" />
+            <span>Домашка</span>
+            <span className="bg-purple-100 text-purple-800 text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5">
+              {homeworkList.length}
             </span>
           </button>
 
@@ -1259,7 +1491,270 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* 7. Tab 4: BINDINGS MATRIX (Педагог ↔ Ученик) */}
+      {/* 7. Tab: HOMEWORK (Домашка: добавление, просмотр решений, отметка проверено, удаление) */}
+      {activeTab === 'homework' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-1 overflow-x-auto max-w-full">
+              {[
+                { id: 'all', label: `Все (${homeworkList.length})` },
+                {
+                  id: 'assigned',
+                  label: `Ожидают решения (${
+                    homeworkList.filter((h) => h.status === 'assigned' || h.status === 'in_progress').length
+                  })`,
+                },
+                {
+                  id: 'submitted',
+                  label: `Сдано учениками (${homeworkList.filter((h) => h.status === 'submitted').length})`,
+                },
+                {
+                  id: 'completed',
+                  label: `Проверено (${homeworkList.filter((h) => h.status === 'completed').length})`,
+                },
+              ].map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setHomeworkStatusFilter(f.id as any)}
+                  className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                    homeworkStatusFilter === f.id
+                      ? 'bg-[#161F38] text-white shadow-2xs'
+                      : 'bg-white hover:bg-[#FFF8F1] text-[#6B758E] border border-[#F2DECE]'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsHomeworkModalOpen(true)}
+              className="inline-flex items-center gap-1.5 text-xs font-black bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-full shadow-xs active:scale-95 transition-all cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>+ Добавить ДЗ</span>
+            </button>
+          </div>
+
+          {filteredHomework.length === 0 ? (
+            <div className="bg-white rounded-3xl p-12 text-center border border-dashed border-[#F2DECE] space-y-3">
+              <div className="w-14 h-14 rounded-2xl bg-purple-50 text-purple-600 border border-purple-200 flex items-center justify-center mx-auto shadow-2xs">
+                <BookOpen className="w-7 h-7" />
+              </div>
+              <h3 className="text-base font-black text-[#161F38]">Домашние задания не найдены</h3>
+              <p className="text-xs text-[#6B758E] max-w-sm mx-auto">
+                {searchQuery
+                  ? 'По вашему поисковому запросу ничего не найдено.'
+                  : 'В системе пока нет домашних заданий в выбранном статусе.'}
+              </p>
+              <button
+                type="button"
+                onClick={() => setIsHomeworkModalOpen(true)}
+                className="inline-flex items-center gap-1.5 text-xs font-black bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-full shadow-xs active:scale-95 cursor-pointer mt-2"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Выдать первое задание</span>
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {filteredHomework.map((hw) => {
+                const isSubmitted = hw.status === 'submitted';
+                const isCompleted = hw.status === 'completed';
+
+                return (
+                  <div
+                    key={hw.id}
+                    className="bg-white rounded-3xl p-5 border border-[#F2DECE] shadow-xs space-y-3.5 flex flex-col justify-between hover:border-[#E2CBB7] transition-all"
+                  >
+                    <div className="space-y-3">
+                      {/* Top Header of Card */}
+                      <div className="flex items-start justify-between gap-2.5">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <span
+                              className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border ${
+                                isCompleted
+                                  ? 'bg-[#EAF7CF] text-[#5C8519] border-[#CCE8A2]'
+                                  : isSubmitted
+                                  ? 'bg-blue-100 text-blue-700 border-blue-200 animate-pulse'
+                                  : 'bg-amber-50 text-amber-700 border-amber-200'
+                              }`}
+                            >
+                              {isCompleted
+                                ? '✓ Проверено'
+                                : isSubmitted
+                                ? '★ Сдано учеником'
+                                : '⏳ Ожидает решения'}
+                            </span>
+                            <span className="text-[11px] text-[#8A95A8] font-bold">
+                              {formatDate(hw.created_at)}
+                            </span>
+                          </div>
+                          <h4 className="text-sm font-black text-[#161F38] tracking-tight leading-snug">
+                            {hw.title}
+                          </h4>
+                        </div>
+
+                        {/* Action: Delete */}
+                        <button
+                          type="button"
+                          disabled={isDeletingHwId === hw.id}
+                          onClick={() => handleDeleteHomework(hw.id, hw.title)}
+                          className="p-1.5 text-[#8A95A8] hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer shrink-0 disabled:opacity-40"
+                          title="Удалить это домашнее задание"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {/* Participant Meta (Кому -> От кого) */}
+                      <div className="bg-[#FFFDFB] p-2.5 rounded-2xl border border-[#F8EDE1] flex items-center justify-between flex-wrap gap-2 text-xs">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="text-[11px] font-bold text-[#8A95A8]">Кому:</span>
+                          <span className="font-black text-[#161F38] truncate">
+                            {cleanPersonName(hw.student_name || 'Всем ученикам')}
+                          </span>
+                          {hw.student_public_id && (
+                            <Link
+                              href={`/${encodeURIComponent(hw.student_public_id)}`}
+                              target="_blank"
+                              className="text-[10px] bg-[#EAF7CF] text-[#5C8519] font-black px-1.5 py-0.2 rounded hover:underline inline-flex items-center gap-0.5"
+                              title="Кабинет ученика"
+                            >
+                              <span>{hw.student_public_id}</span>
+                              <ExternalLink className="w-2.5 h-2.5" />
+                            </Link>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1 text-[11px] text-[#6B758E]">
+                          <span className="text-[#8A95A8]">Педагог:</span>
+                          <span className="font-bold text-[#161F38]">
+                            {cleanPersonName(hw.teacher_name || 'Преподаватель')}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Description */}
+                      <div className="text-xs text-[#161F38] font-bold bg-[#FFF8F1] p-3 rounded-2xl border border-[#FCDDC7]/50 whitespace-pre-wrap leading-relaxed">
+                        {hw.task_description}
+                      </div>
+
+                      {/* Attached Task File */}
+                      {hw.task_file_url && (
+                        <div className="pt-0.5">
+                          <a
+                            href={hw.task_file_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 text-xs font-bold text-coralAccent hover:text-coralAccent-hover bg-[#FFF2E6] hover:bg-[#FFE5D1] border border-[#FCDDC7] px-3 py-1.5 rounded-xl transition-colors"
+                          >
+                            <Paperclip className="w-3.5 h-3.5" />
+                            <span className="truncate max-w-[220px]">
+                              {hw.file_name || 'Материалы задания (файл)'}
+                            </span>
+                            <ExternalLink className="w-3 h-3 ml-0.5 opacity-60" />
+                          </a>
+                        </div>
+                      )}
+
+                      {/* Student Solution Box */}
+                      {(isSubmitted || hw.student_solution_text || hw.student_solution_file_url) && (
+                        <div className="bg-blue-50/70 border border-blue-200/80 rounded-2xl p-3.5 space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[11px] font-black uppercase tracking-wider text-blue-900 flex items-center gap-1">
+                              <CheckCircle className="w-3.5 h-3.5 text-blue-600" />
+                              Ответ ученика:
+                            </span>
+                            {hw.updated_at && (
+                              <span className="text-[10px] text-blue-700 font-bold">
+                                {formatDate(hw.updated_at)}
+                              </span>
+                            )}
+                          </div>
+
+                          {hw.student_solution_text && (
+                            <p className="text-xs font-bold text-[#161F38] whitespace-pre-wrap bg-white/80 p-2.5 rounded-xl border border-blue-100">
+                              {hw.student_solution_text}
+                            </p>
+                          )}
+
+                          {hw.student_solution_file_url && (
+                            <div className="space-y-1.5 pt-1">
+                              {hw.student_solution_file_url.match(/\.(webm|ogg|wav|mp3|m4a)($|\?)/i) ? (
+                                <div className="space-y-1">
+                                  <span className="text-[10px] font-bold text-blue-800 flex items-center gap-1">
+                                    <Volume2 className="w-3 h-3" />
+                                    Аудиозапись ответа:
+                                  </span>
+                                  <audio
+                                    controls
+                                    src={hw.student_solution_file_url}
+                                    className="w-full h-8 rounded-lg"
+                                  />
+                                </div>
+                              ) : (
+                                <a
+                                  href={hw.student_solution_file_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-800 hover:text-blue-950 bg-blue-100 hover:bg-blue-200 px-3 py-1.5 rounded-xl transition-colors"
+                                >
+                                  <FileText className="w-3.5 h-3.5" />
+                                  <span>Файл решения ученика</span>
+                                  <ExternalLink className="w-3 h-3 ml-0.5 opacity-60" />
+                                </a>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Footer Actions: Check status toggle & Delete */}
+                    <div className="pt-3 border-t border-[#F8EDE1] flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        {isCompleted ? (
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateHomeworkStatus(hw.id, 'assigned')}
+                            className="inline-flex items-center gap-1 text-xs font-bold text-[#6B758E] hover:text-[#161F38] bg-[#FFF8F1] hover:bg-[#FFF2E6] border border-[#F2DECE] px-3 py-1.5 rounded-xl transition-all cursor-pointer"
+                          >
+                            <span>Вернуть в невыполненные</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateHomeworkStatus(hw.id, 'completed')}
+                            className="inline-flex items-center gap-1.5 text-xs font-black text-white bg-[#5C8519] hover:bg-[#4d6f14] px-3.5 py-1.5 rounded-xl shadow-2xs active:scale-95 transition-all cursor-pointer"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Отметить проверенным</span>
+                          </button>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteHomework(hw.id, hw.title)}
+                        className="text-xs font-bold text-rose-600 hover:text-rose-800 hover:bg-rose-50 px-2.5 py-1.5 rounded-xl transition-colors cursor-pointer flex items-center gap-1"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Удалить</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 8. Tab 5: BINDINGS MATRIX (Педагог ↔ Ученик) */}
       {activeTab === 'bindings' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-2">
@@ -1660,6 +2155,167 @@ export default function AdminDashboard() {
                   className="text-xs font-black bg-coralAccent hover:bg-coralAccent-hover text-white px-5 py-2.5 rounded-full shadow-md active:scale-95 cursor-pointer disabled:opacity-50"
                 >
                   {isBindingSubmitting ? 'Сохранение...' : 'Закрепить'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 4: ADD HOMEWORK */}
+      {isHomeworkModalOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsHomeworkModalOpen(false);
+          }}
+        >
+          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-lg w-full border border-[#F2DECE] shadow-2xl space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 border border-purple-200 flex items-center justify-center shrink-0 shadow-2xs">
+                  <BookOpen className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-[#161F38] tracking-tight">
+                    Добавить домашнее задание
+                  </h3>
+                  <p className="text-xs text-[#6B758E] mt-0.5">
+                    Задание отобразится в личном кабинете ученика
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsHomeworkModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-[#FFF8F1] hover:bg-[#FFF2E6] text-[#8A95A8] hover:text-[#161F38] border border-[#F2DECE] flex items-center justify-center transition-colors cursor-pointer shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateHomework} className="space-y-4">
+              {/* Student selector */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-black text-[#161F38]">
+                  Кому (Ученик):
+                </label>
+                <select
+                  value={hwStudentId}
+                  onChange={(e) => setHwStudentId(e.target.value)}
+                  className="w-full bg-[#FFFDFB] border border-[#EADBCC] rounded-xl px-3.5 py-2.5 text-xs font-bold text-[#161F38] focus:outline-none focus:border-purple-600 cursor-pointer"
+                >
+                  <option value="">Всем ученикам (общее задание)</option>
+                  {students.map((s) => (
+                    <option key={s.public_id} value={s.public_id}>
+                      {cleanPersonName(s.full_name)} ({s.public_id})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Teacher selector */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-black text-[#161F38]">
+                  От кого (Преподаватель):
+                </label>
+                <select
+                  value={hwTeacherName}
+                  onChange={(e) => setHwTeacherName(e.target.value)}
+                  className="w-full bg-[#FFFDFB] border border-[#EADBCC] rounded-xl px-3.5 py-2.5 text-xs font-bold text-[#161F38] focus:outline-none focus:border-purple-600 cursor-pointer"
+                >
+                  {teachers.map((t) => (
+                    <option key={t.public_id} value={cleanPersonName(t.full_name)}>
+                      {cleanPersonName(t.full_name)} ({t.public_id})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Title & Quick Presets */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-black text-[#161F38]">
+                  Название задания (Тема):
+                </label>
+                <input
+                  type="text"
+                  value={hwTitle}
+                  onChange={(e) => setHwTitle(e.target.value)}
+                  required
+                  placeholder="Например: Артикуляционная гимнастика"
+                  className="w-full bg-[#FFFDFB] border border-[#EADBCC] rounded-xl px-3.5 py-2.5 text-xs font-bold text-[#161F38] focus:outline-none focus:border-purple-600"
+                />
+                <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                  {[
+                    'Артикуляционная гимнастика',
+                    'Звук [Р] в слогах и словах',
+                    'Автоматизация звука [Л]',
+                    'Дифференциация [С] - [Ш]',
+                    'Развитие связной речи',
+                  ].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setHwTitle(preset)}
+                      className="text-[10px] bg-[#FFF8F1] hover:bg-[#FFF2E6] text-[#6B758E] hover:text-[#161F38] border border-[#F2DECE] px-2 py-0.5 rounded-md font-bold transition-colors cursor-pointer"
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Description */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-black text-[#161F38]">
+                  Описание задания и упражнений:
+                </label>
+                <textarea
+                  value={hwDescription}
+                  onChange={(e) => setHwDescription(e.target.value)}
+                  required
+                  rows={4}
+                  placeholder="Опишите, какие упражнения нужно сделать, сколько повторений, на что обратить внимание..."
+                  className="w-full bg-[#FFFDFB] border border-[#EADBCC] rounded-xl px-3.5 py-2.5 text-xs font-bold text-[#161F38] focus:outline-none focus:border-purple-600 resize-none"
+                />
+              </div>
+
+              {/* File attachment */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-black text-[#161F38]">
+                  Прикрепить файл / материалы (до 25 МБ, необязательно):
+                </label>
+                <input
+                  type="file"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) setHwFile(f);
+                  }}
+                  className="w-full text-xs text-[#6B758E] file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-black file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100 cursor-pointer"
+                />
+                {hwFile && (
+                  <p className="text-[11px] text-[#5C8519] font-bold flex items-center gap-1">
+                    <Check className="w-3 h-3" />
+                    Выбран файл: {hwFile.name} ({(hwFile.size / 1024 / 1024).toFixed(2)} МБ)
+                  </p>
+                )}
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[#F8EDE1]">
+                <button
+                  type="button"
+                  onClick={() => setIsHomeworkModalOpen(false)}
+                  className="text-xs font-bold text-[#8A95A8] hover:text-[#161F38] px-4 py-2 cursor-pointer"
+                >
+                  Отмена
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreatingHw || !hwTitle.trim() || !hwDescription.trim()}
+                  className="text-xs font-black bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-full shadow-md active:scale-95 cursor-pointer disabled:opacity-50 transition-all"
+                >
+                  {isCreatingHw ? 'Сохранение...' : 'Добавить задание'}
                 </button>
               </div>
             </form>
