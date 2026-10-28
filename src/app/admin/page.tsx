@@ -40,6 +40,7 @@ import {
 import { formatDate } from '@/lib/utils';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { broadcastPlatformEvent } from '@/lib/platformNotifications';
+import DateTimePicker from '@/components/DateTimePicker';
 
 interface UserBindingRecord {
   id: string;
@@ -154,7 +155,15 @@ export default function AdminDashboard() {
   const [scheduleTeacherId, setScheduleTeacherId] = useState('');
   const [scheduleStudentId, setScheduleStudentId] = useState('');
   const [scheduleTopic, setScheduleTopic] = useState('Индивидуальное занятие: Логопедия');
-  const [scheduleDateTime, setScheduleDateTime] = useState('');
+  const [scheduleDateTime, setScheduleDateTime] = useState(() => {
+    const now = new Date();
+    now.setHours(now.getHours() + 1, 0, 0, 0);
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    const h = String(now.getHours()).padStart(2, '0');
+    return `${y}-${m}-${d}T${h}:00`;
+  });
   const [isScheduling, setIsScheduling] = useState(false);
 
   // Modal form states: Balance adjust
@@ -2043,19 +2052,12 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              {/* Date & Time */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-black text-[#161F38]">
-                  Дата и время проведения:
-                </label>
-                <input
-                  type="datetime-local"
-                  required
-                  value={scheduleDateTime}
-                  onChange={(e) => setScheduleDateTime(e.target.value)}
-                  className="w-full bg-[#FFFDFB] border border-[#EADBCC] rounded-xl px-3.5 py-2.5 text-xs font-bold text-[#161F38] focus:outline-none focus:border-coralAccent cursor-pointer"
-                />
-              </div>
+              {/* Modern Date & Time Picker */}
+              <DateTimePicker
+                value={scheduleDateTime}
+                onChange={setScheduleDateTime}
+                label="Дата и время проведения:"
+              />
 
               {/* Actions */}
               <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-[#F8EDE1]">
