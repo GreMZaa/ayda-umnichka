@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { CheckCircle2, BookOpen, Send, Calendar, ArrowRight, X, Video, ShieldCheck, ArrowLeft } from 'lucide-react';
+import { CheckCircle2, BookOpen, Send, Calendar, ArrowRight, X, Video, ShieldCheck, ArrowLeft, Maximize2 } from 'lucide-react';
 import VideoCall from '@/components/VideoCall';
 import Whiteboard from '@/components/Whiteboard';
 import { broadcastPlatformEvent } from '@/lib/platformNotifications';
@@ -98,10 +98,9 @@ export default function LessonRoomPage() {
 
     setIsTeacher(teacherFlag);
 
-    // 2. Determine topic
-    const resolvedTopic = topicParam
-      ? decodeURIComponent(topicParam)
-      : 'Индивидуальное занятие: Логопедия';
+    // 2. Determine topic (stripping any URL params like ?agentation=1)
+    let rawTopic = topicParam ? decodeURIComponent(topicParam) : 'Индивидуальное занятие: Логопедия';
+    const resolvedTopic = rawTopic.replace(/\?.*$/, '').replace(/&.*$/, '').trim() || 'Индивидуальное занятие: Логопедия';
     setTopic(resolvedTopic);
     setHwTitle(`Домашнее задание: ${resolvedTopic}`);
 
@@ -353,8 +352,10 @@ export default function LessonRoomPage() {
 
   useEffect(() => {
     const uid =
+      localStorage.getItem('aida_user_public_id') ||
       localStorage.getItem('aida_auth_user_id') ||
       localStorage.getItem('aida_user_id') ||
+      studentParam ||
       '';
     setSavedUserId(uid);
 
@@ -485,7 +486,23 @@ export default function LessonRoomPage() {
 
         {/* Minimized Platform View (Teacher / Student Cabinet) while call is running */}
         {isPlatformMinimized && (
-          <div className="w-full h-full bg-[#FFF7EE] relative z-20">
+          <div className="w-full h-full bg-[#FFF7EE] relative z-20 flex flex-col">
+            {/* Top Bar above cabinet: return to full lesson */}
+            <div className="bg-[#161F38] text-white px-3 sm:px-4 py-2 flex items-center justify-between text-xs font-bold shadow-md z-30 shrink-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                <span className="truncate">Урок продолжается: <strong className="text-white/90">{topic}</strong></span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPlatformMinimized(false)}
+                className="bg-coralAccent hover:bg-coralAccent-hover text-white text-xs font-black px-3.5 py-1 rounded-full flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shadow-xs shrink-0 ml-2"
+                title="Вернуться к уроку на весь экран"
+              >
+                <Maximize2 className="w-3.5 h-3.5" />
+                <span>Развернуть урок</span>
+              </button>
+            </div>
             <iframe
               src={
                 isTeacher
@@ -494,7 +511,7 @@ export default function LessonRoomPage() {
                   ? `/${savedUserId}`
                   : '/student'
               }
-              className="w-full h-full border-0 select-auto"
+              className="w-full flex-1 border-0 select-auto"
               title="Личный кабинет платформы"
             />
           </div>

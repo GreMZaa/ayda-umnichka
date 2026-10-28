@@ -93,6 +93,19 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
   const [lessons, setLessons] = useState<LessonSession[]>([]);
   const [homeworks, setHomeworks] = useState<HomeworkItem[]>([]);
 
+  // Clean topic string from any URL artifacts like ?agentation=1
+  function cleanTopicTitle(str?: string | null): string {
+    if (!str) return 'Индивидуальное занятие: Логопедия';
+    let cleaned = str;
+    try {
+      cleaned = decodeURIComponent(cleaned);
+    } catch (_) {}
+    return cleaned
+      .replace(/\?.*$/, '')
+      .replace(/&.*$/, '')
+      .trim() || 'Индивидуальное занятие: Логопедия';
+  }
+
   // Active lesson room state (to re-enter after exit)
   const [activeLessonRoom, setActiveLessonRoom] = useState<{ roomId: string; topic: string } | null>(null);
 
@@ -102,7 +115,10 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed?.roomId && Date.now() - (parsed.timestamp || 0) < 3 * 3600 * 1000) {
-          setActiveLessonRoom(parsed);
+          setActiveLessonRoom({
+            ...parsed,
+            topic: cleanTopicTitle(parsed.topic),
+          });
         }
       }
     } catch (_) {}
@@ -353,105 +369,35 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
     <div className="space-y-4 sm:space-y-5">
       {/* 1. Student Profile Compact Header (Unified Teacher Style) */}
       <div className="bg-white rounded-2xl p-4 sm:p-5 border border-[#F2E0CF] shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
+        <div className="flex items-center gap-3.5 min-w-0">
           <div className="w-12 h-12 rounded-2xl bg-[#FFF2E6] border border-[#FCDDC7] flex items-center justify-center text-coralAccent font-black text-xl shrink-0 shadow-2xs">
             {cleanStudentDisplayName[0] || 'У'}
           </div>
-          <div>
+          <div className="min-w-0 space-y-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-lg sm:text-xl font-black text-[#161F38] tracking-tight">
+              <h1 className="text-lg sm:text-xl font-black text-[#161F38] tracking-tight truncate">
                 {cleanStudentDisplayName}
               </h1>
-              <span className="text-[10px] bg-[#EAF7CF] text-[#5C8519] border border-[#D5ECA3] font-black px-2 py-0.5 rounded-full">
+              <span className="text-[10px] bg-[#EAF7CF] text-[#5C8519] border border-[#D5ECA3] font-black px-2.5 py-0.5 rounded-full shrink-0">
                 Ученик центра
               </span>
-              <span className="text-[10px] bg-[#FFF2E6] text-coralAccent border border-[#FCDDC7] font-extrabold px-2 py-0.5 rounded-full">
+              <span className="text-[10px] bg-[#FFF2E6] text-coralAccent border border-[#FCDDC7] font-extrabold px-2.5 py-0.5 rounded-full shrink-0">
                 ★ ID: {currentId}
               </span>
-
-              {/* Copy Cabinet Link */}
-              <button
-                type="button"
-                onClick={copyCabinetLink}
-                className="inline-flex items-center gap-1 text-[10px] text-[#8A95A8] hover:text-[#161F38] bg-[#FFF8F1] hover:bg-[#FFF2E6] border border-[#F2DECE] px-2 py-0.5 rounded-lg transition-colors cursor-pointer"
-                title="Скопировать ссылку на личный кабинет"
-              >
-                {copiedLink ? <Check className="w-3 h-3 text-[#5C8519]" /> : <Copy className="w-3 h-3 text-[#8A95A8]" />}
-                <span>{copiedLink ? 'Скопировано!' : 'Ссылка'}</span>
-              </button>
-
-              {/* Notification Shade Toggle / Test Button */}
-              <button
-                type="button"
-                onClick={handleToggleOrTestNotif}
-                className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg border transition-all cursor-pointer ${
-                  notifState === 'granted'
-                    ? 'bg-[#EAF7CF] text-[#5C8519] border-[#CCE8A2] hover:bg-[#DDF3B8]'
-                    : 'bg-[#FFF2E6] text-coralAccent border-[#FCDDC7] hover:bg-[#FFE6D2] animate-pulse'
-                }`}
-                title={
-                  notifState === 'granted'
-                    ? 'Уведомления в шторку активны. Нажмите для теста.'
-                    : 'Нажмите, чтобы включить уведомления об уроках в шторку телефона'
-                }
-              >
-                <Bell className="w-3 h-3" />
-                <span>{notifState === 'granted' ? 'Шторка: Вкл' : 'Включить в шторку'}</span>
-              </button>
-
-              {/* Edit Vanity Handle */}
-              {!isEditingSlug ? (
-                <button
-                  type="button"
-                  onClick={() => setIsEditingSlug(true)}
-                  className="text-[10px] text-[#8A95A8] hover:text-[#161F38] p-1 rounded transition-colors"
-                  title="Изменить адрес кабинета (например: ivan.ivanov)"
-                >
-                  <Edit2 className="w-3 h-3" />
-                </button>
-              ) : null}
             </div>
-
-            {isEditingSlug ? (
-              <form onSubmit={handleSaveCustomSlug} className="flex items-center gap-1.5 pt-1">
-                <span className="text-xs font-mono text-[#8A95A8]">/</span>
-                <input
-                  type="text"
-                  autoFocus
-                  value={newSlugInput}
-                  onChange={(e) => setNewSlugInput(e.target.value)}
-                  placeholder="ivan.ivanov"
-                  className="bg-[#FFF8F1] border border-coralAccent rounded-lg px-2 py-0.5 text-xs font-mono font-bold text-[#161F38] outline-none w-36"
-                />
-                <button
-                  type="submit"
-                  className="bg-coralAccent hover:bg-coralAccent-hover text-white text-[10px] font-bold px-2.5 py-0.5 rounded-lg shadow-2xs"
-                >
-                  OK
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsEditingSlug(false)}
-                  className="text-[10px] text-[#8A95A8] hover:text-[#161F38] px-1"
-                >
-                  ✕
-                </button>
-              </form>
-            ) : (
-              <p className="text-[11px] text-[#6B758E] mt-0.5">
-                Детский развивающий центр «АйДаУмничка», г. Тольятти • Личный кабинет занятий
-              </p>
-            )}
+            <p className="text-[11px] text-[#6B758E] truncate">
+              Детский развивающий центр «АйДаУмничка», г. Тольятти • Личный кабинет занятий
+            </p>
           </div>
         </div>
 
         {/* Header Right Stat Cards */}
-        <div className="flex items-center gap-2 self-stretch md:self-auto justify-end">
-          <div className="bg-[#FFF8F1] border border-[#F2DECE] px-3 py-1.5 rounded-xl text-center min-w-[70px]">
+        <div className="flex items-center gap-2 self-stretch md:self-auto justify-end shrink-0">
+          <div className="bg-[#FFF8F1] border border-[#F2DECE] px-3.5 py-1.5 rounded-xl text-center min-w-[76px]">
             <span className="text-[9px] text-[#6B758E] font-extrabold uppercase tracking-wider block">Домашек</span>
             <p className="text-sm font-black text-[#161F38]">{homeworks.length}</p>
           </div>
-          <div className="bg-[#FFF8F1] border border-[#F2DECE] px-3 py-1.5 rounded-xl text-center min-w-[70px]">
+          <div className="bg-[#FFF8F1] border border-[#F2DECE] px-3.5 py-1.5 rounded-xl text-center min-w-[76px]">
             <span className="text-[9px] text-[#6B758E] font-extrabold uppercase tracking-wider block">Статус</span>
             <span className="text-xs font-black text-[#5C8519] flex items-center justify-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-[#5C8519] animate-pulse" />
@@ -468,12 +414,12 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
             <span className="w-2.5 h-2.5 rounded-full bg-[#5C8519] animate-pulse shrink-0" />
             <div className="text-xs text-[#161F38] truncate">
               <span className="font-extrabold">Урок сейчас активен:</span>{' '}
-              <span className="text-[#5C8519] font-bold">{activeLessonRoom.topic}</span>
+              <span className="text-[#5C8519] font-bold">{cleanTopicTitle(activeLessonRoom.topic)}</span>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <Link
-              href={`/room/${activeLessonRoom.roomId}?role=student&topic=${encodeURIComponent(activeLessonRoom.topic)}`}
+              href={`/room/${activeLessonRoom.roomId}?role=student&topic=${encodeURIComponent(cleanTopicTitle(activeLessonRoom.topic))}`}
               onClick={(e) => {
                 if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
                   e.preventDefault();
@@ -627,17 +573,17 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
                         href={`/student/homework?studentId=${encodeURIComponent(currentId)}&teacherName=${encodeURIComponent(teacher.name)}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center justify-center gap-1.5 text-xs font-black bg-[#EEF2FF] hover:bg-[#E0E7FF] text-[#4F46E5] border border-[#DCDAF7] px-3.5 py-2 rounded-full transition-all active:scale-95 shadow-2xs cursor-pointer w-full sm:w-auto"
+                        className="inline-flex items-center justify-center gap-2 text-xs font-bold bg-white hover:bg-[#F8FAFC] text-[#1E293B] hover:text-black border border-[#E2E8F0] hover:border-[#CBD5E1] px-4 py-2 sm:py-2.5 rounded-xl transition-all active:scale-[0.98] shadow-xs hover:shadow-sm cursor-pointer w-full sm:w-auto"
                         title="Открыть домашние задания в новой вкладке"
                       >
-                        <BookOpen className="w-3.5 h-3.5" />
+                        <BookOpen className="w-3.5 h-3.5 text-[#64748B]" />
                         <span>Перейти к ДЗ</span>
                         {teacher.totalCount > 0 && (
-                          <span className="bg-[#4F46E5] text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold ml-0.5">
+                          <span className="bg-[#F1F5F9] text-[#334155] border border-[#E2E8F0] text-[11px] px-2 py-0.5 rounded-full font-black ml-0.5">
                             {teacher.totalCount}
                           </span>
                         )}
-                        <ExternalLink className="w-3 h-3 text-[#4F46E5]/70" />
+                        <ExternalLink className="w-3 h-3 text-[#94A3B8]" />
                       </Link>
                     </div>
                   </div>

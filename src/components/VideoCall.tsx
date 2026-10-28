@@ -1218,21 +1218,12 @@ export default function VideoCall({
     }
   };
 
-  // Navigate back to user cabinet while preserving ongoing lesson room state in localStorage
+  // Minimize lesson into floating Picture-in-Picture card over personal cabinet (keeps WebRTC, camera & mic alive)
   const handleExitToCabinet = () => {
-    const activeRole = isTeacher ? 'teacher' : 'student';
-    const savedUserId =
-      (typeof window !== 'undefined' &&
-        (localStorage.getItem('aida_user_public_id') ||
-          localStorage.getItem('aida_auth_user_id') ||
-          localStorage.getItem('aida_user_id'))) ||
-      (isTeacher ? 'id180457' : 'id571210');
-
-    if (activeRole === 'teacher') {
-      router.push(`/teacher?id=${encodeURIComponent(savedUserId || 'id180457')}`);
-    } else {
-      router.push(`/${encodeURIComponent(savedUserId || 'id571210')}`);
+    if (onTogglePlatformMinimize) {
+      onTogglePlatformMinimize(true);
     }
+    setInternalPlatformMinimized(true);
   };
 
   // Supabase Realtime Signaling setup
@@ -1540,60 +1531,80 @@ export default function VideoCall({
       }
     }
 
-    // 3. Fallbacks with valid element and stream
-    if (remoteVideoRef.current && remoteVideoRef.current.srcObject) {
-      return remoteVideoRef.current;
-    }
-    if (localVideoRef.current && localVideoRef.current.srcObject) {
-      return localVideoRef.current;
+    // 3. Any available video element with live video track
+    const candidates = [remoteVideoRef.current, localVideoRef.current, pipVideoRef.current].filter(Boolean) as HTMLVideoElement[];
+    for (const v of candidates) {
+      const st = v.srcObject as MediaStream | null;
+      if (st && st.getVideoTracks().some((t) => t.readyState === 'live' && t.enabled)) {
+        return v;
+      }
     }
 
-    return pipVideoRef.current || remoteVideoRef.current || localVideoRef.current || null;
+    return null;
   };
 
-  // Native Picture-in-Picture (stays floating on top of all OS apps / desktop like Telegram/VK)
+  // Picture-in-Picture toggle (Native OS PiP or In-App Floating PiP fallback)
   const togglePictureInPicture = async () => {
     try {
-      const activeVideo = getActivePiPVideo();
-      if (!activeVideo) {
-        alert('Видеопоток подключается. Подождите пару секунд для включения режима «Картинка в картинке».');
-        return;
-      }
-
-      (activeVideo as any).autoPictureInPicture = true;
-      (activeVideo as any).disablePictureInPicture = false;
-      activeVideo.setAttribute('autopictureinpicture', 'true');
-
-      // 1. iOS Safari (WebKit Presentation Mode)
-      if (
-        typeof (activeVideo as any).webkitSetPresentationMode === 'function' &&
-        (activeVideo as any).webkitSupportsPresentationMode?.('picture-in-picture')
-      ) {
-        const isPiP = (activeVideo as any).webkitPresentationMode === 'picture-in-picture';
-        const nextMode = isPiP ? 'inline' : 'picture-in-picture';
-        (activeVideo as any).webkitSetPresentationMode(nextMode);
-        setIsPipActive(nextMode === 'picture-in-picture');
-        return;
-      }
-
-      // 2. Standard W3C Picture-in-Picture (Android Chrome, Windows/Mac Chrome, Edge, Safari macOS)
-      if (document.pictureInPictureElement) {
-        await document.exitPictureInPicture();
+      // If already in in-app floating mode, restore full screen
+      if (isPlatformMinimized) {
+        onTogglePlatformMinimize?.(false);
+        setInternalPlatformMinimized(false);
         setIsPipActive(false);
-      } else if (typeof activeVideo.requestPictureInPicture === 'function') {
+        return;
+      }
+
+      // If document PiP is active, exit it
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture().catch(() => {});
+        setIsPipActive(false);
+        return;
+      }
+
+      const activeVideo = getActivePiPVideo();
+
+      // If native PiP video is ready, attempt native Picture-in-Picture first
+      if (activeVideo && typeof activeVideo.requestPictureInPicture === 'function') {
+        (activeVideo as any).autoPictureInPicture = true;
+        (activeVideo as any).disablePictureInPicture = false;
+        activeVideo.setAttribute('autopictureinpicture', 'true');
+
+        // iOS Safari WebKit presentation mode
+        if (
+          typeof (activeVideo as any).webkitSetPresentationMode === 'function' &&
+          (activeVideo as any).webkitSupportsPresentationMode?.('picture-in-picture')
+        ) {
+          const isPiP = (activeVideo as any).webkitPresentationMode === 'picture-in-picture';
+          const nextMode = isPiP ? 'inline' : 'picture-in-picture';
+          (activeVideo as any).webkitSetPresentationMode(nextMode);
+          setIsPipActive(nextMode === 'picture-in-picture');
+          return;
+        }
+
         if (activeVideo.paused) {
           await activeVideo.play().catch(() => {});
         }
+
         await activeVideo.requestPictureInPicture();
         setIsPipActive(true);
-      } else {
-        alert('Ваш браузер не поддерживает режим «Картинка в картинке». Рекомендуется использовать Google Chrome, Яндекс.Браузер или Safari.');
+        return;
       }
+
+      // Fallback: If native PiP is not permitted or no live video element ready,
+      // toggle into the in-app floating Picture-in-Picture card over the platform
+      if (onTogglePlatformMinimize) {
+        onTogglePlatformMinimize(true);
+      }
+      setInternalPlatformMinimized(true);
+      setIsPipActive(true);
     } catch (err: any) {
-      console.warn('Picture-in-Picture error:', err);
-      if (err?.name === 'NotAllowedError') {
-        alert('Разрешите режим «Картинка в картинке» в разрешениях браузера для сайта.');
+      console.warn('Native PiP could not start, activating in-app floating mode fallback:', err);
+      // Seamlessly activate in-app floating PiP card so user experience never breaks
+      if (onTogglePlatformMinimize) {
+        onTogglePlatformMinimize(true);
       }
+      setInternalPlatformMinimized(true);
+      setIsPipActive(true);
     }
   };
 
@@ -3195,35 +3206,9 @@ export default function VideoCall({
               />
               <span>{formatTime(callDuration)}</span>
             </div>
-
-            {/* Diagnostics & Logs Button */}
-            <button
-              type="button"
-              onClick={() => setIsDiagnosticsOpen(true)}
-              className={`flex items-center gap-1.5 px-3 py-2 sm:py-2.5 rounded-full backdrop-blur-md border text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-lg ${
-                currentIceState === 'failed' || cameraError
-                  ? 'bg-rose-600/80 hover:bg-rose-700/90 border-rose-400 text-white animate-pulse'
-                  : hasRemoteStream
-                  ? 'bg-black/40 hover:bg-black/60 border-white/15 text-emerald-400'
-                  : 'bg-black/40 hover:bg-black/60 border-white/15 text-amber-300'
-              }`}
-              title="Диагностика связи и логи"
-            >
-              <Activity className="w-4 h-4" />
-              <span className="hidden xs:inline">Диагностика</span>
-              <span
-                className={`w-2 h-2 rounded-full ${
-                  currentIceState === 'failed' || cameraError
-                    ? 'bg-rose-400'
-                    : hasRemoteStream
-                    ? 'bg-emerald-400'
-                    : 'bg-amber-400 animate-ping'
-                }`}
-              />
-            </button>
           </div>
 
-          {/* Top Right: Picture-in-Picture & Exit to Cabinet */}
+          {/* Top Right: Picture-in-Picture & Minimize to Cabinet */}
           <div className="pointer-events-auto flex items-center gap-2">
             <button
               type="button"
@@ -3233,7 +3218,7 @@ export default function VideoCall({
                   ? 'bg-coralAccent text-white border-coralAccent shadow-coralAccent/30 ring-2 ring-coralAccent/50'
                   : 'bg-black/40 hover:bg-black/60 text-white border-white/15'
               }`}
-              title={isPipActive ? 'Вернуть видео в урок' : 'Картинка в картинке (поверх всех окон на рабочий стол)'}
+              title={isPipActive ? 'Вернуть видео в урок' : 'Картинка в картинке'}
             >
               <PiPIcon className="w-5 h-5" />
             </button>
@@ -3241,7 +3226,7 @@ export default function VideoCall({
               type="button"
               onClick={handleExitToCabinet}
               className="p-2.5 sm:p-3 rounded-full bg-black/40 hover:bg-black/60 text-white backdrop-blur-md border border-white/15 transition-all active:scale-95 cursor-pointer shadow-lg"
-              title="Выйти в личный кабинет (не завершая урок)"
+              title="Свернуть урок в плавающее окно и открыть личный кабинет"
             >
               <ChevronDown className="w-5 h-5" />
             </button>
