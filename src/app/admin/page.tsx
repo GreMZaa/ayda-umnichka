@@ -154,7 +154,7 @@ export default function AdminDashboard() {
   // Modal form states: Schedule lesson
   const [scheduleTeacherId, setScheduleTeacherId] = useState('');
   const [scheduleStudentId, setScheduleStudentId] = useState('');
-  const [scheduleTopic, setScheduleTopic] = useState('Индивидуальное занятие: Логопедия');
+  const [scheduleTopic, setScheduleTopic] = useState('');
   const [scheduleDateTime, setScheduleDateTime] = useState(() => {
     const now = new Date();
     now.setHours(now.getHours() + 1, 0, 0, 0);
@@ -387,9 +387,10 @@ export default function AdminDashboard() {
 
     try {
       setIsScheduling(true);
+      const topicToSave = scheduleTopic.trim() || 'Индивидуальное занятие';
       const newLesson = {
         room_token: roomToken,
-        topic: cleanTopicTitle(scheduleTopic),
+        topic: cleanTopicTitle(topicToSave),
         teacher_name: cleanTName,
         teacher_id: scheduleTeacherId,
         student_name: cleanSName,
@@ -407,7 +408,7 @@ export default function AdminDashboard() {
       broadcastPlatformEvent('lesson-scheduled', {
         id: data?.[0]?.id || `lesson-${Date.now()}`,
         room_token: roomToken,
-        topic: cleanTopicTitle(scheduleTopic),
+        topic: cleanTopicTitle(topicToSave),
         teacher_name: cleanTName,
         student_public_id: scheduleStudentId,
         student_name: cleanSName,
@@ -416,9 +417,9 @@ export default function AdminDashboard() {
         creator_id: 'admin',
       });
 
-      showToast(`Урок «${scheduleTopic}» успешно назначен! (${cleanTName} → ${cleanSName})`);
+      showToast(`Урок «${topicToSave}» успешно назначен! (${cleanTName} → ${cleanSName})`);
       setIsScheduleModalOpen(false);
-      setScheduleTopic('Индивидуальное занятие: Логопедия');
+      setScheduleTopic('');
       setScheduleDateTime('');
       fetchAllData();
     } catch (err: any) {
@@ -2035,7 +2036,6 @@ export default function AdminDashboard() {
                   type="text"
                   value={scheduleTopic}
                   onChange={(e) => setScheduleTopic(e.target.value)}
-                  required
                   className="w-full bg-[#FFFDFB] border border-[#EADBCC] rounded-xl px-3.5 py-2.5 text-xs font-bold text-[#161F38] focus:outline-none focus:border-coralAccent"
                 />
                 <div className="flex items-center gap-1.5 flex-wrap pt-1">
@@ -2043,7 +2043,7 @@ export default function AdminDashboard() {
                     <button
                       key={chip}
                       type="button"
-                      onClick={() => setScheduleTopic(`Индивидуальное занятие: ${chip}`)}
+                      onClick={() => setScheduleTopic(chip)}
                       className="text-[10px] font-bold bg-[#FFF8F1] hover:bg-[#FFEEDE] text-[#6B758E] hover:text-[#161F38] border border-[#F2DECE] px-2.5 py-0.5 rounded-full transition-colors cursor-pointer"
                     >
                       + {chip}

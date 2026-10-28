@@ -215,7 +215,7 @@ export default function LessonsScheduleHistory({
 
   // Form states
   const [formStudent, setFormStudent] = useState('');
-  const [formTopic, setFormTopic] = useState('Индивидуальное занятие: Логопедия');
+  const [formTopic, setFormTopic] = useState('');
   const [formDateTime, setFormDateTime] = useState(() => {
     const now = new Date();
     now.setHours(now.getHours() + 1, 0, 0, 0);
@@ -273,11 +273,13 @@ export default function LessonsScheduleHistory({
       const cleanTName = (teacherName || 'Преподаватель').replace(/\s*\(.*?\)$/, '').trim();
       const teacherSaveIdentifier = teacherPublicId ? `${cleanTName} (${teacherPublicId})` : cleanTName;
 
+      const topicToSave = formTopic.trim() || 'Индивидуальное занятие';
+
       const res = await fetch('/api/lessons', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          topic: formTopic,
+          topic: topicToSave,
           student_name: selectedStudentObj?.fullName || formStudent || 'Ученик центра',
           student_public_id: studentId,
           teacher_name: teacherSaveIdentifier,
@@ -294,7 +296,7 @@ export default function LessonsScheduleHistory({
         broadcastPlatformEvent('lesson-scheduled', {
           id: createdLesson?.id || `lesson-${Date.now()}`,
           room_token: createdLesson?.room_token || '',
-          topic: formTopic,
+          topic: topicToSave,
           student_public_id: studentId,
           student_name: selectedStudentObj?.fullName || formStudent || 'Ученик центра',
           teacher_name: cleanTName,
@@ -305,7 +307,7 @@ export default function LessonsScheduleHistory({
 
         setShowScheduleForm(false);
         setFormDateTime('');
-        setFormTopic('Индивидуальное занятие: Логопедия');
+        setFormTopic('');
         setFormStudent('');
         await fetchLessons();
       }
@@ -578,16 +580,14 @@ export default function LessonsScheduleHistory({
                     type="text"
                     value={formTopic}
                     onChange={(e) => setFormTopic(e.target.value)}
-                    placeholder="Например: Индивидуальное занятие: Логопедия"
-                    required
-                    className="w-full bg-[#FFFDFB] border border-[#EADBCC] rounded-xl px-3.5 py-2.5 text-xs font-bold text-[#161F38] focus:outline-none focus:border-coralAccent focus:ring-2 focus:ring-coralAccent/20 transition-all placeholder:text-[#8A95A8]"
+                    className="w-full bg-[#FFFDFB] border border-[#EADBCC] rounded-xl px-3.5 py-2.5 text-xs font-bold text-[#161F38] focus:outline-none focus:border-coralAccent focus:ring-2 focus:ring-coralAccent/20 transition-all"
                   />
                   <div className="flex items-center gap-1.5 flex-wrap pt-1">
                     {['Логопедия', 'Развитие речи', 'Подготовка к школе', 'Диагностика'].map((chip) => (
                       <button
                         key={chip}
                         type="button"
-                        onClick={() => setFormTopic(`Индивидуальное занятие: ${chip}`)}
+                        onClick={() => setFormTopic(chip)}
                         className="text-[10px] font-bold bg-[#FFF8F1] hover:bg-[#FFEEDE] text-[#6B758E] hover:text-[#161F38] border border-[#F2DECE] px-2.5 py-0.5 rounded-full transition-colors cursor-pointer"
                       >
                         + {chip}
