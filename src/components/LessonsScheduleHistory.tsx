@@ -13,7 +13,8 @@ import {
   RefreshCw,
   User,
   AlertCircle,
-  Trash2
+  Trash2,
+  X
 } from 'lucide-react';
 import { broadcastPlatformEvent } from '@/lib/platformNotifications';
 
@@ -456,11 +457,12 @@ export default function LessonsScheduleHistory({
           {role !== 'student' && (
             <button
               type="button"
-              onClick={() => setShowScheduleForm(!showScheduleForm)}
-              className="inline-flex items-center gap-1 text-[11px] font-black bg-[#FFF2E6] hover:bg-[#FFE3CC] text-coralAccent border border-[#FCDDC7] px-2.5 py-1 rounded-full transition-colors duration-140 cursor-pointer active:scale-95 shrink-0"
+              onClick={() => setShowScheduleForm(true)}
+              className="inline-flex items-center gap-1.5 text-xs font-black bg-[#FFF2E6] hover:bg-[#FFE3CC] text-coralAccent border border-[#FCDDC7] px-3.5 py-1.5 rounded-full transition-all duration-140 cursor-pointer active:scale-95 shadow-2xs shrink-0"
+              title="Запланировать онлайн-урок с учеником"
             >
-              <Plus className="w-3 h-3" />
-              <span>{showScheduleForm ? 'Отмена' : 'Запланировать'}</span>
+              <Plus className="w-3.5 h-3.5" />
+              <span>Запланировать</span>
             </button>
           )}
         </div>
@@ -491,93 +493,144 @@ export default function LessonsScheduleHistory({
           </button>
         </div>
 
-        {/* Schedule Form */}
+        {/* Modern Schedule Modal Window */}
         {showScheduleForm && (
-          <form
-            onSubmit={handleCreateScheduledLesson}
-            className="shrink-0 p-3 bg-[#FFF8F1] border border-[#F2DECE] rounded-xl space-y-2 animate-in fade-in"
+          <div
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setShowScheduleForm(false);
+            }}
           >
-            <div className="text-[11px] font-black text-[#161F38]">
-              Запланировать онлайн-урок:
-            </div>
-
-            <div className="space-y-1.5">
-              <div>
-                <label className="block text-[10px] font-bold text-[#6B758E] mb-0.5">
-                  Ученик:
-                </label>
-                {availableStudents.length > 0 ? (
-                  <select
-                    value={formStudent}
-                    onChange={(e) => setFormStudent(e.target.value)}
-                    required
-                    className="w-full bg-white border border-[#EADBCC] rounded-lg px-2.5 py-1.5 text-xs text-[#161F38] focus:outline-none focus:border-coralAccent"
-                  >
-                    <option value="">Выберите ученика из списка</option>
-                    {availableStudents.map((s) => (
-                      <option key={s.publicId || s.fullName} value={s.publicId || s.fullName}>
-                        {s.fullName}{s.publicId ? ` (${s.publicId})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <div className="p-2.5 rounded-lg bg-[#FFF2E2] border border-[#FAD6B5] text-xs text-[#9B5115] space-y-1">
-                    <div className="font-bold flex items-center gap-1.5">
-                      <AlertCircle className="w-3.5 h-3.5 shrink-0 text-[#E26928]" />
-                      <span>Нет закрепленных учеников</span>
-                    </div>
-                    <p className="text-[11px] leading-relaxed">
-                      Чтобы запланировать онлайн-урок, сначала прикрепите ученика в блоке «Закрепленные ученики» справа.
+            <div className="bg-white rounded-3xl p-5 sm:p-7 max-w-md w-full border border-[#F2DECE] shadow-2xl space-y-5 animate-in zoom-in-95 duration-200 relative">
+              {/* Header with Icon and Close Button */}
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-[#FFF2E6] text-coralAccent border border-[#FCDDC7] flex items-center justify-center shrink-0 shadow-2xs">
+                    <Calendar className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-base sm:text-lg font-black text-[#161F38] tracking-tight">
+                      Запланировать онлайн-урок
+                    </h3>
+                    <p className="text-xs text-[#6B758E] mt-0.5">
+                      Выберите ученика, тему занятия и время
                     </p>
                   </div>
-                )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowScheduleForm(false)}
+                  className="w-8 h-8 rounded-full bg-[#FFF8F1] hover:bg-[#FFF2E6] text-[#8A95A8] hover:text-[#161F38] border border-[#F2DECE] flex items-center justify-center transition-colors cursor-pointer shrink-0"
+                  title="Закрыть"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
 
-              <div>
-                <label className="block text-[10px] font-bold text-[#6B758E] mb-0.5">
-                  Тема урока:
-                </label>
-                <input
-                  type="text"
-                  value={formTopic}
-                  onChange={(e) => setFormTopic(e.target.value)}
-                  placeholder="Тема урока"
-                  required
-                  className="w-full bg-white border border-[#EADBCC] rounded-lg px-2.5 py-1.5 text-xs text-[#161F38] focus:outline-none focus:border-coralAccent"
-                />
-              </div>
+              <form onSubmit={handleCreateScheduledLesson} className="space-y-4">
+                {/* Student selector */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-black text-[#161F38]">
+                    Ученик:
+                  </label>
+                  {availableStudents.length > 0 ? (
+                    <select
+                      value={formStudent}
+                      onChange={(e) => setFormStudent(e.target.value)}
+                      required
+                      className="w-full bg-[#FFFDFB] border border-[#EADBCC] rounded-xl px-3.5 py-2.5 text-xs font-bold text-[#161F38] focus:outline-none focus:border-coralAccent focus:ring-2 focus:ring-coralAccent/20 transition-all cursor-pointer"
+                    >
+                      <option value="">Выберите ученика из списка</option>
+                      {availableStudents.map((s) => (
+                        <option key={s.publicId || s.fullName} value={s.publicId || s.fullName}>
+                          {s.fullName}{s.publicId ? ` (${s.publicId})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="p-3 rounded-2xl bg-[#FFF2E2] border border-[#FAD6B5] text-xs text-[#9B5115] space-y-1">
+                      <div className="font-bold flex items-center gap-1.5">
+                        <AlertCircle className="w-4 h-4 shrink-0 text-[#E26928]" />
+                        <span>Нет закрепленных учеников</span>
+                      </div>
+                      <p className="text-[11px] leading-relaxed">
+                        Чтобы запланировать онлайн-урок, сначала прикрепите ученика в блоке «Закрепленные ученики» справа.
+                      </p>
+                    </div>
+                  )}
+                </div>
 
-              <div>
-                <label className="block text-[10px] font-bold text-[#6B758E] mb-0.5">
-                  Дата и время:
-                </label>
-                <input
-                  type="datetime-local"
-                  required
-                  value={formDateTime}
-                  onChange={(e) => setFormDateTime(e.target.value)}
-                  className="w-full bg-white border border-[#EADBCC] rounded-lg px-2.5 py-1.5 text-xs text-[#161F38] focus:outline-none focus:border-coralAccent"
-                />
-              </div>
+                {/* Topic input with quick tags */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-black text-[#161F38]">
+                    Тема урока:
+                  </label>
+                  <input
+                    type="text"
+                    value={formTopic}
+                    onChange={(e) => setFormTopic(e.target.value)}
+                    placeholder="Например: Индивидуальное занятие: Логопедия"
+                    required
+                    className="w-full bg-[#FFFDFB] border border-[#EADBCC] rounded-xl px-3.5 py-2.5 text-xs font-bold text-[#161F38] focus:outline-none focus:border-coralAccent focus:ring-2 focus:ring-coralAccent/20 transition-all placeholder:text-[#8A95A8]"
+                  />
+                  <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                    {['Логопедия', 'Развитие речи', 'Подготовка к школе', 'Диагностика'].map((chip) => (
+                      <button
+                        key={chip}
+                        type="button"
+                        onClick={() => setFormTopic(`Индивидуальное занятие: ${chip}`)}
+                        className="text-[10px] font-bold bg-[#FFF8F1] hover:bg-[#FFEEDE] text-[#6B758E] hover:text-[#161F38] border border-[#F2DECE] px-2.5 py-0.5 rounded-full transition-colors cursor-pointer"
+                      >
+                        + {chip}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Date & Time */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-black text-[#161F38]">
+                    Дата и время проведения:
+                  </label>
+                  <input
+                    type="datetime-local"
+                    required
+                    value={formDateTime}
+                    onChange={(e) => setFormDateTime(e.target.value)}
+                    className="w-full bg-[#FFFDFB] border border-[#EADBCC] rounded-xl px-3.5 py-2.5 text-xs font-bold text-[#161F38] focus:outline-none focus:border-coralAccent focus:ring-2 focus:ring-coralAccent/20 transition-all cursor-pointer"
+                  />
+                </div>
+
+                {/* Action buttons */}
+                <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-[#F8EDE1]">
+                  <button
+                    type="button"
+                    onClick={() => setShowScheduleForm(false)}
+                    className="text-xs font-bold text-[#8A95A8] hover:text-[#161F38] px-4 py-2 rounded-xl transition-colors cursor-pointer"
+                  >
+                    Отмена
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting || availableStudents.length === 0 || !formStudent}
+                    className="text-xs font-black bg-coralAccent hover:bg-coralAccent-hover text-white px-5 py-2.5 rounded-full shadow-md active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1.5"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Сохранение...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Calendar className="w-3.5 h-3.5" />
+                        <span>Запланировать</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
             </div>
-
-            <div className="flex justify-end gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => setShowScheduleForm(false)}
-                className="text-xs font-bold text-[#8A95A8] hover:text-[#161F38] px-3 py-1"
-              >
-                Отмена
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting || availableStudents.length === 0 || !formStudent}
-                className="text-xs font-black bg-coralAccent hover:bg-coralAccent-hover text-white px-4 py-1.5 rounded-full shadow-2xs active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isSubmitting ? 'Сохранение...' : 'Запланировать'}
-              </button>
-            </div>
-          </form>
+          </div>
         )}
 
         {/* Content list & Pagination container */}

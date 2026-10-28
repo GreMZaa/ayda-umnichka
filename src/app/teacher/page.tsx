@@ -159,6 +159,19 @@ export default function TeacherDashboard() {
   const [supabaseTeachers, setSupabaseTeachers] = useState<TeacherRecord[]>([]);
   const [loadingTeachers, setLoadingTeachers] = useState(true);
 
+  // Clean topic string from any URL artifacts like ?agentation=1
+  function cleanTopicTitle(str?: string | null): string {
+    if (!str) return 'Индивидуальное занятие: Логопедия';
+    let cleaned = str;
+    try {
+      cleaned = decodeURIComponent(cleaned);
+    } catch (_) {}
+    return cleaned
+      .replace(/\?.*$/, '')
+      .replace(/&.*$/, '')
+      .trim() || 'Индивидуальное занятие: Логопедия';
+  }
+
   // Active lesson room state (to re-enter after exit)
   const [activeLessonRoom, setActiveLessonRoom] = useState<{ roomId: string; topic: string } | null>(null);
 
@@ -168,7 +181,10 @@ export default function TeacherDashboard() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed?.roomId && Date.now() - (parsed.timestamp || 0) < 3 * 3600 * 1000) {
-          setActiveLessonRoom(parsed);
+          setActiveLessonRoom({
+            ...parsed,
+            topic: cleanTopicTitle(parsed.topic),
+          });
         }
       }
     } catch (_) {}
@@ -780,25 +796,6 @@ export default function TeacherDashboard() {
               <span className="text-[10px] bg-[#FFF0E2] text-coralAccent border border-[#FCDDC7] font-extrabold px-2.5 py-0.5 rounded-full shadow-2xs">
                 ★ ID: {teacherPublicId}
               </span>
-
-              {/* Notification Shade Toggle / Test Button */}
-              <button
-                type="button"
-                onClick={handleToggleOrTestNotif}
-                className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg border transition-all cursor-pointer ${
-                  notifState === 'granted'
-                    ? 'bg-[#EAF7CF] text-[#5C8519] border-[#CCE8A2] hover:bg-[#DDF3B8]'
-                    : 'bg-[#FFF2E6] text-coralAccent border-[#FCDDC7] hover:bg-[#FFE6D2] animate-pulse'
-                }`}
-                title={
-                  notifState === 'granted'
-                    ? 'Уведомления в шторку активны. Нажмите для теста.'
-                    : 'Нажмите, чтобы включить уведомления в шторку телефона'
-                }
-              >
-                <Bell className="w-3 h-3" />
-                <span>{notifState === 'granted' ? 'Шторка: Вкл' : 'Включить в шторку'}</span>
-              </button>
             </div>
             <p className="text-[11px] text-[#6B758E] mt-0.5">
               Детский развивающий центр «АйДаУмничка», г. Тольятти • Онлайн-кабинет занятий
@@ -832,12 +829,12 @@ export default function TeacherDashboard() {
             <span className="w-2.5 h-2.5 rounded-full bg-[#5C8519] animate-pulse shrink-0" />
             <div className="text-xs text-[#161F38] truncate">
               <span className="font-extrabold">Урок сейчас идёт:</span>{' '}
-              <span className="text-[#5C8519] font-bold">{activeLessonRoom.topic}</span>
+              <span className="text-[#5C8519] font-bold">{cleanTopicTitle(activeLessonRoom.topic)}</span>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <Link
-              href={`/room/${activeLessonRoom.roomId}?role=teacher&topic=${encodeURIComponent(activeLessonRoom.topic)}`}
+              href={`/room/${activeLessonRoom.roomId}?role=teacher&topic=${encodeURIComponent(cleanTopicTitle(activeLessonRoom.topic))}`}
               onClick={(e) => {
                 if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
                   e.preventDefault();
