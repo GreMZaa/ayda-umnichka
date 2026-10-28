@@ -82,21 +82,21 @@ export default function HomePage() {
   }, [activeSlide, slides.length]);
 
   return (
-    <div className="relative w-full min-h-[calc(100vh-5rem)] md:h-[calc(100vh-5rem)] overflow-visible md:overflow-hidden bg-[#FFF7EE]">
+    <div className="relative w-full min-h-[calc(100dvh-5rem)] bg-[#FFF7EE]">
       {/* ─────────────────────────────────────────────────────────────
-          MINIMALIST SLIDE NAVIGATOR (Visible on desktop md+ screens, hidden on mobile for clean touch space)
+          MINIMALIST SLIDE NAVIGATOR (Ergonomic touch targets, clean desktop layout)
           ───────────────────────────────────────────────────────────── */}
       <nav
         aria-label="Навигация по экранам"
-        className="hidden md:flex fixed right-3 sm:right-6 top-1/2 -translate-y-1/2 z-40 flex-col items-center gap-2 bg-white/70 backdrop-blur-md p-2 rounded-full border border-[#F4E3D2] shadow-sm"
+        className="hidden md:flex fixed right-3 sm:right-6 top-1/2 -translate-y-1/2 z-40 flex-col items-center gap-2.5 bg-white/80 backdrop-blur-md p-2 rounded-full border border-[#F4E3D2] shadow-sm"
       >
         <button
           onClick={() => activeSlide > 0 && scrollToSlide(activeSlide - 1)}
           disabled={activeSlide === 0}
           aria-label="Предыдущий экран"
-          className="w-6 h-6 rounded-full flex items-center justify-center text-[#161F38]/50 hover:text-[#161F38] hover:bg-[#FFF7EE] disabled:opacity-20 disabled:pointer-events-none transition-colors duration-140 active:scale-90"
+          className="w-8 h-8 rounded-full flex items-center justify-center text-[#161F38]/60 hover:text-[#161F38] hover:bg-[#FFF7EE] disabled:opacity-20 disabled:pointer-events-none transition-colors duration-140 active:scale-95 cursor-pointer"
         >
-          <ChevronUp className="w-3.5 h-3.5" />
+          <ChevronUp className="w-4 h-4" />
         </button>
 
         {slides.map((s, idx) => {
@@ -106,7 +106,7 @@ export default function HomePage() {
               key={s.id}
               onClick={() => scrollToSlide(idx)}
               aria-label={`Перейти к экрану ${s.label}`}
-              className="group relative flex items-center justify-center p-1 cursor-pointer"
+              className="group relative flex items-center justify-center w-8 h-8 cursor-pointer"
             >
               <div
                 className={`transition-[height,width,background-color] duration-220 ease-out-emil rounded-full ${
@@ -115,7 +115,7 @@ export default function HomePage() {
                     : 'w-2 h-2 bg-[#DFCABB] hover:bg-coralAccent/60'
                 }`}
               />
-              <span className="pointer-events-none absolute right-9 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-xl bg-[#161F38] text-white text-[10px] font-bold whitespace-nowrap opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 transition-[opacity,transform] duration-140 ease-out-emil shadow-sm">
+              <span className="pointer-events-none absolute right-10 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-xl bg-[#161F38] text-white text-[11px] font-bold whitespace-nowrap opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 transition-[opacity,transform] duration-140 ease-out-emil shadow-sm">
                 {s.number}. {s.label}
               </span>
             </button>
@@ -126,28 +126,28 @@ export default function HomePage() {
           onClick={() => activeSlide < slides.length - 1 && scrollToSlide(activeSlide + 1)}
           disabled={activeSlide === slides.length - 1}
           aria-label="Следующий экран"
-          className="w-6 h-6 rounded-full flex items-center justify-center text-[#161F38]/50 hover:text-[#161F38] hover:bg-[#FFF7EE] disabled:opacity-20 disabled:pointer-events-none transition-colors duration-140 active:scale-90"
+          className="w-8 h-8 rounded-full flex items-center justify-center text-[#161F38]/60 hover:text-[#161F38] hover:bg-[#FFF7EE] disabled:opacity-20 disabled:pointer-events-none transition-colors duration-140 active:scale-95 cursor-pointer"
         >
-          <ChevronDown className="w-3.5 h-3.5" />
+          <ChevronDown className="w-4 h-4" />
         </button>
       </nav>
 
       {/* ─────────────────────────────────────────────────────────────
-          CONTENT CONTAINER (Fluid smooth scrolling on mobile, Snap presentation on desktop)
+          CONTENT CONTAINER (Fluid responsive scrolling without fixed-height trapping)
           ───────────────────────────────────────────────────────────── */}
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="w-full h-auto md:h-full overflow-y-visible md:overflow-y-auto md:snap-y md:snap-mandatory scroll-smooth"
+        className="w-full h-auto overflow-y-visible md:overflow-y-auto scroll-smooth"
       >
         {/* ═════════════════════════════════════════════════════════════
             SLIDE 1: HERO SECTION
             ═════════════════════════════════════════════════════════════ */}
         <section
           id="slide-hero"
-          className="w-full min-h-auto md:min-h-[calc(100dvh-5rem)] lg:h-[calc(100dvh-5rem)] md:snap-start md:snap-always flex items-center justify-center p-3 sm:p-4 lg:p-5"
+          className="w-full min-h-[calc(100dvh-5rem)] flex items-center justify-center p-3 sm:p-5 lg:p-6 py-6 sm:py-8"
         >
-          <div className="max-w-7xl w-full h-auto md:h-full lg:max-h-[720px] bg-white rounded-[28px] sm:rounded-[36px] lg:rounded-[44px] p-4 sm:p-7 lg:p-9 border border-[#F2E0CF] shadow-[0_20px_50px_rgba(22,31,56,0.04)] flex flex-col justify-between overflow-visible lg:overflow-hidden relative">
+          <div className="max-w-7xl w-full min-h-auto bg-white rounded-[28px] sm:rounded-[36px] lg:rounded-[44px] p-5 sm:p-7 lg:p-9 border border-[#F2E0CF] shadow-[0_20px_50px_rgba(22,31,56,0.04)] flex flex-col justify-between overflow-visible relative">
             {/* Ambient Warm Gradient Glows */}
             <div className="absolute top-0 right-0 w-[55%] h-[70%] bg-[radial-gradient(circle_at_75%_25%,_rgba(255,225,205,0.55)_0%,_rgba(255,242,232,0.25)_45%,_transparent_75%)] pointer-events-none" />
             <div className="absolute bottom-0 left-0 w-[45%] h-[55%] bg-[radial-gradient(circle_at_20%_80%,_rgba(255,232,215,0.4)_0%,_transparent_65%)] pointer-events-none" />
@@ -174,37 +174,38 @@ export default function HomePage() {
                   <div className="flex-1 flex flex-col justify-between py-1 min-w-0">
                     {/* Header Tag */}
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-black text-coralAccent uppercase tracking-widest bg-[#FFF2E6] px-2.5 py-0.5 rounded-full border border-[#FCDDC7] inline-block">
-                        ОНЛАЙН-ЦЕНТР • ТОЛЬЯТТИ
-                      </span>
+                      <div className="flex items-center gap-1.5 text-xs font-extrabold text-coralAccent">
+                        <span className="w-1.5 h-1.5 rounded-full bg-coralAccent inline-block" />
+                        <span>Онлайн-центр • Тольятти</span>
+                      </div>
                     </div>
 
                     {/* 3 Interactive Highlight Bullets */}
                     <div className="space-y-2 my-1">
                       <div className="flex items-center gap-2 bg-[#FFF8F1] border border-[#F2DECE] px-3 py-2 rounded-xl shadow-2xs">
                         <span className="text-xs shrink-0">🎨</span>
-                        <span className="text-[11px] font-bold text-[#161F38] truncate">
+                        <span className="text-xs font-bold text-[#161F38] truncate">
                           Интерактивная доска для рисования
                         </span>
                       </div>
 
                       <div className="flex items-center gap-2 bg-[#FFF8F1] border border-[#F2DECE] px-3 py-2 rounded-xl shadow-2xs">
                         <span className="text-xs shrink-0">⚡</span>
-                        <span className="text-[11px] font-bold text-[#161F38] truncate">
+                        <span className="text-xs font-bold text-[#161F38] truncate">
                           Без Zoom и VPN • Запуск в 1 клик
                         </span>
                       </div>
 
                       <div className="flex items-center gap-2 bg-[#FFF8F1] border border-[#F2DECE] px-3 py-2 rounded-xl shadow-2xs">
                         <span className="text-xs shrink-0">🎯</span>
-                        <span className="text-[11px] font-bold text-[#161F38] truncate">
+                        <span className="text-xs font-bold text-[#161F38] truncate">
                           Репетитор под характер ребёнка
                         </span>
                       </div>
                     </div>
 
                     {/* Social Proof & Rating Badge */}
-                    <div className="flex items-center gap-2 text-[10px] font-extrabold text-[#161F38] bg-[#FFFBF7] border border-[#EADBCC] px-3 py-1.5 rounded-full shadow-2xs">
+                    <div className="flex items-center gap-2 text-xs font-extrabold text-[#161F38] bg-[#FFFBF7] border border-[#EADBCC] px-3 py-1.5 rounded-full shadow-2xs">
                       <span className="text-amber-500 tracking-tighter">★★★★★</span>
                       <span className="text-[#6B758E] font-medium">•</span>
                       <span className="truncate">200+ учеников в Тольятти</span>
@@ -258,10 +259,10 @@ export default function HomePage() {
             </div>
 
             {/* Slide Down Hint */}
-            <div className="flex items-center justify-center pt-2 relative z-10">
+            <div className="flex items-center justify-center pt-3 relative z-10">
               <button
                 onClick={() => scrollToSlide(1)}
-                className="flex items-center gap-2 text-[11px] font-bold text-[#6B758E] hover:text-coralAccent transition-colors duration-140 group cursor-pointer"
+                className="flex items-center gap-2 text-xs font-bold text-[#6B758E] hover:text-coralAccent transition-colors duration-140 group cursor-pointer"
               >
                 <span>Листать вниз: форма записи на вводный урок</span>
                 <span className="inline-block text-coralAccent group-hover:translate-y-0.5 transition-transform duration-140 ease-out-emil">↓</span>
@@ -275,18 +276,18 @@ export default function HomePage() {
             ═════════════════════════════════════════════════════════════ */}
         <section
           id="slide-onboarding"
-          className="w-full min-h-auto md:min-h-[calc(100dvh-5rem)] lg:h-[calc(100dvh-5rem)] md:snap-start md:snap-always flex items-center justify-center p-3 sm:p-4 lg:p-5 mt-4 md:mt-0"
+          className="w-full min-h-[calc(100dvh-5rem)] flex items-center justify-center p-3 sm:p-5 lg:p-6 py-6 sm:py-8 mt-4 md:mt-0"
         >
-          <div className="max-w-7xl w-full h-auto md:h-full lg:max-h-[720px] bg-white rounded-[28px] sm:rounded-[36px] lg:rounded-[44px] p-4 sm:p-7 lg:p-9 pb-4 sm:pb-6 lg:pb-7 border border-[#F2E0CF] shadow-[0_20px_50px_rgba(22,31,56,0.04)] flex flex-col justify-between overflow-visible lg:overflow-hidden relative">
+          <div className="max-w-7xl w-full min-h-auto bg-white rounded-[28px] sm:rounded-[36px] lg:rounded-[44px] p-5 sm:p-7 lg:p-9 pb-5 sm:pb-7 lg:pb-8 border border-[#F2E0CF] shadow-[0_20px_50px_rgba(22,31,56,0.04)] flex flex-col justify-between overflow-visible relative">
             <div className="absolute top-0 right-0 w-[55%] h-[60%] bg-[radial-gradient(circle_at_80%_20%,_rgba(255,225,205,0.45)_0%,_transparent_70%)] pointer-events-none" />
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 items-center flex-1 my-auto relative z-10">
               {/* Left Column: Form Section */}
               <div className="lg:col-span-7 space-y-3">
-                <div className="space-y-1">
-                  <span className="text-[10px] font-black text-coralAccent uppercase tracking-widest bg-[#FFF2E6] px-2.5 py-0.5 rounded-full border border-[#FCDDC7] inline-block">
-                    БЕСПЛАТНЫЙ ПРОБНЫЙ УРОК • 0 ₽
-                  </span>
+                <div className="space-y-1.5">
+                  <div className="inline-flex items-center gap-2 text-xs font-black text-[#5C8519] bg-[#EEF8D5] px-3 py-1 rounded-full border border-[#DFEFC0]">
+                    <span>0 ₽ • Бесплатный вводный урок</span>
+                  </div>
                   <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-[#161F38] tracking-tight leading-snug">
                     Запишитесь на вводный онлайн-урок
                   </h2>

@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Nunito } from "next/font/google";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import ContentWrapper from "@/components/ContentWrapper";
@@ -9,6 +10,13 @@ import PullToRefresh from "@/components/PullToRefresh";
 import NotificationManager from "@/components/NotificationManager";
 import ErrorMonitoringProvider from "@/components/ErrorMonitoringProvider";
 import "./globals.css";
+
+const nunito = Nunito({
+  subsets: ["latin", "cyrillic"],
+  weight: ["400", "500", "600", "700", "800", "900"],
+  display: "swap",
+  variable: "--font-nunito",
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://ayda-umnichka.vercel.app'),
@@ -42,8 +50,6 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
   viewportFit: "cover",
   themeColor: "#FFF7EE",
   interactiveWidget: "resizes-content",
@@ -110,7 +116,7 @@ export default function RootLayout({
       </head>
       <body
         suppressHydrationWarning
-        className="min-h-screen bg-[#FFF7EE] text-[#161F38] flex flex-col antialiased selection:bg-[#FDEEDC] selection:text-[#161F38]"
+        className={`${nunito.variable} font-sans min-h-screen bg-[#FFF7EE] text-[#161F38] flex flex-col antialiased selection:bg-[#FDEEDC] selection:text-[#161F38]`}
       >
         <ErrorMonitoringProvider>
           <Navbar />

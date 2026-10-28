@@ -63,6 +63,9 @@ const config: Config = {
         '97': '0.97',
         '98': '0.98',
       },
+      fontFamily: {
+        sans: ['var(--font-nunito)', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+      },
     },
   },
   plugins: [],
