@@ -25,6 +25,10 @@ yarn-error.log*
 # local env files
 .env*.local
 
+# database backups with personal data
+backups/*.json
+!backups/.gitkeep
+
 # vercel
 .vercel
 

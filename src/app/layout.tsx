@@ -7,6 +7,7 @@ import PwaRegistrar from "@/components/PwaRegistrar";
 import UserPresenceHeartbeat from "@/components/UserPresenceHeartbeat";
 import PullToRefresh from "@/components/PullToRefresh";
 import NotificationManager from "@/components/NotificationManager";
+import ErrorMonitoringProvider from "@/components/ErrorMonitoringProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -111,14 +112,16 @@ export default function RootLayout({
         suppressHydrationWarning
         className="min-h-screen bg-[#FFF7EE] text-[#161F38] flex flex-col antialiased selection:bg-[#FDEEDC] selection:text-[#161F38]"
       >
-        <Navbar />
-        <ContentWrapper>{children}</ContentWrapper>
-        <Footer />
-        <AgentationToolbar />
-        <PwaRegistrar />
-        <NotificationManager />
-        <UserPresenceHeartbeat />
-        <PullToRefresh />
+        <ErrorMonitoringProvider>
+          <Navbar />
+          <ContentWrapper>{children}</ContentWrapper>
+          <Footer />
+          <AgentationToolbar />
+          <PwaRegistrar />
+          <NotificationManager />
+          <UserPresenceHeartbeat />
+          <PullToRefresh />
+        </ErrorMonitoringProvider>
       </body>
     </html>
   );
