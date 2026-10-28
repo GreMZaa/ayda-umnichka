@@ -141,7 +141,7 @@ export default function TrialLessonForm() {
   }
 
   return (
-    <div className="bg-white rounded-3xl p-4 sm:p-5 lg:p-6 border border-[#F2E0CF] shadow-xs max-w-xl mx-auto w-full">
+    <div className="bg-[#FFFDFB] rounded-3xl p-4 sm:p-5 lg:p-6 border border-[#F2DECE] shadow-2xs w-full">
       <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-3.5" noValidate>
         {serverError && (
           <div className="p-3 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">

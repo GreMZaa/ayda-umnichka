@@ -82,7 +82,7 @@ export default function HomePage() {
   }, [activeSlide, slides.length]);
 
   return (
-    <div className="relative w-full min-h-[calc(100dvh-5rem)] bg-[#FFF7EE]">
+    <div className="relative w-full min-h-[calc(100dvh-5rem)] bg-[#FFF7EE] pb-12 sm:pb-16 lg:pb-24">
       {/* ─────────────────────────────────────────────────────────────
           MINIMALIST SLIDE NAVIGATOR (Ergonomic touch targets, clean desktop layout)
           ───────────────────────────────────────────────────────────── */}
@@ -276,9 +276,9 @@ export default function HomePage() {
             ═════════════════════════════════════════════════════════════ */}
         <section
           id="slide-onboarding"
-          className="w-full min-h-[calc(100dvh-5rem)] flex items-center justify-center p-3 sm:p-5 lg:p-6 py-6 sm:py-8 mt-4 md:mt-0"
+          className="w-full min-h-[calc(100dvh-5rem)] flex items-center justify-center p-3 sm:p-5 lg:p-6 pt-6 sm:pt-10 pb-16 sm:pb-24 lg:pb-32 mt-6 sm:mt-10 md:mt-12"
         >
-          <div className="max-w-7xl w-full min-h-auto bg-white rounded-[28px] sm:rounded-[36px] lg:rounded-[44px] p-5 sm:p-7 lg:p-9 pb-5 sm:pb-7 lg:pb-8 border border-[#F2E0CF] shadow-[0_20px_50px_rgba(22,31,56,0.04)] flex flex-col justify-between overflow-visible relative">
+          <div className="max-w-7xl w-full min-h-auto bg-white rounded-[28px] sm:rounded-[36px] lg:rounded-[44px] p-5 sm:p-7 lg:p-9 pb-6 sm:pb-8 border border-[#F2E0CF] shadow-[0_20px_50px_rgba(22,31,56,0.04)] flex flex-col justify-between overflow-visible relative mb-6 sm:mb-10">
             <div className="absolute top-0 right-0 w-[55%] h-[60%] bg-[radial-gradient(circle_at_80%_20%,_rgba(255,225,205,0.45)_0%,_transparent_70%)] pointer-events-none" />
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 items-center flex-1 my-auto relative z-10">
@@ -346,7 +346,7 @@ export default function HomePage() {
             </div>
 
             {/* Enhanced Beautiful Footer with Direct Phone 8 995 485 46 67 (Anchored nicely at the bottom) */}
-            <div className="mt-auto pt-4 sm:pt-5 border-t border-[#F2E0CF] flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left relative z-10">
+            <div className="mt-6 sm:mt-8 pt-5 sm:pt-6 border-t border-[#F2E0CF] flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left relative z-10">
               <div className="flex flex-col sm:flex-row items-center gap-3">
                 <div className="w-8 h-8 rounded-full overflow-hidden relative border border-[#F2DECE] shadow-2xs shrink-0 bg-white hidden sm:block">
                   <Image
