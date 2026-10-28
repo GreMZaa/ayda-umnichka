@@ -324,7 +324,7 @@ export default function HomePage() {
                   <div className="space-y-1.5 text-xs text-[#55607A]">
                     <div className="flex items-center gap-2">
                       <CheckCircle2 className="w-3.5 h-3.5 text-[#5C8519] shrink-0" />
-                      <span>25 минут в дружелюбной игровой форме</span>
+                      <span>20 минут в дружелюбной игровой форме</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <CheckCircle2 className="w-3.5 h-3.5 text-[#5C8519] shrink-0" />

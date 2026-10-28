@@ -265,7 +265,7 @@ export default function TrialLessonForm() {
         <div className="flex items-center justify-center gap-4 text-[11px] text-[#6B758E] font-medium pt-0.5">
           <span className="flex items-center gap-1">
             <Clock className="w-3.5 h-3.5 text-[#5C8519]" />
-            25 минут в игровой форме
+            20 минут в игровой форме
           </span>
           <span>•</span>
           <span className="flex items-center gap-1">

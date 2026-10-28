@@ -45,7 +45,7 @@ export default function FeatureOverviewCard() {
           </div>
           <div className="flex items-center gap-1 bg-white/80 px-2 py-0.5 rounded-lg shadow-2xs font-extrabold text-[11px]">
             <Clock className="w-3 h-3 text-[#161F38]" />
-            <span>25 мин</span>
+            <span>20 мин</span>
           </div>
         </div>
       </div>
