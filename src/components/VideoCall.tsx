@@ -77,24 +77,34 @@ interface VideoCallProps {
 
 const rtcConfig: RTCConfiguration = {
   iceServers: [
-    // Global Google STUN (sub-75ms response globally and across Russian ISPs)
+    // 1. OpenRelay / Metered STUN & TURN (Reliable NAT traversal + TCP 443 relay when direct UDP is blocked)
+    { urls: 'stun:openrelay.metered.ca:80' },
+    {
+      urls: [
+        'turn:openrelay.metered.ca:80',
+        'turn:openrelay.metered.ca:443',
+        'turn:openrelay.metered.ca:443?transport=tcp',
+        'turn:openrelay.metered.ca:80?transport=tcp',
+      ],
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+    // 2. Global Google Anycast STUN (Fast public IP resolution across Russian ISPs)
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
     { urls: 'stun:stun3.l.google.com:19302' },
     { urls: 'stun:stun4.l.google.com:19302' },
-    // Global Cloudflare Anycast STUN
+    // 3. Cloudflare Anycast STUN
     { urls: 'stun:stun.cloudflare.com:3478' },
-    // Mozilla global STUN
-    { urls: 'stun:stun.services.mozilla.com' },
-    // Nextcloud STUN over HTTPS port 443 (bypasses ISP UDP port throttling / firewalls)
+    // 4. Nextcloud STUN over 443 & 3478
     { urls: 'stun:stun.nextcloud.com:443' },
     { urls: 'stun:stun.nextcloud.com:3478' },
-    // Redundant enterprise STUNs for reliable multi-path NAT traversal
-    { urls: 'stun:stun.sipgate.net:3478' },
-    { urls: 'stun:stun.voip.blackberry.com:3478' },
   ],
   iceCandidatePoolSize: 10,
+  iceTransportPolicy: 'all',
+  bundlePolicy: 'max-bundle',
+  rtcpMuxPolicy: 'require',
 };
 
 const PiPIcon = ({ className = 'w-5 h-5' }: { className?: string }) => (
@@ -618,6 +628,7 @@ export default function VideoCall({
     candidateQueueRef.current = [];
     remoteStreamRef.current = null;
     isNegotiatingRef.current = false;
+    setHasRemoteStream(false);
   };
 
   const ensureLocalStream = async (): Promise<MediaStream> => {
@@ -743,7 +754,7 @@ export default function VideoCall({
         if (remoteAudioRef.current) remoteAudioRef.current.play().catch(() => {});
       };
 
-      if (event.track.readyState === 'live' && !event.track.muted) {
+      if (event.track.readyState === 'live' && !event.track.muted && pc.connectionState === 'connected') {
         setHasRemoteStream(true);
         setConnectionStatus('connected');
       }
@@ -753,16 +764,17 @@ export default function VideoCall({
     pc.onicecandidate = (event) => {
       if (event.candidate && channelRef.current) {
         const c = event.candidate;
+        const candObj = typeof c.toJSON === 'function' ? c.toJSON() : {
+          candidate: c.candidate,
+          sdpMid: c.sdpMid,
+          sdpMLineIndex: c.sdpMLineIndex,
+          usernameFragment: c.usernameFragment,
+        };
         channelRef.current.send({
           type: 'broadcast',
           event: 'ice-candidate',
           payload: {
-            candidate: {
-              candidate: c.candidate,
-              sdpMid: c.sdpMid,
-              sdpMLineIndex: c.sdpMLineIndex,
-              usernameFragment: c.usernameFragment,
-            },
+            candidate: candObj,
             senderId: myPeerIdRef.current,
           },
         });
@@ -786,11 +798,20 @@ export default function VideoCall({
       } else if (pc.connectionState === 'failed') {
         console.warn('[WebRTC] Connection failed, attempting ICE restart...');
         addLog('error', 'Сбой WebRTC соединения (failed), попытка ICE restart...');
+        setConnectionStatus('connecting');
+        setHasRemoteStream(false);
         if (typeof (pc as any).restartIce === 'function') {
           try {
             (pc as any).restartIce();
           } catch (_) {}
         }
+        setTimeout(async () => {
+          if (pcRef.current && pcRef.current.connectionState === 'failed') {
+            try {
+              await createAndSendOffer(pcRef.current);
+            } catch (_) {}
+          }
+        }, 1000);
       }
     };
 
@@ -811,11 +832,20 @@ export default function VideoCall({
       } else if (pc.iceConnectionState === 'failed') {
         console.warn('[WebRTC] ICE failed across direct route, attempting ICE restart...');
         addLog('error', 'Сбой ICE (P2P маршрут не найден), попытка перезапуска...');
+        setConnectionStatus('connecting');
+        setHasRemoteStream(false);
         if (typeof (pc as any).restartIce === 'function') {
           try {
             (pc as any).restartIce();
           } catch (_) {}
         }
+        setTimeout(async () => {
+          if (pcRef.current && pcRef.current.iceConnectionState === 'failed') {
+            try {
+              await createAndSendOffer(pcRef.current);
+            } catch (_) {}
+          }
+        }, 1000);
       }
     };
 
