@@ -35,7 +35,11 @@ import {
   FileText,
   Download,
   Paperclip,
-  Volume2
+  Volume2,
+  Inbox,
+  Copy,
+  CheckCheck,
+  MessageSquare
 } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
@@ -102,6 +106,22 @@ interface HomeworkRecord {
   teacher_name?: string | null;
 }
 
+export interface TrialLeadRecord {
+  id: string;
+  publicId: string;
+  fullName: string;
+  parentName: string;
+  childName: string;
+  phone: string;
+  email?: string | null;
+  selectedSubject: string;
+  status: 'new' | 'contacted' | 'registered' | 'cancelled';
+  notes: string;
+  source: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
 // Clean topic title from any technical URL query artifacts
 function cleanTopicTitle(str?: string | null): string {
   if (!str) return 'Индивидуальное занятие';
@@ -135,7 +155,21 @@ export default function AdminDashboard() {
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
   // Active view tab
-  const [activeTab, setActiveTab] = useState<'lessons' | 'teachers' | 'students' | 'homework' | 'bindings'>('lessons');
+  const [activeTab, setActiveTab] = useState<'lessons' | 'teachers' | 'students' | 'homework' | 'bindings' | 'leads'>('lessons');
+
+  // Trial Leads state (заявки с сайта)
+  const [leads, setLeads] = useState<TrialLeadRecord[]>([]);
+  const [loadingLeads, setLoadingLeads] = useState<boolean>(false);
+  const [leadStatusFilter, setLeadStatusFilter] = useState<'all' | 'new' | 'contacted' | 'registered' | 'cancelled'>('all');
+  const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
+  const [selectedLeadForConvert, setSelectedLeadForConvert] = useState<TrialLeadRecord | null>(null);
+  const [convertAssignedTeacher, setConvertAssignedTeacher] = useState('');
+  const [convertInitialBalance, setConvertInitialBalance] = useState<number>(1);
+  const [isConvertingLead, setIsConvertingLead] = useState(false);
+  const [convertSuccessData, setConvertSuccessData] = useState<{ studentPublicId: string; studentName: string } | null>(null);
+  const [editingLeadNoteId, setEditingLeadNoteId] = useState<string | null>(null);
+  const [leadNoteInput, setLeadNoteInput] = useState('');
+  const [copiedPhoneLeadId, setCopiedPhoneLeadId] = useState<string | null>(null);
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -191,6 +225,22 @@ export default function AdminDashboard() {
   };
 
   // 1. Fetch live data from Supabase
+  const fetchLeadsData = async () => {
+    try {
+      setLoadingLeads(true);
+      const res = await fetch('/api/trial-request');
+      if (!res.ok) throw new Error('Ошибка загрузки заявок');
+      const data = await res.json();
+      if (data.leads) {
+        setLeads(data.leads);
+      }
+    } catch (err) {
+      console.error('Error fetching trial leads:', err);
+    } finally {
+      setLoadingLeads(false);
+    }
+  };
+
   const fetchAllData = async () => {
     setIsRefreshing(true);
     try {
@@ -200,12 +250,13 @@ export default function AdminDashboard() {
         return;
       }
 
-      // Parallel fetch from Supabase tables
+      // Parallel fetch from Supabase tables + Leads API
       const [usersRes, lessonsRes, bindingsRes, homeworkRes] = await Promise.all([
         supabase.from('user_bindings').select('*').order('created_at', { ascending: false }),
         supabase.from('lessons').select('*').order('scheduled_for', { ascending: false }),
         supabase.from('teacher_students').select('*').order('created_at', { ascending: false }),
         supabase.from('homework').select('*').order('created_at', { ascending: false }),
+        fetchLeadsData(),
       ]);
 
       if (usersRes.data) {
@@ -228,6 +279,23 @@ export default function AdminDashboard() {
       setIsRefreshing(false);
     }
   };
+
+  // Realtime subscription for incoming trial leads from website
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    const channel = supabase
+      .channel('platform_messenger_global')
+      .on('broadcast', { event: 'new-trial-lead' }, (payload: any) => {
+        fetchLeadsData();
+        const parent = payload?.payload?.parentName || 'родителя';
+        showToast(`🔔 Новая заявка с сайта от: ${parent}!`);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   // Auth verify
   useEffect(() => {
@@ -265,7 +333,11 @@ export default function AdminDashboard() {
   }, [users]);
 
   const students = useMemo(() => {
-    return users.filter((u) => u.role === 'student' || u.public_id.startsWith('id5') || (u.role !== 'teacher' && u.role !== 'admin'));
+    return users.filter(
+      (u) =>
+        (u.role as string) !== 'lead' &&
+        (u.role === 'student' || u.public_id.startsWith('id5') || (u.role !== 'teacher' && u.role !== 'admin'))
+    );
   }, [users]);
 
   // Active lessons right now
@@ -334,6 +406,136 @@ export default function AdminDashboard() {
       );
     });
   }, [homeworkList, homeworkStatusFilter, searchQuery]);
+
+  // Filtered trial leads
+  const filteredLeads = useMemo(() => {
+    return leads.filter((l) => {
+      if (leadStatusFilter !== 'all' && l.status !== leadStatusFilter) return false;
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        (l.parentName && l.parentName.toLowerCase().includes(q)) ||
+        (l.childName && l.childName.toLowerCase().includes(q)) ||
+        (l.phone && l.phone.toLowerCase().includes(q)) ||
+        (l.selectedSubject && l.selectedSubject.toLowerCase().includes(q)) ||
+        (l.notes && l.notes.toLowerCase().includes(q)) ||
+        (l.publicId && l.publicId.toLowerCase().includes(q))
+      );
+    });
+  }, [leads, leadStatusFilter, searchQuery]);
+
+  // Lead actions
+  const handleUpdateLeadStatus = async (leadId: string, nextStatus: 'new' | 'contacted' | 'registered' | 'cancelled') => {
+    try {
+      const res = await fetch('/api/trial-request', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: leadId, status: nextStatus }),
+      });
+      if (!res.ok) throw new Error('Не удалось обновить статус заявки');
+
+      setLeads((prev) =>
+        prev.map((l) => (l.id === leadId ? { ...l, status: nextStatus } : l))
+      );
+      showToast('Статус заявки успешно обновлен');
+    } catch (err: any) {
+      console.error('Error updating lead status:', err);
+      showToast(err.message || 'Ошибка обновления статуса', 'error');
+    }
+  };
+
+  const handleSaveLeadNote = async (leadId: string) => {
+    try {
+      const res = await fetch('/api/trial-request', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: leadId, notes: leadNoteInput }),
+      });
+      if (!res.ok) throw new Error('Не удалось сохранить комментарий');
+
+      setLeads((prev) =>
+        prev.map((l) => (l.id === leadId ? { ...l, notes: leadNoteInput } : l))
+      );
+      setEditingLeadNoteId(null);
+      setLeadNoteInput('');
+      showToast('Заметка к заявке сохранена');
+    } catch (err: any) {
+      console.error('Error saving lead note:', err);
+      showToast(err.message || 'Ошибка сохранения заметки', 'error');
+    }
+  };
+
+  const handleDeleteLead = async (leadId: string, parentName: string) => {
+    if (!window.confirm(`Вы уверены, что хотите удалить заявку от ${parentName}?`)) return;
+    try {
+      const res = await fetch(`/api/trial-request?id=${leadId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Не удалось удалить заявку');
+
+      setLeads((prev) => prev.filter((l) => l.id !== leadId));
+      showToast('Заявка удалена');
+    } catch (err: any) {
+      console.error('Error deleting lead:', err);
+      showToast(err.message || 'Ошибка удаления заявки', 'error');
+    }
+  };
+
+  const handleCopyPhone = (leadId: string, phone: string) => {
+    if (navigator?.clipboard) {
+      navigator.clipboard.writeText(phone);
+      setCopiedPhoneLeadId(leadId);
+      setTimeout(() => setCopiedPhoneLeadId(null), 2500);
+      showToast(`Телефон скопирован: ${phone}`);
+    }
+  };
+
+  const handleOpenConvertModal = (lead: TrialLeadRecord) => {
+    setSelectedLeadForConvert(lead);
+    setConvertAssignedTeacher(teachers[0]?.public_id || '');
+    setConvertInitialBalance(1);
+    setConvertSuccessData(null);
+    setIsConvertModalOpen(true);
+  };
+
+  const handleConfirmConvertToStudent = async () => {
+    if (!selectedLeadForConvert) return;
+    try {
+      setIsConvertingLead(true);
+      const res = await fetch('/api/trial-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'convert_to_student',
+          leadId: selectedLeadForConvert.id,
+          assignedTeacherId: convertAssignedTeacher || undefined,
+          initialBalance: Number(convertInitialBalance) || 1,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Ошибка при конвертации заявки');
+
+      setConvertSuccessData({
+        studentPublicId: data.studentPublicId,
+        studentName: selectedLeadForConvert.fullName,
+      });
+
+      // Update lead in local state
+      setLeads((prev) =>
+        prev.map((l) =>
+          l.id === selectedLeadForConvert.id ? { ...l, status: 'registered' } : l
+        )
+      );
+
+      // Refresh admin data so new student and teacher bindings appear
+      fetchAllData();
+      showToast(`Ученик ${selectedLeadForConvert.fullName} успешно зачислен!`);
+    } catch (err: any) {
+      console.error('Error converting lead to student:', err);
+      showToast(err.message || 'Ошибка зачисления ученика', 'error');
+    } finally {
+      setIsConvertingLead(false);
+    }
+  };
 
   // Action: Adjust Student Balance
   const handleAdjustBalance = async (publicId: string, amount: number, description?: string) => {
@@ -817,7 +1019,34 @@ export default function AdminDashboard() {
       )}
 
       {/* 2. Top Metric KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+        {/* KPI: Leads */}
+        <div
+          onClick={() => setActiveTab('leads')}
+          className={`p-4 sm:p-5 rounded-3xl border transition-all cursor-pointer ${
+            activeTab === 'leads'
+              ? 'bg-white border-coralAccent shadow-md shadow-orange-500/10 ring-2 ring-coralAccent/20'
+              : 'bg-white border-[#F2DECE] hover:border-[#E2CBB7] shadow-xs'
+          }`}
+        >
+          <div className="flex items-center justify-between text-[#8A95A8] mb-2">
+            <span className="text-[10px] font-black uppercase tracking-wider">Заявки с сайта</span>
+            <Inbox className="w-4 h-4 text-coralAccent" />
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl sm:text-3xl font-black text-[#161F38]">{leads.length}</span>
+            {leads.filter((l) => l.status === 'new').length > 0 && (
+              <span className="text-[10px] font-black text-white bg-coralAccent px-2 py-0.5 rounded-full flex items-center gap-1 shadow-xs animate-pulse">
+                <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                {leads.filter((l) => l.status === 'new').length} новых
+              </span>
+            )}
+          </div>
+          <span className="text-[11px] text-[#8A95A8] mt-1 block">
+            {leads.filter((l) => l.status === 'new').length > 0 ? 'Требуют связи' : 'Все обработаны'}
+          </span>
+        </div>
+
         {/* KPI: Lessons */}
         <div
           onClick={() => setActiveTab('lessons')}
@@ -935,6 +1164,28 @@ export default function AdminDashboard() {
       {/* 3. Navigation Tabs Bar */}
       <div className="flex items-center justify-between flex-wrap gap-3 border-b border-[#F2DECE] pb-3">
         <div className="flex items-center gap-1.5 bg-[#FFF2E6] p-1 rounded-2xl border border-[#FCDDC7] overflow-x-auto max-w-full">
+          <button
+            type="button"
+            onClick={() => setActiveTab('leads')}
+            className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+              activeTab === 'leads'
+                ? 'bg-white text-[#161F38] shadow-xs'
+                : 'text-[#6B758E] hover:text-[#161F38]'
+            }`}
+          >
+            <Inbox className="w-3.5 h-3.5 text-coralAccent" />
+            <span>Заявки с сайта</span>
+            {leads.filter((l) => l.status === 'new').length > 0 ? (
+              <span className="bg-coralAccent text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 animate-pulse">
+                {leads.filter((l) => l.status === 'new').length}
+              </span>
+            ) : (
+              <span className="bg-[#FFF2E6] text-coralAccent text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5">
+                {leads.length}
+              </span>
+            )}
+          </button>
+
           <button
             type="button"
             onClick={() => setActiveTab('lessons')}
@@ -1954,6 +2205,297 @@ export default function AdminDashboard() {
         </div>
       )}
 
+      {/* 5. Tab: TRIAL LEADS (Заявки с формы на главном сайте) */}
+      {activeTab === 'leads' && (
+        <div className="space-y-4">
+          {/* Header & Status Subfilters */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-black text-[#161F38] flex items-center gap-2">
+                <span>Заявки на пробное занятие с сайта</span>
+                <span className="text-xs font-bold text-white bg-coralAccent px-2.5 py-0.5 rounded-full shadow-2xs">
+                  {filteredLeads.length}
+                </span>
+              </h3>
+              <p className="text-xs text-[#6B758E] mt-0.5">
+                Родители, заполнившие форму записи на посадочной странице айдаумничка.рф
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 self-stretch sm:self-auto justify-end">
+              <button
+                type="button"
+                onClick={fetchLeadsData}
+                disabled={loadingLeads}
+                className="inline-flex items-center gap-1.5 text-xs font-bold bg-white hover:bg-[#FFF8F1] text-[#161F38] border border-[#F2DECE] px-3.5 py-2 rounded-xl transition-all cursor-pointer shadow-2xs active:scale-95 disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loadingLeads ? 'animate-spin text-coralAccent' : 'text-[#8A95A8]'}`} />
+                <span>Обновить заявки</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Status Subfilters */}
+          <div className="flex items-center gap-1.5 overflow-x-auto max-w-full pb-1">
+            {[
+              { id: 'all', label: `Все (${leads.length})` },
+              { id: 'new', label: `Новые (${leads.filter((l) => l.status === 'new').length})` },
+              { id: 'contacted', label: `Связались (${leads.filter((l) => l.status === 'contacted').length})` },
+              { id: 'registered', label: `Зачислены (${leads.filter((l) => l.status === 'registered').length})` },
+              { id: 'cancelled', label: `Отклонены (${leads.filter((l) => l.status === 'cancelled').length})` },
+            ].map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => setLeadStatusFilter(f.id as any)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                  leadStatusFilter === f.id
+                    ? 'bg-coralAccent text-white shadow-xs'
+                    : 'bg-white text-[#6B758E] hover:text-[#161F38] border border-[#F2DECE]'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Cards Grid */}
+          {filteredLeads.length === 0 ? (
+            <div className="bg-white rounded-3xl p-10 text-center border border-[#F2DECE] shadow-xs space-y-3">
+              <div className="w-14 h-14 mx-auto rounded-2xl bg-[#FFF2E6] text-coralAccent flex items-center justify-center">
+                <Inbox className="w-7 h-7" />
+              </div>
+              <h4 className="text-base font-black text-[#161F38]">Заявок не найдено</h4>
+              <p className="text-xs text-[#8A95A8] max-w-md mx-auto">
+                {searchQuery
+                  ? `По поисковому запросу «${searchQuery}» ничего не найдено.`
+                  : leadStatusFilter !== 'all'
+                  ? 'В данной категории пока нет заявок.'
+                  : 'Заявки с главной страницы сайта пока не поступали. Когда посетитель отправит форму пробного урока, она мгновенно отобразится здесь.'}
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {filteredLeads.map((lead) => {
+                const isNew = lead.status === 'new';
+                const isContacted = lead.status === 'contacted';
+                const isRegistered = lead.status === 'registered';
+                const isCancelled = lead.status === 'cancelled';
+                const cleanPhoneDigits = (lead.phone || '').replace(/\D/g, '');
+
+                return (
+                  <div
+                    key={lead.id}
+                    className={`bg-white rounded-3xl border p-5 transition-all shadow-xs flex flex-col justify-between space-y-4 ${
+                      isNew
+                        ? 'border-orange-300 ring-2 ring-orange-400/20 shadow-orange-500/5'
+                        : isRegistered
+                        ? 'border-[#CCE8A2] bg-[#FAFDF6]'
+                        : 'border-[#F2DECE] hover:border-[#E2CBB7]'
+                    }`}
+                  >
+                    {/* Top Row: Status badge & Date */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {isNew && (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-orange-100 text-[#FF6B4A] border border-orange-200 flex items-center gap-1 animate-pulse">
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#FF6B4A]" />
+                            Новая заявка
+                          </span>
+                        )}
+                        {isContacted && (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                            В работе
+                          </span>
+                        )}
+                        {isRegistered && (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-[#EAF7CF] text-[#5C8519] border border-[#CCE8A2] flex items-center gap-1">
+                            <CheckCircle className="w-3 h-3" />
+                            Зачислен в ученики
+                          </span>
+                        )}
+                        {isCancelled && (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-gray-100 text-gray-600 border border-gray-200">
+                            Отклонена
+                          </span>
+                        )}
+                      </div>
+
+                      <span className="text-[11px] font-medium text-[#8A95A8] flex items-center gap-1 shrink-0">
+                        <Clock className="w-3 h-3" />
+                        {formatDate(lead.createdAt)}
+                      </span>
+                    </div>
+
+                    {/* Middle: Parent, Child, Subject */}
+                    <div className="space-y-2">
+                      <div>
+                        <span className="text-[10px] font-bold text-[#8A95A8] uppercase tracking-wider block">
+                          Родитель:
+                        </span>
+                        <h4 className="text-base font-black text-[#161F38] leading-tight">
+                          {lead.parentName || 'Имя не указано'}
+                        </h4>
+                      </div>
+
+                      {lead.childName && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-[#6B758E] font-bold">Ребёнок:</span>
+                          <span className="text-xs font-black text-[#161F38] bg-[#FFF2E6] px-2.5 py-0.5 rounded-lg border border-[#FCDDC7]">
+                            👶 {lead.childName}
+                          </span>
+                        </div>
+                      )}
+
+                      <div className="pt-1">
+                        <span className="inline-block text-[11px] font-bold bg-[#E8F1FC] text-[#2B6CB0] px-2.5 py-1 rounded-xl border border-[#C5DCFA]">
+                          🎯 {lead.selectedSubject}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Contact & Phone Row */}
+                    <div className="bg-[#FFF8F1] p-3 rounded-2xl border border-[#F8EDE1] flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <span className="text-[10px] font-bold text-[#8A95A8] block">Телефон:</span>
+                        <a
+                          href={`tel:${cleanPhoneDigits}`}
+                          className="text-xs font-black text-[#161F38] hover:text-coralAccent transition-colors truncate block"
+                          title="Позвонить родителю"
+                        >
+                          {lead.phone || 'Телефон не указан'}
+                        </a>
+                      </div>
+
+                      <div className="flex items-center gap-1 shrink-0">
+                        <a
+                          href={`tel:${cleanPhoneDigits}`}
+                          className="inline-flex items-center gap-1 bg-[#5C8519] hover:bg-[#4d6f14] text-white text-xs font-black px-3 py-1.5 rounded-xl transition-all shadow-2xs active:scale-95"
+                          title="Позвонить"
+                        >
+                          <Phone className="w-3 h-3" />
+                          <span className="hidden sm:inline">Звонок</span>
+                        </a>
+
+                        <button
+                          type="button"
+                          onClick={() => handleCopyPhone(lead.id, lead.phone)}
+                          className="p-1.5 bg-white border border-[#F2DECE] hover:border-coralAccent text-[#6B758E] hover:text-[#161F38] rounded-xl transition-colors cursor-pointer"
+                          title="Скопировать телефон"
+                        >
+                          {copiedPhoneLeadId === lead.id ? (
+                            <Check className="w-3.5 h-3.5 text-[#5C8519]" />
+                          ) : (
+                            <Copy className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Admin Notes Section */}
+                    <div className="space-y-1.5">
+                      {editingLeadNoteId === lead.id ? (
+                        <div className="space-y-2">
+                          <textarea
+                            value={leadNoteInput}
+                            onChange={(e) => setLeadNoteInput(e.target.value)}
+                            placeholder="Например: Перезвонить после 18:00, договорились на среду..."
+                            rows={2}
+                            autoFocus
+                            className="w-full text-xs font-medium p-2 bg-[#FFFDFB] border border-coralAccent rounded-xl focus:outline-none resize-none"
+                          />
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setEditingLeadNoteId(null)}
+                              className="text-[11px] font-bold text-[#8A95A8] hover:text-[#161F38] px-2 py-1 cursor-pointer"
+                            >
+                              Отмена
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSaveLeadNote(lead.id)}
+                              className="text-[11px] font-black bg-coralAccent hover:bg-coralAccent-hover text-white px-3 py-1 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                            >
+                              Сохранить
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          onClick={() => {
+                            setEditingLeadNoteId(lead.id);
+                            setLeadNoteInput(lead.notes || '');
+                          }}
+                          className="p-2.5 rounded-xl bg-[#FAF9F7] hover:bg-[#FFF8F1] border border-[#F0EBE5] transition-colors cursor-pointer group"
+                        >
+                          {lead.notes ? (
+                            <p className="text-xs text-[#161F38] font-medium leading-relaxed flex items-start justify-between gap-2">
+                              <span>💬 {lead.notes}</span>
+                              <span className="text-[10px] text-[#8A95A8] group-hover:text-coralAccent font-bold shrink-0">
+                                ✎ Изменить
+                              </span>
+                            </p>
+                          ) : (
+                            <span className="text-[11px] text-[#8A95A8] group-hover:text-coralAccent font-bold flex items-center gap-1">
+                              + Добавить заметку администратора
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Bottom Actions: Status switch & Convert CTA */}
+                    <div className="pt-3 border-t border-[#F8EDE1] flex items-center justify-between gap-2 flex-wrap">
+                      {/* Status selector */}
+                      <div className="flex items-center gap-1">
+                        <select
+                          value={lead.status}
+                          onChange={(e) => handleUpdateLeadStatus(lead.id, e.target.value as any)}
+                          className="text-xs font-bold bg-[#FFFDFB] border border-[#F2DECE] text-[#161F38] rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-coralAccent cursor-pointer"
+                        >
+                          <option value="new">Новая</option>
+                          <option value="contacted">Связались</option>
+                          <option value="registered">Зачислен</option>
+                          <option value="cancelled">Отклонить</option>
+                        </select>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteLead(lead.id, lead.parentName)}
+                          className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                          title="Удалить заявку"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {/* Convert to Student Button */}
+                      {isRegistered ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-black text-[#5C8519] bg-[#EAF7CF] px-3 py-1.5 rounded-xl border border-[#CCE8A2]">
+                          <Check className="w-3.5 h-3.5" />
+                          В базе учеников
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenConvertModal(lead)}
+                          className="inline-flex items-center gap-1.5 text-xs font-black bg-coralAccent hover:bg-coralAccent-hover text-white px-3.5 py-2 rounded-xl transition-all shadow-xs active:scale-95 cursor-pointer"
+                        >
+                          <UserPlus className="w-3.5 h-3.5" />
+                          <span>В ученики →</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* MODAL 1: SCHEDULE LESSON */}
       {isScheduleModalOpen && (
         <div
@@ -2408,6 +2950,178 @@ export default function AdminDashboard() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 5: CONVERT TRIAL LEAD TO ACTIVE STUDENT */}
+      {isConvertModalOpen && selectedLeadForConvert && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isConvertingLead) setIsConvertModalOpen(false);
+          }}
+        >
+          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-lg w-full border border-[#F2DECE] shadow-2xl space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-[#EAF7CF] text-[#5C8519] border border-[#CCE8A2] flex items-center justify-center shrink-0 shadow-2xs">
+                  <UserPlus className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-[#161F38] tracking-tight">
+                    Зачислить в ученики центра
+                  </h3>
+                  <p className="text-xs text-[#6B758E] mt-0.5">
+                    Создание учетной записи и личного кабинета ученика
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsConvertModalOpen(false)}
+                disabled={isConvertingLead}
+                className="w-8 h-8 rounded-full bg-[#FFF8F1] hover:bg-[#FFF2E6] text-[#8A95A8] hover:text-[#161F38] border border-[#F2DECE] flex items-center justify-center transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {convertSuccessData ? (
+              <div className="space-y-4 py-2">
+                <div className="p-4 rounded-2xl bg-[#EAF7CF] border border-[#CCE8A2] text-center space-y-2">
+                  <div className="w-10 h-10 mx-auto rounded-full bg-[#5C8519] text-white flex items-center justify-center shadow-xs">
+                    <Check className="w-5 h-5" />
+                  </div>
+                  <h4 className="text-base font-black text-[#161F38]">Ученик успешно создан!</h4>
+                  <p className="text-xs text-[#5C8519] font-bold">
+                    {convertSuccessData.studentName} зачислен(а) в систему «АйДаУмничка»
+                  </p>
+                </div>
+
+                <div className="bg-[#FFF8F1] p-4 rounded-2xl border border-[#F8EDE1] space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#8A95A8]">ID ученика:</span>
+                    <span className="text-xs font-black text-[#161F38] bg-white px-2 py-0.5 rounded-lg border border-[#F2DECE]">
+                      {convertSuccessData.studentPublicId}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#8A95A8]">Ссылка на личный кабинет:</span>
+                    <Link
+                      href={`/student?id=${convertSuccessData.studentPublicId}`}
+                      target="_blank"
+                      className="text-xs font-black text-coralAccent hover:underline flex items-center gap-1"
+                    >
+                      <span>Перейти в кабинет</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </Link>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsConvertModalOpen(false);
+                      setActiveTab('students');
+                    }}
+                    className="text-xs font-black bg-coralAccent hover:bg-coralAccent-hover text-white px-5 py-2.5 rounded-full shadow-md active:scale-95 transition-all cursor-pointer"
+                  >
+                    Перейти к списку учеников
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Lead Summary Info */}
+                <div className="bg-[#FFF8F1] p-4 rounded-2xl border border-[#F8EDE1] space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#8A95A8]">Родитель:</span>
+                    <span className="text-xs font-black text-[#161F38]">{selectedLeadForConvert.parentName}</span>
+                  </div>
+                  {selectedLeadForConvert.childName && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-[#8A95A8]">Ребёнок:</span>
+                      <span className="text-xs font-black text-[#161F38]">👶 {selectedLeadForConvert.childName}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#8A95A8]">Телефон:</span>
+                    <span className="text-xs font-bold text-[#161F38]">{selectedLeadForConvert.phone}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#8A95A8]">Направление:</span>
+                    <span className="text-xs font-black text-[#2B6CB0]">{selectedLeadForConvert.selectedSubject}</span>
+                  </div>
+                </div>
+
+                {/* Form fields */}
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-black text-[#161F38]">
+                      Назначить преподавателя (куратора):
+                    </label>
+                    <select
+                      value={convertAssignedTeacher}
+                      onChange={(e) => setConvertAssignedTeacher(e.target.value)}
+                      className="w-full bg-[#FFFDFB] border border-[#EADBCC] rounded-xl px-3.5 py-2.5 text-xs font-bold text-[#161F38] focus:outline-none focus:border-coralAccent cursor-pointer"
+                    >
+                      <option value="">Без назначения преподавателя (назначить позже)</option>
+                      {teachers.map((t) => (
+                        <option key={t.public_id} value={t.public_id}>
+                          {cleanPersonName(t.full_name)} ({t.public_id})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-black text-[#161F38]">
+                      Стартовый баланс уроков (по умолчанию 1 пробный):
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={convertInitialBalance}
+                      onChange={(e) => setConvertInitialBalance(Math.max(0, parseInt(e.target.value) || 0))}
+                      className="w-full bg-[#FFFDFB] border border-[#EADBCC] rounded-xl px-3.5 py-2.5 text-xs font-bold text-[#161F38] focus:outline-none focus:border-coralAccent"
+                    />
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[#F8EDE1]">
+                  <button
+                    type="button"
+                    onClick={() => setIsConvertModalOpen(false)}
+                    disabled={isConvertingLead}
+                    className="text-xs font-bold text-[#8A95A8] hover:text-[#161F38] px-4 py-2 cursor-pointer disabled:opacity-50"
+                  >
+                    Отмена
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmConvertToStudent}
+                    disabled={isConvertingLead}
+                    className="text-xs font-black bg-coralAccent hover:bg-coralAccent-hover text-white px-5 py-2.5 rounded-full shadow-md active:scale-95 cursor-pointer disabled:opacity-50 transition-all flex items-center gap-2"
+                  >
+                    {isConvertingLead ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Создание кабинета...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Зачислить и выдать доступ</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
