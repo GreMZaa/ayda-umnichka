@@ -232,6 +232,17 @@ export default function AdminDashboard() {
 
     // Allow admin role or head account
     if (role === 'admin' || uid === 'admin_head' || uid === 'admin') {
+      try {
+        localStorage.setItem('aida_active_role', 'admin');
+        localStorage.setItem('aida_user_public_id', 'admin_head');
+        localStorage.setItem('aida_auth_user_id', 'admin_head');
+        localStorage.setItem('aida_user_id', 'admin_head');
+        localStorage.setItem('aida_full_name', 'Руководитель центра');
+        document.cookie = 'aida_active_role=admin; path=/; max-age=2592000; SameSite=Lax';
+        document.cookie = 'aida_auth_user_id=admin_head; path=/; max-age=2592000; SameSite=Lax';
+        document.cookie = 'aida_user_id=admin_head; path=/; max-age=2592000; SameSite=Lax';
+        window.dispatchEvent(new Event('aida-user-updated'));
+      } catch (_) {}
       setIsAuthorized(true);
       fetchAllData();
     } else {
@@ -635,9 +646,17 @@ export default function AdminDashboard() {
             <button
               type="button"
               onClick={() => {
-                localStorage.setItem('aida_active_role', 'admin');
-                localStorage.setItem('aida_user_public_id', 'admin_head');
-                localStorage.setItem('aida_full_name', 'Руководитель центра');
+                try {
+                  localStorage.setItem('aida_active_role', 'admin');
+                  localStorage.setItem('aida_user_public_id', 'admin_head');
+                  localStorage.setItem('aida_auth_user_id', 'admin_head');
+                  localStorage.setItem('aida_user_id', 'admin_head');
+                  localStorage.setItem('aida_full_name', 'Руководитель центра');
+                  document.cookie = 'aida_active_role=admin; path=/; max-age=2592000; SameSite=Lax';
+                  document.cookie = 'aida_auth_user_id=admin_head; path=/; max-age=2592000; SameSite=Lax';
+                  document.cookie = 'aida_user_id=admin_head; path=/; max-age=2592000; SameSite=Lax';
+                  window.dispatchEvent(new Event('aida-user-updated'));
+                } catch (_) {}
                 setIsAuthorized(true);
                 fetchAllData();
               }}

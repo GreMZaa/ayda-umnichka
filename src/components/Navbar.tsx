@@ -103,7 +103,9 @@ export default function Navbar() {
   useEffect(() => {
     const pathPart = pathname.match(/^\/([^/?#]+)/)?.[1];
     const isSpecialPath = ['admin', 'teacher', 'student', 'login', 'messenger', 'room', 'api'].includes(pathPart || '');
-    const activePublicId = (!isSpecialPath && pathPart)
+    const activePublicId = isAdmin
+      ? 'admin_head'
+      : (!isSpecialPath && pathPart)
       ? pathPart
       : userId ||
         (typeof window !== 'undefined'
@@ -145,7 +147,7 @@ export default function Navbar() {
     };
 
     fetchProfileFromSupabase();
-  }, [pathname, userId]);
+  }, [pathname, userId, isAdmin]);
 
   // Periodic and event-driven fetch of unread messages count for modern navbar pill
   useEffect(() => {
@@ -227,15 +229,16 @@ export default function Navbar() {
     }
   }
 
-  const effectiveUserId =
-    currentUrlId ||
-    userId ||
-    (typeof window !== 'undefined'
-      ? localStorage.getItem('aida_auth_user_id') ||
-        localStorage.getItem('aida_user_id') ||
-        document.cookie.match(/(?:^|; )aida_auth_user_id=([^;]*)/)?.[1]
-      : '') ||
-    '';
+  const effectiveUserId = isAdmin
+    ? 'admin_head'
+    : currentUrlId ||
+      userId ||
+      (typeof window !== 'undefined'
+        ? localStorage.getItem('aida_auth_user_id') ||
+          localStorage.getItem('aida_user_id') ||
+          document.cookie.match(/(?:^|; )aida_auth_user_id=([^;]*)/)?.[1]
+        : '') ||
+      '';
 
   const effectiveRole = pathname.startsWith('/teacher')
     ? 'teacher'
@@ -251,15 +254,20 @@ export default function Navbar() {
   const isActuallyTeacher = effectiveRole === 'teacher';
   const isActuallyAdmin = effectiveRole === 'admin';
 
-  const displayName =
-    cleanDisplayName(userName) ||
-    (isActuallyTeacher ? 'Преподаватель' : isActuallyAdmin ? 'Администратор' : 'Ученик');
-  const roleLabel = isActuallyTeacher
-    ? 'Педагог центра'
-    : isActuallyAdmin
+  const displayName = isAdmin
+    ? 'Руководитель центра'
+    : cleanDisplayName(userName) ||
+      (isActuallyTeacher ? 'Преподаватель' : isActuallyAdmin ? 'Администратор' : 'Ученик');
+  const roleLabel = isActuallyAdmin
     ? 'Администратор'
+    : isActuallyTeacher
+    ? 'Педагог центра'
     : 'Ученик';
-  const initialLetter = displayName ? displayName[0].toUpperCase() : (isActuallyTeacher ? 'П' : 'У');
+  const initialLetter = isActuallyAdmin
+    ? 'Р'
+    : displayName
+    ? displayName[0].toUpperCase()
+    : (isActuallyTeacher ? 'П' : 'У');
   const myCabinetUrl = isActuallyTeacher
     ? (effectiveUserId ? `/teacher?id=${effectiveUserId}` : '/teacher')
     : isActuallyAdmin
