@@ -925,132 +925,52 @@ export default function TeacherDashboard() {
                       const stHwList = getStudentHomeworkList(st);
 
                       return (
-                        <div
+                        <Link
                           key={st.id}
-                          className="p-3 bg-[#FDFEFC] hover:bg-white rounded-2xl border border-[#E5EED8] hover:border-[#5C8519]/60 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 transition-all"
+                          href={`/teacher/student/${encodeURIComponent(info.publicId || st.id)}?teacherId=${encodeURIComponent(teacherPublicId || '')}`}
+                          className="group p-3 sm:p-3.5 bg-[#FDFEFC] hover:bg-white rounded-2xl border border-[#E5EED8] hover:border-[#5C8519] shadow-2xs hover:shadow-xs flex items-center justify-between gap-3 transition-all cursor-pointer active:scale-[0.99]"
+                          title="Нажмите, чтобы открыть информацию и настройки ребёнка"
                         >
-                          {/* Student Info (with mobile delete button) */}
-                          <div className="flex items-center justify-between gap-2 min-w-0">
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#5C8519] to-[#8BC34A] text-white font-black text-xs flex items-center justify-center shrink-0 shadow-2xs">
-                                {info.displayName[0] || 'У'}
-                              </div>
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="text-xs font-black text-[#161F38] truncate">
-                                    {info.displayName}
+                          {/* Student Info */}
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-tr from-[#5C8519] to-[#8BC34A] text-white font-black text-xs sm:text-sm flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                              {info.displayName[0] || 'У'}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                                <span className="text-xs sm:text-sm font-black text-[#161F38] group-hover:text-[#5C8519] transition-colors truncate">
+                                  {info.displayName}
+                                </span>
+                                {info.publicId && (
+                                  <span className="text-[10px] text-[#6B758E] font-medium bg-[#F5F8F1] px-1.5 py-0.5 rounded-md shrink-0">
+                                    ID: {info.publicId}
                                   </span>
-                                  {info.publicId && (
-                                    <span className="text-[10px] text-[#6B758E] font-medium shrink-0">
-                                      (ID: {info.publicId})
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="text-[10px] text-[#6B758E] truncate">
-                                  {st.notes || 'Индивидуальное сопровождение'} {st.phone ? `• ${st.phone}` : ''}
-                                </div>
+                                )}
+                              </div>
+                              <div className="text-[10px] sm:text-xs text-[#6B758E] truncate mt-0.5">
+                                {st.notes || 'Индивидуальное сопровождение'} {st.phone ? `• ${st.phone}` : ''}
                               </div>
                             </div>
-
-                            {/* Delete button (Mobile only - top right) */}
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveStudent(st.id, st.publicId)}
-                              title="Удалить ученика из списка"
-                              className="sm:hidden text-[#8A95A8] hover:text-red-500 p-1.5 hover:bg-red-50 rounded-lg transition-colors cursor-pointer shrink-0"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
                           </div>
 
-                          {/* Action Controls: Balance badge + "Перейти к ДЗ" + Desktop delete */}
-                          <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto pt-2 sm:pt-0 border-t border-[#E5EED8]/60 sm:border-t-0 shrink-0">
-                            {/* Student Lesson Balance & Quick Adjust (+/-) - Teacher Only */}
-                            <div
-                              className="inline-flex items-center gap-1 bg-[#F5F8F1] border border-[#D5E5B8] rounded-full px-2 py-1 text-xs shadow-2xs"
-                              title="Баланс занятий ученика из Supabase (нажмите + или - для изменения)"
-                            >
-                              <span className="text-[10px] font-bold text-[#5C8519] uppercase tracking-wider">
-                                Баланс:
+                          {/* Quick metrics & Chevron indicator */}
+                          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[11px] font-bold text-[#5C8519] bg-[#F5F8F1] border border-[#D5E5B8] px-2 sm:px-2.5 py-1 rounded-full">
+                                {getStudentBalance(st)} зан.
                               </span>
-                              <span className="font-black text-xs text-[#161F38] min-w-[14px] text-center">
-                                {getStudentBalance(st)}
-                              </span>
-                              <span className="text-[10px] text-[#6B758E] font-medium mr-0.5">зан.</span>
-
-                              {/* Minus 1 lesson */}
-                              <button
-                                type="button"
-                                disabled={
-                                  updatingBalanceStudentId === (st.publicId?.toLowerCase() || st.id) ||
-                                  getStudentBalance(st) <= 0
-                                }
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  handleAdjustBalance(st, -1);
-                                }}
-                                className="w-5 h-5 rounded-full bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 flex items-center justify-center transition-all active:scale-90 cursor-pointer disabled:opacity-30 disabled:pointer-events-none hover:shadow-xs"
-                                title="Списать 1 урок"
-                              >
-                                <Minus className="w-3 h-3 stroke-[3]" />
-                              </button>
-
-                              {/* Plus 1 lesson */}
-                              <button
-                                type="button"
-                                disabled={updatingBalanceStudentId === (st.publicId?.toLowerCase() || st.id)}
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  handleAdjustBalance(st, 1);
-                                }}
-                                className="w-5 h-5 rounded-full bg-[#5C8519] hover:bg-[#4d6f14] text-white flex items-center justify-center transition-all active:scale-90 cursor-pointer disabled:opacity-40 hover:shadow-xs"
-                                title="Добавить 1 урок"
-                              >
-                                <Plus className="w-3 h-3 stroke-[3]" />
-                              </button>
+                              {stHwList.length > 0 && (
+                                <span className="hidden sm:inline-block text-[11px] font-bold text-[#64748B] bg-slate-100 border border-slate-200 px-2 py-1 rounded-full">
+                                  {stHwList.length} ДЗ
+                                </span>
+                              )}
                             </div>
 
-                            <div className="flex items-center gap-2">
-                              {/* "Перейти к ДЗ" Button opening dedicated page in new tab */}
-                              <Link
-                                href={`/teacher/homework?studentId=${encodeURIComponent(info.publicId || '')}&studentName=${encodeURIComponent(info.displayName)}&teacherId=${encodeURIComponent(teacherPublicId || '')}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center justify-between gap-2 text-xs font-bold bg-white hover:bg-[#F8FAFC] text-[#1E293B] hover:text-black border border-[#E2E8F0] hover:border-[#CBD5E1] px-3.5 py-1.5 sm:py-2 rounded-xl transition-all active:scale-[0.98] shadow-xs hover:shadow-sm cursor-pointer w-full sm:w-[176px] shrink-0"
-                                title="Открыть домашние задания этого ученика в новой вкладке"
-                              >
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <BookOpen className="w-3.5 h-3.5 text-[#64748B] shrink-0" />
-                                  <span className="truncate">Перейти к ДЗ</span>
-                                </div>
-                                <div className="flex items-center gap-1.5 shrink-0">
-                                  {stHwList.length > 0 ? (
-                                    <span className="bg-[#F1F5F9] text-[#334155] border border-[#E2E8F0] text-[11px] px-1.5 py-0.2 rounded-full font-black min-w-[20px] text-center">
-                                      {stHwList.length}
-                                    </span>
-                                  ) : (
-                                    <span className="bg-[#F8FAFC] text-[#94A3B8] border border-[#E2E8F0] text-[11px] px-1.5 py-0.2 rounded-full font-bold min-w-[20px] text-center">
-                                      0
-                                    </span>
-                                  )}
-                                  <ExternalLink className="w-3 h-3 text-[#94A3B8] shrink-0" />
-                                </div>
-                              </Link>
-
-                              {/* Delete button (Desktop only) */}
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveStudent(st.id, st.publicId)}
-                                title="Удалить ученика из списка"
-                                className="hidden sm:inline-flex text-[#8A95A8] hover:text-red-500 p-1.5 hover:bg-red-50 rounded-lg transition-colors cursor-pointer shrink-0"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-[#F5F8F1] group-hover:bg-[#5C8519] text-[#5C8519] group-hover:text-white flex items-center justify-center transition-colors shrink-0">
+                              <ChevronRight className="w-4 h-4 stroke-[2.5]" />
                             </div>
                           </div>
-                        </div>
+                        </Link>
                       );
                     })}
               </div>

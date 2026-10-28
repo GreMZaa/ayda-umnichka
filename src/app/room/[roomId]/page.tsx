@@ -31,14 +31,6 @@ export default function LessonRoomPage() {
   const [targetStudentId, setTargetStudentId] = useState(studentParam || '');
   const [targetStudentName, setTargetStudentName] = useState('Ученик');
 
-  // Pre-join Lobby State: ensures camera and microphone NEVER turn on until user explicitly clicks "Войти в урок"
-  const [hasEnteredRoom, setHasEnteredRoom] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      return sessionStorage.getItem(`aida_joined_${roomId}`) === 'true';
-    }
-    return false;
-  });
-
   // Post-lesson Homework Modal for Teacher
   const [showHomeworkModal, setShowHomeworkModal] = useState(false);
   const [completedDurationMin, setCompletedDurationMin] = useState(1);
@@ -350,6 +342,40 @@ export default function LessonRoomPage() {
   const [isPlatformMinimized, setIsPlatformMinimized] = useState(false);
   const [savedUserId, setSavedUserId] = useState('');
 
+  // Exit directly to personal cabinet WITHOUT closing/terminating the active lesson
+  const handleExitToCabinet = () => {
+    try {
+      localStorage.setItem(
+        'aida_active_lesson_room',
+        JSON.stringify({
+          roomId,
+          topic,
+          role: isTeacher ? 'teacher' : 'student',
+          timestamp: Date.now(),
+        })
+      );
+    } catch (_) {}
+
+    if (isTeacher) {
+      const teacherId =
+        (typeof window !== 'undefined' &&
+          (localStorage.getItem('aida_auth_user_id') ||
+            localStorage.getItem('aida_user_id') ||
+            localStorage.getItem('aida_user_public_id'))) ||
+        'id179017';
+      router.push(`/teacher?id=${encodeURIComponent(teacherId)}`);
+    } else {
+      const studentId =
+        (typeof window !== 'undefined' &&
+          (localStorage.getItem('aida_auth_user_id') ||
+            localStorage.getItem('aida_user_id') ||
+            localStorage.getItem('aida_user_public_id'))) ||
+        studentParam ||
+        '';
+      router.push(studentId ? `/${encodeURIComponent(studentId)}` : '/student');
+    }
+  };
+
   useEffect(() => {
     const uid =
       localStorage.getItem('aida_user_public_id') ||
@@ -401,79 +427,6 @@ export default function LessonRoomPage() {
       document.body.style.backgroundColor = origBodyBg;
     };
   }, []);
-
-  // Pre-join Lobby: User has full control; camera & microphone stay 100% OFF until clicking "Войти в урок"
-  if (!hasEnteredRoom) {
-    return (
-      <div className="min-h-screen bg-[#FFF7EE] flex flex-col items-center justify-center p-4 select-none">
-        <div className="w-full max-w-md bg-white rounded-3xl border border-[#F2DECE] p-6 sm:p-8 shadow-xl shadow-orange-950/10 text-center space-y-6 animate-in fade-in duration-200">
-          {/* Logo / Badge */}
-          <div className="mx-auto w-16 h-16 rounded-3xl bg-gradient-to-tr from-[#FF6B4A] to-[#FFA259] text-white flex items-center justify-center shadow-lg shadow-orange-500/25">
-            <Video className="w-8 h-8" />
-          </div>
-
-          <div className="space-y-2">
-            <span className="px-3 py-1 bg-[#FFF0E6] text-[#FF6B4A] text-xs font-black rounded-full uppercase tracking-wider">
-              Онлайн-класс АйДаУмничка
-            </span>
-            <h1 className="text-xl sm:text-2xl font-black text-[#161F38] tracking-tight">
-              {topic}
-            </h1>
-            <p className="text-xs sm:text-sm text-[#6B758E]">
-              Вы входите как:{' '}
-              <strong className="text-[#161F38]">
-                {isTeacher ? 'Преподаватель' : 'Ученик'}
-              </strong>
-              {participantName && (
-                <>
-                  {' '}• Собеседник:{' '}
-                  <strong className="text-[#161F38]">{participantName}</strong>
-                </>
-              )}
-            </p>
-          </div>
-
-          {/* Privacy Note */}
-          <div className="p-3 bg-[#F0FDF4] border border-[#DCFCE7] rounded-2xl text-xs text-[#166534] flex items-center justify-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-[#16A34A] shrink-0" />
-            <span>Камера и микрофон выключены и активируются только после входа</span>
-          </div>
-
-          {/* Actions */}
-          <div className="space-y-2.5 pt-2">
-            <button
-              type="button"
-              onClick={() => {
-                try {
-                  sessionStorage.setItem(`aida_joined_${roomId}`, 'true');
-                } catch (_) {}
-                setHasEnteredRoom(true);
-              }}
-              className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-[#5C8519] to-[#7AA822] hover:opacity-95 text-white font-extrabold text-sm sm:text-base shadow-lg shadow-emerald-700/20 active:scale-98 transition-all cursor-pointer flex items-center justify-center gap-2"
-            >
-              <Video className="w-5 h-5" />
-              <span>Войти в урок</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                if (isTeacher) {
-                  router.push(savedUserId ? `/teacher?id=${savedUserId}` : '/teacher');
-                } else {
-                  router.push(savedUserId ? `/${savedUserId}` : '/student');
-                }
-              }}
-              className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-[#6B758E] hover:text-[#161F38] hover:bg-[#FFF7EE] transition-all cursor-pointer flex items-center justify-center gap-1.5"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Вернуться в личный кабинет</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="fixed inset-0 w-full h-full z-40 overflow-hidden bg-[#FFF7EE] flex flex-col select-none">
@@ -528,6 +481,7 @@ export default function LessonRoomPage() {
             onToggleWhiteboard={() => setIsWhiteboardActive(!isWhiteboardActive)}
             isPlatformMinimized={isPlatformMinimized}
             onTogglePlatformMinimize={setIsPlatformMinimized}
+            onExitToCabinet={handleExitToCabinet}
             onEndLesson={handleEndLesson}
           />
         </div>

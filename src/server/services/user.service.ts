@@ -282,4 +282,44 @@ export class UserService {
 
     return { success: true, student: data };
   }
+
+  static async updateTeacherStudent(body: {
+    id?: string;
+    teacher_public_id?: string;
+    student_public_id?: string;
+    notes?: string;
+    student_name?: string;
+  }) {
+    const { id, teacher_public_id, student_public_id, notes, student_name } = body;
+    const updates: Record<string, any> = {};
+    if (notes !== undefined) updates.notes = notes;
+    if (student_name !== undefined) updates.student_name = student_name;
+
+    const { data, error } = await TeacherStudentRepository.updateBinding(
+      { id, teacherPublicId: teacher_public_id, studentPublicId: student_public_id },
+      updates
+    );
+    if (error) {
+      console.error('Error updating teacher_students:', error);
+      throw new AppError(error.message, 500);
+    }
+    return { success: true, updated: data };
+  }
+
+  static async removeTeacherStudent(filter: {
+    id?: string;
+    teacher_public_id?: string;
+    student_public_id?: string;
+  }) {
+    const { error } = await TeacherStudentRepository.deleteBinding({
+      id: filter.id,
+      teacherPublicId: filter.teacher_public_id,
+      studentPublicId: filter.student_public_id,
+    });
+    if (error) {
+      console.error('Error deleting from teacher_students:', error);
+      throw new AppError(error.message, 500);
+    }
+    return { success: true, message: 'Ученик успешно откреплен' };
+  }
 }

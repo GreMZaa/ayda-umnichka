@@ -31,6 +31,7 @@ import {
   RefreshCw,
   Hand,
   LayoutGrid,
+  LayoutDashboard,
   CheckCircle2,
   AlertCircle,
   Activity,
@@ -73,6 +74,7 @@ interface VideoCallProps {
   isWhiteboardActive?: boolean;
   isPlatformMinimized?: boolean;
   onTogglePlatformMinimize?: (minimized: boolean) => void;
+  onExitToCabinet?: () => void;
 }
 
 const rtcConfig: RTCConfiguration = {
@@ -132,6 +134,7 @@ export default function VideoCall({
   isWhiteboardActive = false,
   isPlatformMinimized: propPlatformMinimized,
   onTogglePlatformMinimize,
+  onExitToCabinet,
 }: VideoCallProps) {
   const router = useRouter();
 
@@ -1268,12 +1271,45 @@ export default function VideoCall({
     }
   };
 
-  // Minimize lesson into floating Picture-in-Picture card over personal cabinet (keeps WebRTC, camera & mic alive)
+  // Exit to personal cabinet WITHOUT ending/closing the lesson
   const handleExitToCabinet = () => {
-    if (onTogglePlatformMinimize) {
-      onTogglePlatformMinimize(true);
+    // 1. Ensure active lesson room state is saved in localStorage so the cabinet displays "Вернуться в урок"
+    try {
+      localStorage.setItem(
+        'aida_active_lesson_room',
+        JSON.stringify({
+          roomId: roomToken,
+          topic: topic || 'Индивидуальное занятие',
+          role: isTeacher ? 'teacher' : 'student',
+          timestamp: timerStartTimeRef.current || Date.now(),
+        })
+      );
+    } catch (_) {}
+
+    // 2. If parent container provided onExitToCabinet, trigger it
+    if (onExitToCabinet) {
+      onExitToCabinet();
+      return;
     }
-    setInternalPlatformMinimized(true);
+
+    // 3. Otherwise navigate directly to appropriate personal cabinet
+    if (isTeacher) {
+      const teacherId =
+        (typeof window !== 'undefined' &&
+          (localStorage.getItem('aida_auth_user_id') ||
+            localStorage.getItem('aida_user_id') ||
+            localStorage.getItem('aida_user_public_id'))) ||
+        'id179017';
+      router.push(`/teacher?id=${encodeURIComponent(teacherId)}`);
+    } else {
+      const studentId =
+        (typeof window !== 'undefined' &&
+          (localStorage.getItem('aida_auth_user_id') ||
+            localStorage.getItem('aida_user_id') ||
+            localStorage.getItem('aida_user_public_id'))) ||
+        '';
+      router.push(studentId ? `/${encodeURIComponent(studentId)}` : '/student');
+    }
   };
 
   // Supabase Realtime Signaling setup
@@ -3275,10 +3311,11 @@ export default function VideoCall({
             <button
               type="button"
               onClick={handleExitToCabinet}
-              className="p-2.5 sm:p-3 rounded-full bg-black/40 hover:bg-black/60 text-white backdrop-blur-md border border-white/15 transition-all active:scale-95 cursor-pointer shadow-lg"
-              title="Свернуть урок в плавающее окно и открыть личный кабинет"
+              className="p-2.5 sm:p-3 rounded-full bg-black/40 hover:bg-black/60 text-white backdrop-blur-md border border-white/15 transition-all active:scale-95 cursor-pointer shadow-lg flex items-center gap-1.5"
+              title="Выйти в личный кабинет без закрытия урока"
             >
-              <ChevronDown className="w-5 h-5" />
+              <LayoutDashboard className="w-5 h-5" />
+              <span className="hidden sm:inline text-xs font-bold pr-1">В кабинет</span>
             </button>
           </div>
         </div>

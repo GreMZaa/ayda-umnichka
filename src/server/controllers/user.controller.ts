@@ -71,6 +71,44 @@ export class UserController {
     }
   }
 
+  static async updateTeacherStudent(req: NextRequest) {
+    try {
+      const auth = extractAuthContext(req);
+      if (!auth.isTeacher && !auth.isAdmin) {
+        return apiError('Доступ запрещен. Требуются права преподавателя или администратора.', 403);
+      }
+      const body = await req.json();
+      const result = await UserService.updateTeacherStudent(body);
+      return apiSuccess(result, 200);
+    } catch (err: any) {
+      console.error('UserController.updateTeacherStudent error:', err);
+      return apiError(err.message, err.statusCode || 500);
+    }
+  }
+
+  static async removeTeacherStudent(req: NextRequest) {
+    try {
+      const auth = extractAuthContext(req);
+      if (!auth.isTeacher && !auth.isAdmin) {
+        return apiError('Доступ запрещен. Требуются права преподавателя или администратора.', 403);
+      }
+      const { searchParams } = new URL(req.url);
+      const id = searchParams.get('id') || undefined;
+      const teacherPublicId = searchParams.get('teacherPublicId') || undefined;
+      const studentPublicId = searchParams.get('studentPublicId') || undefined;
+
+      const result = await UserService.removeTeacherStudent({
+        id,
+        teacher_public_id: teacherPublicId,
+        student_public_id: studentPublicId,
+      });
+      return apiSuccess(result, 200);
+    } catch (err: any) {
+      console.error('UserController.removeTeacherStudent error:', err);
+      return apiError(err.message, err.statusCode || 500);
+    }
+  }
+
   static async getProfile() {
     return apiSuccess({
       user: null,

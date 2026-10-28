@@ -36,4 +36,29 @@ export class TeacherStudentRepository {
       .select()
       .single();
   }
+
+  static async updateBinding(
+    filter: { id?: string; teacherPublicId?: string; studentPublicId?: string },
+    updates: Record<string, any>
+  ) {
+    let query = supabaseServer.from('teacher_students').update(updates);
+    if (filter.id) {
+      query = query.eq('id', filter.id);
+    } else {
+      if (filter.teacherPublicId) query = query.eq('teacher_public_id', filter.teacherPublicId);
+      if (filter.studentPublicId) query = query.eq('student_public_id', filter.studentPublicId);
+    }
+    return await query.select();
+  }
+
+  static async deleteBinding(filter: { id?: string; teacherPublicId?: string; studentPublicId?: string }) {
+    let query = supabaseServer.from('teacher_students').delete();
+    if (filter.id) {
+      query = query.eq('id', filter.id);
+    } else {
+      if (filter.teacherPublicId) query = query.eq('teacher_public_id', filter.teacherPublicId);
+      if (filter.studentPublicId) query = query.eq('student_public_id', filter.studentPublicId);
+    }
+    return await query;
+  }
 }

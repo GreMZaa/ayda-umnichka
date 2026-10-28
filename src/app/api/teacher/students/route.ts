@@ -10,3 +10,15 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   return UserController.addTeacherStudent(req);
 }
+
+export async function PUT(req: NextRequest) {
+  return UserController.updateTeacherStudent(req);
+}
+
+export async function PATCH(req: NextRequest) {
+  return UserController.updateTeacherStudent(req);
+}
+
+export async function DELETE(req: NextRequest) {
+  return UserController.removeTeacherStudent(req);
+}
