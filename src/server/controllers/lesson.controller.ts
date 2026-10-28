@@ -84,6 +84,17 @@ export class LessonController {
       }
 
       const { searchParams } = new URL(req.url);
+      const isAll = searchParams.get('all') === 'true';
+
+      if (isAll) {
+        if (!auth.isAdmin) {
+          return apiError('Только администратор платформы может удалять все уроки одновременно', 403);
+        }
+        const statusFilter = searchParams.get('status') || undefined;
+        const result = await LessonService.deleteAllLessons(statusFilter);
+        return apiSuccess(result, 200);
+      }
+
       let id = searchParams.get('id')?.trim();
 
       if (!id) {

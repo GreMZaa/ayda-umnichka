@@ -241,4 +241,13 @@ export class LessonService {
     }
     return { success: true, message: 'Урок успешно удален' };
   }
+
+  static async deleteAllLessons(statusFilter?: string) {
+    const { error } = await LessonRepository.deleteAllLessons(statusFilter);
+    if (error) {
+      console.error('Error deleting all lessons from Supabase:', error);
+      throw new AppError(error.message, 500);
+    }
+    return { success: true, message: 'Все уроки успешно удалены' };
+  }
 }

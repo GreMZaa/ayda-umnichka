@@ -62,4 +62,14 @@ export class LessonRepository {
       .delete()
       .eq('id', id);
   }
+
+  static async deleteAllLessons(statusFilter?: string) {
+    let q = supabaseServer.from('lessons').delete();
+    if (statusFilter && statusFilter !== 'all') {
+      q = q.eq('status', statusFilter);
+    } else {
+      q = q.neq('id', '00000000-0000-0000-0000-000000000000');
+    }
+    return await q;
+  }
 }

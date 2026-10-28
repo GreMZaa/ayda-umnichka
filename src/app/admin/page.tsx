@@ -445,14 +445,68 @@ export default function AdminDashboard() {
     if (!window.confirm(`Вы уверены, что хотите удалить урок «${cleanTopicTitle(topic)}»?`)) return;
 
     try {
-      const { error } = await supabase.from('lessons').delete().eq('id', lessonId);
-      if (error) throw error;
+      const res = await fetch(`/api/lessons?id=${encodeURIComponent(lessonId)}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Не удалось удалить урок');
+      }
 
       setLessons((prev) => prev.filter((l) => l.id !== lessonId));
       showToast(`Урок «${cleanTopicTitle(topic)}» удалён`);
     } catch (err: any) {
       console.error('Failed to delete lesson:', err);
-      showToast('Ошибка при удалении урока', 'error');
+      showToast(err?.message || 'Ошибка при удалении урока', 'error');
+    }
+  };
+
+  // Action: Delete All Lessons in current filter
+  const handleDeleteAllLessons = async () => {
+    const filterName =
+      lessonStatusFilter === 'all'
+        ? 'все уроки'
+        : lessonStatusFilter === 'completed'
+        ? 'все завершённые уроки'
+        : lessonStatusFilter === 'pending'
+        ? 'все запланированные уроки'
+        : 'все выбранные уроки';
+
+    const count = filteredLessons.length;
+    if (count === 0) return;
+
+    if (!window.confirm(`Вы уверены, что хотите безвозвратно удалить ${filterName} (${count} шт.) из базы данных Supabase?`)) {
+      return;
+    }
+
+    try {
+      setIsRefreshing(true);
+      const url =
+        lessonStatusFilter === 'all'
+          ? '/api/lessons?all=true'
+          : `/api/lessons?all=true&status=${encodeURIComponent(lessonStatusFilter)}`;
+
+      const res = await fetch(url, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Не удалось очистить уроки');
+      }
+
+      if (lessonStatusFilter === 'all') {
+        setLessons([]);
+      } else {
+        setLessons((prev) => prev.filter((l) => l.status !== lessonStatusFilter));
+      }
+      showToast(`Успешно удалено: ${filterName} (${count} шт.)`);
+    } catch (err: any) {
+      console.error('Failed to delete all lessons:', err);
+      showToast(err?.message || 'Ошибка при удалении уроков', 'error');
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -1002,9 +1056,23 @@ export default function AdminDashboard() {
               ))}
             </div>
 
-            <span className="text-xs text-[#8A95A8] font-bold">
-              Показано: {filteredLessons.length} уроков
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-[#8A95A8] font-bold">
+                Показано: {filteredLessons.length} уроков
+              </span>
+              {filteredLessons.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleDeleteAllLessons}
+                  disabled={isRefreshing}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2.5 py-1 rounded-full transition-colors cursor-pointer border border-rose-200"
+                  title="Удалить все отфильтрованные уроки из базы данных"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Очистить ({filteredLessons.length})</span>
+                </button>
+              )}
+            </div>
           </div>
 
           {loading ? (
