@@ -97,6 +97,21 @@ const rtcConfig: RTCConfiguration = {
   iceCandidatePoolSize: 10,
 };
 
+const PiPIcon = ({ className = 'w-5 h-5' }: { className?: string }) => (
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <rect x="2" y="4" width="20" height="16" rx="2" />
+    <rect x="12" y="11" width="8" height="7" rx="1" fill="currentColor" fillOpacity="0.25" />
+  </svg>
+);
+
 export default function VideoCall({
   roomToken,
   isTeacher = false,
@@ -1507,84 +1522,198 @@ export default function VideoCall({
     }
   }, [isWhiteboardActive, camActive, isSwapped]);
 
-  // Native Picture-in-Picture (stays floating on top of all OS apps like in Telegram/VK)
+  // Resolve the active video element with valid video tracks for Picture-in-Picture
+  const getActivePiPVideo = (): HTMLVideoElement | null => {
+    // 1. Remote peer stream if active with live video track
+    if (remoteVideoRef.current && hasRemoteStream && remoteCamActive) {
+      const stream = (remoteVideoRef.current.srcObject as MediaStream | null) || remoteStreamRef.current;
+      if (stream && stream.getVideoTracks().some((t) => t.readyState === 'live' && t.enabled)) {
+        return remoteVideoRef.current;
+      }
+    }
+
+    // 2. Local camera preview if user camera is active
+    if (localVideoRef.current && camActive) {
+      const stream = (localVideoRef.current.srcObject as MediaStream | null) || streamRef.current;
+      if (stream && stream.getVideoTracks().some((t) => t.readyState === 'live' && t.enabled)) {
+        return localVideoRef.current;
+      }
+    }
+
+    // 3. Fallbacks with valid element and stream
+    if (remoteVideoRef.current && remoteVideoRef.current.srcObject) {
+      return remoteVideoRef.current;
+    }
+    if (localVideoRef.current && localVideoRef.current.srcObject) {
+      return localVideoRef.current;
+    }
+
+    return pipVideoRef.current || remoteVideoRef.current || localVideoRef.current || null;
+  };
+
+  // Native Picture-in-Picture (stays floating on top of all OS apps / desktop like Telegram/VK)
   const togglePictureInPicture = async () => {
     try {
-      const activeVideo = ((hasRemoteStream ? remoteVideoRef.current : localVideoRef.current) || pipVideoRef.current) as any;
-      if (!activeVideo) return;
+      const activeVideo = getActivePiPVideo();
+      if (!activeVideo) {
+        alert('Видеопоток подключается. Подождите пару секунд для включения режима «Картинка в картинке».');
+        return;
+      }
 
-      activeVideo.autoPictureInPicture = true;
+      (activeVideo as any).autoPictureInPicture = true;
+      (activeVideo as any).disablePictureInPicture = false;
+      activeVideo.setAttribute('autopictureinpicture', 'true');
 
       // 1. iOS Safari (WebKit Presentation Mode)
       if (
-        typeof activeVideo.webkitSetPresentationMode === 'function' &&
-        activeVideo.webkitSupportsPresentationMode?.('picture-in-picture')
+        typeof (activeVideo as any).webkitSetPresentationMode === 'function' &&
+        (activeVideo as any).webkitSupportsPresentationMode?.('picture-in-picture')
       ) {
-        const isPiP = activeVideo.webkitPresentationMode === 'picture-in-picture';
+        const isPiP = (activeVideo as any).webkitPresentationMode === 'picture-in-picture';
         const nextMode = isPiP ? 'inline' : 'picture-in-picture';
-        activeVideo.webkitSetPresentationMode(nextMode);
+        (activeVideo as any).webkitSetPresentationMode(nextMode);
         setIsPipActive(nextMode === 'picture-in-picture');
         return;
       }
 
-      // 2. Standard W3C Picture-in-Picture (Android Chrome, Desktop Chrome, Edge, Safari macOS)
+      // 2. Standard W3C Picture-in-Picture (Android Chrome, Windows/Mac Chrome, Edge, Safari macOS)
       if (document.pictureInPictureElement) {
         await document.exitPictureInPicture();
         setIsPipActive(false);
       } else if (typeof activeVideo.requestPictureInPicture === 'function') {
+        if (activeVideo.paused) {
+          await activeVideo.play().catch(() => {});
+        }
         await activeVideo.requestPictureInPicture();
         setIsPipActive(true);
+      } else {
+        alert('Ваш браузер не поддерживает режим «Картинка в картинке». Рекомендуется использовать Google Chrome, Яндекс.Браузер или Safari.');
       }
     } catch (err: any) {
       console.warn('Picture-in-Picture error:', err);
+      if (err?.name === 'NotAllowedError') {
+        alert('Разрешите режим «Картинка в картинке» в разрешениях браузера для сайта.');
+      }
     }
   };
+
+  // Register MediaSession for system-level controls & automatic Picture-in-Picture on exit to home/desktop
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('mediaSession' in navigator)) return;
+
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: topic ? `Урок: ${topic}` : 'Онлайн-урок',
+        artist: resolvedParticipantName || 'Преподаватель центра',
+        album: 'АйДаУмничка • Видеосвязь',
+        artwork: [
+          { src: '/icon.png', sizes: '192x192', type: 'image/png' },
+          { src: '/icon.png', sizes: '512x512', type: 'image/png' },
+        ],
+      });
+      navigator.mediaSession.playbackState = 'playing';
+
+      // Chrome invokes enterpictureinpicture action handler when user minimizes or exits to home screen
+      try {
+        (navigator.mediaSession as any).setActionHandler('enterpictureinpicture', async () => {
+          try {
+            const video = getActivePiPVideo();
+            if (video && typeof video.requestPictureInPicture === 'function') {
+              (video as any).autoPictureInPicture = true;
+              (video as any).disablePictureInPicture = false;
+              await video.requestPictureInPicture();
+              setIsPipActive(true);
+            }
+          } catch (e) {
+            console.warn('Auto PiP on enterpictureinpicture action error:', e);
+          }
+        });
+      } catch (_) {}
+
+      try {
+        (navigator.mediaSession as any).setActionHandler('hangup', () => {
+          onEndLesson?.(callDuration);
+        });
+      } catch (_) {}
+
+      try {
+        (navigator.mediaSession as any).setActionHandler('togglemicrophone', () => {
+          toggleMic();
+        });
+      } catch (_) {}
+
+      try {
+        (navigator.mediaSession as any).setActionHandler('togglecamera', () => {
+          toggleCam();
+        });
+      } catch (_) {}
+    } catch (e) {
+      console.warn('Failed to register MediaSession:', e);
+    }
+
+    return () => {
+      if (typeof window !== 'undefined' && 'mediaSession' in navigator) {
+        try {
+          (navigator.mediaSession as any).setActionHandler('enterpictureinpicture', null);
+          (navigator.mediaSession as any).setActionHandler('hangup', null);
+          (navigator.mediaSession as any).setActionHandler('togglemicrophone', null);
+          (navigator.mediaSession as any).setActionHandler('togglecamera', null);
+        } catch (_) {}
+      }
+    };
+  }, [hasRemoteStream, remoteCamActive, camActive, resolvedParticipantName, topic]);
 
   // Auto Picture-in-Picture when user minimizes tab, presses home or switches to another app
   useEffect(() => {
     const handleVisibilityChange = async () => {
       if (document.visibilityState === 'hidden') {
-        try {
-          const activeVideo = (hasRemoteStream ? remoteVideoRef.current : localVideoRef.current) as any;
-          if (!activeVideo) return;
+        const video = getActivePiPVideo();
+        if (!video) return;
 
-          // iOS WebKit
-          if (
-            typeof activeVideo.webkitSetPresentationMode === 'function' &&
-            activeVideo.webkitSupportsPresentationMode?.('picture-in-picture')
-          ) {
-            if (activeVideo.webkitPresentationMode !== 'picture-in-picture') {
-              activeVideo.webkitSetPresentationMode('picture-in-picture');
+        (video as any).autoPictureInPicture = true;
+        (video as any).disablePictureInPicture = false;
+
+        // 1. iOS Safari WebKit presentation mode
+        if (
+          typeof (video as any).webkitSetPresentationMode === 'function' &&
+          (video as any).webkitSupportsPresentationMode?.('picture-in-picture')
+        ) {
+          try {
+            if ((video as any).webkitPresentationMode !== 'picture-in-picture') {
+              (video as any).webkitSetPresentationMode('picture-in-picture');
               setIsPipActive(true);
             }
-            return;
-          }
+          } catch (_) {}
+          return;
+        }
 
-          // Standard W3C
-          if (!document.pictureInPictureElement && typeof activeVideo.requestPictureInPicture === 'function') {
-            await activeVideo.requestPictureInPicture();
+        // 2. Standard W3C requestPictureInPicture
+        if (!document.pictureInPictureElement && typeof video.requestPictureInPicture === 'function') {
+          try {
+            await video.requestPictureInPicture();
             setIsPipActive(true);
+          } catch (_) {
+            // Handled gracefully; MediaSession action handler triggers PiP with user activation token
           }
-        } catch (_) {
-          // Handled silently
         }
       }
     };
 
-    const handleLeavePiP = () => {
-      setIsPipActive(false);
-    };
+    const handleEnterPiP = () => setIsPipActive(true);
+    const handleLeavePiP = () => setIsPipActive(false);
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('enterpictureinpicture', handleEnterPiP);
     document.addEventListener('leavepictureinpicture', handleLeavePiP);
     window.addEventListener('pagehide', handleVisibilityChange);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('enterpictureinpicture', handleEnterPiP);
       document.removeEventListener('leavepictureinpicture', handleLeavePiP);
       window.removeEventListener('pagehide', handleVisibilityChange);
     };
-  }, [hasRemoteStream]);
+  }, [hasRemoteStream, remoteCamActive, camActive]);
 
   // Screen sharing toggle with capability check and track replacement
   const toggleScreenShare = async () => {
@@ -2819,6 +2948,9 @@ export default function VideoCall({
                 ref={(el) => {
                   remoteVideoRef.current = el;
                   if (el) {
+                    (el as any).autoPictureInPicture = true;
+                    (el as any).disablePictureInPicture = false;
+                    el.setAttribute('autopictureinpicture', 'true');
                     if (remoteStreamRef.current && el.srcObject !== remoteStreamRef.current) {
                       el.srcObject = remoteStreamRef.current;
                     }
@@ -2875,10 +3007,15 @@ export default function VideoCall({
               <video
                 ref={(el) => {
                   localVideoRef.current = el;
-                  if (el && streamRef.current && el.srcObject !== streamRef.current) {
-                    el.srcObject = streamRef.current;
+                  if (el) {
+                    (el as any).autoPictureInPicture = true;
+                    (el as any).disablePictureInPicture = false;
+                    el.setAttribute('autopictureinpicture', 'true');
+                    if (streamRef.current && el.srcObject !== streamRef.current) {
+                      el.srcObject = streamRef.current;
+                    }
+                    el.play().catch(() => {});
                   }
-                  if (el) el.play().catch(() => {});
                 }}
                 autoPlay
                 playsInline
@@ -2917,10 +3054,15 @@ export default function VideoCall({
               <video
                 ref={(el) => {
                   localVideoRef.current = el;
-                  if (el && streamRef.current && el.srcObject !== streamRef.current) {
-                    el.srcObject = streamRef.current;
+                  if (el) {
+                    (el as any).autoPictureInPicture = true;
+                    (el as any).disablePictureInPicture = false;
+                    el.setAttribute('autopictureinpicture', 'true');
+                    if (streamRef.current && el.srcObject !== streamRef.current) {
+                      el.srcObject = streamRef.current;
+                    }
+                    el.play().catch(() => {});
                   }
-                  if (el) el.play().catch(() => {});
                 }}
                 autoPlay
                 playsInline
@@ -2956,6 +3098,9 @@ export default function VideoCall({
                 ref={(el) => {
                   remoteVideoRef.current = el;
                   if (el) {
+                    (el as any).autoPictureInPicture = true;
+                    (el as any).disablePictureInPicture = false;
+                    el.setAttribute('autopictureinpicture', 'true');
                     if (remoteStreamRef.current && el.srcObject !== remoteStreamRef.current) {
                       el.srcObject = remoteStreamRef.current;
                     }
@@ -3083,10 +3228,14 @@ export default function VideoCall({
             <button
               type="button"
               onClick={togglePictureInPicture}
-              className="p-2.5 sm:p-3 rounded-full bg-black/40 hover:bg-black/60 text-white backdrop-blur-md border border-white/15 transition-all active:scale-95 cursor-pointer shadow-lg"
-              title="Поверх всех приложений (PiP)"
+              className={`p-2.5 sm:p-3 rounded-full backdrop-blur-md border transition-all active:scale-95 cursor-pointer shadow-lg flex items-center justify-center ${
+                isPipActive
+                  ? 'bg-coralAccent text-white border-coralAccent shadow-coralAccent/30 ring-2 ring-coralAccent/50'
+                  : 'bg-black/40 hover:bg-black/60 text-white border-white/15'
+              }`}
+              title={isPipActive ? 'Вернуть видео в урок' : 'Картинка в картинке (поверх всех окон на рабочий стол)'}
             >
-              <ExternalLink className="w-5 h-5" />
+              <PiPIcon className="w-5 h-5" />
             </button>
             <button
               type="button"
@@ -3235,12 +3384,28 @@ export default function VideoCall({
                     onToggleWhiteboard();
                     setIsDrawerOpen(false);
                   }}
-                  className="flex items-center justify-center gap-2 p-3 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/10 text-xs font-bold text-white transition-all text-center"
+                  className="flex items-center justify-center gap-2 p-3 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/10 text-xs font-bold text-white transition-all text-center cursor-pointer"
                 >
                   <LayoutGrid className="w-4 h-4 shrink-0" />
                   <span>Доска урока</span>
                 </button>
               )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  togglePictureInPicture();
+                  setIsDrawerOpen(false);
+                }}
+                className={`flex items-center justify-center gap-2 p-3 rounded-2xl border text-xs font-bold transition-all text-center col-span-2 cursor-pointer ${
+                  isPipActive
+                    ? 'bg-coralAccent text-white border-coralAccent'
+                    : 'bg-white/10 hover:bg-white/20 border-white/10 text-white'
+                }`}
+              >
+                <PiPIcon className="w-4 h-4 shrink-0 text-coralAccent" />
+                <span>{isPipActive ? 'Вернуть видео в урок' : 'Картинка в картинке (поверх всех окон)'}</span>
+              </button>
 
               <button
                 type="button"
