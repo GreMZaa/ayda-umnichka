@@ -1,16 +1,96 @@
 import { LessonRepository } from '../repositories/lesson.repository';
+import { UserRepository } from '../repositories/user.repository';
 import { CreateLessonDTO, UpdateLessonDTO } from '../validators/lesson.validator';
 import { AppError } from '../middleware/apiErrors';
 import { supabaseServer } from '../config/database';
 
 export class LessonService {
-  static async getLessons(options: { studentPublicId?: string; status?: string }) {
+  static isLessonOwnedByTeacher(
+    lesson: any,
+    teacherName?: string,
+    teacherPublicId?: string
+  ): boolean {
+    if (!teacherName && !teacherPublicId) return true;
+
+    const lTeacher = (lesson?.teacher_name || '').toLowerCase().trim();
+    if (!lTeacher) return false;
+
+    // 1. Direct public ID match (e.g. "id180457" in "Юлия Павловна (id180457)")
+    if (teacherPublicId) {
+      const pubLower = teacherPublicId.toLowerCase().trim();
+      if (lTeacher.includes(pubLower)) return true;
+    }
+
+    // 2. Name matching
+    if (teacherName) {
+      const cleanTName = teacherName
+        .replace(/\s*\(.*?\)$/, '')
+        .replace(/ребёнок:\s*[^)]+/i, '')
+        .trim()
+        .toLowerCase();
+
+      // Check full clean name (e.g. "юлия павловна")
+      if (cleanTName && (lTeacher.includes(cleanTName) || cleanTName.includes(lTeacher))) {
+        return true;
+      }
+
+      // Check first name (e.g. "юлия" or "василина")
+      const firstName = cleanTName.split(/\s+/)[0];
+      if (firstName && firstName.length >= 3) {
+        const lFirstName = lTeacher.replace(/\s*\(.*?\)$/, '').trim().split(/\s+/)[0];
+        if (lFirstName && (lFirstName === firstName || lTeacher.includes(firstName))) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  static async canTeacherManageLesson(
+    lessonId: string,
+    teacherUserId?: string
+  ): Promise<boolean> {
+    if (!teacherUserId) return false;
+    const { data: lesson, error } = await LessonRepository.findLessonById(lessonId);
+    if (error || !lesson) return false;
+
+    // Resolve teacher identity from user_bindings
+    const teacherBinding = await UserRepository.findBindingByPublicId(teacherUserId);
+    const teacherFullName = teacherBinding?.full_name || '';
+
+    return this.isLessonOwnedByTeacher(lesson, teacherFullName, teacherUserId);
+  }
+
+  static async getLessons(options: {
+    studentPublicId?: string;
+    teacherPublicId?: string;
+    teacherName?: string;
+    status?: string;
+  }) {
     const { data, error } = await LessonRepository.findLessons(options);
     if (error) {
       console.error('Error fetching lessons from Supabase:', error);
       throw new AppError(error.message, 500);
     }
-    return data || [];
+    let lessons = data || [];
+
+    // If teacherPublicId or teacherName is specified, filter strictly to lessons belonging to this teacher
+    if (options.teacherPublicId || options.teacherName) {
+      let resolvedTeacherName = options.teacherName;
+      if (options.teacherPublicId && !resolvedTeacherName) {
+        const binding = await UserRepository.findBindingByPublicId(options.teacherPublicId);
+        if (binding?.full_name) {
+          resolvedTeacherName = binding.full_name;
+        }
+      }
+
+      lessons = lessons.filter((l: any) =>
+        this.isLessonOwnedByTeacher(l, resolvedTeacherName, options.teacherPublicId)
+      );
+    }
+
+    return lessons;
   }
 
   static async handleLessonPost(dto: UpdateLessonDTO & CreateLessonDTO) {

@@ -19,6 +19,14 @@ export class LessonRepository {
     return await query;
   }
 
+  static async findLessonById(id: string) {
+    return await supabaseServer
+      .from('lessons')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+  }
+
   static async findLessonByRoomToken(roomToken: string) {
     return await supabaseServer
       .from('lessons')

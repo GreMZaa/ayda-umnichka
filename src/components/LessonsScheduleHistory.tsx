@@ -45,6 +45,49 @@ interface LessonsScheduleHistoryProps {
   studentPublicId?: string;
   studentName?: string;
   teacherName?: string;
+  teacherPublicId?: string;
+}
+
+export function isLessonOwnedByTeacher(
+  lesson: LessonRecord,
+  teacherName?: string,
+  teacherPublicId?: string
+): boolean {
+  if (!teacherName && !teacherPublicId) return true;
+
+  const lTeacher = (lesson?.teacher_name || '').toLowerCase().trim();
+  if (!lTeacher) return false;
+
+  // 1. Direct public ID match (e.g. "id180457" in "Юлия Павловна (id180457)")
+  if (teacherPublicId) {
+    const pubLower = teacherPublicId.toLowerCase().trim();
+    if (lTeacher.includes(pubLower)) return true;
+  }
+
+  // 2. Name matching
+  if (teacherName) {
+    const cleanTName = teacherName
+      .replace(/\s*\(.*?\)$/, '')
+      .replace(/ребёнок:\s*[^)]+/i, '')
+      .trim()
+      .toLowerCase();
+
+    // Check full clean name (e.g. "юлия павловна")
+    if (cleanTName && (lTeacher.includes(cleanTName) || cleanTName.includes(lTeacher))) {
+      return true;
+    }
+
+    // Check first name (e.g. "юлия" or "василина")
+    const firstName = cleanTName.split(/\s+/)[0];
+    if (firstName && firstName.length >= 3) {
+      const lFirstName = lTeacher.replace(/\s*\(.*?\)$/, '').trim().split(/\s+/)[0];
+      if (lFirstName && (lFirstName === firstName || lTeacher.includes(firstName))) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 export default function LessonsScheduleHistory({
@@ -54,6 +97,7 @@ export default function LessonsScheduleHistory({
   studentPublicId,
   studentName,
   teacherName,
+  teacherPublicId,
 }: LessonsScheduleHistoryProps) {
   const [activeTab, setActiveTab] = useState<'upcoming' | 'history'>('upcoming');
   const [lessons, setLessons] = useState<LessonRecord[]>([]);
@@ -176,9 +220,16 @@ export default function LessonsScheduleHistory({
   const fetchLessons = async () => {
     try {
       setLoading(true);
-      const url = role === 'student' && studentPublicId
-        ? `/api/lessons?studentPublicId=${encodeURIComponent(studentPublicId)}`
-        : '/api/lessons';
+      let url = '/api/lessons';
+      if (role === 'student' && studentPublicId) {
+        url = `/api/lessons?studentPublicId=${encodeURIComponent(studentPublicId)}`;
+      } else if (role === 'teacher') {
+        const params = new URLSearchParams();
+        if (teacherPublicId) params.set('teacherPublicId', teacherPublicId);
+        if (teacherName) params.set('teacherName', teacherName);
+        const q = params.toString();
+        url = q ? `/api/lessons?${q}` : '/api/lessons';
+      }
       const res = await fetch(url, { cache: 'no-store' });
       const data = await res.json();
       if (data?.lessons) {
@@ -193,7 +244,7 @@ export default function LessonsScheduleHistory({
 
   useEffect(() => {
     fetchLessons();
-  }, [studentPublicId, role]);
+  }, [studentPublicId, role, teacherPublicId, teacherName]);
 
   const handleCreateScheduledLesson = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -209,6 +260,9 @@ export default function LessonsScheduleHistory({
         formStudent.match(/id\d+/i)?.[0] ||
         (formStudent.startsWith('id') ? formStudent : null);
 
+      const cleanTName = (teacherName || 'Преподаватель').replace(/\s*\(.*?\)$/, '').trim();
+      const teacherSaveIdentifier = teacherPublicId ? `${cleanTName} (${teacherPublicId})` : cleanTName;
+
       const res = await fetch('/api/lessons', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -216,7 +270,7 @@ export default function LessonsScheduleHistory({
           topic: formTopic,
           student_name: selectedStudentObj?.fullName || formStudent || 'Ученик центра',
           student_public_id: studentId,
-          teacher_name: teacherName || 'Преподаватель',
+          teacher_name: teacherSaveIdentifier,
           scheduled_for: formDateTime,
           status: 'pending',
           duration_minutes: 45,
@@ -233,7 +287,7 @@ export default function LessonsScheduleHistory({
           topic: formTopic,
           student_public_id: studentId,
           student_name: selectedStudentObj?.fullName || formStudent || 'Ученик центра',
-          teacher_name: teacherName || 'Преподаватель',
+          teacher_name: cleanTName,
           scheduled_for: formDateTime,
           duration_minutes: 45,
           creator_id: 'teacher',
@@ -253,6 +307,12 @@ export default function LessonsScheduleHistory({
   };
 
   const handleUpdateStatus = async (lessonId: string, status: 'completed' | 'cancelled') => {
+    const targetLesson = lessons.find((l) => l.id === lessonId);
+    if (role === 'teacher' && targetLesson && !isLessonOwnedByTeacher(targetLesson, teacherName, teacherPublicId)) {
+      alert('Вы можете изменять только свои собственные уроки.');
+      return;
+    }
+
     try {
       const res = await fetch('/api/lessons', {
         method: 'POST',
@@ -265,6 +325,9 @@ export default function LessonsScheduleHistory({
       });
       if (res.ok) {
         await fetchLessons();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data?.error || 'Не удалось обновить статус урока');
       }
     } catch (err) {
       console.warn('Error updating lesson status:', err);
@@ -273,6 +336,12 @@ export default function LessonsScheduleHistory({
 
   const handleDeleteLesson = async (lessonId: string, topic?: string) => {
     if (role === 'student') return;
+    const targetLesson = lessons.find((l) => l.id === lessonId);
+    if (role === 'teacher' && targetLesson && !isLessonOwnedByTeacher(targetLesson, teacherName, teacherPublicId)) {
+      alert('Вы можете удалять только свои собственные уроки.');
+      return;
+    }
+
     const confirmed = window.confirm(
       topic
         ? `Вы уверены, что хотите удалить урок «${topic}»?`
@@ -310,6 +379,8 @@ export default function LessonsScheduleHistory({
         }
         return false;
       })
+    : role === 'teacher'
+    ? lessons.filter((l) => isLessonOwnedByTeacher(l, teacherName, teacherPublicId))
     : lessons;
 
   const upcomingLessons = relevantLessons.filter(
@@ -544,7 +615,11 @@ export default function LessonsScheduleHistory({
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-xs font-black text-[#161F38] truncate" title={l.student_name}>
-                                {role === 'student' ? (l.teacher_name || 'Преподаватель') : getStudentDisplayLabel(l)}
+                                {role === 'student'
+                                  ? (l.teacher_name
+                                      ? l.teacher_name.replace(/\s*\(id\d+\)/i, '').replace(/\s*\(ребёнок:[^)]+\)/i, '').trim()
+                                      : 'Преподаватель')
+                                  : getStudentDisplayLabel(l)}
                               </span>
                               <span className="text-[9px] font-bold bg-[#FFF2E6] text-coralAccent px-1.5 py-0.5 rounded-full shrink-0">
                                 {formatLessonTime(l.scheduled_for)}
@@ -597,35 +672,37 @@ export default function LessonsScheduleHistory({
                                 )}
                               </div>
 
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <button
-                                  type="button"
-                                  onClick={() => handleUpdateStatus(l.id, 'completed')}
-                                  className="inline-flex items-center gap-1 font-bold text-[#5C8519] bg-[#EAF7CF] hover:bg-[#DDF4B2] px-2 py-0.5 rounded-md transition-colors cursor-pointer active:scale-95"
-                                  title="Отметить, что урок состоялся"
-                                >
-                                  <CheckCircle2 className="w-3 h-3" />
-                                  <span>Прошёл</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleUpdateStatus(l.id, 'cancelled')}
-                                  className="inline-flex items-center gap-1 font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded-md transition-colors cursor-pointer active:scale-95"
-                                  title="Отметить, что урок не состоялся"
-                                >
-                                  <XCircle className="w-3 h-3" />
-                                  <span>Не прошёл</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteLesson(l.id, l.topic)}
-                                  className="inline-flex items-center gap-1 font-bold text-red-600 bg-red-50 hover:bg-red-100 px-2 py-0.5 rounded-md transition-colors cursor-pointer active:scale-95"
-                                  title="Удалить урок"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                  <span>Удалить</span>
-                                </button>
-                              </div>
+                              {isLessonOwnedByTeacher(l, teacherName, teacherPublicId) && (
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateStatus(l.id, 'completed')}
+                                    className="inline-flex items-center gap-1 font-bold text-[#5C8519] bg-[#EAF7CF] hover:bg-[#DDF4B2] px-2 py-0.5 rounded-md transition-colors cursor-pointer active:scale-95"
+                                    title="Отметить, что урок состоялся"
+                                  >
+                                    <CheckCircle2 className="w-3 h-3" />
+                                    <span>Прошёл</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateStatus(l.id, 'cancelled')}
+                                    className="inline-flex items-center gap-1 font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded-md transition-colors cursor-pointer active:scale-95"
+                                    title="Отметить, что урок не состоялся"
+                                  >
+                                    <XCircle className="w-3 h-3" />
+                                    <span>Не прошёл</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteLesson(l.id, l.topic)}
+                                    className="inline-flex items-center gap-1 font-bold text-red-600 bg-red-50 hover:bg-red-100 px-2 py-0.5 rounded-md transition-colors cursor-pointer active:scale-95"
+                                    title="Удалить урок"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                    <span>Удалить</span>
+                                  </button>
+                                </div>
+                              )}
                             </>
                           )}
                         </div>
@@ -685,7 +762,11 @@ export default function LessonsScheduleHistory({
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="text-xs font-black text-[#161F38] truncate" title={l.student_name}>
-                              {role === 'student' ? (l.teacher_name || 'Преподаватель') : getStudentDisplayLabel(l)}
+                              {role === 'student'
+                                ? (l.teacher_name
+                                    ? l.teacher_name.replace(/\s*\(id\d+\)/i, '').replace(/\s*\(ребёнок:[^)]+\)/i, '').trim()
+                                    : 'Преподаватель')
+                                : getStudentDisplayLabel(l)}
                             </span>
                             <span className="text-[10px] text-[#8A95A8]">
                               • {formatLessonTime(l.scheduled_for || l.created_at)}
@@ -713,7 +794,7 @@ export default function LessonsScheduleHistory({
                             </span>
                           )}
 
-                          {role !== 'student' && (
+                          {role !== 'student' && isLessonOwnedByTeacher(l, teacherName, teacherPublicId) && (
                             <button
                               type="button"
                               onClick={() => handleDeleteLesson(l.id, l.topic)}
@@ -764,7 +845,7 @@ export default function LessonsScheduleHistory({
 
       {/* Footer */}
       <div className="shrink-0 pt-2 border-t border-[#F8EDE1] flex items-center justify-between text-[11px] text-[#6B758E]">
-        <span>Всего уроков: <strong className="text-[#161F38]">{lessons.length}</strong></span>
+        <span>Всего уроков: <strong className="text-[#161F38]">{relevantLessons.length}</strong></span>
         <button
           type="button"
           onClick={fetchLessons}

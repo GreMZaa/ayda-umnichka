@@ -13,18 +13,32 @@ export class LessonController {
       const auth = extractAuthContext(req);
       const { searchParams } = new URL(req.url);
       const studentPublicId = searchParams.get('studentPublicId')?.trim();
+      const teacherPublicId = searchParams.get('teacherPublicId')?.trim();
+      const teacherName = searchParams.get('teacherName')?.trim();
       const status = searchParams.get('status')?.trim();
 
       // If user is a student or unauthenticated guest, restrict query strictly to their own ID
-      let effectiveId = studentPublicId;
+      let effectiveStudentId = studentPublicId;
       if (!auth.isTeacher && !auth.isAdmin) {
         if (!auth.userId) {
           return apiSuccess({ lessons: [] });
         }
-        effectiveId = auth.userId;
+        effectiveStudentId = auth.userId;
       }
 
-      const lessons = await LessonService.getLessons({ studentPublicId: effectiveId, status });
+      // If user is a teacher (and not admin), restrict query strictly to their teacher identity
+      let effectiveTeacherId = teacherPublicId;
+      let effectiveTeacherName = teacherName;
+      if (auth.isTeacher && !auth.isAdmin) {
+        effectiveTeacherId = auth.userId;
+      }
+
+      const lessons = await LessonService.getLessons({
+        studentPublicId: effectiveStudentId,
+        teacherPublicId: effectiveTeacherId,
+        teacherName: effectiveTeacherName,
+        status,
+      });
       return apiSuccess({ lessons });
     } catch (err: any) {
       console.error('LessonController.getLessons error:', err);
@@ -40,6 +54,15 @@ export class LessonController {
       }
 
       const body = await req.json();
+
+      // Check ownership on status updates if caller is teacher (not admin)
+      if (body.id && auth.isTeacher && !auth.isAdmin && body.action === 'update_status') {
+        const canManage = await LessonService.canTeacherManageLesson(body.id, auth.userId);
+        if (!canManage) {
+          return apiError('Вы можете изменять статус только своих собственных уроков', 403);
+        }
+      }
+
       const validatedUpdate = validateUpdateLessonInput(body);
       const validatedCreate = validateCreateLessonInput(body);
       const result = await LessonService.handleLessonPost({
@@ -72,6 +95,14 @@ export class LessonController {
 
       if (!id) {
         return apiError('ID урока обязателен для удаления', 400);
+      }
+
+      // Check ownership if caller is teacher (not admin)
+      if (auth.isTeacher && !auth.isAdmin) {
+        const canManage = await LessonService.canTeacherManageLesson(id, auth.userId);
+        if (!canManage) {
+          return apiError('Вы можете удалять только свои собственные уроки', 403);
+        }
       }
 
       const result = await LessonService.deleteLesson(id);
