@@ -197,6 +197,7 @@ export default function VideoCall({
   const [livekitAccount, setLivekitAccount] = useState<'account1' | 'account2' | null>(null);
   const [livekitAccountName, setLivekitAccountName] = useState<string>('');
   const livekitSessionRef = useRef<LiveKitSession | null>(null);
+  const isLiveKitActiveRef = useRef<boolean>(false);
 
   // Lesson In-Call Chat states
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -657,10 +658,12 @@ export default function VideoCall({
       pcRef.current = null;
     }
     candidateQueueRef.current = [];
-    remoteStreamRef.current = null;
+    if (!isLiveKitActiveRef.current) {
+      remoteStreamRef.current = null;
+      setHasRemoteStream(false);
+    }
     isNegotiatingRef.current = false;
     lastOfferSentRef.current = 0;
-    setHasRemoteStream(false);
   };
 
   const ensureLocalStream = async (): Promise<MediaStream> => {
@@ -815,6 +818,10 @@ export default function VideoCall({
 
     pc.onconnectionstatechange = () => {
       console.log('[WebRTC] Connection state change:', pc.connectionState);
+      if (isLiveKitActiveRef.current) {
+        console.log('[WebRTC] LiveKit SFU active, suppressing P2P connectionState change');
+        return;
+      }
       addLog(
         pc.connectionState === 'connected' ? 'success' : pc.connectionState === 'failed' ? 'error' : 'info',
         `WebRTC соединение: ${pc.connectionState}`
@@ -835,7 +842,7 @@ export default function VideoCall({
         // Only teacher initiates automatic reconnection recovery after backoff to prevent collisions
         if (isTeacher) {
           setTimeout(async () => {
-            if (pcRef.current && pcRef.current.connectionState === 'failed') {
+            if (pcRef.current && pcRef.current.connectionState === 'failed' && !isLiveKitActiveRef.current) {
               addLog('info', 'Попытка автоматического восстановления соединения учителем...');
               resetPeerConnection();
               try {
@@ -853,6 +860,9 @@ export default function VideoCall({
 
     pc.oniceconnectionstatechange = () => {
       console.log('[WebRTC] ICE connection state:', pc.iceConnectionState);
+      if (isLiveKitActiveRef.current) {
+        return;
+      }
       setCurrentIceState(pc.iceConnectionState);
       addLog(
         pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed'
@@ -1047,12 +1057,23 @@ export default function VideoCall({
       remoteVideoEl: remoteVideoRef.current,
       remoteAudioEl: remoteAudioRef.current,
       onConnected: (acc, accName) => {
+        isLiveKitActiveRef.current = true;
         setActiveEngine('livekit');
         setLivekitAccount(acc);
         setLivekitAccountName(accName);
         setConnectionStatus('connected');
+        if (pcRef.current) {
+          try { pcRef.current.close(); } catch (_) {}
+          pcRef.current = null;
+        }
+      },
+      onDisconnected: (reason) => {
+        isLiveKitActiveRef.current = false;
+        setActiveEngine('p2p');
+        addLog('warn', `Отключено от LiveKit: ${reason || 'завершение сессии'}`);
       },
       onRemoteTrackReceived: (kind, stream) => {
+        isLiveKitActiveRef.current = true;
         setHasRemoteStream(true);
         setConnectionStatus('connected');
         if (!remoteStreamRef.current) {
@@ -1408,13 +1429,25 @@ export default function VideoCall({
       remoteAudioEl: remoteAudioRef.current,
       onConnected: (acc, accName) => {
         if (!isMounted) return;
+        isLiveKitActiveRef.current = true;
         setActiveEngine('livekit');
         setLivekitAccount(acc);
         setLivekitAccountName(accName);
         setConnectionStatus('connected');
+        if (pcRef.current) {
+          try { pcRef.current.close(); } catch (_) {}
+          pcRef.current = null;
+        }
+      },
+      onDisconnected: (reason) => {
+        if (!isMounted) return;
+        isLiveKitActiveRef.current = false;
+        setActiveEngine('p2p');
+        addLog('warn', `LiveKit SFU отключен (${reason || 'сессия завершена'}). Резервный P2P канал готов.`);
       },
       onRemoteTrackReceived: (kind, stream) => {
         if (!isMounted) return;
+        isLiveKitActiveRef.current = true;
         setHasRemoteStream(true);
         setConnectionStatus('connected');
         if (!remoteStreamRef.current) {
@@ -1504,13 +1537,16 @@ export default function VideoCall({
           }
         }
 
-        // 2. Only reset if connection was completely broken
-        if (pcRef.current && pcRef.current.connectionState === 'failed') {
+        // 2. Only reset if connection was completely broken (and LiveKit is not active)
+        if (pcRef.current && pcRef.current.connectionState === 'failed' && !isLiveKitActiveRef.current) {
           resetPeerConnection();
           setConnectionStatus('connecting');
         }
 
         // 3. Initiate offer: Teacher initiates if present, or deterministic tie-breaker by peerId
+        // If LiveKit SFU is already active and routing media, bypass P2P offer initiation
+        if (isLiveKitActiveRef.current) return;
+
         const shouldInitiate =
           (isTeacher && !payload?.isTeacher) ||
           (isTeacher === Boolean(payload?.isTeacher) && myPeerIdRef.current > (payload?.senderId || ''));
@@ -1540,11 +1576,14 @@ export default function VideoCall({
           setPeerProvidedName(payload.userName);
         }
 
-        // Only reset if connection was completely broken
-        if (pcRef.current && pcRef.current.connectionState === 'failed') {
+        // Only reset if connection was completely broken (and LiveKit is not active)
+        if (pcRef.current && pcRef.current.connectionState === 'failed' && !isLiveKitActiveRef.current) {
           resetPeerConnection();
           setConnectionStatus('connecting');
         }
+
+        // If LiveKit SFU is already active and routing media, bypass P2P offer initiation
+        if (isLiveKitActiveRef.current) return;
 
         // If I should initiate the offer (Teacher initiates or deterministic tie-breaker)
         const shouldInitiate =
@@ -1568,6 +1607,9 @@ export default function VideoCall({
         setIsPeerInRoom(true);
         syncTimerWithTimestamp(payload?.startedAt);
 
+        // If LiveKit SFU is already active and routing media, bypass P2P offer initiation
+        if (isLiveKitActiveRef.current) return;
+
         const shouldInitiate =
           (isTeacher && !payload?.isTeacher) ||
           (isTeacher === Boolean(payload?.isTeacher) && myPeerIdRef.current > (payload?.senderId || ''));
@@ -1587,6 +1629,10 @@ export default function VideoCall({
       })
       .on('broadcast', { event: 'offer' }, async ({ payload }) => {
         if (payload?.senderId === myPeerIdRef.current) return;
+        if (isLiveKitActiveRef.current) {
+          console.log('[WebRTC] P2P offer received, but LiveKit SFU is active; ignoring P2P offer');
+          return;
+        }
         if (payload?.sdp) {
           console.log('[WebRTC] Received SDP offer, answering...');
           setConnectionStatus('connecting');
@@ -1598,12 +1644,14 @@ export default function VideoCall({
       })
       .on('broadcast', { event: 'answer' }, async ({ payload }) => {
         if (payload?.senderId === myPeerIdRef.current) return;
+        if (isLiveKitActiveRef.current) return;
         if (payload?.sdp) {
           await handleRemoteAnswer(payload.sdp);
         }
       })
       .on('broadcast', { event: 'ice-candidate' }, async ({ payload }) => {
         if (payload?.senderId === myPeerIdRef.current) return;
+        if (isLiveKitActiveRef.current) return;
         if (payload?.candidate) {
           await handleRemoteIceCandidate(payload.candidate);
         }
