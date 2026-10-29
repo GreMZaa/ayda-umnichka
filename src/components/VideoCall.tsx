@@ -291,6 +291,7 @@ export default function VideoCall({
 
   // WebRTC Audio element & playback unlock states
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const keepAliveAudioRef = useRef<HTMLAudioElement | null>(null);
   const [isAudioAutoplayBlocked, setIsAudioAutoplayBlocked] = useState(false);
 
   // Diagnostic Logs & Real-time Breakdown Alerts
@@ -421,6 +422,13 @@ export default function VideoCall({
           osc.connect(gain);
           gain.connect(audioCtx.destination);
           osc.start();
+        }
+      } catch (_) {}
+
+      // 3. Play silent audio keep-alive for background iOS audio session
+      try {
+        if (keepAliveAudioRef.current && keepAliveAudioRef.current.paused) {
+          keepAliveAudioRef.current.play().catch(() => {});
         }
       } catch (_) {}
     };
@@ -2061,17 +2069,24 @@ export default function VideoCall({
     };
   }, [hasRemoteStream, remoteCamActive, camActive, resolvedParticipantName, topic]);
 
-  // Auto Picture-in-Picture when user minimizes tab, presses home or switches to another app
+  // Auto Picture-in-Picture & seamless background audio / foreground resume
   useEffect(() => {
     const handleVisibilityChange = async () => {
       if (document.visibilityState === 'hidden') {
+        // 1. Entering background: activate PiP and ensure keepalive audio continues
+        try {
+          if (keepAliveAudioRef.current && keepAliveAudioRef.current.paused) {
+            keepAliveAudioRef.current.play().catch(() => {});
+          }
+        } catch (_) {}
+
         const video = getActivePiPVideo();
         if (!video) return;
 
         (video as any).autoPictureInPicture = true;
         (video as any).disablePictureInPicture = false;
 
-        // 1. iOS Safari WebKit presentation mode
+        // iOS Safari WebKit presentation mode
         if (
           typeof (video as any).webkitSetPresentationMode === 'function' &&
           (video as any).webkitSupportsPresentationMode?.('picture-in-picture')
@@ -2085,15 +2100,65 @@ export default function VideoCall({
           return;
         }
 
-        // 2. Standard W3C requestPictureInPicture
+        // Standard W3C requestPictureInPicture
         if (!document.pictureInPictureElement && typeof video.requestPictureInPicture === 'function') {
           try {
             await video.requestPictureInPicture();
             setIsPipActive(true);
-          } catch (_) {
-            // Handled gracefully; MediaSession action handler triggers PiP with user activation token
+          } catch (_) {}
+        }
+      } else if (document.visibilityState === 'visible') {
+        // 2. Returning to foreground from background/lock screen: unfreeze media & audio session
+        console.log('[VideoCall] App returned to foreground, resuming audio context and media tracks...');
+
+        // Re-enable and resume LiveKit audio session
+        if (livekitSessionRef.current?.room) {
+          const room = livekitSessionRef.current.room;
+          try {
+            if (room.audioContext && room.audioContext.state === 'suspended') {
+              await room.audioContext.resume().catch(() => {});
+            }
+            await room.startAudio().catch(() => {});
+          } catch (_) {}
+
+          // Restore microphone if user had it on
+          if (micActive) {
+            try {
+              await room.localParticipant.setMicrophoneEnabled(true, {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+              });
+            } catch (err) {
+              console.warn('[VideoCall] Could not resume mic in LiveKit on foreground:', err);
+            }
+          }
+
+          // Restore camera if user had it on
+          if (camActive) {
+            try {
+              await room.localParticipant.setCameraEnabled(true);
+              const camPub = room.localParticipant.getTrackPublication('camera');
+              if (camPub?.videoTrack) {
+                if (localVideoRef.current) camPub.videoTrack.attach(localVideoRef.current);
+                if (pipVideoRef.current) camPub.videoTrack.attach(pipVideoRef.current);
+              }
+            } catch (err) {
+              console.warn('[VideoCall] Could not resume cam in LiveKit on foreground:', err);
+            }
           }
         }
+
+        // Unfreeze all DOM video & audio elements that were paused by iOS WebKit
+        try {
+          if (remoteAudioRef.current) remoteAudioRef.current.play().catch(() => {});
+          if (remoteVideoRef.current) remoteVideoRef.current.play().catch(() => {});
+          if (localVideoRef.current) localVideoRef.current.play().catch(() => {});
+          if (pipVideoRef.current) pipVideoRef.current.play().catch(() => {});
+          if (keepAliveAudioRef.current && keepAliveAudioRef.current.paused) {
+            keepAliveAudioRef.current.play().catch(() => {});
+          }
+        } catch (_) {}
       }
     };
 
@@ -2101,17 +2166,21 @@ export default function VideoCall({
     const handleLeavePiP = () => setIsPipActive(false);
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pageshow', handleVisibilityChange);
+    window.addEventListener('focus', handleVisibilityChange);
     document.addEventListener('enterpictureinpicture', handleEnterPiP);
     document.addEventListener('leavepictureinpicture', handleLeavePiP);
     window.addEventListener('pagehide', handleVisibilityChange);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pageshow', handleVisibilityChange);
+      window.removeEventListener('focus', handleVisibilityChange);
       document.removeEventListener('enterpictureinpicture', handleEnterPiP);
       document.removeEventListener('leavepictureinpicture', handleLeavePiP);
       window.removeEventListener('pagehide', handleVisibilityChange);
     };
-  }, [hasRemoteStream, remoteCamActive, camActive]);
+  }, [hasRemoteStream, remoteCamActive, camActive, micActive]);
 
   // Screen sharing toggle with capability check and track replacement
   const toggleScreenShare = async () => {
@@ -3081,26 +3150,51 @@ export default function VideoCall({
     );
   };
 
+  const renderAudioNodes = () => (
+    <>
+      <audio
+        ref={remoteAudioRef}
+        autoPlay
+        playsInline
+        controls={false}
+        style={{
+          position: 'fixed',
+          bottom: 4,
+          left: 4,
+          width: 1,
+          height: 1,
+          opacity: 0.01,
+          pointerEvents: 'none',
+          zIndex: 9999,
+        }}
+      />
+      <audio
+        ref={keepAliveAudioRef}
+        src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA"
+        loop
+        autoPlay
+        playsInline
+        controls={false}
+        style={{
+          position: 'fixed',
+          bottom: 2,
+          left: 2,
+          width: 1,
+          height: 1,
+          opacity: 0.001,
+          pointerEvents: 'none',
+          zIndex: -1,
+        }}
+      />
+    </>
+  );
+
   // PiP (Picture in Picture) mode when Whiteboard is open — strictly displays the REMOTE participant (student or teacher)
   if (isWhiteboardActive) {
     if (isPipMinimized) {
       return (
         <>
-          <audio
-            ref={remoteAudioRef}
-            autoPlay
-            playsInline
-            controls={false}
-            style={{
-              position: 'fixed',
-              top: -9999,
-              left: -9999,
-              width: 1,
-              height: 1,
-              opacity: 0,
-              pointerEvents: 'none',
-            }}
-          />
+          {renderAudioNodes()}
           <div
             onClick={() => setIsPipMinimized(false)}
             className="fixed bottom-3 right-3 sm:bottom-6 sm:right-6 z-40 bg-white/95 backdrop-blur-md rounded-full shadow-2xl border-2 border-coralAccent p-1.5 flex items-center gap-2 cursor-pointer hover:scale-105 active:scale-95 transition-transform"
@@ -3141,21 +3235,7 @@ export default function VideoCall({
 
     return (
       <>
-        <audio
-          ref={remoteAudioRef}
-          autoPlay
-          playsInline
-          controls={false}
-          style={{
-            position: 'fixed',
-            top: -9999,
-            left: -9999,
-            width: 1,
-            height: 1,
-            opacity: 0,
-            pointerEvents: 'none',
-          }}
-        />
+        {renderAudioNodes()}
         <div className="fixed bottom-3 right-3 sm:bottom-6 sm:right-6 z-40 w-44 xs:w-52 sm:w-80 bg-white rounded-2xl sm:rounded-3xl shadow-2xl border-2 border-coralAccent overflow-hidden text-ink-900 animate-in slide-in-from-bottom-2">
           <div className="p-1.5 sm:p-2.5 bg-[#FFF7EE] flex items-center justify-between text-xs border-b border-[#F4E3D2] font-black">
             <div className="flex items-center gap-1 sm:gap-1.5 truncate">
@@ -3251,22 +3331,7 @@ export default function VideoCall({
   if (isPlatformMinimized) {
     return (
       <>
-        <audio
-          ref={remoteAudioRef}
-          autoPlay
-          playsInline
-          controls={false}
-          style={{
-            position: 'fixed',
-            bottom: 4,
-            left: 4,
-            width: 1,
-            height: 1,
-            opacity: 0.01,
-            pointerEvents: 'none',
-            zIndex: 9999,
-          }}
-        />
+        {renderAudioNodes()}
         {/* Floating Camera in Top Right ("картинка в картинке") over Personal Cabinet */}
         <div
           onClick={(e) => {
@@ -3383,22 +3448,7 @@ export default function VideoCall({
   // Full Video Workspace (100% spacious, responsive on mobile & desktop)
   return (
     <>
-      <audio
-        ref={remoteAudioRef}
-        autoPlay
-        playsInline
-        controls={false}
-        style={{
-          position: 'fixed',
-          bottom: 4,
-          left: 4,
-          width: 1,
-          height: 1,
-          opacity: 0.01,
-          pointerEvents: 'none',
-          zIndex: 9999,
-        }}
-      />
+      {renderAudioNodes()}
       {/* VK Calls Layout */}
       <div className="relative w-full h-full min-h-[100dvh] bg-[#FFF7EE] overflow-hidden select-none">
         {/* Real-time System Breakdown Alert Banner */}
