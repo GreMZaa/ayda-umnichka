@@ -317,9 +317,21 @@ export default function VideoCall({
     ]);
   };
 
-  // Global error listener to capture any unhandled exceptions on device
+  // Global error listener to capture any unhandled exceptions on device (ignoring 3rd party browser extensions)
   useEffect(() => {
+    const isExtensionError = (src?: string, text?: string) => {
+      const s = `${src || ''} ${text || ''}`;
+      return (
+        s.includes('chrome-extension://') ||
+        s.includes('moz-extension://') ||
+        s.includes('safari-extension://') ||
+        s.includes('eppiocemhmnlbhjplcgkofciiegomcon') ||
+        s.includes('M_ID')
+      );
+    };
+
     const handleGlobalError = (event: ErrorEvent) => {
+      if (isExtensionError(event.filename, event.message)) return;
       addLog(
         'error',
         `Сбой в JS: ${event.message}`,
@@ -328,7 +340,9 @@ export default function VideoCall({
     };
     const handleRejection = (event: PromiseRejectionEvent) => {
       const reason = event.reason;
+      const stack = String(reason?.stack || '');
       const msg = reason?.message || String(reason);
+      if (isExtensionError(stack, msg)) return;
       addLog('error', `Необработанная ошибка (Promise): ${msg}`, reason?.stack);
     };
     window.addEventListener('error', handleGlobalError);
