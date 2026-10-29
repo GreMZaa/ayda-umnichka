@@ -1061,10 +1061,17 @@ export default function VideoCall({
     }
     setConnectionStatus('connecting');
 
+    const myLocalName =
+      (typeof window !== 'undefined' &&
+        (localStorage.getItem('aida_full_name') ||
+          localStorage.getItem('aida_user_name'))) ||
+      (isTeacher ? 'Преподаватель' : 'Ученик');
+    const myCleanName = myLocalName.replace(/\s*\(.*?\)$/, '').trim();
+
     const session = await initLiveKitCall({
       roomToken,
       identity: myPeerIdRef.current,
-      name: resolvedParticipantName,
+      name: myCleanName,
       isTeacher: Boolean(isTeacher),
       accountOverride: targetAccount,
       localVideoEl: localVideoRef.current,
@@ -1435,11 +1442,18 @@ export default function VideoCall({
 
     let isMounted = true;
 
+    const myLocalName =
+      (typeof window !== 'undefined' &&
+        (localStorage.getItem('aida_full_name') ||
+          localStorage.getItem('aida_user_name'))) ||
+      (isTeacher ? 'Преподаватель' : 'Ученик');
+    const myCleanName = myLocalName.replace(/\s*\(.*?\)$/, '').trim();
+
     // 1. Attempt connection via LiveKit Cloud SFU (Dual Account pool)
     initLiveKitCall({
       roomToken,
       identity: myPeerIdRef.current,
-      name: resolvedParticipantName,
+      name: myCleanName,
       isTeacher: Boolean(isTeacher),
       localVideoEl: localVideoRef.current,
       remoteVideoEl: remoteVideoRef.current,

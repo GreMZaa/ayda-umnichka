@@ -118,8 +118,8 @@ export async function initLiveKitCall(options: ConnectLiveKitOptions): Promise<L
       onPeerLeft?.();
     });
 
-    room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
-      onLog?.('success', `Получен удаленный медиа-поток (${track.kind}) от ${participant.name || participant.identity}`);
+    const handleSubscribedTrack = (track: any, participant?: any) => {
+      onLog?.('success', `Получен удаленный медиа-поток (${track.kind}) от ${participant?.name || participant?.identity || 'собеседника'}`);
 
       if (track.kind === Track.Kind.Video) {
         if (options.remoteVideoEl) {
@@ -145,6 +145,14 @@ export async function initLiveKitCall(options: ConnectLiveKitOptions): Promise<L
           onRemoteTrackReceived?.('audio', new MediaStream([track.mediaStreamTrack]));
         }
       }
+    };
+
+    room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+      handleSubscribedTrack(track, participant);
+    });
+
+    room.on(RoomEvent.TrackSubscriptionFailed, (trackSid, participant) => {
+      onLog?.('warn', `Сбой подписки на трек ${trackSid} от ${participant.name || participant.identity}`);
     });
 
     room.on(RoomEvent.DataReceived, (payload: Uint8Array) => {
@@ -155,36 +163,18 @@ export async function initLiveKitCall(options: ConnectLiveKitOptions): Promise<L
       } catch (_) {}
     });
 
-    // Check if peer is already in room upon our join
+    await room.connect(cleanUrl, tokenRes.token.trim());
+
+    // Check participants already in room AFTER connection is established
     for (const [, participant] of room.remoteParticipants) {
+      onLog?.('success', `Собеседник уже подключен к LiveKit: ${participant.name || participant.identity}`);
       onPeerJoined?.(participant.name || participant.identity);
       for (const [, pub] of participant.trackPublications) {
         if (pub.track) {
-          if (pub.track.kind === Track.Kind.Video && options.remoteVideoEl) {
-            pub.track.attach(options.remoteVideoEl);
-            if (pub.track.mediaStreamTrack) {
-              onRemoteTrackReceived?.('video', new MediaStream([pub.track.mediaStreamTrack]));
-            }
-          } else if (pub.track.kind === Track.Kind.Audio) {
-            try {
-              pub.track.attach();
-            } catch (_) {}
-            if (options.remoteAudioEl) {
-              try {
-                pub.track.attach(options.remoteAudioEl);
-                options.remoteAudioEl.muted = false;
-                options.remoteAudioEl.play().catch(() => {});
-              } catch (_) {}
-            }
-            if (pub.track.mediaStreamTrack) {
-              onRemoteTrackReceived?.('audio', new MediaStream([pub.track.mediaStreamTrack]));
-            }
-          }
+          handleSubscribedTrack(pub.track, participant);
         }
       }
     }
-
-    await room.connect(cleanUrl, tokenRes.token.trim());
 
     // User gesture audio auto-unlock
     if (typeof window !== 'undefined') {
