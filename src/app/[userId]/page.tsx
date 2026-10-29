@@ -357,39 +357,39 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
   return (
     <div className="space-y-4 sm:space-y-5">
       {/* 1. Student Profile Compact Header (Unified Teacher Style) */}
-      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-[#F2E0CF] shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="bg-gradient-to-r from-white via-[#FFFBF7] to-[#FFF4EA] rounded-3xl p-4 sm:p-5 border border-[#F0DCCD] shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5 min-w-0">
-          <div className="w-12 h-12 rounded-2xl bg-[#FFF2E6] border border-[#FCDDC7] flex items-center justify-center text-coralAccent font-black text-xl shrink-0 shadow-2xs">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#FF6B4A] to-[#FFA259] text-white flex items-center justify-center font-black text-xl shrink-0 shadow-sm shadow-orange-500/20">
             {cleanStudentDisplayName[0] || 'У'}
           </div>
-          <div className="min-w-0 space-y-1">
+          <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-lg sm:text-xl font-black text-[#161F38] tracking-tight truncate">
+              <h1 className="text-lg sm:text-xl font-black text-[#161F38] tracking-tight">
                 {cleanStudentDisplayName}
               </h1>
-              <span className="text-[10px] bg-[#EAF7CF] text-[#5C8519] border border-[#D5ECA3] font-black px-2.5 py-0.5 rounded-full shrink-0">
+              <span className="text-[10px] bg-[#EAF7CF] text-[#5C8519] border border-[#CCE8A2] font-black px-2.5 py-0.5 rounded-full shadow-2xs shrink-0">
                 Ученик центра
               </span>
-              <span className="text-[10px] bg-[#FFF2E6] text-coralAccent border border-[#FCDDC7] font-extrabold px-2.5 py-0.5 rounded-full shrink-0">
+              <span className="text-[10px] bg-[#FFF0E2] text-coralAccent border border-[#FCDDC7] font-extrabold px-2.5 py-0.5 rounded-full shadow-2xs shrink-0">
                 ★ ID: {currentId}
               </span>
             </div>
-            <p className="text-[11px] text-[#6B758E] truncate">
+            <p className="text-[11px] text-[#6B758E] mt-0.5 leading-snug">
               Детский развивающий центр «АйДаУмничка», г. Тольятти • Личный кабинет занятий
             </p>
           </div>
         </div>
 
         {/* Header Right Stat Cards */}
-        <div className="flex items-center gap-2 self-stretch md:self-auto justify-end shrink-0">
-          <div className="bg-[#FFF8F1] border border-[#F2DECE] px-3.5 py-1.5 rounded-xl text-center min-w-[76px]">
-            <span className="text-[9px] text-[#6B758E] font-extrabold uppercase tracking-wider block">Домашек</span>
-            <p className="text-sm font-black text-[#161F38]">{homeworks.length}</p>
+        <div className="grid grid-cols-2 gap-2.5 w-full sm:w-auto sm:flex sm:items-center sm:justify-end shrink-0">
+          <div className="bg-white/90 backdrop-blur-xs border border-[#ECD9C8] px-3.5 py-2 rounded-2xl text-center flex flex-col items-center justify-center min-h-[54px] shadow-2xs">
+            <span className="text-[9px] text-[#8A95A8] font-extrabold uppercase tracking-wider block">Домашек</span>
+            <p className="text-sm font-black text-[#161F38] mt-0.5">{homeworks.length}</p>
           </div>
-          <div className="bg-[#FFF8F1] border border-[#F2DECE] px-3.5 py-1.5 rounded-xl text-center min-w-[76px]">
-            <span className="text-[9px] text-[#6B758E] font-extrabold uppercase tracking-wider block">Статус</span>
-            <span className="text-xs font-black text-[#5C8519] flex items-center justify-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#5C8519] animate-pulse" />
+          <div className="bg-white/90 backdrop-blur-xs border border-[#ECD9C8] px-3.5 py-2 rounded-2xl text-center flex flex-col items-center justify-center min-h-[54px] shadow-2xs">
+            <span className="text-[9px] text-[#8A95A8] font-extrabold uppercase tracking-wider block">Статус</span>
+            <span className="text-xs font-black text-[#5C8519] flex items-center justify-center gap-1.5 mt-0.5">
+              <span className="w-2 h-2 rounded-full bg-[#5C8519] animate-pulse" />
               В сети
             </span>
           </div>
