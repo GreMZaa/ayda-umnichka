@@ -600,7 +600,15 @@ export default function LessonsScheduleHistory({
                     className="w-full bg-[#FFFDFB] border border-[#EADBCC] rounded-xl px-3.5 py-2.5 text-xs font-bold text-[#161F38] focus:outline-none focus:border-coralAccent focus:ring-2 focus:ring-coralAccent/20 transition-all"
                   />
                   <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                    {['Логопедия', 'Развитие речи', 'Подготовка к школе', 'Диагностика'].map((chip) => (
+                    {[
+                      'Английский язык',
+                      'Математика',
+                      'Русский язык',
+                      'Биология',
+                      'Логопедия',
+                      'Подготовка к школе',
+                      'Диагностика',
+                    ].map((chip) => (
                       <button
                         key={chip}
                         type="button"

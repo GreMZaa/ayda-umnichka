@@ -1754,13 +1754,21 @@ export default function TeacherDashboard() {
                   type="text"
                   value={customStudentNote}
                   onChange={(e) => setCustomStudentNote(e.target.value)}
-                  placeholder="Например: Логопедия, запуск речи..."
+                  placeholder="Например: Английский язык, Математика, Логопедия..."
                   className="w-full bg-[#FAFBFD] hover:bg-white border border-[#E3E8EE] focus:border-[#5C8519] rounded-xl px-3 py-2 text-xs text-[#161F38] font-medium focus:outline-none transition-colors"
                 />
 
                 {/* Quick chip suggestions */}
                 <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-                  {['Логопедия', 'Запуск речи', 'Подготовка к школе', 'Чтение', 'Развитие внимания'].map((chip) => (
+                  {[
+                    'Английский язык',
+                    'Математика',
+                    'Русский язык',
+                    'Биология',
+                    'Логопедия',
+                    'Подготовка к школе',
+                    'Диагностика',
+                  ].map((chip) => (
                     <button
                       key={chip}
                       type="button"
