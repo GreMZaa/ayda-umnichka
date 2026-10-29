@@ -1046,6 +1046,19 @@ export default function VideoCall({
     setHasRemoteStream(false);
     setConnectionStatus('connecting');
     setCurrentIceState('new');
+
+    if (livekitSessionRef.current?.room) {
+      try {
+        await livekitSessionRef.current.room.localParticipant.setCameraEnabled(true);
+        await livekitSessionRef.current.room.localParticipant.setMicrophoneEnabled(true);
+        setCameraError(null);
+        setMicrophoneError(null);
+        addLog('success', 'Повторный запрос камеры и микрофона в LiveKit выполнен успешно');
+      } catch (e: any) {
+        addLog('warn', 'Повторный запрос камеры:', e?.message || String(e));
+      }
+    }
+
     try {
       const stream = await ensureLocalStream();
       if (stream && channelRef.current) {
@@ -1161,7 +1174,7 @@ export default function VideoCall({
   };
 
   // Copy structured diagnostic report for technical support / developer
-  const copyDiagnosticReport = () => {
+  const copyDiagnosticReport = async () => {
     const report = [
       `=== ОТЧЕТ ДИАГНОСТИКИ СВЯЗИ АЙДАУМНИЧКА ===`,
       `Время отчета: ${new Date().toISOString()}`,
@@ -1198,10 +1211,31 @@ export default function VideoCall({
     ].join('\n');
 
     try {
-      if (typeof navigator !== 'undefined' && navigator.clipboard) {
-        navigator.clipboard.writeText(report);
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(report);
         setCopiedLogSuccess(true);
         setTimeout(() => setCopiedLogSuccess(false), 3000);
+        return;
+      }
+    } catch (_) {}
+
+    // Fallback for mobile Android Webview / strict clipboard policy
+    try {
+      if (typeof document !== 'undefined') {
+        const textArea = document.createElement('textarea');
+        textArea.value = report;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-9999px';
+        textArea.style.top = '-9999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        const success = document.execCommand('copy');
+        document.body.removeChild(textArea);
+        if (success) {
+          setCopiedLogSuccess(true);
+          setTimeout(() => setCopiedLogSuccess(false), 3000);
+        }
       }
     } catch (_) {}
   };
@@ -2878,11 +2912,12 @@ export default function VideoCall({
 
     if (cameraError) {
       issueType = 'error';
-      issueSummary = 'Камера заблокирована или недоступна';
+      issueSummary = 'Камера или микрофон заблокированы в браузере (Permission denied)';
       fixStep1 = isIPhone
-        ? 'На iPhone в Safari: нажмите значок «aA» слева в строке адреса сайта -> «Настройки веб-сайта» -> «Камера» поставьте в «Разрешить», затем обновите страницу.'
-        : 'В браузере на ПК: нажмите значок настроек/замка слева от адреса сайта и переключите камеру в положение «Разрешить».';
-      fixStep2 = 'Убедитесь, что камера не используется другим приложением (Telegram, Zoom, Skype).';
+        ? 'На iPhone (Safari): нажмите значок «aA» слева в строке адреса сайта -> «Настройки веб-сайта» -> установите «Камера: Разрешить» и «Микрофон: Разрешить» -> обновите страницу.'
+        : 'На телефоне (Android): нажмите значок настроек/замка слева в строке адреса сайта -> «Разрешения» -> включите тумблеры «Камера» и «Микрофон» -> обновите страницу.';
+      fixStep2 =
+        'Если вы открыли ссылку внутри Telegram или VK: нажмите три точки (⋮) вверху справа и выберите «Открыть в Chrome» (или Safari).';
     } else if (currentIceState === 'failed' || currentIceState === 'disconnected') {
       issueType = 'error';
       issueSummary = 'Сбой прямого соединения WebRTC (P2P)';
@@ -3074,6 +3109,36 @@ export default function VideoCall({
                 {fixStep2 && <p>2. {fixStep2}</p>}
               </div>
             </div>
+
+            {Boolean(cameraError || microphoneError) && (
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    addLog('info', 'Запрос разрешения камеры и микрофона по нажатию кнопки...');
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                    if (stream) {
+                      setCameraError(null);
+                      setMicrophoneError(null);
+                      streamRef.current = stream;
+                      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+                      if (pipVideoRef.current) pipVideoRef.current.srcObject = stream;
+                      if (livekitSessionRef.current?.room) {
+                        await livekitSessionRef.current.room.localParticipant.setCameraEnabled(true);
+                        await livekitSessionRef.current.room.localParticipant.setMicrophoneEnabled(true);
+                      }
+                      addLog('success', 'Доступ к камере и микрофону успешно разрешен!');
+                    }
+                  } catch (err: any) {
+                    addLog('error', 'Браузер отклонил доступ к медиаустройствам:', err?.message || String(err));
+                  }
+                }}
+                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all cursor-pointer"
+              >
+                <Video className="w-4 h-4" />
+                <span>Запросить разрешение на камеру и микрофон</span>
+              </button>
+            )}
 
             {/* Quick Action Buttons */}
             <div className="flex flex-wrap items-center gap-2 pt-1">
