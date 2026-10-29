@@ -31,7 +31,8 @@ import {
   Bell,
   UserPlus,
   Inbox,
-  Phone
+  Phone,
+  User
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { broadcastPlatformEvent } from '@/lib/platformNotifications';
@@ -154,6 +155,9 @@ export default function TeacherDashboard() {
   const [customStudentName, setCustomStudentName] = useState('');
   const [customStudentNote, setCustomStudentNote] = useState('');
   const [isBindingStudent, setIsBindingStudent] = useState(false);
+  const [isStudentDropdownOpen, setIsStudentDropdownOpen] = useState(false);
+  const [studentSearchQuery, setStudentSearchQuery] = useState('');
+  const studentDropdownRef = useRef<HTMLDivElement>(null);
   const [studentsPage, setStudentsPage] = useState(1);
   const STUDENTS_PER_PAGE = 3;
 
@@ -695,11 +699,15 @@ export default function TeacherDashboard() {
       if (hwPickerRef.current && !hwPickerRef.current.contains(target)) {
         setHwDropdownOpen(false);
       }
+      if (studentDropdownRef.current && !studentDropdownRef.current.contains(target)) {
+        setIsStudentDropdownOpen(false);
+      }
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setHwDropdownOpen(false);
+        setIsStudentDropdownOpen(false);
       }
     };
 
@@ -1667,65 +1675,163 @@ export default function TeacherDashboard() {
             {/* Form */}
             <form onSubmit={handleAddStudent} className="space-y-3.5">
               {addStudentTab === 'registered' ? (
-                <div className="space-y-2.5">
-                  <div>
-                    <label className="block text-[11px] font-bold text-[#6B758E] mb-1.5">
-                      Выберите ученика из списка:
-                    </label>
+                <div className="space-y-2">
+                  <label className="block text-[11px] font-bold text-[#6B758E]">
+                    Ученик из базы центра:
+                  </label>
 
-                    {availableStudentsToAdd.length === 0 ? (
-                      <div className="p-3.5 rounded-2xl border border-dashed border-[#F0DCCD] bg-[#FFF8F1] text-center space-y-1">
-                        <p className="text-xs font-bold text-[#161F38]">Все зарегистрированные ученики уже закреплены</p>
-                        <p className="text-[11px] text-[#6B758E]">
-                          Используйте вкладку «Ввести вручную» для нового ученика.
-                        </p>
-                      </div>
-                    ) : (
-                      <select
-                        value={selectedStudentToAdd}
-                        onChange={(e) => setSelectedStudentToAdd(e.target.value)}
-                        className="w-full bg-[#FAFBFD] hover:bg-white border border-[#E3E8EE] focus:border-[#5C8519] rounded-xl px-3 py-2 text-xs text-[#161F38] font-bold focus:outline-none transition-colors cursor-pointer"
-                      >
-                        <option value="">-- Выберите ученика из базы --</option>
-                        {availableStudentsToAdd.map((st) => (
-                          <option key={st.publicId} value={st.publicId}>
-                            {st.fullName} ({st.publicId}){st.phone ? ` • ${st.phone}` : ''}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                  </div>
-
-                  {/* Selected Preview Card */}
-                  {selectedStudentObj && (
-                    <div className="p-3 bg-[#F9FCF2] border border-[#CCE8A2] rounded-2xl flex items-center justify-between gap-3 animate-in fade-in">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#5C8519] to-[#88B834] text-white flex items-center justify-center font-black text-xs shrink-0 shadow-2xs">
-                          {selectedStudentObj.fullName[0] || 'У'}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-xs font-black text-[#161F38] truncate">
-                            {selectedStudentObj.fullName}
-                          </div>
-                          <div className="text-[10px] text-[#5C8519] font-bold flex items-center gap-1.5">
-                            <span>ID: {selectedStudentObj.publicId}</span>
-                            {selectedStudentObj.phone && (
-                              <>
-                                <span className="text-[#8A95A8]">•</span>
-                                <span className="text-[#6B758E]">{selectedStudentObj.phone}</span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      </div>
+                  {availableStudentsToAdd.length === 0 ? (
+                    <div className="p-3.5 rounded-2xl border border-dashed border-[#F0DCCD] bg-[#FFF8F1] text-center space-y-1">
+                      <p className="text-xs font-bold text-[#161F38]">Все зарегистрированные ученики уже закреплены</p>
+                      <p className="text-[11px] text-[#6B758E]">
+                        Используйте вкладку «Ввести вручную» для нового ученика.
+                      </p>
+                    </div>
+                  ) : (
+                    <div ref={studentDropdownRef} className="relative">
+                      {/* Trigger button */}
                       <button
                         type="button"
-                        onClick={() => setSelectedStudentToAdd('')}
-                        className="text-[#8A95A8] hover:text-[#161F38] text-xs p-1 rounded-lg hover:bg-black/5 cursor-pointer"
-                        title="Очистить"
+                        onClick={() => setIsStudentDropdownOpen(!isStudentDropdownOpen)}
+                        className={`w-full border rounded-2xl p-2.5 sm:p-3 text-left transition-all flex items-center justify-between gap-2.5 shadow-2xs cursor-pointer ${
+                          isStudentDropdownOpen
+                            ? 'border-[#5C8519] ring-2 ring-[#5C8519]/20 bg-white'
+                            : selectedStudentObj
+                            ? 'border-[#CCE8A2] bg-[#F9FCF2] hover:bg-[#F4F9EA]'
+                            : 'border-[#E3E8EE] bg-[#FAFBFD] hover:bg-white hover:border-[#CCE8A2]'
+                        }`}
                       >
-                        <X className="w-3.5 h-3.5" />
+                        {selectedStudentObj ? (
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#5C8519] to-[#88B834] text-white flex items-center justify-center font-black text-xs shrink-0 shadow-2xs">
+                              {selectedStudentObj.fullName[0] || 'У'}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-xs font-black text-[#161F38] truncate leading-tight">
+                                {selectedStudentObj.fullName}
+                              </div>
+                              <div className="text-[10px] text-[#5C8519] font-bold flex items-center gap-1.5 mt-0.5">
+                                <span>ID: {selectedStudentObj.publicId}</span>
+                                {selectedStudentObj.phone && (
+                                  <>
+                                    <span className="text-[#8A95A8]">•</span>
+                                    <span className="text-[#6B758E]">{selectedStudentObj.phone}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 text-[#8A95A8]">
+                            <User className="w-4 h-4 text-[#8A95A8]" />
+                            <span className="text-xs font-semibold text-[#8A95A8]">Выберите ученика...</span>
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          {selectedStudentObj && (
+                            <span
+                              role="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedStudentToAdd('');
+                              }}
+                              className="p-1 text-[#8A95A8] hover:text-[#161F38] hover:bg-black/5 rounded-lg transition-colors cursor-pointer mr-0.5"
+                              title="Очистить выбор"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </span>
+                          )}
+                          <ChevronDown
+                            className={`w-4 h-4 text-[#6B758E] transition-transform duration-200 ${
+                              isStudentDropdownOpen ? 'rotate-180 text-[#5C8519]' : ''
+                            }`}
+                          />
+                        </div>
                       </button>
+
+                      {/* Dropdown Menu Popover */}
+                      {isStudentDropdownOpen && (
+                        <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-[#E5EED8] rounded-2xl shadow-xl z-30 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                          {/* Search box */}
+                          {availableStudentsToAdd.length > 3 && (
+                            <div className="p-2 border-b border-[#F0F5E9] bg-[#FAFBFD]">
+                              <div className="relative">
+                                <Search className="w-3.5 h-3.5 text-[#8A95A8] absolute left-2.5 top-1/2 -translate-y-1/2" />
+                                <input
+                                  type="text"
+                                  value={studentSearchQuery}
+                                  onChange={(e) => setStudentSearchQuery(e.target.value)}
+                                  placeholder="Поиск по имени или ID..."
+                                  className="w-full bg-white border border-[#E3E8EE] focus:border-[#5C8519] rounded-xl pl-8 pr-3 py-1.5 text-xs text-[#161F38] font-medium outline-none"
+                                  autoFocus
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Students List */}
+                          <div className="max-h-56 overflow-y-auto p-1.5 space-y-1">
+                            {availableStudentsToAdd
+                              .filter((st) => {
+                                if (!studentSearchQuery.trim()) return true;
+                                const q = studentSearchQuery.toLowerCase();
+                                return (
+                                  st.fullName.toLowerCase().includes(q) ||
+                                  st.publicId.toLowerCase().includes(q) ||
+                                  (st.phone && st.phone.includes(q))
+                                );
+                              })
+                              .map((st) => {
+                                const isSelected = selectedStudentToAdd === st.publicId;
+                                return (
+                                  <button
+                                    key={st.publicId}
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedStudentToAdd(st.publicId);
+                                      setIsStudentDropdownOpen(false);
+                                      setStudentSearchQuery('');
+                                    }}
+                                    className={`w-full p-2 rounded-xl text-left transition-all flex items-center justify-between gap-2.5 cursor-pointer ${
+                                      isSelected
+                                        ? 'bg-[#EAF7CF] text-[#5C8519] font-black'
+                                        : 'hover:bg-[#F5F8F1] text-[#161F38] font-semibold'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                      <div
+                                        className={`w-7 h-7 rounded-lg flex items-center justify-center font-black text-xs shrink-0 shadow-2xs ${
+                                          isSelected
+                                            ? 'bg-[#5C8519] text-white'
+                                            : 'bg-gradient-to-tr from-[#FF6B4A]/10 to-[#FFA259]/20 text-[#FF6B4A]'
+                                        }`}
+                                      >
+                                        {st.fullName[0] || 'У'}
+                                      </div>
+                                      <div className="min-w-0">
+                                        <p className="text-xs truncate leading-tight font-extrabold">{st.fullName}</p>
+                                        <p className="text-[10px] text-[#8A95A8] font-medium flex items-center gap-1.5 mt-0.5">
+                                          <span>ID: {st.publicId}</span>
+                                          {st.phone && (
+                                            <>
+                                              <span>•</span>
+                                              <span>{st.phone}</span>
+                                            </>
+                                          )}
+                                        </p>
+                                      </div>
+                                    </div>
+
+                                    {isSelected && (
+                                      <Check className="w-4 h-4 text-[#5C8519] shrink-0" />
+                                    )}
+                                  </button>
+                                );
+                              })}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
