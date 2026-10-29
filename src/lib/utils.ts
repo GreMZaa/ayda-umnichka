@@ -80,3 +80,47 @@ export function getTolyattiParts(date: Date = new Date()): {
   };
 }
 
+export function getTolyattiDateString(d: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: TIMEZONE_TOLYATTI,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(d);
+}
+
+export function formatLastSeenTolyatti(dateOrIso?: string | Date | null): string {
+  if (!dateOrIso) return 'Не в сети';
+  const d = typeof dateOrIso === 'string' ? new Date(dateOrIso) : dateOrIso;
+  if (isNaN(d.getTime())) return 'Не в сети';
+
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  if (diffMs < 0 || diffMs < 90_000) {
+    return 'В сети';
+  }
+  const mins = Math.floor(diffMs / 60_000);
+  if (mins < 60) {
+    return `Был(а) ${mins} мин. назад`;
+  }
+
+  const timeStr = formatTimeTolyatti(d);
+  const targetDateStr = getTolyattiDateString(d);
+  const todayDateStr = getTolyattiDateString(now);
+
+  if (targetDateStr === todayDateStr) {
+    return `Был(а) сегодня в ${timeStr}`;
+  }
+
+  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const yesterdayDateStr = getTolyattiDateString(yesterday);
+  if (targetDateStr === yesterdayDateStr) {
+    return `Был(а) вчера в ${timeStr}`;
+  }
+
+  const dayMonth = formatDateTolyatti(d, {
+    day: 'numeric',
+    month: 'short',
+  });
+  return `Был(а) ${dayMonth} в ${timeStr}`;
+}

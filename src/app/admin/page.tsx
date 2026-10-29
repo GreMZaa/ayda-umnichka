@@ -43,7 +43,7 @@ import {
   Server,
   Radio
 } from 'lucide-react';
-import { formatDate } from '@/lib/utils';
+import { formatDate, getTolyattiParts } from '@/lib/utils';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { broadcastPlatformEvent } from '@/lib/platformNotifications';
 import DateTimePicker from '@/components/DateTimePicker';
@@ -197,12 +197,12 @@ export default function AdminDashboard() {
   const [scheduleStudentId, setScheduleStudentId] = useState('');
   const [scheduleTopic, setScheduleTopic] = useState('');
   const [scheduleDateTime, setScheduleDateTime] = useState(() => {
-    const now = new Date();
-    now.setHours(now.getHours() + 1, 0, 0, 0);
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, '0');
-    const d = String(now.getDate()).padStart(2, '0');
-    const h = String(now.getHours()).padStart(2, '0');
+    const parts = getTolyattiParts();
+    const nextHour = (parts.hours + 1) % 24;
+    const y = parts.year;
+    const m = String(parts.month).padStart(2, '0');
+    const d = String(parts.day).padStart(2, '0');
+    const h = String(nextHour).padStart(2, '0');
     return `${y}-${m}-${d}T${h}:00`;
   });
   const [isScheduling, setIsScheduling] = useState(false);

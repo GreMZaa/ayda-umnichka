@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { broadcastPlatformEvent } from '@/lib/platformNotifications';
 import DateTimePicker from '@/components/DateTimePicker';
+import { getTolyattiParts } from '@/lib/utils';
 
 export interface LessonRecord {
   id: string;
@@ -235,12 +236,12 @@ export default function LessonsScheduleHistory({
   const [formStudent, setFormStudent] = useState('');
   const [formTopic, setFormTopic] = useState('');
   const [formDateTime, setFormDateTime] = useState(() => {
-    const now = new Date();
-    now.setHours(now.getHours() + 1, 0, 0, 0);
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, '0');
-    const d = String(now.getDate()).padStart(2, '0');
-    const h = String(now.getHours()).padStart(2, '0');
+    const parts = getTolyattiParts();
+    const nextHour = (parts.hours + 1) % 24;
+    const y = parts.year;
+    const m = String(parts.month).padStart(2, '0');
+    const d = String(parts.day).padStart(2, '0');
+    const h = String(nextHour).padStart(2, '0');
     return `${y}-${m}-${d}T${h}:00`;
   });
   const [isSubmitting, setIsSubmitting] = useState(false);

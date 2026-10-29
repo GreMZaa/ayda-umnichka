@@ -2,6 +2,7 @@ import { UserRepository } from '../repositories/user.repository';
 import { TeacherStudentRepository } from '../repositories/teacherStudent.repository';
 import { supabaseClient } from '../config/database';
 import { AppError } from '../middleware/apiErrors';
+import { formatLastSeenTolyatti } from '@/lib/utils';
 
 export interface TeacherRecord {
   id: string;
@@ -28,17 +29,8 @@ function getPresenceInfo(metadata?: any) {
   if (isOnline) {
     statusText = 'В сети • Готов к занятиям';
   } else if (lastSeenAt) {
-    const diffMs = Date.now() - new Date(lastSeenAt).getTime();
-    const mins = Math.floor(diffMs / 60_000);
-    if (mins < 60) {
-      statusText = `Был(а) ${mins} мин. назад`;
-    } else if (mins < 24 * 60) {
-      const d = new Date(lastSeenAt);
-      const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-      statusText = `Был(а) сегодня в ${timeStr}`;
-    } else {
-      statusText = 'Не в сети';
-    }
+    const formatted = formatLastSeenTolyatti(lastSeenAt);
+    statusText = formatted === 'В сети' ? 'В сети • Готов к занятиям' : formatted;
   }
 
   return {

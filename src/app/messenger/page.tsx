@@ -40,6 +40,7 @@ import {
   MessageCircle,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { formatTimeTolyatti, formatDateTolyatti, getTolyattiDateString } from '@/lib/utils';
 
 interface Contact {
   id: string;
@@ -649,12 +650,11 @@ export default function MessengerPage() {
     });
   };
 
-  // Format Helpers
+  // Format Helpers (Strictly Tolyatti Europe/Samara Timezone)
   const formatMsgTime = (isoString?: string) => {
     if (!isoString) return '';
     try {
-      const d = new Date(isoString);
-      return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+      return formatTimeTolyatti(isoString);
     } catch {
       return '';
     }
@@ -665,12 +665,20 @@ export default function MessengerPage() {
     try {
       const d = new Date(isoString);
       const now = new Date();
-      const diffHours = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60));
-      if (diffHours < 24 && d.getDate() === now.getDate()) {
-        return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+      const targetDateStr = getTolyattiDateString(d);
+      const todayDateStr = getTolyattiDateString(now);
+
+      if (targetDateStr === todayDateStr) {
+        return formatTimeTolyatti(d);
       }
-      if (diffHours < 48) return 'вчера';
-      return `${d.getDate()} ${['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'][d.getMonth()]}`;
+
+      const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const yesterdayDateStr = getTolyattiDateString(yesterday);
+      if (targetDateStr === yesterdayDateStr) {
+        return 'вчера';
+      }
+
+      return formatDateTolyatti(d, { day: 'numeric', month: 'short' });
     } catch {
       return '';
     }

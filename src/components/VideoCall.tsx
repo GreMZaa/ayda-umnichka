@@ -43,7 +43,7 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import { broadcastPlatformEvent } from '@/lib/platformNotifications';
-import { formatTime } from '@/lib/utils';
+import { formatTime, formatTimeTolyatti } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { initLiveKitCall, LiveKitSession } from '@/lib/livekitClient';
 
@@ -2351,7 +2351,7 @@ export default function VideoCall({
     if (!trimmed && !attachedFile) return;
 
     const now = new Date();
-    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const timeStr = formatTimeTolyatti(now);
     const msg: ChatMessage = {
       id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
       senderId: myPeerIdRef.current,

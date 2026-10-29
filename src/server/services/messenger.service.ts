@@ -1,5 +1,6 @@
 import { supabaseServer } from '../config/database';
 import { AppError } from '../middleware/apiErrors';
+import { formatLastSeenTolyatti } from '@/lib/utils';
 
 function isUuid(id?: string | null): boolean {
   if (!id) return false;
@@ -22,13 +23,9 @@ function formatContactSubtitle(role: string, metadata?: any, defaultSub = ''): s
     return 'В сети';
   }
   if (metadata?.last_seen_at) {
-    const diffMs = Date.now() - new Date(metadata.last_seen_at).getTime();
-    const mins = Math.floor(diffMs / 60_000);
-    if (mins < 60) return `Был(а) ${mins} мин. назад`;
-    if (mins < 24 * 60) {
-      const d = new Date(metadata.last_seen_at);
-      const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-      return `Был(а) сегодня в ${timeStr}`;
+    const formatted = formatLastSeenTolyatti(metadata.last_seen_at);
+    if (formatted && formatted !== 'Не в сети') {
+      return formatted;
     }
     return 'Не в сети';
   }
