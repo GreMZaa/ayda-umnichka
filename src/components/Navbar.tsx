@@ -279,7 +279,7 @@ export default function Navbar() {
     : `/messenger`;
 
   return (
-    <header className="sticky top-0 z-50 bg-[#FFF7EE] border-b border-[#F4E4D3] shadow-2xs">
+    <header className="sticky top-0 z-50 bg-[#FFF7EE] border-b border-[#F4E4D3] shadow-2xs shrink-0">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 sm:h-20">
           {/* Brand Logo with Official Center Logo (Triple-click secret gateway to /admin) */}

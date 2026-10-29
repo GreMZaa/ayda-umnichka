@@ -213,6 +213,23 @@ export default function MessengerPage() {
     }
   };
 
+  // Lock window/page scroll on messenger so ONLY the chats and messages scroll
+  useEffect(() => {
+    const origHtmlOverflow = document.documentElement.style.overflow;
+    const origBodyOverflow = document.body.style.overflow;
+    const origBodyHeight = document.body.style.height;
+
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+    document.body.style.height = '100dvh';
+
+    return () => {
+      document.documentElement.style.overflow = origHtmlOverflow;
+      document.body.style.overflow = origBodyOverflow;
+      document.body.style.height = origBodyHeight;
+    };
+  }, []);
+
   useEffect(() => {
     let urlId = '';
     let urlRole = '';
@@ -702,7 +719,7 @@ export default function MessengerPage() {
       : '/';
 
   return (
-    <div className="flex-1 w-full h-[calc(100dvh-5rem)] min-h-[560px] bg-[#FFF7EE] flex flex-col overflow-hidden select-none">
+    <div className="flex-1 w-full h-[calc(100dvh-4rem)] sm:h-[calc(100dvh-5rem)] max-h-[calc(100dvh-4rem)] sm:max-h-[calc(100dvh-5rem)] bg-[#FFF7EE] flex flex-col overflow-hidden select-none p-0 sm:p-2 lg:p-3 min-h-0">
       {/* Hidden audio element for voice message playback */}
       <audio
         ref={audioPlayerRef}
@@ -711,11 +728,11 @@ export default function MessengerPage() {
       />
 
       {/* Telegram-style 2-Column Messenger Layout with warm Ayda-Umnichka brand colors */}
-      <div className="flex-1 w-full max-w-7xl mx-auto my-0 sm:my-3 lg:my-4 bg-white sm:rounded-[32px] sm:border border-[#F2DECE] shadow-lg flex overflow-hidden">
+      <div className="flex-1 w-full max-w-7xl mx-auto bg-white sm:rounded-[24px] lg:rounded-[32px] sm:border border-[#F2DECE] shadow-lg flex overflow-hidden min-h-0">
         
         {/* ================= LEFT SIDEBAR (Chats List) ================= */}
         <aside
-          className={`w-full sm:w-80 md:w-96 lg:w-[400px] border-r border-[#F2DECE] bg-[#FFFBF7] flex flex-col shrink-0 ${
+          className={`w-full sm:w-80 md:w-96 lg:w-[400px] border-r border-[#F2DECE] bg-[#FFFBF7] flex flex-col shrink-0 min-h-0 h-full overflow-hidden ${
             activeConvId ? 'hidden sm:flex' : 'flex'
           }`}
         >
@@ -781,7 +798,7 @@ export default function MessengerPage() {
           </div>
 
           {/* 3. Conversations List (Clean, Supabase backed, filter buttons removed as requested) */}
-          <div className="flex-1 overflow-y-auto divide-y divide-[#F7EBE0] p-1.5 space-y-1">
+          <div className="flex-1 overflow-y-auto min-h-0 divide-y divide-[#F7EBE0] p-1.5 space-y-1">
             {isLoading ? (
               <div className="flex flex-col items-center justify-center p-8 text-center text-xs text-[#8E99AF]">
                 <Loader2 className="w-6 h-6 animate-spin text-[#FF6B4A] mb-2" />
@@ -905,7 +922,7 @@ export default function MessengerPage() {
 
         {/* ================= RIGHT MAIN CHAT AREA ================= */}
         <main
-          className={`flex-1 flex flex-col bg-[#FFF7EE] relative overflow-hidden ${
+          className={`flex-1 flex flex-col bg-[#FFF7EE] relative overflow-hidden min-h-0 h-full ${
             !activeConvId ? 'hidden sm:flex' : 'flex'
           }`}
         >
@@ -1008,19 +1025,12 @@ export default function MessengerPage() {
 
               {/* 3. Messages Feed with Educational Doodle Wallpaper */}
               <div
-                className="flex-1 p-3 sm:p-5 overflow-y-auto space-y-3.5 touch-pan-y"
+                className="flex-1 p-3 sm:p-5 overflow-y-auto min-h-0 space-y-3.5 touch-pan-y"
                 style={{
                   backgroundImage: `radial-gradient(#F2DECE 1px, transparent 1px)`,
                   backgroundSize: '24px 24px',
                 }}
               >
-                {/* Date Divider (Matching Telegram "16 сентября", "сегодня") */}
-                <div className="flex justify-center my-3">
-                  <span className="px-3 py-1 bg-white/90 backdrop-blur-xs border border-[#F2DECE] rounded-full text-[11px] font-black text-[#6B758E] shadow-2xs">
-                    Сегодня
-                  </span>
-                </div>
-
                 {/* Messages from Supabase */}
                 {activeConversation.messages.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-16 text-center space-y-2">

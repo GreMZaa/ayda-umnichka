@@ -12,7 +12,7 @@ export default function ContentWrapper({ children }: { children: React.ReactNode
 
   if (isHome || isLogin || isRoom || isMessenger) {
     return (
-      <main className="flex-1 w-full overflow-hidden flex flex-col">
+      <main className="flex-1 w-full overflow-hidden flex flex-col min-h-0">
         {children}
       </main>
     );
