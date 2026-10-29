@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 function cleanEnv(val?: string | null): string {
   if (!val) return '';
-  return val.replace(/^["']|["']$/g, '').trim();
+  return val.replace(/^["'\uFEFF\u200B\s]+|["'\uFEFF\u200B\s]+$/g, '').trim();
 }
 
 export async function GET() {

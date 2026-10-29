@@ -1095,6 +1095,10 @@ export default function VideoCall({
       },
       onLocalTracks: (stream) => {
         streamRef.current = stream;
+        if (localVideoRef.current && localVideoRef.current.srcObject !== stream) {
+          localVideoRef.current.srcObject = stream;
+          localVideoRef.current.play().catch(() => {});
+        }
       },
       onRemoteTrackReceived: (kind, stream) => {
         isLiveKitActiveRef.current = true;
@@ -1108,6 +1112,16 @@ export default function VideoCall({
               remoteStreamRef.current?.addTrack(t);
             }
           });
+        }
+        if (remoteVideoRef.current && kind === 'video') {
+          remoteVideoRef.current.srcObject = remoteStreamRef.current;
+          remoteVideoRef.current.muted = true;
+          remoteVideoRef.current.play().catch(() => {});
+        }
+        if (remoteAudioRef.current && kind === 'audio') {
+          remoteAudioRef.current.srcObject = remoteStreamRef.current;
+          remoteAudioRef.current.muted = isDeafened;
+          remoteAudioRef.current.play().catch(() => {});
         }
       },
       onPeerJoined: (name) => {
@@ -1479,6 +1493,10 @@ export default function VideoCall({
       onLocalTracks: (stream) => {
         if (!isMounted) return;
         streamRef.current = stream;
+        if (localVideoRef.current && localVideoRef.current.srcObject !== stream) {
+          localVideoRef.current.srcObject = stream;
+          localVideoRef.current.play().catch(() => {});
+        }
       },
       onRemoteTrackReceived: (kind, stream) => {
         if (!isMounted) return;
@@ -1493,6 +1511,16 @@ export default function VideoCall({
               remoteStreamRef.current?.addTrack(t);
             }
           });
+        }
+        if (remoteVideoRef.current && kind === 'video') {
+          remoteVideoRef.current.srcObject = remoteStreamRef.current;
+          remoteVideoRef.current.muted = true;
+          remoteVideoRef.current.play().catch(() => {});
+        }
+        if (remoteAudioRef.current && kind === 'audio') {
+          remoteAudioRef.current.srcObject = remoteStreamRef.current;
+          remoteAudioRef.current.muted = isDeafened;
+          remoteAudioRef.current.play().catch(() => {});
         }
       },
       onPeerJoined: (name) => {

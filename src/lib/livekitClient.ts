@@ -51,7 +51,7 @@ export async function initLiveKitCall(options: ConnectLiveKitOptions): Promise<L
       accountOverride,
     });
 
-    const cleanUrl = (tokenRes.serverUrl || '').replace(/^["']|["']$/g, '').trim();
+    const cleanUrl = (tokenRes.serverUrl || '').replace(/^["'\uFEFF\u200B\s]+|["'\uFEFF\u200B\s]+$/g, '').trim();
     if (!tokenRes.success || !tokenRes.token || !cleanUrl) {
       onLog?.('info', 'LiveKit Cloud не настроен или выключен, используется резервный P2P WebRTC канал');
       return null;
@@ -172,6 +172,10 @@ export async function initLiveKitCall(options: ConnectLiveKitOptions): Promise<L
       for (const [, pub] of participant.trackPublications) {
         if (pub.track) {
           handleSubscribedTrack(pub.track, participant);
+        } else if (typeof pub.setSubscribed === 'function' && !pub.isSubscribed) {
+          try {
+            pub.setSubscribed(true);
+          } catch (_) {}
         }
       }
     }

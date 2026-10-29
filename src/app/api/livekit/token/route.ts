@@ -11,7 +11,7 @@ interface LiveKitAccount {
 
 function cleanEnv(val?: string | null): string {
   if (!val) return '';
-  return val.replace(/^["']|["']$/g, '').trim();
+  return val.replace(/^["'\uFEFF\u200B\s]+|["'\uFEFF\u200B\s]+$/g, '').trim();
 }
 
 function getAccounts(): { account1: LiveKitAccount; account2: LiveKitAccount } {
