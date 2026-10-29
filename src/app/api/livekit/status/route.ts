@@ -1,16 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+function cleanEnv(val?: string | null): string {
+  if (!val) return '';
+  return val.replace(/^["']|["']$/g, '').trim();
+}
+
 export async function GET() {
-  const acc1Url =
+  const acc1Url = cleanEnv(
     process.env.LIVEKIT_URL_PRIMARY ||
     process.env.LIVEKIT_URL ||
-    process.env.NEXT_PUBLIC_LIVEKIT_URL;
-  const acc1Key = process.env.LIVEKIT_API_KEY_PRIMARY || process.env.LIVEKIT_API_KEY;
-  const acc1Secret = process.env.LIVEKIT_API_SECRET_PRIMARY || process.env.LIVEKIT_API_SECRET;
+    process.env.NEXT_PUBLIC_LIVEKIT_URL
+  );
+  const acc1Key = cleanEnv(process.env.LIVEKIT_API_KEY_PRIMARY || process.env.LIVEKIT_API_KEY);
+  const acc1Secret = cleanEnv(process.env.LIVEKIT_API_SECRET_PRIMARY || process.env.LIVEKIT_API_SECRET);
 
-  const acc2Url = process.env.LIVEKIT_URL_SECONDARY;
-  const acc2Key = process.env.LIVEKIT_API_KEY_SECONDARY;
-  const acc2Secret = process.env.LIVEKIT_API_SECRET_SECONDARY;
+  const acc2Url = cleanEnv(process.env.LIVEKIT_URL_SECONDARY);
+  const acc2Key = cleanEnv(process.env.LIVEKIT_API_KEY_SECONDARY);
+  const acc2Secret = cleanEnv(process.env.LIVEKIT_API_SECRET_SECONDARY);
 
   const account1Configured = Boolean(acc1Url && acc1Key && acc1Secret);
   const account2Configured = Boolean(acc2Url && acc2Key && acc2Secret);

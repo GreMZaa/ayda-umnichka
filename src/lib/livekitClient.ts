@@ -50,14 +50,16 @@ export async function initLiveKitCall(options: ConnectLiveKitOptions): Promise<L
       accountOverride,
     });
 
-    if (!tokenRes.success || !tokenRes.token || !tokenRes.serverUrl) {
+    const cleanUrl = (tokenRes.serverUrl || '').replace(/^["']|["']$/g, '').trim();
+    if (!tokenRes.success || !tokenRes.token || !cleanUrl) {
       onLog?.('info', 'LiveKit Cloud не настроен или выключен, используется резервный P2P WebRTC канал');
       return null;
     }
 
+    const hostPreview = cleanUrl.replace(/^wss?:\/\//, '').split('.')[0] || 'livekit';
     onLog?.(
       'info',
-      `Подключение к LiveKit SFU: ${tokenRes.accountName || tokenRes.account} (${tokenRes.serverUrl.replace(/^wss?:\/\//, '').split('.')[0]}...)`
+      `Подключение к LiveKit SFU: ${tokenRes.accountName || tokenRes.account} (${hostPreview}...)`
     );
 
     // Dynamically load livekit-client in browser environment
@@ -149,7 +151,7 @@ export async function initLiveKitCall(options: ConnectLiveKitOptions): Promise<L
       }
     }
 
-    await room.connect(tokenRes.serverUrl, tokenRes.token);
+    await room.connect(cleanUrl, tokenRes.token.trim());
 
     // Publish local media
     try {
@@ -166,7 +168,7 @@ export async function initLiveKitCall(options: ConnectLiveKitOptions): Promise<L
       room,
       account: tokenRes.account || 'account1',
       accountName: tokenRes.accountName || 'Основной аккаунт',
-      serverUrl: tokenRes.serverUrl,
+      serverUrl: cleanUrl,
     };
   } catch (err: any) {
     onLog?.('error', 'Сбой инициализации LiveKit SFU', err?.message || String(err));

@@ -9,24 +9,30 @@ interface LiveKitAccount {
   apiSecret?: string;
 }
 
+function cleanEnv(val?: string | null): string {
+  if (!val) return '';
+  return val.replace(/^["']|["']$/g, '').trim();
+}
+
 function getAccounts(): { account1: LiveKitAccount; account2: LiveKitAccount } {
   const account1: LiveKitAccount = {
     id: 'account1',
     name: 'Аккаунт 1 (Основной)',
-    url:
+    url: cleanEnv(
       process.env.LIVEKIT_URL_PRIMARY ||
       process.env.LIVEKIT_URL ||
-      process.env.NEXT_PUBLIC_LIVEKIT_URL,
-    apiKey: process.env.LIVEKIT_API_KEY_PRIMARY || process.env.LIVEKIT_API_KEY,
-    apiSecret: process.env.LIVEKIT_API_SECRET_PRIMARY || process.env.LIVEKIT_API_SECRET,
+      process.env.NEXT_PUBLIC_LIVEKIT_URL
+    ),
+    apiKey: cleanEnv(process.env.LIVEKIT_API_KEY_PRIMARY || process.env.LIVEKIT_API_KEY),
+    apiSecret: cleanEnv(process.env.LIVEKIT_API_SECRET_PRIMARY || process.env.LIVEKIT_API_SECRET),
   };
 
   const account2: LiveKitAccount = {
     id: 'account2',
     name: 'Аккаунт 2 (Вторичный)',
-    url: process.env.LIVEKIT_URL_SECONDARY,
-    apiKey: process.env.LIVEKIT_API_KEY_SECONDARY,
-    apiSecret: process.env.LIVEKIT_API_SECRET_SECONDARY,
+    url: cleanEnv(process.env.LIVEKIT_URL_SECONDARY),
+    apiKey: cleanEnv(process.env.LIVEKIT_API_KEY_SECONDARY),
+    apiSecret: cleanEnv(process.env.LIVEKIT_API_SECRET_SECONDARY),
   };
 
   return { account1, account2 };

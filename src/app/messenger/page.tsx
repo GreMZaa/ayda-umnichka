@@ -685,7 +685,7 @@ export default function MessengerPage() {
     }
   };
 
-  const formatListDate = (isoString?: string) => {
+  const formatListDate = (isoString?: string | null) => {
     if (!isoString) return '';
     try {
       const d = new Date(isoString);
@@ -707,6 +707,16 @@ export default function MessengerPage() {
     } catch {
       return '';
     }
+  };
+
+  const getContactStatusText = (contact: Contact, lastMsgDate?: string) => {
+    if (contact.online) return 'в сети';
+    const targetDate = contact.lastSeenAt || lastMsgDate;
+    if (!targetDate) return 'не в сети';
+    const formatted = formatLastSeenTolyatti(targetDate);
+    if (!formatted || formatted === 'Не в сети') return 'не в сети';
+    if (formatted === 'В сети') return 'в сети';
+    return formatted;
   };
 
   const returnLkUrl =
@@ -855,9 +865,25 @@ export default function MessengerPage() {
                           )}
                         </div>
 
-                        {/* Last Message Time */}
+                        {/* Last Activity Time */}
                         <span className="text-[10px] font-bold text-[#8E99AF] shrink-0">
-                          {formatListDate(last?.created_at)}
+                          {formatListDate(last?.created_at || conv.contact.lastSeenAt)}
+                        </span>
+                      </div>
+
+                      {/* Presence Status: когда был(а) в сети - ЕДИНООБРАЗНО У ВСЕХ ЧАТОВ */}
+                      <div className="flex items-center gap-1.5 text-[11px] font-medium mb-1">
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                            conv.contact.online ? 'bg-[#5C8519]' : 'bg-[#CBD5E1]'
+                          }`}
+                        />
+                        <span
+                          className={`truncate ${
+                            conv.contact.online ? 'text-[#5C8519] font-bold' : 'text-[#8E99AF]'
+                          }`}
+                        >
+                          {getContactStatusText(conv.contact, last?.created_at)}
                         </span>
                       </div>
 
@@ -872,7 +898,7 @@ export default function MessengerPage() {
                           ) : last?.voice_duration_sec ? (
                             '🎙 Голосовое сообщение'
                           ) : (
-                            conv.contact.subtitle
+                            <span className="text-[#A0AEC0] italic">Нет сообщений</span>
                           )}
                         </p>
 
@@ -959,19 +985,10 @@ export default function MessengerPage() {
                         }`}
                       />
                       <span className={activeConversation.contact.online ? 'text-[#5C8519]' : 'text-[#8E99AF]'}>
-                        {activeConversation.contact.online
-                          ? 'в сети (online)'
-                          : (() => {
-                              const targetDate =
-                                activeConversation.contact.lastSeenAt ||
-                                activeConversation.lastMessage?.created_at;
-                              const formatted = targetDate ? formatLastSeenTolyatti(targetDate) : '';
-                              if (formatted && formatted !== 'Не в сети') return formatted;
-                              if (activeConversation.contact.subtitle?.startsWith('Был(а)')) {
-                                return activeConversation.contact.subtitle;
-                              }
-                              return 'не в сети';
-                            })()}
+                        {getContactStatusText(
+                          activeConversation.contact,
+                          activeConversation.lastMessage?.created_at
+                        )}
                       </span>
                     </div>
                   </div>

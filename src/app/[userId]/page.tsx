@@ -526,14 +526,12 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
                       </div>
                     </div>
 
-                    {/* "Перейти к ДЗ" Button opening dedicated page in new tab */}
+                    {/* "Перейти к ДЗ" Button opening dedicated page in same tab */}
                     <div className="flex items-center justify-end shrink-0">
                       <Link
                         href={`/student/homework?studentId=${encodeURIComponent(currentId)}&teacherName=${encodeURIComponent(teacher.name)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
                         className="inline-flex items-center justify-between gap-2 text-xs font-bold bg-white hover:bg-[#F8FAFC] text-[#1E293B] hover:text-black border border-[#E2E8F0] hover:border-[#CBD5E1] px-3.5 py-2 sm:py-2.5 rounded-xl transition-all active:scale-[0.98] shadow-xs hover:shadow-sm cursor-pointer w-full sm:w-[176px] shrink-0"
-                        title="Открыть домашние задания в новой вкладке"
+                        title="Перейти к домашним заданиям"
                       >
                         <div className="flex items-center gap-2 min-w-0">
                           <BookOpen className="w-3.5 h-3.5 text-[#64748B] shrink-0" />
@@ -549,7 +547,7 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
                               0
                             </span>
                           )}
-                          <ExternalLink className="w-3 h-3 text-[#94A3B8] shrink-0" />
+                          <ChevronRight className="w-3.5 h-3.5 text-[#94A3B8] shrink-0" />
                         </div>
                       </Link>
                     </div>
