@@ -93,36 +93,9 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
   const [lessons, setLessons] = useState<LessonSession[]>([]);
   const [homeworks, setHomeworks] = useState<HomeworkItem[]>([]);
 
-  // Clean topic string from any URL artifacts like ?agentation=1
-  function cleanTopicTitle(str?: string | null): string {
-    if (!str) return 'Индивидуальное занятие: Логопедия';
-    let cleaned = str;
-    try {
-      cleaned = decodeURIComponent(cleaned);
-    } catch (_) {}
-    return cleaned
-      .replace(/\?.*$/, '')
-      .replace(/&.*$/, '')
-      .trim() || 'Индивидуальное занятие: Логопедия';
-  }
 
-  // Active lesson room state (to re-enter after exit)
-  const [activeLessonRoom, setActiveLessonRoom] = useState<{ roomId: string; topic: string } | null>(null);
 
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('aida_active_lesson_room');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed?.roomId && Date.now() - (parsed.timestamp || 0) < 3 * 3600 * 1000) {
-          setActiveLessonRoom({
-            ...parsed,
-            topic: cleanTopicTitle(parsed.topic),
-          });
-        }
-      }
-    } catch (_) {}
-  }, []);
+
 
   const fetchStudentData = async (uid: string) => {
     try {
@@ -423,44 +396,7 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
         </div>
       </div>
 
-      {/* Quick Re-Entry to Active Lesson if room is open */}
-      {activeLessonRoom && (
-        <div className="p-3.5 bg-[#EAF7CF] border border-[#CCE8A2] rounded-2xl flex items-center justify-between gap-3 animate-in fade-in shadow-xs">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#5C8519] animate-pulse shrink-0" />
-            <div className="text-xs text-[#161F38] truncate">
-              <span className="font-extrabold">Урок сейчас активен:</span>{' '}
-              <span className="text-[#5C8519] font-bold">{cleanTopicTitle(activeLessonRoom.topic)}</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <Link
-              href={`/room/${activeLessonRoom.roomId}?role=student&topic=${encodeURIComponent(cleanTopicTitle(activeLessonRoom.topic))}`}
-              onClick={(e) => {
-                if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
-                  e.preventDefault();
-                  window.parent.postMessage({ type: 'MAXIMIZE_LESSON_ROOM' }, '*');
-                }
-              }}
-              className="inline-flex items-center gap-1.5 bg-[#5C8519] hover:bg-[#4E7214] text-white font-black text-xs px-4 py-2 rounded-full shadow-2xs active:scale-95 cursor-pointer"
-            >
-              <Video className="w-3.5 h-3.5" />
-              <span>Вернуться в урок</span>
-            </Link>
-            <button
-              type="button"
-              onClick={() => {
-                localStorage.removeItem('aida_active_lesson_room');
-                setActiveLessonRoom(null);
-              }}
-              className="text-[#8A95A8] hover:text-[#161F38] text-xs px-1.5"
-              title="Скрыть напоминание"
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-      )}
+
 
       {/* 2. Main Student Dashboard: Left (Balance & Card Widget) | Right (Schedule & Lessons) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 items-stretch">
