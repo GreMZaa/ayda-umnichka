@@ -40,7 +40,14 @@ import {
   MessageCircle,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { formatTimeTolyatti, formatDateTolyatti, getTolyattiDateString } from '@/lib/utils';
+import {
+  formatTimeTolyatti,
+  formatDateTolyatti,
+  getTolyattiDateString,
+  formatLastSeenTolyatti,
+  formatMsgFullTime,
+  getMsgDateSeparator,
+} from '@/lib/utils';
 
 interface Contact {
   id: string;
@@ -51,6 +58,7 @@ interface Contact {
   avatarText: string;
   online: boolean;
   roomToken?: string;
+  lastSeenAt?: string | null;
 }
 
 interface Message {
@@ -927,14 +935,20 @@ export default function MessengerPage() {
                     </h2>
                     <div className="flex items-center gap-1.5 text-[11px] font-bold">
                       <span
-                        className={`w-1.5 h-1.5 rounded-full ${
+                        className={`w-1.5 h-1.5 rounded-full shrink-0 ${
                           activeConversation.contact.online
                             ? 'bg-[#5C8519] animate-pulse'
                             : 'bg-[#8E99AF]'
                         }`}
                       />
                       <span className={activeConversation.contact.online ? 'text-[#5C8519]' : 'text-[#8E99AF]'}>
-                        {activeConversation.contact.online ? 'в сети (online)' : 'не в сети'}
+                        {activeConversation.contact.online
+                          ? 'в сети (online)'
+                          : activeConversation.contact.lastSeenAt
+                          ? formatLastSeenTolyatti(activeConversation.contact.lastSeenAt)
+                          : activeConversation.contact.subtitle?.startsWith('Был(а)')
+                          ? activeConversation.contact.subtitle
+                          : 'не в сети'}
                       </span>
                     </div>
                   </div>
@@ -1013,21 +1027,35 @@ export default function MessengerPage() {
                     </p>
                   </div>
                 ) : (
-                  activeConversation.messages.map((msg) => {
+                  activeConversation.messages.map((msg, idx) => {
                     const isMe =
                       msg.sender_id === currentUser?.id ||
                       (currentUser?.role === 'teacher' && msg.sender_id === 'c51ef5b0-3bc0-456f-bd31-7dbba439846c') ||
                       (currentUser?.role === 'student' && msg.sender_id === '6fb2d0a9-0f80-428d-8539-3272303360a0');
 
+                    const prevMsg = activeConversation.messages[idx - 1];
+                    const currentDayKey = getTolyattiDateString(new Date(msg.created_at));
+                    const prevDayKey = prevMsg ? getTolyattiDateString(new Date(prevMsg.created_at)) : null;
+                    const showDateDivider = currentDayKey !== prevDayKey;
+                    const dateDividerLabel = showDateDivider ? getMsgDateSeparator(msg.created_at) : '';
+
                     return (
-                      <div
-                        key={msg.id}
-                        className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
-                      >
-                        <div className="flex items-center gap-1 text-[10px] text-[#8E99AF] mb-0.5 px-1 font-semibold">
-                          <span>{isMe ? 'Вы' : activeConversation.contact.fullName}</span>
-                          <span>• {formatMsgTime(msg.created_at)}</span>
-                        </div>
+                      <React.Fragment key={msg.id}>
+                        {showDateDivider && (
+                          <div className="flex justify-center my-3 select-none">
+                            <span className="px-3 py-0.5 bg-[#FFF2E6] border border-[#F2DECE] text-[#8E99AF] text-[11px] font-bold rounded-full shadow-2xs">
+                              {dateDividerLabel}
+                            </span>
+                          </div>
+                        )}
+
+                        <div
+                          className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
+                        >
+                          <div className="flex items-center gap-1 text-[10px] text-[#8E99AF] mb-0.5 px-1 font-semibold">
+                            <span>{isMe ? 'Вы' : activeConversation.contact.fullName}</span>
+                            <span>• {formatMsgFullTime(msg.created_at)}</span>
+                          </div>
 
                       <div
                         className={`px-4 py-2.5 rounded-2xl max-w-[85%] sm:max-w-[70%] break-words text-sm shadow-xs transition-all ${
@@ -1142,8 +1170,9 @@ export default function MessengerPage() {
                         </div>
                       </div>
                     </div>
-                  );
-                }))}
+                  </React.Fragment>
+                );
+              }))}
 
                 <div ref={messagesEndRef} />
               </div>

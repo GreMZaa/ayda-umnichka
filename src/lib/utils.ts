@@ -124,3 +124,72 @@ export function formatLastSeenTolyatti(dateOrIso?: string | Date | null): string
   });
   return `Был(а) ${dayMonth} в ${timeStr}`;
 }
+
+export function formatMsgFullTime(isoString?: string): string {
+  if (!isoString) return '';
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return '';
+
+    const now = new Date();
+    const targetDateStr = getTolyattiDateString(d);
+    const todayDateStr = getTolyattiDateString(now);
+    const time = formatTimeTolyatti(d);
+
+    if (targetDateStr === todayDateStr) {
+      return time;
+    }
+
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const yesterdayDateStr = getTolyattiDateString(yesterday);
+    if (targetDateStr === yesterdayDateStr) {
+      return `вчера в ${time}`;
+    }
+
+    const partsTarget = getTolyattiParts(d);
+    const partsNow = getTolyattiParts(now);
+
+    if (partsTarget.year === partsNow.year) {
+      const dayMonth = formatDateTolyatti(d, { day: 'numeric', month: 'short' }).replace('.', '');
+      return `${dayMonth} в ${time}`;
+    } else {
+      const fullDate = formatDateTolyatti(d, { day: 'numeric', month: 'short', year: 'numeric' }).replace('.', '');
+      return `${fullDate} в ${time}`;
+    }
+  } catch {
+    return '';
+  }
+}
+
+export function getMsgDateSeparator(isoString?: string): string {
+  if (!isoString) return '';
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return '';
+
+    const now = new Date();
+    const targetDateStr = getTolyattiDateString(d);
+    const todayDateStr = getTolyattiDateString(now);
+
+    if (targetDateStr === todayDateStr) {
+      return 'Сегодня';
+    }
+
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const yesterdayDateStr = getTolyattiDateString(yesterday);
+    if (targetDateStr === yesterdayDateStr) {
+      return 'Вчера';
+    }
+
+    const partsTarget = getTolyattiParts(d);
+    const partsNow = getTolyattiParts(now);
+
+    if (partsTarget.year === partsNow.year) {
+      return formatDateTolyatti(d, { day: 'numeric', month: 'long' });
+    } else {
+      return formatDateTolyatti(d, { day: 'numeric', month: 'long', year: 'numeric' });
+    }
+  } catch {
+    return '';
+  }
+}

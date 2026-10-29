@@ -131,6 +131,7 @@ export class MessengerService {
           avatarText: cleanName[0] || 'У',
           online: isOnline,
           roomToken: 'room-4599',
+          lastSeenAt: studentBinding?.metadata?.last_seen_at || null,
         });
       });
 
@@ -153,6 +154,7 @@ export class MessengerService {
             avatarText: cleanName[0] || 'У',
             online: isOnline,
             roomToken: 'room-4599',
+            lastSeenAt: b.metadata?.last_seen_at || null,
           });
         }
       });
@@ -173,6 +175,7 @@ export class MessengerService {
             avatarText: cleanName[0] || 'П',
             online: isOnline,
             roomToken: 'room-4599',
+            lastSeenAt: b.metadata?.last_seen_at || null,
           });
         }
       });
@@ -188,6 +191,7 @@ export class MessengerService {
           avatarText: 'Р',
           online: isOnline,
           roomToken: 'room-4599',
+          lastSeenAt: adminBinding?.metadata?.last_seen_at || null,
         });
       }
     } else if (activeRole === 'student') {
@@ -206,6 +210,7 @@ export class MessengerService {
             avatarText: cleanName[0] || 'П',
             online: isOnline,
             roomToken: 'room-4599',
+            lastSeenAt: b.metadata?.last_seen_at || null,
           });
         }
       });
@@ -221,6 +226,7 @@ export class MessengerService {
           avatarText: 'Р',
           online: isOnline,
           roomToken: 'room-4599',
+          lastSeenAt: adminBinding?.metadata?.last_seen_at || null,
         });
       }
     } else {
@@ -244,6 +250,7 @@ export class MessengerService {
             avatarText: cleanName[0] || 'П',
             online: isOnline,
             roomToken: 'room-4599',
+            lastSeenAt: b.metadata?.last_seen_at || null,
           });
         }
       });
