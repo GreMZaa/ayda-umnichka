@@ -18,6 +18,7 @@ export interface ConnectLiveKitOptions {
   remoteAudioEl?: HTMLAudioElement | null;
   onConnected?: (account: 'account1' | 'account2', accountName: string) => void;
   onDisconnected?: (reason?: string) => void;
+  onLocalTracks?: (stream: MediaStream) => void;
   onRemoteTrackReceived?: (kind: 'video' | 'audio', stream: MediaStream) => void;
   onPeerJoined?: (name: string, role?: string) => void;
   onPeerLeft?: () => void;
@@ -63,19 +64,34 @@ export async function initLiveKitCall(options: ConnectLiveKitOptions): Promise<L
     );
 
     // Dynamically load livekit-client in browser environment
-    const { Room, RoomEvent, Track, VideoPresets } = await import('livekit-client');
+    const { Room, RoomEvent, Track, VideoPresets, AudioPresets } = await import('livekit-client');
 
     const room = new Room({
       adaptiveStream: true,
       dynacast: true,
       videoCaptureDefaults: {
-        resolution: VideoPresets.h720.resolution,
+        resolution: VideoPresets.h540.resolution, // 960x540 25-30fps ~800kbps (butter-smooth, no lag)
+      },
+      publishDefaults: {
+        simulcast: true,
+        videoCodec: 'vp8',
+        videoEncoding: VideoPresets.h540.encoding,
+        audioPreset: AudioPresets.speech,
+        dtx: true,
+        red: true,
       },
     });
 
     room.on(RoomEvent.Connected, () => {
       onLog?.('success', `Успешно подключено к SFU серверу LiveKit (${tokenRes.accountName})`);
       onConnected?.(tokenRes.account || 'account1', tokenRes.accountName || 'Основной аккаунт');
+      room.startAudio().catch(() => {});
+    });
+
+    room.on(RoomEvent.AudioPlaybackStatusChanged, () => {
+      if (!room.canPlaybackAudio) {
+        room.startAudio().catch(() => {});
+      }
     });
 
     room.on(RoomEvent.Disconnected, (reason) => {
@@ -89,6 +105,7 @@ export async function initLiveKitCall(options: ConnectLiveKitOptions): Promise<L
 
     room.on(RoomEvent.Reconnected, () => {
       onLog?.('success', 'LiveKit SFU: связь успешно восстановлена');
+      room.startAudio().catch(() => {});
     });
 
     room.on(RoomEvent.ParticipantConnected, (participant) => {
@@ -112,9 +129,17 @@ export async function initLiveKitCall(options: ConnectLiveKitOptions): Promise<L
           onRemoteTrackReceived?.('video', new MediaStream([track.mediaStreamTrack]));
         }
       } else if (track.kind === Track.Kind.Audio) {
+        // Auto-attach audio element to DOM so playback is guaranteed
+        try {
+          track.attach();
+        } catch (_) {}
+
         if (options.remoteAudioEl) {
-          track.attach(options.remoteAudioEl);
-          options.remoteAudioEl.play().catch(() => {});
+          try {
+            track.attach(options.remoteAudioEl);
+            options.remoteAudioEl.muted = false;
+            options.remoteAudioEl.play().catch(() => {});
+          } catch (_) {}
         }
         if (track.mediaStreamTrack) {
           onRemoteTrackReceived?.('audio', new MediaStream([track.mediaStreamTrack]));
@@ -140,9 +165,17 @@ export async function initLiveKitCall(options: ConnectLiveKitOptions): Promise<L
             if (pub.track.mediaStreamTrack) {
               onRemoteTrackReceived?.('video', new MediaStream([pub.track.mediaStreamTrack]));
             }
-          } else if (pub.track.kind === Track.Kind.Audio && options.remoteAudioEl) {
-            pub.track.attach(options.remoteAudioEl);
-            options.remoteAudioEl.play().catch(() => {});
+          } else if (pub.track.kind === Track.Kind.Audio) {
+            try {
+              pub.track.attach();
+            } catch (_) {}
+            if (options.remoteAudioEl) {
+              try {
+                pub.track.attach(options.remoteAudioEl);
+                options.remoteAudioEl.muted = false;
+                options.remoteAudioEl.play().catch(() => {});
+              } catch (_) {}
+            }
             if (pub.track.mediaStreamTrack) {
               onRemoteTrackReceived?.('audio', new MediaStream([pub.track.mediaStreamTrack]));
             }
@@ -153,16 +186,49 @@ export async function initLiveKitCall(options: ConnectLiveKitOptions): Promise<L
 
     await room.connect(cleanUrl, tokenRes.token.trim());
 
-    // Publish local media
+    // User gesture audio auto-unlock
+    if (typeof window !== 'undefined') {
+      const unlockAudio = () => {
+        room.startAudio().catch(() => {});
+      };
+      window.addEventListener('click', unlockAudio, { once: true });
+      window.addEventListener('touchstart', unlockAudio, { once: true });
+    }
+
+    // Publish microphone and camera independently with robust error isolation
     try {
-      await room.localParticipant.enableCameraAndMicrophone();
+      await room.localParticipant.setMicrophoneEnabled(true, {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      });
+      onLog?.('success', 'Локальный микрофон успешно активирован в LiveKit');
+    } catch (micErr: any) {
+      onLog?.('warn', 'LiveKit: сбой активации микрофона', micErr?.message);
+    }
+
+    try {
+      await room.localParticipant.setCameraEnabled(true);
       const camPub = room.localParticipant.getTrackPublication(Track.Source.Camera);
       if (camPub?.videoTrack && options.localVideoEl) {
         camPub.videoTrack.attach(options.localVideoEl);
       }
-    } catch (mediaErr: any) {
-      onLog?.('warn', 'LiveKit: сбой публикации микрофона или камеры при старте', mediaErr?.message);
+      onLog?.('success', 'Локальная камера успешно активирована в LiveKit');
+    } catch (camErr: any) {
+      onLog?.('warn', 'LiveKit: сбой активации камеры', camErr?.message);
     }
+
+    // Expose local tracks to caller for diagnostics & controls
+    try {
+      const localTracks: MediaStreamTrack[] = [];
+      const camTrack = room.localParticipant.getTrackPublication(Track.Source.Camera)?.videoTrack?.mediaStreamTrack;
+      const micTrack = room.localParticipant.getTrackPublication(Track.Source.Microphone)?.audioTrack?.mediaStreamTrack;
+      if (camTrack) localTracks.push(camTrack);
+      if (micTrack) localTracks.push(micTrack);
+      if (localTracks.length > 0) {
+        options.onLocalTracks?.(new MediaStream(localTracks));
+      }
+    } catch (_) {}
 
     return {
       room,

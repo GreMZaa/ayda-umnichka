@@ -1072,6 +1072,9 @@ export default function VideoCall({
         setActiveEngine('p2p');
         addLog('warn', `Отключено от LiveKit: ${reason || 'завершение сессии'}`);
       },
+      onLocalTracks: (stream) => {
+        streamRef.current = stream;
+      },
       onRemoteTrackReceived: (kind, stream) => {
         isLiveKitActiveRef.current = true;
         setHasRemoteStream(true);
@@ -1444,6 +1447,10 @@ export default function VideoCall({
         isLiveKitActiveRef.current = false;
         setActiveEngine('p2p');
         addLog('warn', `LiveKit SFU отключен (${reason || 'сессия завершена'}). Резервный P2P канал готов.`);
+      },
+      onLocalTracks: (stream) => {
+        if (!isMounted) return;
+        streamRef.current = stream;
       },
       onRemoteTrackReceived: (kind, stream) => {
         if (!isMounted) return;
