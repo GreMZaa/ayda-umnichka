@@ -29,7 +29,7 @@ export class PresenceService {
     const existingMetadata =
       binding.metadata && typeof binding.metadata === 'object' ? binding.metadata : {};
     const now = new Date();
-    const lastSeenAt = status === 'offline' ? null : now.toISOString();
+    const lastSeenAt = now.toISOString();
 
     const updatedMetadata = {
       ...existingMetadata,
@@ -54,7 +54,7 @@ export class PresenceService {
     }
 
     const isIdUuid = isUuid(publicId);
-    let query = supabaseServer.from('user_bindings').select('id, public_id, metadata, updated_at');
+    let query = supabaseServer.from('user_bindings').select('id, public_id, metadata, updated_at, created_at');
     if (isIdUuid) {
       query = query.or(`id.eq.${publicId},auth_user_id.eq.${publicId}`);
     } else {
@@ -66,9 +66,9 @@ export class PresenceService {
       return { isOnline: false, lastSeenAt: null };
     }
 
-    const lastSeenAt = binding.metadata?.last_seen_at;
+    const lastSeenAt = binding.metadata?.last_seen_at || binding.updated_at || binding.created_at || null;
     const isOnline = Boolean(
-      lastSeenAt && Date.now() - new Date(lastSeenAt).getTime() < 90_000
+      binding.metadata?.is_online && lastSeenAt && Date.now() - new Date(lastSeenAt).getTime() < 90_000
     );
 
     return {

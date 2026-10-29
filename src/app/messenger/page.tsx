@@ -944,11 +944,17 @@ export default function MessengerPage() {
                       <span className={activeConversation.contact.online ? 'text-[#5C8519]' : 'text-[#8E99AF]'}>
                         {activeConversation.contact.online
                           ? 'в сети (online)'
-                          : activeConversation.contact.lastSeenAt
-                          ? formatLastSeenTolyatti(activeConversation.contact.lastSeenAt)
-                          : activeConversation.contact.subtitle?.startsWith('Был(а)')
-                          ? activeConversation.contact.subtitle
-                          : 'не в сети'}
+                          : (() => {
+                              const targetDate =
+                                activeConversation.contact.lastSeenAt ||
+                                activeConversation.lastMessage?.created_at;
+                              const formatted = targetDate ? formatLastSeenTolyatti(targetDate) : '';
+                              if (formatted && formatted !== 'Не в сети') return formatted;
+                              if (activeConversation.contact.subtitle?.startsWith('Был(а)')) {
+                                return activeConversation.contact.subtitle;
+                              }
+                              return 'не в сети';
+                            })()}
                       </span>
                     </div>
                   </div>

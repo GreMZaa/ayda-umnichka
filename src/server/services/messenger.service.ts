@@ -14,7 +14,7 @@ function checkIsOnline(metadata?: any): boolean {
   return Date.now() - lastSeenMs < 90_000;
 }
 
-function formatContactSubtitle(role: string, metadata?: any, defaultSub = ''): string {
+function formatContactSubtitle(role: string, metadata?: any, fallbackDate?: string | null, defaultSub = ''): string {
   const isOnline = checkIsOnline(metadata);
   if (isOnline) {
     if (role === 'teacher') return 'Педагог центра • В сети';
@@ -22,12 +22,12 @@ function formatContactSubtitle(role: string, metadata?: any, defaultSub = ''): s
     if (role === 'admin') return 'Руководитель • В сети';
     return 'В сети';
   }
-  if (metadata?.last_seen_at) {
-    const formatted = formatLastSeenTolyatti(metadata.last_seen_at);
+  const lastSeen = metadata?.last_seen_at || fallbackDate;
+  if (lastSeen) {
+    const formatted = formatLastSeenTolyatti(lastSeen);
     if (formatted && formatted !== 'Не в сети') {
       return formatted;
     }
-    return 'Не в сети';
   }
   return defaultSub || (role === 'teacher' ? 'Педагог центра' : role === 'student' ? 'Ученик центра' : 'Не в сети');
 }
@@ -118,6 +118,7 @@ export class MessengerService {
           '6fb2d0a9-0f80-428d-8539-3272303360a0';
         const isOnline = checkIsOnline(studentBinding?.metadata);
 
+        const lastSeen = studentBinding?.metadata?.last_seen_at || studentBinding?.updated_at || studentBinding?.created_at || null;
         contactsMap.set(sPubId, {
           id: sUuid,
           publicId: sPubId,
@@ -126,12 +127,13 @@ export class MessengerService {
           subtitle: formatContactSubtitle(
             'student',
             studentBinding?.metadata,
+            lastSeen,
             st.notes ? `Ученик • ${st.notes}` : 'Ученик • Индивидуальное сопровождение'
           ),
           avatarText: cleanName[0] || 'У',
           online: isOnline,
           roomToken: 'room-4599',
-          lastSeenAt: studentBinding?.metadata?.last_seen_at || null,
+          lastSeenAt: lastSeen,
         });
       });
 
@@ -140,6 +142,7 @@ export class MessengerService {
           const cleanName = (b.full_name || 'Ученик').replace(/\s*\(.*?\)$/, '').trim();
           const sUuid = b.auth_user_id || b.id || '6fb2d0a9-0f80-428d-8539-3272303360a0';
           const isOnline = checkIsOnline(b.metadata);
+          const lastSeen = b.metadata?.last_seen_at || b.updated_at || b.created_at || null;
 
           contactsMap.set(b.public_id, {
             id: sUuid,
@@ -149,12 +152,13 @@ export class MessengerService {
             subtitle: formatContactSubtitle(
               'student',
               b.metadata,
+              lastSeen,
               'Ученик центра • Занятия по расписанию'
             ),
             avatarText: cleanName[0] || 'У',
             online: isOnline,
             roomToken: 'room-4599',
-            lastSeenAt: b.metadata?.last_seen_at || null,
+            lastSeenAt: lastSeen,
           });
         }
       });
@@ -165,33 +169,35 @@ export class MessengerService {
         if (b.role === 'teacher' && !isSelf && !contactsMap.has(b.public_id)) {
           const cleanName = (b.full_name || 'Педагог').replace(/\s*\(.*?\)$/, '').trim();
           const isOnline = checkIsOnline(b.metadata);
+          const lastSeen = b.metadata?.last_seen_at || b.updated_at || b.created_at || null;
 
           contactsMap.set(b.public_id, {
             id: bUuid,
             publicId: b.public_id,
             role: 'teacher',
             fullName: cleanName,
-            subtitle: formatContactSubtitle('teacher', b.metadata, 'Педагог центра • Коллега'),
+            subtitle: formatContactSubtitle('teacher', b.metadata, lastSeen, 'Педагог центра • Коллега'),
             avatarText: cleanName[0] || 'П',
             online: isOnline,
             roomToken: 'room-4599',
-            lastSeenAt: b.metadata?.last_seen_at || null,
+            lastSeenAt: lastSeen,
           });
         }
       });
 
       if (adminPubId !== activePublicId && adminUuid !== currentUserId && !contactsMap.has(adminPubId)) {
         const isOnline = checkIsOnline(adminBinding?.metadata);
+        const lastSeen = adminBinding?.metadata?.last_seen_at || adminBinding?.updated_at || adminBinding?.created_at || null;
         contactsMap.set(adminPubId, {
           id: adminUuid,
           publicId: adminPubId,
           role: 'admin',
           fullName: 'Руководитель центра',
-          subtitle: formatContactSubtitle('admin', adminBinding?.metadata, 'Администрация центра'),
+          subtitle: formatContactSubtitle('admin', adminBinding?.metadata, lastSeen, 'Администрация центра'),
           avatarText: 'Р',
           online: isOnline,
           roomToken: 'room-4599',
-          lastSeenAt: adminBinding?.metadata?.last_seen_at || null,
+          lastSeenAt: lastSeen,
         });
       }
     } else if (activeRole === 'student') {
@@ -200,33 +206,35 @@ export class MessengerService {
           const cleanName = (b.full_name || 'Педагог').replace(/\s*\(.*?\)$/, '').trim();
           const bUuid = b.auth_user_id || b.id;
           const isOnline = checkIsOnline(b.metadata);
+          const lastSeen = b.metadata?.last_seen_at || b.updated_at || b.created_at || null;
 
           contactsMap.set(b.public_id, {
             id: bUuid,
             publicId: b.public_id,
             role: 'teacher',
             fullName: cleanName,
-            subtitle: formatContactSubtitle('teacher', b.metadata, 'Ведущий педагог-методист'),
+            subtitle: formatContactSubtitle('teacher', b.metadata, lastSeen, 'Ведущий педагог-методист'),
             avatarText: cleanName[0] || 'П',
             online: isOnline,
             roomToken: 'room-4599',
-            lastSeenAt: b.metadata?.last_seen_at || null,
+            lastSeenAt: lastSeen,
           });
         }
       });
 
       if (adminPubId !== activePublicId && adminUuid !== currentUserId && !contactsMap.has(adminPubId)) {
         const isOnline = checkIsOnline(adminBinding?.metadata);
+        const lastSeen = adminBinding?.metadata?.last_seen_at || adminBinding?.updated_at || adminBinding?.created_at || null;
         contactsMap.set(adminPubId, {
           id: adminUuid,
           publicId: adminPubId,
           role: 'admin',
           fullName: 'Руководитель центра',
-          subtitle: formatContactSubtitle('admin', adminBinding?.metadata, 'Администрация центра'),
+          subtitle: formatContactSubtitle('admin', adminBinding?.metadata, lastSeen, 'Администрация центра'),
           avatarText: 'Р',
           online: isOnline,
           roomToken: 'room-4599',
-          lastSeenAt: adminBinding?.metadata?.last_seen_at || null,
+          lastSeenAt: lastSeen,
         });
       }
     } else {
@@ -236,6 +244,7 @@ export class MessengerService {
         if (!isSelf && !contactsMap.has(b.public_id)) {
           const cleanName = (b.full_name || 'Пользователь').replace(/\s*\(.*?\)$/, '').trim();
           const isOnline = checkIsOnline(b.metadata);
+          const lastSeen = b.metadata?.last_seen_at || b.updated_at || b.created_at || null;
 
           contactsMap.set(b.public_id, {
             id: bUuid,
@@ -245,12 +254,13 @@ export class MessengerService {
             subtitle: formatContactSubtitle(
               b.role,
               b.metadata,
+              lastSeen,
               b.role === 'teacher' ? 'Педагог центра' : 'Ученик центра'
             ),
             avatarText: cleanName[0] || 'П',
             online: isOnline,
             roomToken: 'room-4599',
-            lastSeenAt: b.metadata?.last_seen_at || null,
+            lastSeenAt: lastSeen,
           });
         }
       });
