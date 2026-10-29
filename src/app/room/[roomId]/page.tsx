@@ -441,19 +441,19 @@ export default function LessonRoomPage() {
         {isPlatformMinimized && (
           <div className="w-full h-full bg-[#FFF7EE] relative z-20 flex flex-col">
             {/* Top Bar above cabinet: return to full lesson */}
-            <div className="bg-[#161F38] text-white px-3 sm:px-4 py-2 flex items-center justify-between text-xs font-bold shadow-md z-30 shrink-0">
-              <div className="flex items-center gap-2 min-w-0">
+            <div className="bg-[#161F38] text-white px-3 sm:px-4 py-2 pt-[max(0.6rem,calc(env(safe-area-inset-top,0px)+0.4rem))] flex items-center justify-between text-xs font-bold shadow-md z-30 shrink-0">
+              <div className="flex items-center gap-2 min-w-0 pr-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-                <span className="truncate">Урок продолжается: <strong className="text-white/90">{topic}</strong></span>
+                <span className="truncate text-xs">Урок продолжается: <strong className="text-white/90">{topic}</strong></span>
               </div>
               <button
                 type="button"
                 onClick={() => setIsPlatformMinimized(false)}
-                className="bg-coralAccent hover:bg-coralAccent-hover text-white text-xs font-black px-3.5 py-1 rounded-full flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shadow-xs shrink-0 ml-2"
+                className="bg-coralAccent hover:bg-coralAccent-hover text-white text-xs font-black px-3.5 py-1.5 rounded-full flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shadow-xs shrink-0"
                 title="Вернуться к уроку на весь экран"
               >
                 <Maximize2 className="w-3.5 h-3.5" />
-                <span>Развернуть урок</span>
+                <span>Развернуть</span>
               </button>
             </div>
             <iframe

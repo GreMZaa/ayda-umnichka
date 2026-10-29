@@ -1099,6 +1099,10 @@ export default function VideoCall({
           localVideoRef.current.srcObject = stream;
           localVideoRef.current.play().catch(() => {});
         }
+        if (pipVideoRef.current && !hasRemoteStream && pipVideoRef.current.srcObject !== stream) {
+          pipVideoRef.current.srcObject = stream;
+          pipVideoRef.current.play().catch(() => {});
+        }
       },
       onRemoteTrackReceived: (kind, stream) => {
         isLiveKitActiveRef.current = true;
@@ -1117,6 +1121,11 @@ export default function VideoCall({
           remoteVideoRef.current.srcObject = remoteStreamRef.current;
           remoteVideoRef.current.muted = true;
           remoteVideoRef.current.play().catch(() => {});
+        }
+        if (pipVideoRef.current && kind === 'video') {
+          pipVideoRef.current.srcObject = remoteStreamRef.current;
+          pipVideoRef.current.muted = true;
+          pipVideoRef.current.play().catch(() => {});
         }
         if (remoteAudioRef.current && kind === 'audio') {
           remoteAudioRef.current.srcObject = remoteStreamRef.current;
@@ -1497,6 +1506,10 @@ export default function VideoCall({
           localVideoRef.current.srcObject = stream;
           localVideoRef.current.play().catch(() => {});
         }
+        if (pipVideoRef.current && !hasRemoteStream && pipVideoRef.current.srcObject !== stream) {
+          pipVideoRef.current.srcObject = stream;
+          pipVideoRef.current.play().catch(() => {});
+        }
       },
       onRemoteTrackReceived: (kind, stream) => {
         if (!isMounted) return;
@@ -1516,6 +1529,11 @@ export default function VideoCall({
           remoteVideoRef.current.srcObject = remoteStreamRef.current;
           remoteVideoRef.current.muted = true;
           remoteVideoRef.current.play().catch(() => {});
+        }
+        if (pipVideoRef.current && kind === 'video') {
+          pipVideoRef.current.srcObject = remoteStreamRef.current;
+          pipVideoRef.current.muted = true;
+          pipVideoRef.current.play().catch(() => {});
         }
         if (remoteAudioRef.current && kind === 'audio') {
           remoteAudioRef.current.srcObject = remoteStreamRef.current;
@@ -3257,13 +3275,14 @@ export default function VideoCall({
             setInternalPlatformMinimized(false);
             onTogglePlatformMinimize?.(false);
           }}
-          className="fixed top-[max(1rem,env(safe-area-inset-top,1rem))] right-3 sm:top-5 sm:right-6 z-50 w-44 xs:w-52 sm:w-64 aspect-[3/4] rounded-3xl overflow-hidden border-2 border-white shadow-2xl bg-black/95 backdrop-blur-md animate-in slide-in-from-top-4 duration-200 select-none cursor-pointer group"
+          className="fixed top-[max(3.25rem,calc(env(safe-area-inset-top,0px)+3rem))] right-3 sm:top-14 sm:right-6 z-50 w-36 xs:w-44 sm:w-60 aspect-[3/4] rounded-2xl sm:rounded-3xl overflow-hidden border-2 border-white shadow-2xl bg-black/95 backdrop-blur-md animate-in slide-in-from-top-4 duration-200 select-none cursor-pointer group"
           title="Нажмите, чтобы развернуть урок на весь экран"
         >
           {/* Main stream inside floating PiP card:
               Shows remote participant if active, or local camera preview with status if waiting for peer */}
           <video
             ref={(el) => {
+              pipVideoRef.current = el;
               if (el) {
                 (el as any).autoPictureInPicture = true;
                 const targetStream = (hasRemoteStream && remoteCamActive && remoteStreamRef.current)
@@ -3271,11 +3290,8 @@ export default function VideoCall({
                   : (camActive && streamRef.current)
                   ? streamRef.current
                   : null;
-                if (targetStream) {
-                  const vTracks = targetStream.getVideoTracks();
-                  if (vTracks.length > 0 && (!el.srcObject || (el.srcObject as MediaStream).getVideoTracks()[0]?.id !== vTracks[0].id)) {
-                    el.srcObject = new MediaStream(vTracks);
-                  }
+                if (targetStream && el.srcObject !== targetStream) {
+                  el.srcObject = targetStream;
                 }
                 el.muted = true;
                 el.play().catch(() => {});
