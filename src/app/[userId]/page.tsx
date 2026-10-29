@@ -416,7 +416,11 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
             studentPublicId={currentId}
             studentName={cleanStudentDisplayName}
             teacherName={primaryTeacherName}
+            studentBalance={balance}
             onStartLesson={(token, topic) => {
+              if (balance <= 0) {
+                return;
+              }
               router.push(`/room/${token}?role=student&topic=${encodeURIComponent(topic)}`);
             }}
           />

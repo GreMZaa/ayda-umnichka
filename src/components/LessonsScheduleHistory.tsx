@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Calendar,
   Clock,
@@ -49,6 +50,7 @@ interface LessonsScheduleHistoryProps {
   studentName?: string;
   teacherName?: string;
   teacherPublicId?: string;
+  studentBalance?: number;
 }
 
 export function isLessonOwnedByTeacher(
@@ -101,7 +103,10 @@ export default function LessonsScheduleHistory({
   studentName,
   teacherName,
   teacherPublicId,
+  studentBalance,
 }: LessonsScheduleHistoryProps) {
+  const router = useRouter();
+  const [showZeroBalanceModal, setShowZeroBalanceModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'upcoming' | 'history'>('upcoming');
   const [lessons, setLessons] = useState<LessonRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -706,8 +711,27 @@ export default function LessonsScheduleHistory({
                             <p className="text-[11px] text-[#6B758E] truncate mt-0.5">{l.topic}</p>
                           </div>
 
-                          <a
-                            href={`/room/${l.room_token}?role=${role}&topic=${encodeURIComponent(l.topic)}`}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const currentBal =
+                                studentBalance !== undefined
+                                  ? studentBalance
+                                  : typeof window !== 'undefined'
+                                  ? Number(localStorage.getItem('aida_student_balance') ?? 0)
+                                  : 0;
+
+                              if (role === 'student' && currentBal <= 0) {
+                                setShowZeroBalanceModal(true);
+                                return;
+                              }
+
+                              if (onStartLesson) {
+                                onStartLesson(l.room_token, l.topic);
+                              } else {
+                                router.push(`/room/${l.room_token}?role=${role}&topic=${encodeURIComponent(l.topic)}`);
+                              }
+                            }}
                             className={`text-[10px] font-black ${
                               isRoomActive
                                 ? 'bg-[#5C8519] hover:bg-[#4E7214] text-white shadow-xs animate-pulse'
@@ -716,7 +740,7 @@ export default function LessonsScheduleHistory({
                           >
                             <Video className="w-3 h-3" />
                             <span>{isRoomActive ? 'Вернуться в урок' : 'Войти'}</span>
-                          </a>
+                          </button>
                         </div>
 
                         {/* Status footer */}
@@ -932,6 +956,43 @@ export default function LessonsScheduleHistory({
           <span>Обновить</span>
         </button>
       </div>
+
+      {/* Zero Balance Payment Reminder Modal for Student */}
+      {showZeroBalanceModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-white rounded-3xl p-6 sm:p-7 border border-[#F2DECE] shadow-2xl text-center space-y-4">
+            <div className="w-16 h-16 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center mx-auto shadow-sm">
+              <AlertCircle className="w-8 h-8" />
+            </div>
+
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-black uppercase tracking-wider text-amber-700 bg-amber-100/80 px-2.5 py-0.5 rounded-full border border-amber-300">
+                Остаток: 0 уроков
+              </span>
+              <h3 className="text-lg font-black text-[#161F38]">Сначала необходимо оплатить</h3>
+              <p className="text-xs text-[#6B758E] leading-relaxed">
+                У вас закончились оплаченные уроки на балансе. Чтобы войти в урок, сначала нужно оплатить занятия. Пожалуйста, обратитесь к вашему преподавателю для оплаты занятий.
+              </p>
+            </div>
+
+            <div className="pt-2 flex flex-col sm:flex-row gap-2">
+              <a
+                href="/messenger?role=student"
+                className="flex-1 inline-flex items-center justify-center gap-1.5 bg-[#5C8519] hover:bg-[#4E7214] text-white text-xs font-black py-2.5 px-4 rounded-xl shadow-xs transition-colors"
+              >
+                <span>Написать преподавателю</span>
+              </a>
+              <button
+                type="button"
+                onClick={() => setShowZeroBalanceModal(false)}
+                className="flex-1 inline-flex items-center justify-center bg-[#FFF7EE] hover:bg-[#FCEFE3] border border-[#F2DECE] text-[#161F38] text-xs font-black py-2.5 px-4 rounded-xl transition-colors cursor-pointer"
+              >
+                Понятно
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

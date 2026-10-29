@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { CheckCircle2, BookOpen, Send, Calendar, ArrowRight, X, Video, ShieldCheck, ArrowLeft, Maximize2 } from 'lucide-react';
+import { CheckCircle2, BookOpen, Send, Calendar, ArrowRight, X, Video, ShieldCheck, ArrowLeft, Maximize2, AlertCircle } from 'lucide-react';
 import VideoCall from '@/components/VideoCall';
 import Whiteboard from '@/components/Whiteboard';
 import { broadcastPlatformEvent } from '@/lib/platformNotifications';
@@ -26,6 +26,7 @@ export default function LessonRoomPage() {
 
   const [isWhiteboardActive, setIsWhiteboardActive] = useState(false);
   const [isTeacher, setIsTeacher] = useState<boolean>(isTeacherInitial);
+  const [isZeroBalanceBlocked, setIsZeroBalanceBlocked] = useState<boolean>(false);
   const [topic, setTopic] = useState('Индивидуальное занятие: Логопедия');
   const [participantName, setParticipantName] = useState('');
   const [targetStudentId, setTargetStudentId] = useState(studentParam || '');
@@ -133,7 +134,41 @@ export default function LessonRoomPage() {
         })
       );
     } catch (_) {}
-  }, [roomId, roleParam, topicParam]);
+
+    // 5. Balance verification for student: prevent joining with 0 lessons
+    if (!teacherFlag) {
+      const storedBal =
+        typeof window !== 'undefined'
+          ? localStorage.getItem('aida_student_balance')
+          : null;
+      if (storedBal !== null) {
+        const balNum = parseInt(storedBal, 10);
+        if (balNum <= 0) {
+          setIsZeroBalanceBlocked(true);
+        }
+      }
+
+      const activeUid = storedPublicId || studentParam;
+      if (activeUid) {
+        fetch(`/api/user/bind?publicId=${encodeURIComponent(activeUid)}`)
+          .then((r) => r.json())
+          .then((data) => {
+            if (data?.binding?.balance_lessons !== undefined) {
+              const liveBal = Number(data.binding.balance_lessons);
+              try {
+                localStorage.setItem('aida_student_balance', String(liveBal));
+              } catch (_) {}
+              if (liveBal <= 0) {
+                setIsZeroBalanceBlocked(true);
+              } else {
+                setIsZeroBalanceBlocked(false);
+              }
+            }
+          })
+          .catch(() => {});
+      }
+    }
+  }, [roomId, roleParam, topicParam, studentParam]);
 
   // Fetch lesson & participant info linked to this lesson room
   useEffect(() => {
@@ -430,6 +465,51 @@ export default function LessonRoomPage() {
 
   return (
     <div className="fixed inset-0 w-full h-full z-40 overflow-hidden bg-[#FFF7EE] flex flex-col select-none">
+      {/* Zero Balance Payment Reminder Screen for Student in Room */}
+      {isZeroBalanceBlocked && !isTeacher && (
+        <div className="fixed inset-0 z-50 bg-[#FFF7EE] flex items-center justify-center p-4 select-auto">
+          <div className="w-full max-w-md bg-white rounded-3xl p-6 sm:p-8 border border-[#F2DECE] shadow-2xl text-center space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="w-20 h-20 rounded-3xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center mx-auto shadow-md">
+              <AlertCircle className="w-10 h-10" />
+            </div>
+
+            <div className="space-y-2">
+              <span className="text-xs font-black uppercase tracking-wider text-amber-800 bg-amber-100 px-3 py-1 rounded-full border border-amber-300">
+                Остаток: 0 уроков
+              </span>
+              <h2 className="text-xl sm:text-2xl font-black text-[#161F38]">Сначала необходимо оплатить</h2>
+              <p className="text-xs sm:text-sm text-[#6B758E] leading-relaxed">
+                У вас закончились оплаченные уроки на балансе. Чтобы войти в урок, сначала нужно оплатить занятия. Пожалуйста, обратитесь к вашему преподавателю для пополнения абонемента.
+              </p>
+            </div>
+
+            <div className="pt-2 flex flex-col gap-2.5">
+              <a
+                href="/messenger?role=student"
+                className="w-full inline-flex items-center justify-center gap-2 bg-[#5C8519] hover:bg-[#4E7214] text-white text-xs sm:text-sm font-black py-3 px-5 rounded-2xl shadow-md transition-all active:scale-95"
+              >
+                <span>Написать преподавателю</span>
+              </a>
+              <button
+                type="button"
+                onClick={() => {
+                  const studentId =
+                    (typeof window !== 'undefined' &&
+                      (localStorage.getItem('aida_auth_user_id') ||
+                        localStorage.getItem('aida_user_id') ||
+                        localStorage.getItem('aida_user_public_id'))) ||
+                    '';
+                  router.push(studentId ? `/${encodeURIComponent(studentId)}` : '/student');
+                }}
+                className="w-full inline-flex items-center justify-center bg-[#FFF8F1] hover:bg-[#FDEFE3] border border-[#F2DECE] text-[#161F38] text-xs sm:text-sm font-black py-3 px-5 rounded-2xl transition-all cursor-pointer"
+              >
+                Вернуться в личный кабинет
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 100% Immersive Full-Screen Workspace — WebRTC call stays continuously connected */}
       <div className="w-full h-full relative overflow-hidden flex flex-col bg-[#FFF7EE]">
         {/* Interactive Whiteboard Canvas */}
