@@ -303,7 +303,7 @@ export default function NotificationManager() {
         if (l.scheduled_for) {
           try {
             const d = new Date(l.scheduled_for);
-            timeStr = ` на ${d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })} в ${d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`;
+            timeStr = ` на ${d.toLocaleDateString('ru-RU', { timeZone: 'Europe/Samara', day: 'numeric', month: 'short' })} в ${d.toLocaleTimeString('ru-RU', { timeZone: 'Europe/Samara', hour: '2-digit', minute: '2-digit' })}`;
           } catch (_) {}
         }
 

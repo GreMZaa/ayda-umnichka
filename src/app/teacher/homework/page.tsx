@@ -43,7 +43,7 @@ const formatDateSafe = (dateStr?: string | null) => {
   try {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return dateStr;
-    return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+    return d.toLocaleDateString('ru-RU', { timeZone: 'Europe/Samara', day: 'numeric', month: 'short' });
   } catch {
     return dateStr || '';
   }

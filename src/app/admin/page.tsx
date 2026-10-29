@@ -39,7 +39,9 @@ import {
   Inbox,
   Copy,
   CheckCheck,
-  MessageSquare
+  MessageSquare,
+  Server,
+  Radio
 } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
@@ -155,7 +157,12 @@ export default function AdminDashboard() {
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
   // Active view tab
-  const [activeTab, setActiveTab] = useState<'lessons' | 'teachers' | 'students' | 'homework' | 'bindings' | 'leads'>('lessons');
+  const [activeTab, setActiveTab] = useState<'lessons' | 'teachers' | 'students' | 'homework' | 'bindings' | 'leads' | 'livekit'>('lessons');
+
+  // LiveKit SFU Cloud state (2 Accounts pool)
+  const [livekitStatus, setLivekitStatus] = useState<any>(null);
+  const [livekitLoading, setLivekitLoading] = useState<boolean>(false);
+  const [livekitCopiedStep, setLivekitCopiedStep] = useState<string | null>(null);
 
   // Trial Leads state (заявки с сайта)
   const [leads, setLeads] = useState<TrialLeadRecord[]>([]);
@@ -241,6 +248,21 @@ export default function AdminDashboard() {
     }
   };
 
+  const fetchLiveKitData = async () => {
+    try {
+      setLivekitLoading(true);
+      const res = await fetch('/api/livekit/status');
+      if (res.ok) {
+        const data = await res.json();
+        setLivekitStatus(data);
+      }
+    } catch (err) {
+      console.warn('Error fetching LiveKit status:', err);
+    } finally {
+      setLivekitLoading(false);
+    }
+  };
+
   const fetchAllData = async () => {
     setIsRefreshing(true);
     try {
@@ -250,13 +272,14 @@ export default function AdminDashboard() {
         return;
       }
 
-      // Parallel fetch from Supabase tables + Leads API
+      // Parallel fetch from Supabase tables + Leads API + LiveKit status
       const [usersRes, lessonsRes, bindingsRes, homeworkRes] = await Promise.all([
         supabase.from('user_bindings').select('*').order('created_at', { ascending: false }),
         supabase.from('lessons').select('*').order('scheduled_for', { ascending: false }),
         supabase.from('teacher_students').select('*').order('created_at', { ascending: false }),
         supabase.from('homework').select('*').order('created_at', { ascending: false }),
         fetchLeadsData(),
+        fetchLiveKitData(),
       ]);
 
       if (usersRes.data) {
@@ -1265,6 +1288,25 @@ export default function AdminDashboard() {
               {bindings.length}
             </span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('livekit');
+              fetchLiveKitData();
+            }}
+            className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+              activeTab === 'livekit'
+                ? 'bg-white text-[#161F38] shadow-xs'
+                : 'text-[#6B758E] hover:text-[#161F38]'
+            }`}
+          >
+            <Server className="w-3.5 h-3.5 text-sky-600" />
+            <span>Медиа-сервер (LiveKit)</span>
+            <span className="bg-sky-50 text-sky-700 text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5">
+              20 000 мин
+            </span>
+          </button>
         </div>
 
         {/* Global Search Bar */}
@@ -1475,7 +1517,7 @@ export default function AdminDashboard() {
                         )}
                         {lesson.created_at && (
                           <span className="text-[#8A95A8]">
-                            • Создан: {new Date(lesson.created_at).toLocaleDateString('ru-RU')}
+                            • Создан: {new Date(lesson.created_at).toLocaleDateString('ru-RU', { timeZone: 'Europe/Samara' })}
                           </span>
                         )}
                       </div>
@@ -2493,6 +2535,284 @@ export default function AdminDashboard() {
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* TAB 7: LIVEKIT SFU DUAL-ACCOUNT MANAGEMENT */}
+      {activeTab === 'livekit' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* Header Banner */}
+          <div className="bg-gradient-to-r from-sky-950 via-[#161F38] to-indigo-950 rounded-3xl p-6 sm:p-8 text-white border border-sky-500/20 shadow-xl space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-sky-500/20 text-sky-400 border border-sky-400/30 flex items-center justify-center shrink-0 shadow-lg">
+                  <Server className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-xl sm:text-2xl font-black tracking-tight">
+                      Медиа-сервер LiveKit Cloud SFU
+                    </h2>
+                    <span className="px-2.5 py-0.5 rounded-full bg-sky-400/20 text-sky-300 border border-sky-400/30 text-[11px] font-black uppercase tracking-wider">
+                      Вариант 2
+                    </span>
+                  </div>
+                  <p className="text-xs sm:text-sm text-white/70 mt-1">
+                    Два независимых облачных аккаунта SFU • Суммарно <strong>20 000 бесплатных минут</strong> в месяц
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={fetchLiveKitData}
+                disabled={livekitLoading}
+                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/15 text-white text-xs font-bold transition-all active:scale-95 cursor-pointer shrink-0 shadow-md"
+              >
+                <RefreshCw className={`w-4 h-4 ${livekitLoading ? 'animate-spin' : ''}`} />
+                <span>Проверить статус</span>
+              </button>
+            </div>
+
+            {/* Quick Metrics Bar */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+              <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10">
+                <span className="text-[10px] text-white/50 block font-bold uppercase tracking-wider">
+                  Бесплатный пул минут
+                </span>
+                <p className="text-xl font-black text-sky-300 mt-0.5">
+                  20 000 мин / мес
+                </p>
+                <span className="text-[10px] text-white/60">~400 полноценных уроков</span>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10">
+                <span className="text-[10px] text-white/50 block font-bold uppercase tracking-wider">
+                  Режим балансировки
+                </span>
+                <p className="text-xl font-black text-emerald-300 mt-0.5">
+                  50 / 50 Авто
+                </p>
+                <span className="text-[10px] text-white/60">По номеру комнаты урока</span>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10">
+                <span className="text-[10px] text-white/50 block font-bold uppercase tracking-wider">
+                  Резервный канал связи
+                </span>
+                <p className="text-xl font-black text-amber-300 mt-0.5">
+                  P2P WebRTC
+                </p>
+                <span className="text-[10px] text-white/60">Автоматический фолбэк</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Accounts Grid (2 Columns) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* Account 1 Card */}
+            <div className="bg-white rounded-3xl p-6 border border-[#F2DECE] shadow-xs space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-[#F2DECE]">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-sky-50 text-sky-600 border border-sky-100 flex items-center justify-center font-black text-sm">
+                    1
+                  </div>
+                  <div>
+                    <h3 className="font-black text-[#161F38] text-sm">Аккаунт №1 (Основной)</h3>
+                    <span className="text-[11px] text-[#6B758E]">10 000 бесплатных минут/мес</span>
+                  </div>
+                </div>
+
+                <span
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                    livekitStatus?.accounts?.account1?.isConfigured
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : 'bg-amber-50 text-amber-700 border border-amber-200'
+                  }`}
+                >
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      livekitStatus?.accounts?.account1?.isConfigured
+                        ? 'bg-emerald-500'
+                        : 'bg-amber-500 animate-pulse'
+                    }`}
+                  />
+                  {livekitStatus?.accounts?.account1?.isConfigured ? 'Готов к звонкам' : 'Ожидает ключи'}
+                </span>
+              </div>
+
+              <div className="space-y-2 text-xs">
+                <div>
+                  <span className="text-[10px] font-bold text-[#8A95A8] uppercase tracking-wider block">
+                    WebSocket Server URL
+                  </span>
+                  <p className="font-mono text-[#161F38] bg-[#FFF8F1] p-2 rounded-xl border border-[#F2DECE] truncate mt-1">
+                    {livekitStatus?.accounts?.account1?.serverUrl || 'LIVEKIT_URL_PRIMARY (не задан)'}
+                  </p>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-bold text-[#8A95A8] uppercase tracking-wider block">
+                    API Key
+                  </span>
+                  <p className="font-mono text-[#161F38] bg-[#FFF8F1] p-2 rounded-xl border border-[#F2DECE] truncate mt-1">
+                    {livekitStatus?.accounts?.account1?.apiKeyMasked || 'LIVEKIT_API_KEY_PRIMARY (не задан)'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-2 text-[11px] text-[#6B758E] flex items-center justify-between">
+                <span>Обслуживает комнаты: <strong>Чётные (#0, #2, #4...)</strong></span>
+                <a href="https://cloud.livekit.io" target="_blank" rel="noreferrer" className="text-sky-600 font-bold hover:underline flex items-center gap-1">
+                  <span>cloud.livekit.io</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            </div>
+
+            {/* Account 2 Card */}
+            <div className="bg-white rounded-3xl p-6 border border-[#F2DECE] shadow-xs space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-[#F2DECE]">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center font-black text-sm">
+                    2
+                  </div>
+                  <div>
+                    <h3 className="font-black text-[#161F38] text-sm">Аккаунт №2 (Вторичный)</h3>
+                    <span className="text-[11px] text-[#6B758E]">10 000 бесплатных минут/мес</span>
+                  </div>
+                </div>
+
+                <span
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                    livekitStatus?.accounts?.account2?.isConfigured
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : 'bg-amber-50 text-amber-700 border border-amber-200'
+                  }`}
+                >
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      livekitStatus?.accounts?.account2?.isConfigured
+                        ? 'bg-emerald-500'
+                        : 'bg-amber-500 animate-pulse'
+                    }`}
+                  />
+                  {livekitStatus?.accounts?.account2?.isConfigured ? 'Готов к звонкам' : 'Ожидает ключи'}
+                </span>
+              </div>
+
+              <div className="space-y-2 text-xs">
+                <div>
+                  <span className="text-[10px] font-bold text-[#8A95A8] uppercase tracking-wider block">
+                    WebSocket Server URL
+                  </span>
+                  <p className="font-mono text-[#161F38] bg-[#FFF8F1] p-2 rounded-xl border border-[#F2DECE] truncate mt-1">
+                    {livekitStatus?.accounts?.account2?.serverUrl || 'LIVEKIT_URL_SECONDARY (не задан)'}
+                  </p>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-bold text-[#8A95A8] uppercase tracking-wider block">
+                    API Key
+                  </span>
+                  <p className="font-mono text-[#161F38] bg-[#FFF8F1] p-2 rounded-xl border border-[#F2DECE] truncate mt-1">
+                    {livekitStatus?.accounts?.account2?.apiKeyMasked || 'LIVEKIT_API_KEY_SECONDARY (не задан)'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-2 text-[11px] text-[#6B758E] flex items-center justify-between">
+                <span>Обслуживает комнаты: <strong>Нечётные (#1, #3, #5...)</strong></span>
+                <a href="https://cloud.livekit.io" target="_blank" rel="noreferrer" className="text-indigo-600 font-bold hover:underline flex items-center gap-1">
+                  <span>cloud.livekit.io</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            </div>
+          </div>
+
+          {/* Setup Guide Card */}
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#F2DECE] shadow-xs space-y-5">
+            <div className="flex items-center gap-3 pb-3 border-b border-[#F2DECE]">
+              <div className="w-10 h-10 rounded-2xl bg-amber-50 border border-amber-200 text-amber-700 flex items-center justify-center shrink-0">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-black text-base text-[#161F38]">
+                  Как получить 2 бесплатных аккаунта LiveKit за 2 минуты
+                </h3>
+                <p className="text-xs text-[#6B758E]">
+                  Регистрация бесплатная, банковская карта не требуется
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+              <div className="p-4 rounded-2xl bg-[#FFFDFB] border border-[#F2DECE] space-y-2">
+                <span className="w-6 h-6 rounded-full bg-sky-500 text-white font-black text-xs flex items-center justify-center">
+                  1
+                </span>
+                <h4 className="font-black text-[#161F38]">Создайте Аккаунт 1</h4>
+                <p className="text-[#6B758E] leading-relaxed">
+                  Перейдите на <a href="https://cloud.livekit.io" target="_blank" rel="noreferrer" className="text-coralAccent font-bold underline">cloud.livekit.io</a> и войдите через Google/GitHub. Создайте проект и скопируйте:
+                  <code className="block text-[11px] bg-white p-1.5 rounded border border-[#F2DECE] mt-1 font-mono text-[#161F38]">
+                    WebSocket URL, API Key, Secret
+                  </code>
+                </p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-[#FFFDFB] border border-[#F2DECE] space-y-2">
+                <span className="w-6 h-6 rounded-full bg-indigo-500 text-white font-black text-xs flex items-center justify-center">
+                  2
+                </span>
+                <h4 className="font-black text-[#161F38]">Создайте Аккаунт 2</h4>
+                <p className="text-[#6B758E] leading-relaxed">
+                  Откройте вкладку инкогнито и зарегистрируйте второй проект на другую почту. Скопируйте его ключи — это даст вам ещё <strong>+10 000 минут бесплатно</strong> каждый месяц.
+                </p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-[#FFFDFB] border border-[#F2DECE] space-y-2">
+                <span className="w-6 h-6 rounded-full bg-emerald-500 text-white font-black text-xs flex items-center justify-center">
+                  3
+                </span>
+                <h4 className="font-black text-[#161F38]">Вставьте ключи</h4>
+                <p className="text-[#6B758E] leading-relaxed">
+                  Вставьте полученные ключи в настройки проекта на Vercel (раздел <em>Settings → Environment Variables</em>) или в локальный файл <code>.env.local</code>.
+                </p>
+              </div>
+            </div>
+
+            {/* Code Block for Copying */}
+            <div className="bg-[#161F38] rounded-2xl p-4 text-white space-y-2">
+              <div className="flex items-center justify-between text-xs pb-2 border-b border-white/10">
+                <span className="text-white/60 font-mono">Переменные для .env.local / Vercel:</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const text = `# LiveKit Cloud SFU (Account 1)\nLIVEKIT_URL_PRIMARY="wss://your-project-1.livekit.cloud"\nLIVEKIT_API_KEY_PRIMARY="your-api-key-1"\nLIVEKIT_API_SECRET_PRIMARY="your-secret-1"\n\n# LiveKit Cloud SFU (Account 2)\nLIVEKIT_URL_SECONDARY="wss://your-project-2.livekit.cloud"\nLIVEKIT_API_KEY_SECONDARY="your-api-key-2"\nLIVEKIT_API_SECRET_SECONDARY="your-secret-2"`;
+                    navigator.clipboard.writeText(text);
+                    setLivekitCopiedStep('env');
+                    setTimeout(() => setLivekitCopiedStep(null), 3000);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition-colors cursor-pointer"
+                >
+                  {livekitCopiedStep === 'env' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{livekitCopiedStep === 'env' ? 'Скопировано!' : 'Скопировать шаблон'}</span>
+                </button>
+              </div>
+              <pre className="text-[11px] font-mono text-sky-200 overflow-x-auto p-1 leading-relaxed">
+{`# LiveKit Cloud SFU (Account 1 - 10,000 мин/мес)
+LIVEKIT_URL_PRIMARY="wss://xxx-1.livekit.cloud"
+LIVEKIT_API_KEY_PRIMARY="APIxxx"
+LIVEKIT_API_SECRET_PRIMARY="secretxxx"
+
+# LiveKit Cloud SFU (Account 2 - 10,000 мин/мес)
+LIVEKIT_URL_SECONDARY="wss://xxx-2.livekit.cloud"
+LIVEKIT_API_KEY_SECONDARY="APIyyy"
+LIVEKIT_API_SECRET_SECONDARY="secretyyy"`}
+              </pre>
+            </div>
+          </div>
         </div>
       )}
 

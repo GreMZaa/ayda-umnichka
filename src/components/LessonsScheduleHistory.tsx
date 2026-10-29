@@ -439,16 +439,14 @@ export default function LessonsScheduleHistory({
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) return dateStr;
 
-    const today = new Date();
-    const isToday =
-      date.getDate() === today.getDate() &&
-      date.getMonth() === today.getMonth() &&
-      date.getFullYear() === today.getFullYear();
+    const time = date.toLocaleTimeString('ru-RU', { timeZone: 'Europe/Samara', hour: '2-digit', minute: '2-digit' });
+    const dSamara = date.toLocaleDateString('ru-RU', { timeZone: 'Europe/Samara' });
+    const todaySamara = new Date().toLocaleDateString('ru-RU', { timeZone: 'Europe/Samara' });
+    const isToday = dSamara === todaySamara;
 
-    const time = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
     if (isToday) return `Сегодня, ${time}`;
 
-    const dateFormatted = date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+    const dateFormatted = date.toLocaleDateString('ru-RU', { timeZone: 'Europe/Samara', day: 'numeric', month: 'short' });
     return `${dateFormatted}, ${time}`;
   };
 

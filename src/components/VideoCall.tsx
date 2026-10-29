@@ -45,6 +45,7 @@ import {
 import { broadcastPlatformEvent } from '@/lib/platformNotifications';
 import { formatTime } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
+import { initLiveKitCall, LiveKitSession } from '@/lib/livekitClient';
 
 export interface ChatAttachment {
   name: string;
@@ -79,7 +80,15 @@ interface VideoCallProps {
 
 const rtcConfig: RTCConfiguration = {
   iceServers: [
-    // 1. OpenRelay / Metered STUN & TURN (Reliable NAT traversal + TCP 443 relay when direct UDP is blocked)
+    // 1. Global Google Anycast STUN (Fastest <20ms public IP resolution across Russian ISPs)
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' },
+    // 2. Cloudflare Anycast STUN
+    { urls: 'stun:stun.cloudflare.com:3478' },
+    // 3. OpenRelay / Metered STUN & TURN (Reliable NAT traversal + TCP 443 relay when direct UDP is blocked)
     { urls: 'stun:openrelay.metered.ca:80' },
     {
       urls: [
@@ -91,14 +100,6 @@ const rtcConfig: RTCConfiguration = {
       username: 'openrelayproject',
       credential: 'openrelayproject',
     },
-    // 2. Global Google Anycast STUN (Fast public IP resolution across Russian ISPs)
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' },
-    { urls: 'stun:stun3.l.google.com:19302' },
-    { urls: 'stun:stun4.l.google.com:19302' },
-    // 3. Cloudflare Anycast STUN
-    { urls: 'stun:stun.cloudflare.com:3478' },
     // 4. Nextcloud STUN over 443 & 3478
     { urls: 'stun:stun.nextcloud.com:443' },
     { urls: 'stun:stun.nextcloud.com:3478' },
@@ -190,6 +191,12 @@ export default function VideoCall({
   const [isParticipantsOpen, setIsParticipantsOpen] = useState(false);
   const [areControlsVisible, setAreControlsVisible] = useState(true);
   const [showTeacherEndModal, setShowTeacherEndModal] = useState(false);
+
+  // LiveKit SFU Cloud states (Dual Account balancer & failover)
+  const [activeEngine, setActiveEngine] = useState<'livekit' | 'p2p'>('p2p');
+  const [livekitAccount, setLivekitAccount] = useState<'account1' | 'account2' | null>(null);
+  const [livekitAccountName, setLivekitAccountName] = useState<string>('');
+  const livekitSessionRef = useRef<LiveKitSession | null>(null);
 
   // Lesson In-Call Chat states
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -597,6 +604,7 @@ export default function VideoCall({
   // WebRTC PeerConnection management & stream helpers
   const cameraPromiseRef = useRef<Promise<MediaStream | null> | null>(null);
   const isNegotiatingRef = useRef(false);
+  const lastOfferSentRef = useRef<number>(0);
 
   // Helper to create a dummy video track so WebRTC negotiation never fails if camera is unavailable
   const createDummyVideoTrack = (): MediaStreamTrack | null => {
@@ -651,6 +659,7 @@ export default function VideoCall({
     candidateQueueRef.current = [];
     remoteStreamRef.current = null;
     isNegotiatingRef.current = false;
+    lastOfferSentRef.current = 0;
     setHasRemoteStream(false);
   };
 
@@ -819,22 +828,26 @@ export default function VideoCall({
         console.warn('[WebRTC] Connection disconnected, waiting for reconnection...');
         addLog('warn', 'WebRTC соединение отключилось, ожидание переподключения...');
       } else if (pc.connectionState === 'failed') {
-        console.warn('[WebRTC] Connection failed, attempting ICE restart...');
-        addLog('error', 'Сбой WebRTC соединения (failed), попытка ICE restart...');
+        console.warn('[WebRTC] Connection failed');
+        addLog('error', 'Сбой WebRTC соединения (failed)');
         setConnectionStatus('connecting');
         setHasRemoteStream(false);
-        if (typeof (pc as any).restartIce === 'function') {
-          try {
-            (pc as any).restartIce();
-          } catch (_) {}
+        // Only teacher initiates automatic reconnection recovery after backoff to prevent collisions
+        if (isTeacher) {
+          setTimeout(async () => {
+            if (pcRef.current && pcRef.current.connectionState === 'failed') {
+              addLog('info', 'Попытка автоматического восстановления соединения учителем...');
+              resetPeerConnection();
+              try {
+                const stream = await ensureLocalStream();
+                if (stream && channelRef.current) {
+                  const newPc = getOrCreatePeerConnection(stream);
+                  await createAndSendOffer(newPc);
+                }
+              } catch (_) {}
+            }
+          }, 3500);
         }
-        setTimeout(async () => {
-          if (pcRef.current && pcRef.current.connectionState === 'failed') {
-            try {
-              await createAndSendOffer(pcRef.current);
-            } catch (_) {}
-          }
-        }, 1000);
       }
     };
 
@@ -853,22 +866,10 @@ export default function VideoCall({
         setConnectionStatus('connected');
         setHasRemoteStream(true);
       } else if (pc.iceConnectionState === 'failed') {
-        console.warn('[WebRTC] ICE failed across direct route, attempting ICE restart...');
-        addLog('error', 'Сбой ICE (P2P маршрут не найден), попытка перезапуска...');
+        console.warn('[WebRTC] ICE failed across direct route');
+        addLog('error', 'Сбой ICE (P2P маршрут не найден)');
         setConnectionStatus('connecting');
         setHasRemoteStream(false);
-        if (typeof (pc as any).restartIce === 'function') {
-          try {
-            (pc as any).restartIce();
-          } catch (_) {}
-        }
-        setTimeout(async () => {
-          if (pcRef.current && pcRef.current.iceConnectionState === 'failed') {
-            try {
-              await createAndSendOffer(pcRef.current);
-            } catch (_) {}
-          }
-        }, 1000);
       }
     };
 
@@ -878,7 +879,19 @@ export default function VideoCall({
   // Create and send SDP Offer
   const createAndSendOffer = async (pc: RTCPeerConnection) => {
     try {
-      if (isNegotiatingRef.current || pc.signalingState !== 'stable') return;
+      if (isNegotiatingRef.current || pc.signalingState !== 'stable') {
+        console.log('[WebRTC] Skipping offer creation: busy or signaling not stable', {
+          isNegotiating: isNegotiatingRef.current,
+          signalingState: pc.signalingState,
+        });
+        return;
+      }
+      const now = Date.now();
+      if (now - lastOfferSentRef.current < 4500) {
+        console.log('[WebRTC] Throttling offer: an offer was sent recently (<4.5s ago)');
+        return;
+      }
+      lastOfferSentRef.current = now;
       isNegotiatingRef.current = true;
       console.log('[WebRTC] Creating SDP offer...');
       addLog('info', 'Формирование и отправка WebRTC Offer...');
@@ -1010,6 +1023,64 @@ export default function VideoCall({
       }
     } catch (err: any) {
       addLog('error', 'Ошибка при перезапуске видеосвязи', err?.message || String(err));
+    }
+  };
+
+  // Manual LiveKit account switch (Account 1 ↔ Account 2)
+  const handleSwitchLiveKitAccount = async (targetAccount: 'account1' | 'account2' | 'auto') => {
+    addLog('warn', `Ручное переключение пула LiveKit на: ${targetAccount}...`);
+    if (livekitSessionRef.current?.room) {
+      try {
+        livekitSessionRef.current.room.disconnect();
+      } catch (_) {}
+      livekitSessionRef.current = null;
+    }
+    setConnectionStatus('connecting');
+
+    const session = await initLiveKitCall({
+      roomToken,
+      identity: myPeerIdRef.current,
+      name: resolvedParticipantName,
+      isTeacher: Boolean(isTeacher),
+      accountOverride: targetAccount,
+      localVideoEl: localVideoRef.current,
+      remoteVideoEl: remoteVideoRef.current,
+      remoteAudioEl: remoteAudioRef.current,
+      onConnected: (acc, accName) => {
+        setActiveEngine('livekit');
+        setLivekitAccount(acc);
+        setLivekitAccountName(accName);
+        setConnectionStatus('connected');
+      },
+      onRemoteTrackReceived: (kind, stream) => {
+        setHasRemoteStream(true);
+        setConnectionStatus('connected');
+        if (!remoteStreamRef.current) {
+          remoteStreamRef.current = stream;
+        } else {
+          stream.getTracks().forEach((t) => {
+            if (!remoteStreamRef.current?.getTracks().some((et) => et.id === t.id)) {
+              remoteStreamRef.current?.addTrack(t);
+            }
+          });
+        }
+      },
+      onPeerJoined: (name) => {
+        setIsPeerInRoom(true);
+        setPeerProvidedName(name);
+      },
+      onPeerLeft: () => {
+        setIsPeerInRoom(false);
+      },
+      onLog: addLog,
+    });
+
+    if (session) {
+      livekitSessionRef.current = session;
+      setActiveEngine('livekit');
+      addLog('success', `Успешно переключено на ${session.accountName}`);
+    } else {
+      addLog('warn', 'Не удалось переключить аккаунт LiveKit, возврат к резервному каналу');
     }
   };
 
@@ -1200,8 +1271,8 @@ export default function VideoCall({
         });
       }
 
-      // Announce ready in room
-      if (channelRef.current) {
+      // Announce ready in room if we haven't established remote stream yet
+      if (channelRef.current && !hasRemoteStream && pcRef.current?.connectionState !== 'connected') {
         const myLocalName =
           (typeof window !== 'undefined' &&
             (localStorage.getItem('aida_full_name') ||
@@ -1251,6 +1322,14 @@ export default function VideoCall({
     const nextFacing = facingMode === 'user' ? 'environment' : 'user';
     setFacingMode(nextFacing);
     facingModeRef.current = nextFacing;
+    if (livekitSessionRef.current?.room) {
+      try {
+        const camPub = livekitSessionRef.current.room.localParticipant.getTrackPublication('camera');
+        if (camPub?.videoTrack) {
+          await camPub.videoTrack.restartTrack({ facingMode: nextFacing });
+        }
+      } catch (_) {}
+    }
     await startCamera(nextFacing);
   };
 
@@ -1312,11 +1391,65 @@ export default function VideoCall({
     }
   };
 
-  // Supabase Realtime Signaling setup
+  // Supabase Realtime Signaling & LiveKit SFU setup
   useEffect(() => {
     if (!roomToken) return;
 
-    startCamera();
+    let isMounted = true;
+
+    // 1. Attempt connection via LiveKit Cloud SFU (Dual Account pool)
+    initLiveKitCall({
+      roomToken,
+      identity: myPeerIdRef.current,
+      name: resolvedParticipantName,
+      isTeacher: Boolean(isTeacher),
+      localVideoEl: localVideoRef.current,
+      remoteVideoEl: remoteVideoRef.current,
+      remoteAudioEl: remoteAudioRef.current,
+      onConnected: (acc, accName) => {
+        if (!isMounted) return;
+        setActiveEngine('livekit');
+        setLivekitAccount(acc);
+        setLivekitAccountName(accName);
+        setConnectionStatus('connected');
+      },
+      onRemoteTrackReceived: (kind, stream) => {
+        if (!isMounted) return;
+        setHasRemoteStream(true);
+        setConnectionStatus('connected');
+        if (!remoteStreamRef.current) {
+          remoteStreamRef.current = stream;
+        } else {
+          stream.getTracks().forEach((t) => {
+            if (!remoteStreamRef.current?.getTracks().some((et) => et.id === t.id)) {
+              remoteStreamRef.current?.addTrack(t);
+            }
+          });
+        }
+      },
+      onPeerJoined: (name) => {
+        if (!isMounted) return;
+        setIsPeerInRoom(true);
+        setPeerProvidedName(name);
+      },
+      onPeerLeft: () => {
+        if (!isMounted) return;
+        setIsPeerInRoom(false);
+      },
+      onLog: addLog,
+    }).then((session) => {
+      if (!isMounted) {
+        session?.room?.disconnect();
+        return;
+      }
+      if (session) {
+        livekitSessionRef.current = session;
+        setActiveEngine('livekit');
+      } else {
+        // Fallback to local camera and P2P connection
+        startCamera();
+      }
+    });
 
     const cleanRoomId = roomToken.replace(/[^a-zA-Z0-9_-]/g, '_');
     const channel = supabase.channel(`webrtc_${cleanRoomId}`, {
@@ -1381,7 +1514,12 @@ export default function VideoCall({
         const shouldInitiate =
           (isTeacher && !payload?.isTeacher) ||
           (isTeacher === Boolean(payload?.isTeacher) && myPeerIdRef.current > (payload?.senderId || ''));
-        if (shouldInitiate && (!pcRef.current || pcRef.current.connectionState !== 'connected')) {
+        const isConnectionBusyOrActive =
+          pcRef.current &&
+          (pcRef.current.connectionState === 'connected' ||
+            (pcRef.current.connectionState === 'connecting' && Date.now() - lastOfferSentRef.current < 6000));
+
+        if (shouldInitiate && !isConnectionBusyOrActive) {
           const stream = await ensureLocalStream();
           if (stream) {
             const pc = getOrCreatePeerConnection(stream);
@@ -1412,7 +1550,34 @@ export default function VideoCall({
         const shouldInitiate =
           (isTeacher && !payload?.isTeacher) ||
           (isTeacher === Boolean(payload?.isTeacher) && myPeerIdRef.current > (payload?.senderId || ''));
-        if (shouldInitiate && (!pcRef.current || pcRef.current.connectionState !== 'connected')) {
+        const isConnectionBusyOrActive =
+          pcRef.current &&
+          (pcRef.current.connectionState === 'connected' ||
+            (pcRef.current.connectionState === 'connecting' && Date.now() - lastOfferSentRef.current < 6000));
+
+        if (shouldInitiate && !isConnectionBusyOrActive) {
+          const stream = await ensureLocalStream();
+          if (stream) {
+            const pc = getOrCreatePeerConnection(stream);
+            await createAndSendOffer(pc);
+          }
+        }
+      })
+      .on('broadcast', { event: 'presence-ping' }, async ({ payload }) => {
+        if (payload?.senderId === myPeerIdRef.current) return;
+        setIsPeerInRoom(true);
+        syncTimerWithTimestamp(payload?.startedAt);
+
+        const shouldInitiate =
+          (isTeacher && !payload?.isTeacher) ||
+          (isTeacher === Boolean(payload?.isTeacher) && myPeerIdRef.current > (payload?.senderId || ''));
+
+        const isConnectionBusyOrActive =
+          pcRef.current &&
+          (pcRef.current.connectionState === 'connected' ||
+            (pcRef.current.connectionState === 'connecting' && Date.now() - lastOfferSentRef.current < 7000));
+
+        if (shouldInitiate && !isConnectionBusyOrActive) {
           const stream = await ensureLocalStream();
           if (stream) {
             const pc = getOrCreatePeerConnection(stream);
@@ -1546,6 +1711,13 @@ export default function VideoCall({
       });
 
     return () => {
+      isMounted = false;
+      if (livekitSessionRef.current?.room) {
+        try {
+          livekitSessionRef.current.room.disconnect();
+        } catch (_) {}
+        livekitSessionRef.current = null;
+      }
       try {
         channel.send({
           type: 'broadcast',
@@ -1571,10 +1743,10 @@ export default function VideoCall({
     if (!roomToken || hasRemoteStream) return;
 
     const interval = setInterval(() => {
-      if (channelRef.current && !hasRemoteStream) {
+      if (channelRef.current && !hasRemoteStream && pcRef.current?.connectionState !== 'connected') {
         channelRef.current.send({
           type: 'broadcast',
-          event: 'user-joined',
+          event: 'presence-ping',
           payload: {
             senderId: myPeerIdRef.current,
             isTeacher,
@@ -1582,7 +1754,7 @@ export default function VideoCall({
           },
         });
       }
-    }, 3500);
+    }, 4000);
 
     return () => clearInterval(interval);
   }, [roomToken, hasRemoteStream, isTeacher]);
@@ -1816,6 +1988,18 @@ export default function VideoCall({
   const toggleScreenShare = async () => {
     try {
       if (!isScreenSharing) {
+        // 0. LiveKit SFU screen share
+        if (livekitSessionRef.current?.room) {
+          try {
+            await livekitSessionRef.current.room.localParticipant.setScreenShareEnabled(true);
+            setIsScreenSharing(true);
+            return;
+          } catch (lkErr: any) {
+            if (lkErr?.name === 'NotAllowedError') return;
+            console.warn('LiveKit screenshare fallback:', lkErr);
+          }
+        }
+
         // 1. Check if browser supports getDisplayMedia
         if (
           typeof navigator !== 'undefined' &&
@@ -1897,6 +2081,13 @@ export default function VideoCall({
   };
 
   const stopScreenSharing = async () => {
+    // 0. LiveKit screen share stop
+    if (livekitSessionRef.current?.room) {
+      try {
+        await livekitSessionRef.current.room.localParticipant.setScreenShareEnabled(false);
+      } catch (_) {}
+    }
+
     if (screenStreamRef.current) {
       screenStreamRef.current.getTracks().forEach((track) => track.stop());
       screenStreamRef.current = null;
@@ -1931,6 +2122,13 @@ export default function VideoCall({
     const nextMicActive = !micActive;
     setMicActive(nextMicActive);
 
+    // 0. LiveKit SFU mic toggle
+    if (livekitSessionRef.current?.room) {
+      try {
+        livekitSessionRef.current.room.localParticipant.setMicrophoneEnabled(nextMicActive);
+      } catch (_) {}
+    }
+
     // 1. Mute local media stream audio tracks
     if (streamRef.current) {
       streamRef.current.getAudioTracks().forEach((track) => {
@@ -1961,6 +2159,13 @@ export default function VideoCall({
   };
 
   const toggleCam = async () => {
+    // 0. LiveKit SFU camera toggle
+    if (livekitSessionRef.current?.room) {
+      try {
+        await livekitSessionRef.current.room.localParticipant.setCameraEnabled(!camActive);
+      } catch (_) {}
+    }
+
     if (camActive) {
       // 1. Fully stop camera tracks so hardware sensor and LED indicator shut off
       if (streamRef.current) {
@@ -2595,6 +2800,58 @@ export default function VideoCall({
                   <span className="font-bold text-[11px] truncate">
                     {cameraError ? 'Ошибка' : camActive ? 'Вкл' : 'Выкл'}
                   </span>
+                </div>
+              </div>
+            </div>
+
+            {/* LiveKit SFU Cloud & Dual Account Switcher Card */}
+            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-sky-950/60 to-indigo-950/60 border border-sky-400/30 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-sky-400 animate-pulse" />
+                  <div>
+                    <span className="font-extrabold text-xs text-white">Медиа-сервер: LiveKit Cloud SFU</span>
+                    <span className="text-[10px] text-sky-200/80 block">Пул 20 000 бесплатных минут (2 аккаунта)</span>
+                  </div>
+                </div>
+                <span className="text-[11px] font-black px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-400/30">
+                  {livekitAccount === 'account2' ? 'Аккаунт №2' : 'Аккаунт №1'}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between pt-1.5 border-t border-white/10 text-[11px]">
+                <span className="text-white/70">Переключить аккаунт:</span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleSwitchLiveKitAccount('account1')}
+                    className={`px-2.5 py-1 rounded-lg font-bold text-[10px] transition-all cursor-pointer ${
+                      livekitAccount === 'account1'
+                        ? 'bg-sky-500 text-white shadow-xs'
+                        : 'bg-white/10 text-white/70 hover:bg-white/20'
+                    }`}
+                  >
+                    Аккаунт 1
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSwitchLiveKitAccount('account2')}
+                    className={`px-2.5 py-1 rounded-lg font-bold text-[10px] transition-all cursor-pointer ${
+                      livekitAccount === 'account2'
+                        ? 'bg-sky-500 text-white shadow-xs'
+                        : 'bg-white/10 text-white/70 hover:bg-white/20'
+                    }`}
+                  >
+                    Аккаунт 2
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSwitchLiveKitAccount('auto')}
+                    className="px-2 py-1 rounded-lg font-bold text-[10px] bg-white/10 text-white/70 hover:bg-white/20 transition-all cursor-pointer"
+                    title="Автоматическая ротация 50/50 по номеру комнаты"
+                  >
+                    Авто (50/50)
+                  </button>
                 </div>
               </div>
             </div>
@@ -3291,6 +3548,24 @@ export default function VideoCall({
                 }`}
               />
               <span>{formatTime(callDuration)}</span>
+            </div>
+
+            {/* LiveKit Cloud SFU / P2P Badge with Dual Account Indicator */}
+            <div
+              onClick={() => setIsDiagnosticsOpen(true)}
+              className="hidden xs:flex items-center gap-1.5 px-3 py-2 sm:py-2.5 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md border border-white/15 text-white text-xs font-bold shadow-lg cursor-pointer transition-all active:scale-95"
+              title="Нажмите, чтобы открыть статус медиа-сервера и переключить аккаунты"
+            >
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  activeEngine === 'livekit' ? 'bg-sky-400 animate-pulse' : 'bg-emerald-400'
+                }`}
+              />
+              <span className="text-[11px] font-semibold">
+                {activeEngine === 'livekit'
+                  ? `LiveKit • ${livekitAccount === 'account2' ? 'Аккаунт 2' : 'Аккаунт 1'}`
+                  : 'WebRTC P2P'}
+              </span>
             </div>
           </div>
 

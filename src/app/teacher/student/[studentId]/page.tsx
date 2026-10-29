@@ -424,7 +424,7 @@ export default function TeacherStudentDetailsPage() {
                 )}
                 {student.created_at && (
                   <span className="text-[11px] text-[#8A95A8]">
-                    В центре с {new Date(student.created_at).toLocaleDateString('ru-RU')}
+                    В центре с {new Date(student.created_at).toLocaleDateString('ru-RU', { timeZone: 'Europe/Samara' })}
                   </span>
                 )}
               </div>
@@ -629,7 +629,7 @@ export default function TeacherStudentDetailsPage() {
                     <div className="min-w-0">
                       <p className="text-xs font-bold text-[#161F38] truncate">{hw.title}</p>
                       <span className="text-[10px] text-[#8A95A8]">
-                        {new Date(hw.created_at).toLocaleDateString('ru-RU')}
+                        {new Date(hw.created_at).toLocaleDateString('ru-RU', { timeZone: 'Europe/Samara' })}
                       </span>
                     </div>
 
@@ -693,9 +693,9 @@ export default function TeacherStudentDetailsPage() {
                       <p className="text-xs font-bold text-[#161F38] truncate">{l.topic}</p>
                       <span className="text-[10px] text-[#8A95A8]">
                         {l.scheduled_for
-                          ? new Date(l.scheduled_for).toLocaleDateString('ru-RU')
+                          ? new Date(l.scheduled_for).toLocaleDateString('ru-RU', { timeZone: 'Europe/Samara' })
                           : l.started_at
-                          ? new Date(l.started_at).toLocaleDateString('ru-RU')
+                          ? new Date(l.started_at).toLocaleDateString('ru-RU', { timeZone: 'Europe/Samara' })
                           : 'Онлайн-урок'}
                       </span>
                     </div>

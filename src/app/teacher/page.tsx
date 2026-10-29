@@ -29,8 +29,11 @@ import {
   ExternalLink,
   Minus,
   Bell,
-  UserPlus
+  UserPlus,
+  Inbox,
+  Phone
 } from 'lucide-react';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { broadcastPlatformEvent } from '@/lib/platformNotifications';
 import { showSystemNotification, playNotificationChime } from '@/components/NotificationManager';
 import type { TeacherRecord } from '@/app/api/teachers/route';
@@ -67,6 +70,23 @@ interface TeacherHomeworkItem {
   student_solution_text?: string;
   student_solution_file_url?: string;
   created_at: string;
+}
+
+interface TrialLeadRecord {
+  id: string;
+  publicId: string;
+  fullName: string;
+  parentName: string;
+  childName: string;
+  phone: string;
+  email?: string | null;
+  selectedSubject: string;
+  status: 'new' | 'contacted' | 'registered' | 'cancelled';
+  notes: string;
+  assignedTeacherId?: string | null;
+  source: string;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 export default function TeacherDashboard() {
@@ -155,6 +175,28 @@ export default function TeacherDashboard() {
   const hwPickerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Trial Leads state (заявки с сайта на пробные занятия)
+  const [leads, setLeads] = useState<TrialLeadRecord[]>([]);
+  const [loadingLeads, setLoadingLeads] = useState<boolean>(false);
+  const [leadStatusFilter, setLeadStatusFilter] = useState<'all' | 'new' | 'contacted' | 'registered'>('all');
+  const [leadSearchQuery, setLeadSearchQuery] = useState('');
+  const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
+  const [selectedLeadForConvert, setSelectedLeadForConvert] = useState<TrialLeadRecord | null>(null);
+  const [convertLogin, setConvertLogin] = useState('');
+  const [convertPassword, setConvertPassword] = useState('');
+  const [convertInitialBalance, setConvertInitialBalance] = useState<number>(1);
+  const [copiedCreds, setCopiedCreds] = useState(false);
+  const [isConvertingLead, setIsConvertingLead] = useState(false);
+  const [convertSuccessData, setConvertSuccessData] = useState<{
+    studentPublicId: string;
+    studentName: string;
+    login?: string;
+    password?: string;
+  } | null>(null);
+  const [editingLeadNoteId, setEditingLeadNoteId] = useState<string | null>(null);
+  const [leadNoteInput, setLeadNoteInput] = useState('');
+  const [copiedPhoneLeadId, setCopiedPhoneLeadId] = useState<string | null>(null);
+
   // Teachers directory
   const [supabaseTeachers, setSupabaseTeachers] = useState<TeacherRecord[]>([]);
   const [loadingTeachers, setLoadingTeachers] = useState(true);
@@ -229,7 +271,7 @@ export default function TeacherDashboard() {
           fullName: st.student_name,
           notes: st.notes,
           balanceLessons: typeof st.balance_lessons === 'number' ? st.balance_lessons : 1,
-          addedAt: st.created_at ? new Date(st.created_at).toLocaleDateString('ru-RU') : '',
+          addedAt: st.created_at ? new Date(st.created_at).toLocaleDateString('ru-RU', { timeZone: 'Europe/Samara' }) : '',
         }));
         setBoundStudents(mapped);
         setStudentBalances((prev) => {
@@ -423,6 +465,183 @@ export default function TeacherDashboard() {
     });
   };
 
+  // Fetch trial leads from website
+  const fetchLeadsData = async () => {
+    try {
+      setLoadingLeads(true);
+      const res = await fetch('/api/trial-request');
+      if (!res.ok) throw new Error('Ошибка загрузки заявок');
+      const data = await res.json();
+      if (data.leads) {
+        setLeads(data.leads);
+      }
+    } catch (err) {
+      console.warn('Failed to load trial leads:', err);
+    } finally {
+      setLoadingLeads(false);
+    }
+  };
+
+  // Filtered trial leads for teacher
+  const filteredLeads = useMemo(() => {
+    return leads.filter((l) => {
+      if (leadStatusFilter !== 'all' && l.status !== leadStatusFilter) return false;
+      if (!leadSearchQuery.trim()) return true;
+      const q = leadSearchQuery.toLowerCase();
+      return (
+        (l.parentName && l.parentName.toLowerCase().includes(q)) ||
+        (l.childName && l.childName.toLowerCase().includes(q)) ||
+        (l.phone && l.phone.toLowerCase().includes(q)) ||
+        (l.selectedSubject && l.selectedSubject.toLowerCase().includes(q)) ||
+        (l.notes && l.notes.toLowerCase().includes(q))
+      );
+    });
+  }, [leads, leadStatusFilter, leadSearchQuery]);
+
+  const handleUpdateLeadStatus = async (leadId: string, nextStatus: 'new' | 'contacted' | 'registered' | 'cancelled') => {
+    // If teacher selected 'registered', open the registration modal so login & password can be created (with a skip button)
+    if (nextStatus === 'registered') {
+      const targetLead = leads.find((l) => l.id === leadId);
+      if (targetLead) {
+        handleOpenConvertModal(targetLead);
+        return;
+      }
+    }
+
+    try {
+      const res = await fetch('/api/trial-request', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: leadId, status: nextStatus }),
+      });
+      if (!res.ok) throw new Error('Не удалось обновить статус заявки');
+
+      setLeads((prev) =>
+        prev.map((l) => (l.id === leadId ? { ...l, status: nextStatus } : l))
+      );
+    } catch (err) {
+      console.warn('Failed to update lead status:', err);
+    }
+  };
+
+  const handleSaveLeadNote = async (leadId: string) => {
+    try {
+      const res = await fetch('/api/trial-request', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: leadId, notes: leadNoteInput }),
+      });
+      if (!res.ok) throw new Error('Не удалось сохранить комментарий');
+
+      setLeads((prev) =>
+        prev.map((l) => (l.id === leadId ? { ...l, notes: leadNoteInput } : l))
+      );
+      setEditingLeadNoteId(null);
+      setLeadNoteInput('');
+    } catch (err) {
+      console.warn('Failed to save lead note:', err);
+    }
+  };
+
+  const handleDeleteLead = async (leadId: string, parentName: string) => {
+    if (!window.confirm(`Вы уверены, что хотите удалить заявку от ${parentName}?`)) return;
+    try {
+      const res = await fetch(`/api/trial-request?id=${leadId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Не удалось удалить заявку');
+
+      setLeads((prev) => prev.filter((l) => l.id !== leadId));
+    } catch (err) {
+      console.warn('Failed to delete lead:', err);
+    }
+  };
+
+  const handleCopyPhone = (leadId: string, phone: string) => {
+    if (navigator?.clipboard) {
+      navigator.clipboard.writeText(phone);
+      setCopiedPhoneLeadId(leadId);
+      setTimeout(() => setCopiedPhoneLeadId(null), 2500);
+    }
+  };
+
+  const handleOpenConvertModal = (lead: TrialLeadRecord) => {
+    setSelectedLeadForConvert(lead);
+    setConvertInitialBalance(1);
+    setConvertLogin(lead.phone || '');
+    setConvertPassword(Math.floor(100000 + Math.random() * 900000).toString());
+    setConvertSuccessData(null);
+    setCopiedCreds(false);
+    setIsConvertModalOpen(true);
+  };
+
+  const handleConfirmConvertToStudent = async (skipCredentials = false) => {
+    if (!selectedLeadForConvert) return;
+    try {
+      setIsConvertingLead(true);
+      const res = await fetch('/api/trial-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'convert_to_student',
+          leadId: selectedLeadForConvert.id,
+          assignedTeacherId: teacherPublicId, // Bind directly to this teacher!
+          initialBalance: Number(convertInitialBalance) || 1,
+          login: skipCredentials ? undefined : (convertLogin.trim() || undefined),
+          password: skipCredentials ? undefined : (convertPassword.trim() || undefined),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Ошибка при регистрации ученика');
+
+      setConvertSuccessData({
+        studentPublicId: data.studentPublicId,
+        studentName: selectedLeadForConvert.fullName,
+        login: !skipCredentials && data.login ? data.login : undefined,
+        password: !skipCredentials && data.password ? data.password : undefined,
+      });
+
+      // Update lead in local state
+      setLeads((prev) =>
+        prev.map((l) =>
+          l.id === selectedLeadForConvert.id ? { ...l, status: 'registered' } : l
+        )
+      );
+
+      // Refresh bound students so teacher immediately sees the student in their list!
+      if (teacherPublicId) {
+        fetchBoundStudents(teacherPublicId);
+        fetchSupabaseStudents();
+      }
+    } catch (err: any) {
+      console.error('Error converting lead to student:', err);
+      alert(err.message || 'Ошибка зачисления ученика');
+    } finally {
+      setIsConvertingLead(false);
+    }
+  };
+
+  // Realtime subscription for incoming trial leads from website
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    const channel = supabase
+      .channel('platform_messenger_global')
+      .on('broadcast', { event: 'new-trial-lead' }, (payload: any) => {
+        fetchLeadsData();
+        playNotificationChime();
+        const parent = payload?.payload?.parentName || 'родителя';
+        showSystemNotification({
+          title: '🔔 Новая заявка с сайта!',
+          body: `Поступила заявка от ${parent} на пробное занятие`,
+          url: `/teacher?id=${teacherPublicId}`,
+        });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [teacherPublicId]);
+
   useEffect(() => {
     const role =
       localStorage.getItem('aida_active_role') ||
@@ -493,6 +712,7 @@ export default function TeacherDashboard() {
     fetchBoundStudents(savedUserId);
     fetchTeachers(savedUserId);
     fetchAllHomework();
+    fetchLeadsData();
   }, [router]);
 
   // Dismiss dropdowns on outside tap/click (iOS style) and Escape key
@@ -586,7 +806,7 @@ export default function TeacherDashboard() {
           publicId: data.student.student_public_id,
           fullName: data.student.student_name,
           notes: data.student.notes,
-          addedAt: new Date().toLocaleDateString('ru-RU'),
+          addedAt: new Date().toLocaleDateString('ru-RU', { timeZone: 'Europe/Samara' }),
         };
         const updated = [newEntry, ...boundStudents];
         setBoundStudents(updated);
@@ -1014,6 +1234,309 @@ export default function TeacherDashboard() {
     </div>
   </div>
 
+    {/* Row 2.5: Trial Leads from Website (Заявки с главной страницы на пробные занятия) */}
+    <div className="w-full bg-white rounded-3xl p-4 sm:p-5 border-t-4 border-t-coralAccent border-x border-b border-[#F0DCCD] shadow-xs space-y-4 hover:shadow-sm transition-shadow">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-[#FFF2E6] text-coralAccent border border-[#FCDDC7] flex items-center justify-center shrink-0 shadow-2xs">
+            <Inbox className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="font-black text-sm sm:text-base text-[#161F38]">
+                Заявки с сайта на пробные занятия
+              </h3>
+              {leads.filter((l) => l.status === 'new').length > 0 && (
+                <span className="text-[10px] font-black text-white bg-coralAccent px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-xs animate-pulse">
+                  <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                  {leads.filter((l) => l.status === 'new').length} новых
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-[#6B758E] mt-0.5">
+              Контакты родителей с посадочной страницы. Вы можете связаться и зачислить ребёнка к себе в ученики.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 self-stretch sm:self-auto justify-end">
+          <button
+            type="button"
+            onClick={fetchLeadsData}
+            disabled={loadingLeads}
+            className="inline-flex items-center gap-1.5 text-xs font-bold bg-[#FFFDFB] hover:bg-[#FFF2E6] text-[#161F38] border border-[#F2DECE] px-3.5 py-2 rounded-xl transition-all cursor-pointer shadow-2xs active:scale-95 disabled:opacity-50"
+            title="Обновить заявки"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loadingLeads ? 'animate-spin text-coralAccent' : 'text-[#8A95A8]'}`} />
+            <span>Обновить</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Subfilters & Search */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+        <div className="flex items-center gap-1.5 overflow-x-auto max-w-full pb-0.5">
+          {[
+            { id: 'all', label: `Все (${leads.length})` },
+            { id: 'new', label: `Новые (${leads.filter((l) => l.status === 'new').length})` },
+            { id: 'contacted', label: `В работе (${leads.filter((l) => l.status === 'contacted').length})` },
+            { id: 'registered', label: `Зачислены (${leads.filter((l) => l.status === 'registered').length})` },
+          ].map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => setLeadStatusFilter(f.id as any)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                leadStatusFilter === f.id
+                  ? 'bg-coralAccent text-white shadow-xs'
+                  : 'bg-[#FFFDFB] text-[#6B758E] hover:text-[#161F38] border border-[#F2DECE]'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="relative w-full sm:w-64">
+          <Search className="w-3.5 h-3.5 text-[#8A95A8] absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={leadSearchQuery}
+            onChange={(e) => setLeadSearchQuery(e.target.value)}
+            placeholder="Поиск по родителю, ребенку..."
+            className="w-full pl-8 pr-3 py-1.5 bg-[#FFFDFB] border border-[#F2DECE] rounded-xl text-xs font-bold text-[#161F38] outline-none focus:border-coralAccent transition-colors"
+          />
+        </div>
+      </div>
+
+      {/* Cards List */}
+      {filteredLeads.length === 0 ? (
+        <div className="p-8 rounded-2xl border border-dashed border-[#F2DECE] bg-[#FFFAF5] text-center space-y-2">
+          <Inbox className="w-8 h-8 text-coralAccent mx-auto opacity-40" />
+          <h4 className="font-bold text-xs text-[#161F38]">Заявок не найдено</h4>
+          <p className="text-[11px] text-[#8A95A8]">
+            {leadSearchQuery
+              ? `По запросу «${leadSearchQuery}» ничего не найдено`
+              : 'В этой категории пока нет заявок. Новые заявки с формы на сайте появятся здесь.'}
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5 items-stretch">
+          {filteredLeads.map((lead) => {
+            const isNew = lead.status === 'new';
+            const isContacted = lead.status === 'contacted';
+            const isRegistered = lead.status === 'registered';
+            const isCancelled = lead.status === 'cancelled';
+            const cleanDigits = (lead.phone || '').replace(/\D/g, '');
+
+            return (
+              <div
+                key={lead.id}
+                className={`p-4 rounded-2xl border bg-[#FFFDFB] hover:bg-white transition-all shadow-2xs flex flex-col justify-between space-y-3.5 ${
+                  isNew
+                    ? 'border-orange-300 ring-2 ring-orange-400/20'
+                    : isRegistered
+                    ? 'border-[#CCE8A2] bg-[#FAFDF6]'
+                    : 'border-[#F2DECE]'
+                }`}
+              >
+                {/* Top: Status & Date */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {isNew && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-orange-100 text-[#FF6B4A] border border-orange-200 flex items-center gap-1 animate-pulse">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#FF6B4A]" />
+                        Новая заявка
+                      </span>
+                    )}
+                    {isContacted && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200">
+                        В работе
+                      </span>
+                    )}
+                    {isRegistered && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-[#EAF7CF] text-[#5C8519] border border-[#CCE8A2]">
+                        Зачислен ✓
+                      </span>
+                    )}
+                    {isCancelled && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-gray-100 text-gray-600 border border-gray-200">
+                        Отклонена
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[10px] text-[#8A95A8] flex items-center gap-1 shrink-0">
+                    <Clock className="w-3 h-3" />
+                    {lead.createdAt ? new Date(lead.createdAt).toLocaleDateString('ru-RU', { timeZone: 'Europe/Samara' }) : ''}
+                  </span>
+                </div>
+
+                {/* Details */}
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-bold text-[#8A95A8] uppercase tracking-wider block">
+                    Родитель:
+                  </span>
+                  <h4 className="text-sm font-black text-[#161F38] leading-tight">
+                    {lead.parentName || 'Имя не указано'}
+                  </h4>
+
+                  {lead.childName && (
+                    <div className="flex items-center gap-1.5 pt-0.5">
+                      <span className="text-[11px] text-[#6B758E] font-bold">Ребёнок:</span>
+                      <span className="text-[11px] font-black text-[#161F38] bg-[#FFF2E6] px-2 py-0.2 rounded-md border border-[#FCDDC7]">
+                        👶 {lead.childName}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="pt-1">
+                    <span className="inline-block text-[10px] font-bold bg-[#E8F1FC] text-[#2B6CB0] px-2 py-0.5 rounded-lg border border-[#C5DCFA]">
+                      🎯 {lead.selectedSubject}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Phone & Call */}
+                <div className="bg-[#FFF8F1] p-2.5 rounded-xl border border-[#F8EDE1] flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <span className="text-[9px] font-bold text-[#8A95A8] block">Телефон:</span>
+                    <a
+                      href={`tel:${cleanDigits}`}
+                      className="text-xs font-black text-[#161F38] hover:text-coralAccent transition-colors truncate block"
+                      title="Позвонить"
+                    >
+                      {lead.phone || 'Не указан'}
+                    </a>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <a
+                      href={`tel:${cleanDigits}`}
+                      className="inline-flex items-center gap-1 bg-[#5C8519] hover:bg-[#4d6f14] text-white text-[11px] font-black px-2.5 py-1.5 rounded-lg transition-all shadow-2xs active:scale-95"
+                    >
+                      <Phone className="w-3 h-3" />
+                      <span>Звонок</span>
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyPhone(lead.id, lead.phone)}
+                      className="p-1.5 bg-white border border-[#F2DECE] text-[#6B758E] hover:text-[#161F38] rounded-lg cursor-pointer"
+                      title="Скопировать телефон"
+                    >
+                      {copiedPhoneLeadId === lead.id ? (
+                        <Check className="w-3 h-3 text-[#5C8519]" />
+                      ) : (
+                        <Copy className="w-3 h-3" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Notes */}
+                <div className="space-y-1">
+                  {editingLeadNoteId === lead.id ? (
+                    <div className="space-y-1.5">
+                      <textarea
+                        value={leadNoteInput}
+                        onChange={(e) => setLeadNoteInput(e.target.value)}
+                        placeholder="Заметка к заявке..."
+                        rows={2}
+                        autoFocus
+                        className="w-full text-xs p-2 bg-white border border-coralAccent rounded-xl focus:outline-none resize-none"
+                      />
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setEditingLeadNoteId(null)}
+                          className="text-[10px] font-bold text-[#8A95A8] px-2 py-0.5"
+                        >
+                          Отмена
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSaveLeadNote(lead.id)}
+                          className="text-[10px] font-black bg-coralAccent text-white px-2.5 py-0.5 rounded-md"
+                        >
+                          Сохранить
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => {
+                        setEditingLeadNoteId(lead.id);
+                        setLeadNoteInput(lead.notes || '');
+                      }}
+                      className="p-2 rounded-xl bg-[#FAF9F7] hover:bg-[#FFF8F1] border border-[#F0EBE5] transition-colors cursor-pointer text-xs"
+                    >
+                      {lead.notes ? (
+                        <p className="text-[#161F38] font-medium leading-tight flex items-start justify-between gap-1 text-[11px]">
+                          <span>💬 {lead.notes}</span>
+                          <span className="text-[9px] text-[#8A95A8] font-bold shrink-0">✎</span>
+                        </p>
+                      ) : (
+                        <span className="text-[10px] text-[#8A95A8] font-bold">
+                          + Добавить заметку
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Bottom Actions: Status & Convert */}
+                <div className="pt-2.5 border-t border-[#F8EDE1] flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-1">
+                    <select
+                      value={lead.status}
+                      onChange={(e) => {
+                        const val = e.target.value as any;
+                        if (val === 'registered') {
+                          handleOpenConvertModal(lead);
+                        } else {
+                          handleUpdateLeadStatus(lead.id, val);
+                        }
+                      }}
+                      className="text-xs font-bold bg-[#FFFDFB] border border-[#F2DECE] text-[#161F38] rounded-xl px-2 py-1 focus:outline-none focus:border-coralAccent cursor-pointer"
+                    >
+                      <option value="new">Новая</option>
+                      <option value="contacted">В работе</option>
+                      <option value="registered">Зачислен</option>
+                      <option value="cancelled">Отклонить</option>
+                    </select>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteLead(lead.id, lead.parentName)}
+                      className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg cursor-pointer"
+                      title="Удалить заявку"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {isRegistered ? (
+                    <span className="inline-flex items-center gap-1 text-xs font-black text-[#5C8519] bg-[#EAF7CF] px-2.5 py-1 rounded-xl border border-[#CCE8A2]">
+                      <Check className="w-3 h-3" />
+                      Зачислен
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenConvertModal(lead)}
+                      className="inline-flex items-center gap-1 text-xs font-black bg-[#5C8519] hover:bg-[#4E7214] text-white px-3 py-1.5 rounded-xl shadow-2xs active:scale-95 transition-all cursor-pointer"
+                    >
+                      <UserPlus className="w-3.5 h-3.5" />
+                      <span>Взять к себе →</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+
     {/* Row 3: Real Teachers & Pedagogical Faculty — Golden Amber Accent (Full Width) */}
     <div className="w-full bg-white rounded-3xl p-4 sm:p-5 border-t-4 border-t-amber-500 border-x border-b border-[#FCDDC7] shadow-xs space-y-3.5 hover:shadow-sm transition-shadow">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -1350,6 +1873,247 @@ export default function TeacherDashboard() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CONVERT TRIAL LEAD TO ACTIVE STUDENT FOR TEACHER */}
+      {isConvertModalOpen && selectedLeadForConvert && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => {
+            if (!isConvertingLead) setIsConvertModalOpen(false);
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#161F38]/50 backdrop-blur-xs animate-in fade-in duration-150"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-md bg-white rounded-3xl p-5 sm:p-6 shadow-2xl border border-[#F2DECE] space-y-4 animate-in zoom-in-95 duration-150"
+          >
+            {/* Header */}
+            <div className="flex items-start justify-between gap-3 pb-3 border-b border-[#F5E8DC]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-[#EAF7CF] text-[#5C8519] border border-[#CCE8A2] flex items-center justify-center shrink-0 shadow-2xs">
+                  <UserPlus className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base text-[#161F38] tracking-tight">
+                    Зачислить ученика к себе
+                  </h3>
+                  <p className="text-[11px] text-[#6B758E] mt-0.5">
+                    Регистрация и закрепление за вашим кабинетом
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsConvertModalOpen(false)}
+                disabled={isConvertingLead}
+                className="w-8 h-8 rounded-full bg-[#F5F7FB] hover:bg-[#E5E9F2] text-[#8A95A8] hover:text-[#161F38] flex items-center justify-center transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {convertSuccessData ? (
+              <div className="space-y-3.5 py-1">
+                <div className="p-3.5 rounded-2xl bg-[#EAF7CF] border border-[#CCE8A2] text-center space-y-1.5">
+                  <div className="w-8 h-8 mx-auto rounded-full bg-[#5C8519] text-white flex items-center justify-center shadow-xs">
+                    <Check className="w-5 h-5" />
+                  </div>
+                  <h4 className="text-sm font-black text-[#161F38]">Ученик успешно зачислен!</h4>
+                  <p className="text-[11px] text-[#5C8519] font-bold">
+                    {convertSuccessData.studentName} добавлен(а) в ваш список учеников
+                  </p>
+                </div>
+
+                {convertSuccessData.password && (
+                  <div className="p-3 bg-[#F0FDF4] border border-[#BBF7D0] rounded-2xl space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-[#166534]">Данные для входа в кабинет:</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (navigator?.clipboard) {
+                            navigator.clipboard.writeText(`Логин: ${convertSuccessData.login}\nПароль: ${convertSuccessData.password}\nСайт: https://айдаумничка.рф/login`);
+                            setCopiedCreds(true);
+                            setTimeout(() => setCopiedCreds(false), 2000);
+                          }
+                        }}
+                        className="text-[10px] font-extrabold text-[#166534] bg-white px-2 py-0.5 rounded-md border border-[#BBF7D0] hover:bg-[#DCFCE7] cursor-pointer flex items-center gap-1"
+                      >
+                        {copiedCreds ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedCreds ? 'Скопировано!' : 'Копировать'}</span>
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs bg-white/80 p-2 rounded-xl border border-[#BBF7D0]/60">
+                      <div>
+                        <span className="text-[#6B758E] text-[10px] block">Логин:</span>
+                        <span className="font-black text-[#161F38] break-all">{convertSuccessData.login}</span>
+                      </div>
+                      <div>
+                        <span className="text-[#6B758E] text-[10px] block">Пароль:</span>
+                        <span className="font-black text-[#161F38]">{convertSuccessData.password}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="bg-[#FFF8F1] p-3 rounded-2xl border border-[#F8EDE1] space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#8A95A8] font-bold">ID ученика:</span>
+                    <span className="font-black text-[#161F38] bg-white px-2 py-0.5 rounded-lg border border-[#F2DECE]">
+                      {convertSuccessData.studentPublicId}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#8A95A8] font-bold">Кабинет ученика:</span>
+                    <Link
+                      href={`/student?id=${convertSuccessData.studentPublicId}`}
+                      target="_blank"
+                      className="font-black text-coralAccent hover:underline flex items-center gap-1"
+                    >
+                      <span>Открыть кабинет</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </Link>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setIsConvertModalOpen(false)}
+                    className="text-xs font-black bg-[#5C8519] hover:bg-[#4E7214] text-white px-5 py-2 rounded-full shadow-2xs active:scale-95 transition-all cursor-pointer"
+                  >
+                    Готово
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3.5">
+                {/* Summary */}
+                <div className="bg-[#FFF8F1] p-3 rounded-2xl border border-[#F8EDE1] space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#8A95A8] font-bold">Родитель:</span>
+                    <span className="font-black text-[#161F38]">{selectedLeadForConvert.parentName}</span>
+                  </div>
+                  {selectedLeadForConvert.childName && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-[#8A95A8] font-bold">Ребёнок:</span>
+                      <span className="font-black text-[#161F38]">👶 {selectedLeadForConvert.childName}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#8A95A8] font-bold">Телефон:</span>
+                    <span className="font-bold text-[#161F38]">{selectedLeadForConvert.phone}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#8A95A8] font-bold">Направление:</span>
+                    <span className="font-black text-[#2B6CB0]">{selectedLeadForConvert.selectedSubject}</span>
+                  </div>
+                </div>
+
+                {/* Registration fields */}
+                <div className="p-3 bg-[#FAFBFD] rounded-2xl border border-[#E2E8F0] space-y-2">
+                  <span className="text-xs font-black text-[#161F38] block">Регистрация логина и пароля</span>
+
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-bold text-[#6B758E]">
+                      Логин (Телефон или Email):
+                    </label>
+                    <input
+                      type="text"
+                      value={convertLogin}
+                      onChange={(e) => setConvertLogin(e.target.value)}
+                      placeholder="+7 (999) 000-00-00 или email"
+                      className="w-full bg-white border border-[#CBD5E1] rounded-xl px-2.5 py-1.5 text-xs font-bold text-[#161F38] focus:outline-none focus:border-coralAccent"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-[10px] font-bold text-[#6B758E]">
+                        Пароль:
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setConvertPassword(Math.floor(100000 + Math.random() * 900000).toString())}
+                        className="text-[10px] font-extrabold text-coralAccent hover:underline cursor-pointer"
+                      >
+                        Сгенерировать PIN
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      value={convertPassword}
+                      onChange={(e) => setConvertPassword(e.target.value)}
+                      placeholder="Пароль (от 4 символов)"
+                      className="w-full bg-white border border-[#CBD5E1] rounded-xl px-2.5 py-1.5 text-xs font-bold text-[#161F38] focus:outline-none focus:border-coralAccent"
+                    />
+                    <p className="text-[10px] text-[#8A95A8] pt-0.5">
+                      По этим данным ученик сможет входить на сайт. Или нажмите «Пропустить» ниже.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-xs font-black text-[#161F38]">
+                    Стартовый баланс занятий:
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={convertInitialBalance}
+                    onChange={(e) => setConvertInitialBalance(Math.max(0, parseInt(e.target.value) || 0))}
+                    className="w-full bg-[#FFFDFB] border border-[#EADBCC] rounded-xl px-3 py-1.5 text-xs font-bold text-[#161F38] focus:outline-none focus:border-coralAccent"
+                  />
+                </div>
+
+                {/* Actions: Skip vs Register */}
+                <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-[#F5E8DC]">
+                  <button
+                    type="button"
+                    onClick={() => handleConfirmConvertToStudent(true)}
+                    disabled={isConvertingLead}
+                    className="text-xs font-black text-[#6B758E] hover:text-[#161F38] bg-[#F5F7FB] hover:bg-[#EBEFF5] px-3.5 py-2 rounded-full transition-all cursor-pointer disabled:opacity-50"
+                    title="Зачислить без пароля"
+                  >
+                    Пропустить →
+                  </button>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setIsConvertModalOpen(false)}
+                      disabled={isConvertingLead}
+                      className="text-xs font-bold text-[#8A95A8] hover:text-[#161F38] px-3 py-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      Отмена
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleConfirmConvertToStudent(false)}
+                      disabled={isConvertingLead}
+                      className="inline-flex items-center gap-1 text-xs font-black bg-[#5C8519] hover:bg-[#4E7214] text-white px-4 py-2 rounded-full shadow-2xs active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      {isConvertingLead ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>Зачисление...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Зарегистрировать</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

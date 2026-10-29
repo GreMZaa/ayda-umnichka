@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/server/config/database';
+import { UserRepository } from '@/server/repositories/user.repository';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,9 +9,9 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { parentName, phone, childName, selectedSubject, action } = body || {};
 
-    // 1. Convert Lead to Student Action (Called from Admin Panel)
+    // 1. Convert Lead to Student Action (Called from Admin / Teacher Panel)
     if (action === 'convert_to_student') {
-      const { leadId, assignedTeacherId, initialBalance } = body;
+      const { leadId, assignedTeacherId, initialBalance, login, password } = body;
       if (!leadId) {
         return NextResponse.json({ error: 'Не указан ID заявки' }, { status: 400 });
       }
@@ -30,21 +31,65 @@ export async function POST(req: NextRequest) {
       const newStudentPublicId = `id${Math.floor(100000 + Math.random() * 900000)}`;
       const currentMeta = (lead.metadata as Record<string, any>) || {};
 
+      let authUserId: string | null = null;
+      let targetEmail: string | null = null;
+      let createdPassword = '';
+
+      // If login & password provided, create Supabase auth credentials
+      if (password && typeof password === 'string' && password.trim().length >= 4) {
+        createdPassword = password.trim();
+        const rawLogin = (login || lead.phone || newStudentPublicId).trim();
+        targetEmail = rawLogin.includes('@')
+          ? rawLogin.toLowerCase()
+          : `${rawLogin.replace(/\D/g, '') || newStudentPublicId}@aidaumnichka.ru`;
+
+        try {
+          const { data: authData, error: authError } = await UserRepository.createUserWithAdminAuth({
+            email: targetEmail as string,
+            password: createdPassword,
+            metadata: {
+              public_id: newStudentPublicId,
+              full_name: lead.full_name,
+              role: 'student',
+              balance_lessons: typeof initialBalance === 'number' ? initialBalance : 1,
+            },
+          });
+
+          if (!authError && authData?.user?.id) {
+            authUserId = authData.user.id;
+          } else if (authError) {
+            console.warn('Warning creating auth user for student lead:', authError.message);
+          }
+        } catch (authCreateErr) {
+          console.warn('Exception creating auth user:', authCreateErr);
+        }
+      }
+
       // Update lead to active student
+      const updatePayload: Record<string, any> = {
+        public_id: newStudentPublicId,
+        role: 'student',
+        is_registered: true,
+        balance_lessons: typeof initialBalance === 'number' ? initialBalance : 1,
+        metadata: {
+          ...currentMeta,
+          converted_from_lead_at: new Date().toISOString(),
+          status: 'registered',
+          assigned_teacher_id: assignedTeacherId || currentMeta.assigned_teacher_id || null,
+        },
+        updated_at: new Date().toISOString(),
+      };
+
+      if (authUserId) {
+        updatePayload.auth_user_id = authUserId;
+      }
+      if (targetEmail) {
+        updatePayload.email = targetEmail;
+      }
+
       const { data: updatedStudent, error: updateErr } = await supabaseServer
         .from('user_bindings')
-        .update({
-          public_id: newStudentPublicId,
-          role: 'student',
-          is_registered: true,
-          balance_lessons: typeof initialBalance === 'number' ? initialBalance : 1,
-          metadata: {
-            ...currentMeta,
-            converted_from_lead_at: new Date().toISOString(),
-            status: 'registered',
-          },
-          updated_at: new Date().toISOString(),
-        })
+        .update(updatePayload)
         .eq('id', leadId)
         .select()
         .single();
@@ -52,6 +97,20 @@ export async function POST(req: NextRequest) {
       if (updateErr) {
         console.error('Error converting lead to student:', updateErr);
         return NextResponse.json({ error: 'Ошибка конвертации в ученика' }, { status: 500 });
+      }
+
+      // Also sync profile table if auth user created
+      if (authUserId) {
+        try {
+          await UserRepository.upsertProfile({
+            id: authUserId,
+            public_id: newStudentPublicId,
+            full_name: updatedStudent.full_name,
+            role: 'student',
+            email: targetEmail || undefined,
+            balance_lessons: typeof initialBalance === 'number' ? initialBalance : 1,
+          });
+        } catch (_) {}
       }
 
       // If a teacher was chosen, bind them in teacher_students
@@ -76,6 +135,9 @@ export async function POST(req: NextRequest) {
         message: 'Ученик успешно создан и добавлен в систему',
         student: updatedStudent,
         studentPublicId: newStudentPublicId,
+        login: targetEmail || (login ? String(login).trim() : newStudentPublicId),
+        password: createdPassword || undefined,
+        hasPassword: Boolean(createdPassword),
       });
     }
 
@@ -213,6 +275,7 @@ export async function GET(req: NextRequest) {
         selectedSubject: meta.selected_subject || 'Логопедия и развитие речи',
         status: meta.status || 'new', // 'new' | 'contacted' | 'registered' | 'cancelled'
         notes: meta.notes || '',
+        assignedTeacherId: meta.assigned_teacher_id || null,
         source: meta.source || 'web-landing-trial',
         createdAt: row.created_at,
         updatedAt: row.updated_at,
@@ -226,11 +289,11 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// PATCH: Update lead status or admin notes
+// PATCH: Update lead status, admin/teacher notes, or assigned teacher
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, status, notes } = body;
+    const { id, status, notes, assignedTeacherId } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'ID заявки обязателен' }, { status: 400 });
@@ -251,6 +314,7 @@ export async function PATCH(req: NextRequest) {
       ...currentMeta,
       ...(status !== undefined ? { status } : {}),
       ...(notes !== undefined ? { notes } : {}),
+      ...(assignedTeacherId !== undefined ? { assigned_teacher_id: assignedTeacherId } : {}),
       status_updated_at: new Date().toISOString(),
     };
 

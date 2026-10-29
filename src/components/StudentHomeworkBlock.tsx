@@ -350,7 +350,7 @@ export default function StudentHomeworkBlock({
 
                         {hw.createdAt && (
                           <span className="text-[10px] text-[#8A95A8]">
-                            • {new Date(hw.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}
+                            • {new Date(hw.createdAt).toLocaleDateString('ru-RU', { timeZone: 'Europe/Samara', day: 'numeric', month: 'long' })}
                           </span>
                         )}
                       </div>

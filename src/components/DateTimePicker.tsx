@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Calendar as CalendarIcon, Clock, Check, ChevronDown } from 'lucide-react';
+import { getTolyattiParts, TIMEZONE_TOLYATTI } from '@/lib/utils';
 
 interface DateTimePickerProps {
   value: string; // ISO format or 'YYYY-MM-DDTHH:mm'
@@ -34,9 +35,9 @@ function formatReadableDate(dateStr: string): string {
   if (!dateStr) return '';
   const [y, m, d] = dateStr.split('-').map(Number);
   if (!y || !m || !d) return dateStr;
-  const dateObj = new Date(y, m - 1, d);
-  const weekday = dateObj.toLocaleDateString('ru-RU', { weekday: 'short' });
-  const month = dateObj.toLocaleDateString('ru-RU', { month: 'long', day: 'numeric' });
+  const dateObj = new Date(y, m - 1, d, 12, 0, 0);
+  const weekday = dateObj.toLocaleDateString('ru-RU', { timeZone: TIMEZONE_TOLYATTI, weekday: 'short' });
+  const month = dateObj.toLocaleDateString('ru-RU', { timeZone: TIMEZONE_TOLYATTI, month: 'long', day: 'numeric' });
   const capitalizedWeekday = weekday.charAt(0).toUpperCase() + weekday.slice(1);
   return `${capitalizedWeekday}, ${month}`;
 }
@@ -44,19 +45,19 @@ function formatReadableDate(dateStr: string): string {
 export default function DateTimePicker({
   value,
   onChange,
-  label = 'Дата и время урока',
+  label = 'Дата и время урока (время Тольятти)',
   minDate,
   className = '',
 }: DateTimePickerProps) {
   // Parse current value
   const { initialDate, initialTime } = useMemo(() => {
     if (!value) {
-      const now = new Date();
-      // default to next round hour today
-      now.setHours(now.getHours() + 1, 0, 0, 0);
+      const tp = getTolyattiParts();
+      const nextHour = (tp.hours + 1) % 24;
+      const initialIsoDate = `${tp.year}-${padZero(tp.month)}-${padZero(tp.day)}`;
       return {
-        initialDate: formatDateToIsoDate(now),
-        initialTime: `${padZero(now.getHours())}:00`,
+        initialDate: initialIsoDate,
+        initialTime: `${padZero(nextHour)}:00`,
       };
     }
     const parts = value.split('T');
@@ -92,9 +93,10 @@ export default function DateTimePicker({
     onChange(`${newDate}T${newTime}`);
   };
 
-  // Quick dates (Today, Tomorrow, Day after, etc.)
+  // Quick dates (Today, Tomorrow, Day after, etc. in Tolyatti)
   const quickDates = useMemo(() => {
-    const today = new Date();
+    const tp = getTolyattiParts();
+    const today = new Date(tp.year, tp.month - 1, tp.day, 12, 0, 0);
     const dates = [];
 
     for (let i = 0; i < 4; i++) {
@@ -107,11 +109,11 @@ export default function DateTimePicker({
       else if (i === 1) labelText = 'Завтра';
       else if (i === 2) labelText = 'Послезавтра';
       else {
-        const weekday = d.toLocaleDateString('ru-RU', { weekday: 'short' });
+        const weekday = d.toLocaleDateString('ru-RU', { timeZone: TIMEZONE_TOLYATTI, weekday: 'short' });
         labelText = weekday.charAt(0).toUpperCase() + weekday.slice(1);
       }
 
-      const dayMonth = d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }).replace('.', '');
+      const dayMonth = d.toLocaleDateString('ru-RU', { timeZone: TIMEZONE_TOLYATTI, day: 'numeric', month: 'short' }).replace('.', '');
       dates.push({ iso, label: labelText, sublabel: dayMonth });
     }
     return dates;
@@ -201,7 +203,8 @@ export default function DateTimePicker({
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#8A95A8] flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5 text-coralAccent" />
-              Время начала
+              <span>Время начала</span>
+              <span className="text-[10px] text-coralAccent bg-[#FFF2E6] px-1.5 py-0.2 rounded font-bold">Тольятти (МСК+1)</span>
             </span>
             <button
               type="button"
