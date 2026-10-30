@@ -19,7 +19,8 @@ export interface ConnectLiveKitOptions {
   onConnected?: (account: 'account1' | 'account2', accountName: string) => void;
   onDisconnected?: (reason?: string) => void;
   onLocalTracks?: (stream: MediaStream) => void;
-  onRemoteTrackReceived?: (kind: 'video' | 'audio', stream: MediaStream) => void;
+  onRemoteTrackReceived?: (kind: 'video' | 'audio' | 'screen', stream: MediaStream) => void;
+  onScreenShareEnded?: () => void;
   onPeerJoined?: (name: string, role?: string) => void;
   onPeerLeft?: () => void;
   onDataReceived?: (data: any) => void;
@@ -130,14 +131,20 @@ export async function initLiveKitCall(options: ConnectLiveKitOptions): Promise<L
     });
 
     const handleSubscribedTrack = (track: any, participant?: any) => {
-      onLog?.('success', `Получен удаленный медиа-поток (${track.kind}) от ${participant?.name || participant?.identity || 'собеседника'}`);
+      const isScreen = track.source === Track.Source.ScreenShare;
+      onLog?.(
+        'success',
+        `Получен удаленный медиа-поток (${isScreen ? 'демонстрация экрана' : track.kind}) от ${
+          participant?.name || participant?.identity || 'собеседника'
+        }`
+      );
 
       if (track.kind === Track.Kind.Video) {
-        if (options.remoteVideoEl) {
+        if (options.remoteVideoEl && !isScreen) {
           track.attach(options.remoteVideoEl);
         }
         if (track.mediaStreamTrack) {
-          onRemoteTrackReceived?.('video', new MediaStream([track.mediaStreamTrack]));
+          onRemoteTrackReceived?.(isScreen ? 'screen' : 'video', new MediaStream([track.mediaStreamTrack]));
         }
       } else if (track.kind === Track.Kind.Audio) {
         // Dedicated audio playback to avoid duplicate sound and echo
@@ -160,6 +167,13 @@ export async function initLiveKitCall(options: ConnectLiveKitOptions): Promise<L
 
     room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
       handleSubscribedTrack(track, participant);
+    });
+
+    room.on(RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
+      if (track.source === Track.Source.ScreenShare) {
+        onLog?.('info', `Демонстрация экрана завершена: ${participant?.name || 'собеседник'}`);
+        options.onScreenShareEnded?.();
+      }
     });
 
     room.on(RoomEvent.TrackSubscriptionFailed, (trackSid, participant) => {

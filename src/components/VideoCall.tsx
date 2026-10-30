@@ -489,6 +489,7 @@ export default function VideoCall({
   const streamRef = useRef<MediaStream | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
+  const remoteScreenStreamRef = useRef<MediaStream | null>(null);
   const requestMediaPermissionsRef = useRef<(() => Promise<void>) | null>(null);
   const hasAttemptedWarmupRef = useRef(false);
 
@@ -1188,6 +1189,20 @@ export default function VideoCall({
         if (kind === 'audio') {
           setRemoteMicActive(true);
         }
+        if (kind === 'screen') {
+          remoteScreenStreamRef.current = stream;
+          setIsRemoteScreenSharing(true);
+          if (remoteVideoRef.current) {
+            const vOnly = toVideoOnlyStream(stream);
+            if (vOnly) {
+              remoteVideoRef.current.srcObject = vOnly;
+            }
+            remoteVideoRef.current.muted = true;
+            remoteVideoRef.current.volume = 0;
+            remoteVideoRef.current.play().catch(() => {});
+          }
+          return;
+        }
         if (!remoteStreamRef.current) {
           remoteStreamRef.current = stream;
         } else {
@@ -1197,7 +1212,7 @@ export default function VideoCall({
             }
           });
         }
-        if (remoteVideoRef.current && kind === 'video') {
+        if (remoteVideoRef.current && kind === 'video' && !isRemoteScreenSharing) {
           const vOnly = toVideoOnlyStream(remoteStreamRef.current);
           if (vOnly) {
             remoteVideoRef.current.srcObject = vOnly;
@@ -1221,6 +1236,16 @@ export default function VideoCall({
           remoteAudioRef.current.srcObject = aOnly;
           remoteAudioRef.current.muted = isDeafened;
           remoteAudioRef.current.play().catch(() => {});
+        }
+      },
+      onScreenShareEnded: () => {
+        remoteScreenStreamRef.current = null;
+        setIsRemoteScreenSharing(false);
+        if (remoteVideoRef.current && remoteStreamRef.current) {
+          const vOnly = toVideoOnlyStream(remoteStreamRef.current);
+          if (vOnly) {
+            remoteVideoRef.current.srcObject = vOnly;
+          }
         }
       },
       onPeerJoined: (name) => {
@@ -1280,11 +1305,13 @@ export default function VideoCall({
     ].join('\n');
 
     let copied = false;
-    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText && window.isSecureContext) {
       try {
-        await navigator.clipboard.writeText(report).catch(() => {});
+        await navigator.clipboard.writeText(report);
         copied = true;
-      } catch (_) {}
+      } catch (clipErr) {
+        console.warn('navigator.clipboard.writeText denied or failed, attempting execCommand fallback:', clipErr);
+      }
     }
 
     // Fallback for mobile Android Webview / strict clipboard policy
@@ -1296,6 +1323,7 @@ export default function VideoCall({
         textArea.style.position = 'fixed';
         textArea.style.left = '-9999px';
         textArea.style.top = '-9999px';
+        textArea.style.opacity = '0';
         document.body.appendChild(textArea);
         textArea.focus();
         textArea.select();
@@ -1346,54 +1374,46 @@ export default function VideoCall({
 
       addLog('info', `Запрос камеры и микрофона (${isMobile ? 'мобильный' : 'ПК'})...`);
 
-      // 1. Try mobile-friendly or ideal constraints with full AEC
+      // 1. Acquire Video independently
       try {
-        stream = await navigator.mediaDevices.getUserMedia(
+        const vStream = await navigator.mediaDevices.getUserMedia(
           isMobile
-            ? {
-                video: { facingMode: { ideal: mode } },
-                audio: PREFERRED_AUDIO_CONSTRAINTS,
-              }
-            : {
-                video: {
-                  facingMode: mode,
-                  width: { ideal: 1280 },
-                  height: { ideal: 720 },
-                },
-                audio: PREFERRED_AUDIO_CONSTRAINTS,
-              }
+            ? { video: { facingMode: { ideal: mode } } }
+            : { video: { facingMode: mode, width: { ideal: 1280 }, height: { ideal: 720 } } }
         );
+        stream = vStream;
         acquiredVideo = true;
-        acquiredAudio = true;
       } catch (err1) {
-        console.warn('[WebRTC] Preferred constraints failed, trying basic video + audio with AEC...', err1);
-        // 2. Try basic video + audio (never drop echo cancellation!)
         try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: isMobile ? true : { facingMode: mode },
-            audio: PREFERRED_AUDIO_CONSTRAINTS,
-          });
+          const vStream = await navigator.mediaDevices.getUserMedia({ video: true });
+          stream = vStream;
           acquiredVideo = true;
+        } catch (_) {}
+      }
+
+      // 2. Acquire Audio independently (never fails camera if mic is unplugged)
+      try {
+        const aStream = await navigator.mediaDevices.getUserMedia({
+          audio: PREFERRED_AUDIO_CONSTRAINTS,
+        });
+        const aTrack = aStream.getAudioTracks()[0];
+        if (aTrack) {
+          if (!stream) stream = new MediaStream();
+          stream.addTrack(aTrack);
           acquiredAudio = true;
-        } catch (err2) {
-          console.warn('[WebRTC] Basic video+audio failed, trying audio-only with AEC...', err2);
-          // 3. Try audio-only (e.g. camera is busy or unavailable)
-          try {
-            stream = await navigator.mediaDevices.getUserMedia({ audio: PREFERRED_AUDIO_CONSTRAINTS });
-            acquiredAudio = true;
-            setCamActive(false);
-          } catch (err3) {
-            console.warn('[WebRTC] Audio-only failed, trying video-only...', err3);
-            // 4. Try video-only
-            try {
-              stream = await navigator.mediaDevices.getUserMedia({ video: true });
-              acquiredVideo = true;
-              setMicActive(false);
-            } catch (err4) {
-              console.warn('[WebRTC] Neither camera nor microphone accessible:', err4);
-            }
-          }
         }
+      } catch (errA) {
+        try {
+          const aStream = await navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: true },
+          });
+          const aTrack = aStream.getAudioTracks()[0];
+          if (aTrack) {
+            if (!stream) stream = new MediaStream();
+            stream.addTrack(aTrack);
+            acquiredAudio = true;
+          }
+        } catch (_) {}
       }
 
       if (!stream) {
@@ -1509,7 +1529,7 @@ export default function VideoCall({
     }
   };
 
-  // Explicit User-Gesture Permission Request for Mobile (iOS & Android)
+  // Explicit User-Gesture Permission Request for Mobile & PC (Video and Audio acquired independently)
   const requestMediaPermissions = async () => {
     try {
       addLog('info', 'Пользователь запросил активацию камеры и микрофона...');
@@ -1517,98 +1537,165 @@ export default function VideoCall({
         typeof window !== 'undefined' &&
         (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth < 768);
 
-      let stream: MediaStream;
+      const combinedStream = streamRef.current || new MediaStream();
+
+      // 1. Acquire Video Track independently
+      let acquiredVideo = false;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
+        const vStream = await navigator.mediaDevices.getUserMedia({
           video: isMobile
             ? { facingMode: 'user' }
             : { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
-          audio: PREFERRED_AUDIO_CONSTRAINTS,
         });
-      } catch (firstErr: any) {
-        console.warn('Detailed getUserMedia failed, retrying minimal constraints with AEC:', firstErr);
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: PREFERRED_AUDIO_CONSTRAINTS,
-        });
+        const vTrack = vStream.getVideoTracks()[0];
+        if (vTrack) {
+          combinedStream.getVideoTracks().forEach((t) => {
+            combinedStream.removeTrack(t);
+            t.stop();
+          });
+          combinedStream.addTrack(vTrack);
+          acquiredVideo = true;
+          setCamActive(true);
+          setCameraError(null);
+          addLog('success', 'Локальная камера успешно активирована');
+        }
+      } catch (vErr: any) {
+        try {
+          const vStream = await navigator.mediaDevices.getUserMedia({ video: true });
+          const vTrack = vStream.getVideoTracks()[0];
+          if (vTrack) {
+            combinedStream.getVideoTracks().forEach((t) => {
+              combinedStream.removeTrack(t);
+              t.stop();
+            });
+            combinedStream.addTrack(vTrack);
+            acquiredVideo = true;
+            setCamActive(true);
+            setCameraError(null);
+            addLog('success', 'Локальная камера успешно активирована');
+          }
+        } catch (vErr2: any) {
+          console.warn('Video acquisition failed:', vErr2);
+          if (vErr2?.name === 'NotAllowedError') {
+            setCameraError('Доступ к камере запрещен в браузере');
+            setCamActive(false);
+          } else if (vErr2?.name === 'NotFoundError') {
+            setCameraError('Камера не найдена на устройстве');
+            setCamActive(false);
+          } else {
+            setCameraError('Камера недоступна');
+            setCamActive(false);
+          }
+        }
       }
 
-      if (stream) {
-        setCameraError(null);
-        setMicrophoneError(null);
-        setCamActive(true);
-        setMicActive(true);
-        streamRef.current = stream;
-
-        const vOnly = toVideoOnlyStream(stream);
-        if (localVideoRef.current && vOnly) {
-          localVideoRef.current.muted = true;
-          localVideoRef.current.volume = 0;
-          localVideoRef.current.srcObject = vOnly;
-          localVideoRef.current.play().catch(() => {});
+      // 2. Acquire Audio Track independently (failure never affects camera!)
+      let acquiredAudio = false;
+      try {
+        const aStream = await navigator.mediaDevices.getUserMedia({
+          audio: PREFERRED_AUDIO_CONSTRAINTS,
+        });
+        const aTrack = aStream.getAudioTracks()[0];
+        if (aTrack) {
+          combinedStream.getAudioTracks().forEach((t) => {
+            combinedStream.removeTrack(t);
+            t.stop();
+          });
+          combinedStream.addTrack(aTrack);
+          acquiredAudio = true;
+          setMicActive(true);
+          setMicrophoneError(null);
+          addLog('success', 'Локальный микрофон успешно активирован');
         }
-        if (pipVideoRef.current && vOnly) {
-          pipVideoRef.current.muted = true;
-          pipVideoRef.current.volume = 0;
-          pipVideoRef.current.srcObject = vOnly;
-          pipVideoRef.current.play().catch(() => {});
+      } catch (aErr: any) {
+        try {
+          const aStream = await navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: true },
+          });
+          const aTrack = aStream.getAudioTracks()[0];
+          if (aTrack) {
+            combinedStream.getAudioTracks().forEach((t) => {
+              combinedStream.removeTrack(t);
+              t.stop();
+            });
+            combinedStream.addTrack(aTrack);
+            acquiredAudio = true;
+            setMicActive(true);
+            setMicrophoneError(null);
+            addLog('success', 'Локальный микрофон успешно активирован');
+          }
+        } catch (aErr2: any) {
+          console.warn('Audio acquisition failed (mic missing or denied):', aErr2);
+          setMicActive(false);
+          if (aErr2?.name === 'NotAllowedError') {
+            setMicrophoneError('Доступ к микрофону запрещен в браузере');
+          } else if (aErr2?.name === 'NotFoundError' || aErr2?.name === 'DevicesNotFoundError') {
+            setMicrophoneError('Микрофон не подключен к компьютеру');
+            addLog('warn', 'Микрофон не обнаружен (подключите микрофон или наушники)');
+          } else {
+            setMicrophoneError('Микрофон недоступен');
+          }
+          if (combinedStream.getAudioTracks().length === 0) {
+            const silent = createSilentAudioTrack();
+            if (silent) combinedStream.addTrack(silent);
+          }
         }
+      }
 
-        // If LiveKit is connected, re-enable camera and mic in LiveKit
-        if (livekitSessionRef.current?.room) {
-          const room = livekitSessionRef.current.room;
+      streamRef.current = combinedStream;
+
+      // Update local preview with video-only track
+      const vOnly = toVideoOnlyStream(combinedStream);
+      if (localVideoRef.current && vOnly) {
+        localVideoRef.current.muted = true;
+        localVideoRef.current.volume = 0;
+        localVideoRef.current.srcObject = vOnly;
+        localVideoRef.current.play().catch(() => {});
+      }
+      if (pipVideoRef.current && vOnly) {
+        pipVideoRef.current.muted = true;
+        pipVideoRef.current.volume = 0;
+        pipVideoRef.current.srcObject = vOnly;
+        pipVideoRef.current.play().catch(() => {});
+      }
+
+      // LiveKit update
+      if (livekitSessionRef.current?.room) {
+        const room = livekitSessionRef.current.room;
+        if (acquiredAudio) {
           try {
             await room.localParticipant.setMicrophoneEnabled(true, {
               echoCancellation: true,
               noiseSuppression: true,
               autoGainControl: true,
             });
-          } catch (e: any) {
-            console.warn('LiveKit mic enable err:', e);
-          }
+          } catch (_) {}
+        }
+        if (acquiredVideo) {
           try {
-            await room.localParticipant.setCameraEnabled(true, {
-              facingMode: 'user',
-            });
+            await room.localParticipant.setCameraEnabled(true, { facingMode: 'user' });
             const camPub = room.localParticipant.getTrackPublication('camera');
             if (camPub?.videoTrack && localVideoRef.current) {
               camPub.videoTrack.attach(localVideoRef.current);
             }
-            if (camPub?.videoTrack && pipVideoRef.current) {
-              camPub.videoTrack.attach(pipVideoRef.current);
-            }
-          } catch (e: any) {
-            console.warn('LiveKit cam enable err:', e);
+          } catch (_) {}
+        }
+      }
+
+      // P2P WebRTC senders update
+      if (pcRef.current && pcRef.current.signalingState !== 'closed') {
+        const senders = pcRef.current.getSenders();
+        combinedStream.getTracks().forEach((newTrack) => {
+          const sender = senders.find((s) => s.track?.kind === newTrack.kind);
+          if (sender) {
+            sender.replaceTrack(newTrack);
+          } else {
+            pcRef.current?.addTrack(newTrack, combinedStream);
           }
-        }
-
-        // If P2P WebRTC is active, update senders
-        if (pcRef.current && pcRef.current.signalingState !== 'closed') {
-          const senders = pcRef.current.getSenders();
-          stream.getTracks().forEach((newTrack) => {
-            const sender = senders.find((s) => s.track?.kind === newTrack.kind);
-            if (sender) {
-              sender.replaceTrack(newTrack);
-            } else {
-              pcRef.current?.addTrack(newTrack, stream);
-            }
-          });
-        }
-
-        addLog('success', 'Камера и микрофон успешно активированы!');
+        });
       }
     } catch (err: any) {
       console.error('Media permission request error:', err);
-      let errMsg = 'Сбой доступа к камере или микрофону';
-      if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
-        errMsg = 'Доступ к камере заблокирован в настройках браузера (Permission denied)';
-      } else if (err?.name === 'NotFoundError' || err?.name === 'DevicesNotFoundError') {
-        errMsg = 'Камера или микрофон не найдены на устройстве';
-      } else if (err?.name === 'NotReadableError' || err?.name === 'TrackStartError') {
-        errMsg = 'Камера занята другим приложением (Telegram/Zoom)';
-      }
-      setCameraError(errMsg);
-      addLog('error', errMsg, err?.message || String(err));
     }
   };
 
@@ -1774,6 +1861,20 @@ export default function VideoCall({
         if (kind === 'audio') {
           setRemoteMicActive(true);
         }
+        if (kind === 'screen') {
+          remoteScreenStreamRef.current = stream;
+          setIsRemoteScreenSharing(true);
+          if (remoteVideoRef.current) {
+            const vOnly = toVideoOnlyStream(stream);
+            if (vOnly) {
+              remoteVideoRef.current.srcObject = vOnly;
+            }
+            remoteVideoRef.current.muted = true;
+            remoteVideoRef.current.volume = 0;
+            remoteVideoRef.current.play().catch(() => {});
+          }
+          return;
+        }
         if (!remoteStreamRef.current) {
           remoteStreamRef.current = stream;
         } else {
@@ -1783,7 +1884,7 @@ export default function VideoCall({
             }
           });
         }
-        if (remoteVideoRef.current && kind === 'video') {
+        if (remoteVideoRef.current && kind === 'video' && !isRemoteScreenSharing) {
           const vOnly = toVideoOnlyStream(remoteStreamRef.current);
           if (vOnly) {
             remoteVideoRef.current.srcObject = vOnly;
@@ -1807,6 +1908,16 @@ export default function VideoCall({
           remoteAudioRef.current.srcObject = aOnly;
           remoteAudioRef.current.muted = isDeafened;
           remoteAudioRef.current.play().catch(() => {});
+        }
+      },
+      onScreenShareEnded: () => {
+        remoteScreenStreamRef.current = null;
+        setIsRemoteScreenSharing(false);
+        if (remoteVideoRef.current && remoteStreamRef.current) {
+          const vOnly = toVideoOnlyStream(remoteStreamRef.current);
+          if (vOnly) {
+            remoteVideoRef.current.srcObject = vOnly;
+          }
         }
       },
       onPeerJoined: (name) => {
@@ -2456,8 +2567,20 @@ export default function VideoCall({
         // 0. LiveKit SFU screen share
         if (livekitSessionRef.current?.room) {
           try {
-            await livekitSessionRef.current.room.localParticipant.setScreenShareEnabled(true);
+            const pub = await livekitSessionRef.current.room.localParticipant.setScreenShareEnabled(true);
             setIsScreenSharing(true);
+            if (channelRef.current) {
+              channelRef.current.send({
+                type: 'broadcast',
+                event: 'peer-screen-share',
+                payload: { senderId: myPeerIdRef.current, isSharing: true },
+              });
+            }
+            if (pub?.track?.mediaStreamTrack) {
+              pub.track.mediaStreamTrack.onended = () => {
+                stopScreenSharing();
+              };
+            }
             return;
           } catch (lkErr: any) {
             if (lkErr?.name === 'NotAllowedError') return;
@@ -2522,18 +2645,14 @@ export default function VideoCall({
           }
         }
 
-        // 2. If getDisplayMedia is not available (e.g. iOS Safari on iPhone where Apple restricts system screen recording):
-        // Offer interactive whiteboard mode for visual collaboration
+        // 2. If getDisplayMedia is not available (e.g. mobile Safari / Chrome on phones):
+        // Automatically switch to interactive whiteboard mode for visual collaboration
         if (onToggleWhiteboard) {
-          const switchMode = confirm(
-            'На iPhone в браузере Safari компания Apple блокирует запись экрана веб-сайтами.\n\nВключить интерактивную доску для показа учебных материалов и совместной работы?'
-          );
-          if (switchMode) {
-            onToggleWhiteboard();
-          }
+          onToggleWhiteboard();
+          addLog('info', 'Активирована интерактивная доска для демонстрации учебных материалов');
         } else {
           alert(
-            'На мобильных устройствах iOS Safari демонстрация всего экрана ограничена Apple. Для показа учебных материалов используйте интерактивную доску или компьютер.'
+            'На смартфонах браузеры ограничивают захват экрана системы. Для трансляции экрана используйте ноутбук или компьютер.'
           );
         }
       } else {
@@ -3064,8 +3183,8 @@ export default function VideoCall({
       );
     }
 
-    // 1. Camera Error Banner
-    if (cameraError && dismissedAlertKey !== 'camera_err') {
+    // 1. Camera Error Banner (only shown when camera is actually not active)
+    if (cameraError && !camActive && dismissedAlertKey !== 'camera_err') {
       return (
         <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-lg bg-rose-950/95 border border-rose-500/50 backdrop-blur-md text-white rounded-2xl p-3 shadow-2xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 select-auto">
           <div className="flex items-center gap-2.5 min-w-0">
@@ -3105,17 +3224,21 @@ export default function VideoCall({
       );
     }
 
-    // 1.1 Microphone Error Banner
-    if (microphoneError && !cameraError && dismissedAlertKey !== 'mic_err') {
+    // 1.1 Microphone Warning Banner (show when mic is missing/inactive, without blocking active camera)
+    if (microphoneError && !micActive && dismissedAlertKey !== 'mic_err') {
       return (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-lg bg-rose-950/95 border border-rose-500/50 backdrop-blur-md text-white rounded-2xl p-3 shadow-2xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 select-auto">
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-lg bg-amber-950/95 border border-amber-500/50 backdrop-blur-md text-white rounded-2xl p-3 shadow-2xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 select-auto">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="p-2 rounded-xl bg-rose-500/20 text-rose-400 shrink-0">
+            <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 shrink-0">
               <MicOff className="w-5 h-5" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-bold text-rose-200">Микрофон недоступен</p>
-              <p className="text-[11px] text-white/80 truncate">{microphoneError}</p>
+              <p className="text-xs font-bold text-amber-200">Микрофон не обнаружен</p>
+              <p className="text-[11px] text-white/80 truncate">
+                {microphoneError.includes('not found') || microphoneError.includes('не найден')
+                  ? 'Подключите микрофон или наушники с гарнитурой к устройству'
+                  : microphoneError}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
@@ -3125,7 +3248,14 @@ export default function VideoCall({
               className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[11px] rounded-xl transition-all cursor-pointer shadow-sm flex items-center gap-1 active:scale-95"
             >
               <Mic className="w-3.5 h-3.5" />
-              <span>Включить микрофон</span>
+              <span>Подключить</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsDiagnosticsOpen(true)}
+              className="px-2 py-1.5 bg-white/15 hover:bg-white/25 text-white font-bold text-[11px] rounded-xl transition-all cursor-pointer"
+            >
+              Инструкция
             </button>
             <button
               type="button"
@@ -3260,19 +3390,63 @@ export default function VideoCall({
   const renderDiagnosticsModal = () => {
     if (!isDiagnosticsOpen) return null;
 
+    const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+    const isWindows = /Windows/i.test(userAgent);
+    const isMac = /Macintosh|Mac OS X/i.test(userAgent);
+    const isAndroid = /Android/i.test(userAgent);
+    const isIOSDevice = isIPhone || /iPhone|iPad|iPod/i.test(userAgent);
+
     let issueSummary = 'Все системы работают штатно';
     let issueType: 'good' | 'warn' | 'error' = 'good';
     let fixStep1 = 'Связь активна, критических ошибок не обнаружено.';
     let fixStep2 = '';
 
-    if (cameraError) {
+    if (cameraError && !camActive) {
       issueType = 'error';
-      issueSummary = 'Камера или микрофон заблокированы в браузере (Permission denied)';
-      fixStep1 = isIPhone
-        ? 'На iPhone (Safari): нажмите значок «aA» слева в строке адреса сайта -> «Настройки веб-сайта» -> установите «Камера: Разрешить» и «Микрофон: Разрешить» -> обновите страницу.'
-        : 'На телефоне (Android): нажмите значок настроек/замка слева в строке адреса сайта -> «Разрешения» -> включите тумблеры «Камера» и «Микрофон» -> обновите страницу.';
-      fixStep2 =
-        'Если вы открыли ссылку внутри Telegram или VK: нажмите три точки (⋮) вверху справа и выберите «Открыть в Chrome» (или Safari).';
+      issueSummary = 'Камера заблокирована или недоступна';
+      if (isWindows) {
+        fixStep1 =
+          'В браузере (Chrome / Edge / Яндекс): нажмите значок настроек/замка слева от адреса сайта и переключите камеру в положение «Разрешить».';
+        fixStep2 =
+          'Убедитесь, что камера не используется другим приложением (Telegram, Zoom, Skype) и не отключена шторкой или горячей клавишей.';
+      } else if (isMac) {
+        fixStep1 =
+          'В браузере: нажмите значок настроек сайта в строке адреса и включите доступ к камере.';
+        fixStep2 =
+          'Проверьте Системные настройки macOS -> Конфиденциальность -> Камера (разрешите браузеру доступ).';
+      } else if (isIOSDevice) {
+        fixStep1 =
+          'На iPhone (Safari): нажмите значок «aA» слева в строке адреса сайта -> «Настройки веб-сайта» -> установите «Камера: Разрешить» -> обновите страницу.';
+        fixStep2 =
+          'Если вы открыли ссылку внутри Telegram или VK: нажмите три точки (⋮) и выберите «Открыть в Safari».';
+      } else {
+        fixStep1 =
+          'На телефоне (Android): нажмите значок настроек/замка слева в строке адреса сайта -> «Разрешения» -> включите тумблер «Камера» -> обновите страницу.';
+        fixStep2 =
+          'Если вы открыли ссылку внутри Telegram или VK: нажмите три точки (⋮) вверху справа и выберите «Открыть в Chrome».';
+      }
+    } else if (microphoneError && !micActive) {
+      issueType = 'warn';
+      issueSummary =
+        microphoneError.includes('not found') || microphoneError.includes('не найден')
+          ? 'Микрофон не обнаружен (камера работает штатно)'
+          : 'Микрофон отключен или заблокирован (камера работает штатно)';
+      if (isWindows) {
+        fixStep1 =
+          'В Windows: подключите проводные наушники с микрофоном или USB-гарнитуру к компьютеру.';
+        fixStep2 =
+          'Проверьте «Параметры Windows -> Система -> Звук -> Ввод (микрофон)» и убедитесь, что микрофон выбран устройством по умолчанию.';
+      } else if (isMac) {
+        fixStep1 =
+          'Подключите гарнитуру к Mac. Проверьте Системные настройки -> Звук -> Вход.';
+        fixStep2 =
+          'В браузере проверьте разрешения для микрофона (значок замка в строке адреса).';
+      } else {
+        fixStep1 =
+          'Подключите наушники или Bluetooth-гарнитуру к устройству.';
+        fixStep2 =
+          'Проверьте разрешения микрофона в настройках браузера (значок замка в строке адреса).';
+      }
     } else if (currentIceState === 'failed' || currentIceState === 'disconnected') {
       issueType = 'error';
       issueSummary = 'Сбой прямого соединения WebRTC (P2P)';
@@ -3282,7 +3456,7 @@ export default function VideoCall({
     } else if (isAudioAutoplayBlocked) {
       issueType = 'warn';
       issueSummary = 'Звук собеседника заблокирован политикой браузера';
-      fixStep1 = 'Политика iOS Safari запрещает воспроизводить звук до первого нажатия на экран.';
+      fixStep1 = 'Политика браузера запрещает воспроизводить звук до первого нажатия на экран.';
       fixStep2 = 'Нажмите кнопку «Включить звук» или коснитесь экрана.';
     } else if (!isPeerInRoom) {
       issueType = 'warn';
@@ -3322,7 +3496,7 @@ export default function VideoCall({
           {/* Body Content */}
           <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
             {/* System Status Indicators (Traffic lights) */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
               {/* 1. Signaling */}
               <div className="p-2.5 rounded-2xl bg-white/5 border border-white/10 flex flex-col justify-between">
                 <span className="text-[10px] text-white/50">Сигналинг</span>
@@ -3359,7 +3533,7 @@ export default function VideoCall({
 
               {/* 3. ICE P2P */}
               <div className="p-2.5 rounded-2xl bg-white/5 border border-white/10 flex flex-col justify-between">
-                <span className="text-[10px] text-white/50">P2P Связь (ICE)</span>
+                <span className="text-[10px] text-white/50">P2P ICE</span>
                 <div className="flex items-center gap-1.5 mt-1">
                   <span
                     className={`w-2 h-2 rounded-full ${
@@ -3378,15 +3552,30 @@ export default function VideoCall({
 
               {/* 4. Local Cam */}
               <div className="p-2.5 rounded-2xl bg-white/5 border border-white/10 flex flex-col justify-between">
-                <span className="text-[10px] text-white/50">Ваша камера</span>
+                <span className="text-[10px] text-white/50">Камера</span>
                 <div className="flex items-center gap-1.5 mt-1">
                   <span
                     className={`w-2 h-2 rounded-full ${
-                      camActive && !cameraError ? 'bg-emerald-400' : cameraError ? 'bg-rose-500' : 'bg-white/30'
+                      camActive ? 'bg-emerald-400' : cameraError ? 'bg-rose-500' : 'bg-white/30'
                     }`}
                   />
                   <span className="font-bold text-[11px] truncate">
-                    {cameraError ? 'Ошибка' : camActive ? 'Вкл' : 'Выкл'}
+                    {camActive ? 'Вкл' : cameraError ? 'Ошибка' : 'Выкл'}
+                  </span>
+                </div>
+              </div>
+
+              {/* 5. Local Mic */}
+              <div className="p-2.5 rounded-2xl bg-white/5 border border-white/10 flex flex-col justify-between">
+                <span className="text-[10px] text-white/50">Микрофон</span>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      micActive ? 'bg-emerald-400' : microphoneError ? 'bg-amber-400' : 'bg-white/30'
+                    }`}
+                  />
+                  <span className="font-bold text-[11px] truncate">
+                    {micActive ? 'Вкл' : microphoneError ? 'Не найден' : 'Выкл'}
                   </span>
                 </div>
               </div>
@@ -3687,7 +3876,11 @@ export default function VideoCall({
                 if (el) {
                   el.muted = true;
                   el.volume = 0;
-                  const vOnly = toVideoOnlyStream(remoteStreamRef.current);
+                  const activeRemoteStream =
+                    isRemoteScreenSharing && remoteScreenStreamRef.current
+                      ? remoteScreenStreamRef.current
+                      : remoteStreamRef.current;
+                  const vOnly = toVideoOnlyStream(activeRemoteStream);
                   if (vOnly && el.srcObject !== vOnly) {
                     el.srcObject = vOnly;
                   }
@@ -3699,12 +3892,12 @@ export default function VideoCall({
               muted
               controls={false}
               className={`w-full h-full ${isRemoteScreenSharing ? 'object-contain bg-black' : 'object-cover'} ${
-                hasRemoteStream && remoteCamActive ? 'block' : 'hidden'
+                (hasRemoteStream && remoteCamActive) || isRemoteScreenSharing ? 'block' : 'hidden'
               }`}
             />
 
             {/* Remote peer camera turned off or waiting placeholder — clean without text clutter */}
-            {(!hasRemoteStream || !remoteCamActive) && (
+            {(!hasRemoteStream || (!remoteCamActive && !isRemoteScreenSharing)) && (
               <div className="absolute inset-0 bg-[#161F38] flex items-center justify-center p-2 select-none z-10">
                 <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-coralAccent text-lg sm:text-xl font-black shadow-inner">
                   {resolvedParticipantName[0] || 'П'}
@@ -3877,6 +4070,14 @@ export default function VideoCall({
           </div>
         )}
 
+        {/* Remote peer screen share banner */}
+        {isRemoteScreenSharing && (
+          <div className="fixed top-16 left-4 z-40 px-3 py-1 bg-emerald-600/90 backdrop-blur-md text-white text-xs font-bold rounded-full flex items-center gap-1.5 shadow-lg animate-in fade-in">
+            <Monitor className="w-3.5 h-3.5 animate-pulse" />
+            <span>{resolvedParticipantName} демонстрирует экран</span>
+          </div>
+        )}
+
         {/* 1. Main Fullscreen Video (Remote by default, or Local if isSwapped) */}
         <div className="absolute inset-0 w-full h-full overflow-hidden bg-[#FFF7EE]">
           {!isSwapped ? (
@@ -3891,7 +4092,11 @@ export default function VideoCall({
                     el.setAttribute('autopictureinpicture', 'true');
                     el.muted = true;
                     el.volume = 0;
-                    const vOnly = toVideoOnlyStream(remoteStreamRef.current);
+                    const activeRemoteStream =
+                      isRemoteScreenSharing && remoteScreenStreamRef.current
+                        ? remoteScreenStreamRef.current
+                        : remoteStreamRef.current;
+                    const vOnly = toVideoOnlyStream(activeRemoteStream);
                     if (vOnly && el.srcObject !== vOnly) {
                       el.srcObject = vOnly;
                     }
@@ -3908,11 +4113,11 @@ export default function VideoCall({
                   (e.target as HTMLVideoElement).play().catch(() => {});
                 }}
                 className={`w-full h-full ${
-                  isScreenSharing || isVerticalMode ? 'object-contain bg-black' : 'object-cover'
-                } ${hasRemoteStream && remoteCamActive ? 'block' : 'hidden'}`}
+                  isRemoteScreenSharing || isScreenSharing || isVerticalMode ? 'object-contain bg-black' : 'object-cover'
+                } ${(hasRemoteStream && remoteCamActive) || isRemoteScreenSharing ? 'block' : 'hidden'}`}
               />
 
-              {(!hasRemoteStream || !remoteCamActive) && (
+              {(!hasRemoteStream || (!remoteCamActive && !isRemoteScreenSharing)) && (
                 <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-[#FFFDFB] via-[#FFF7EE] to-[#FFEFE0]">
                   <div className="relative mb-4">
                     <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gradient-to-tr from-[#FF6B4A] to-[#FFA259] text-white flex items-center justify-center text-3xl sm:text-4xl font-black shadow-xl shadow-orange-500/15 border-4 border-white">
@@ -4056,7 +4261,11 @@ export default function VideoCall({
                     el.setAttribute('autopictureinpicture', 'true');
                     el.muted = true;
                     el.volume = 0;
-                    const vOnly = toVideoOnlyStream(remoteStreamRef.current);
+                    const activeRemoteStream =
+                      isRemoteScreenSharing && remoteScreenStreamRef.current
+                        ? remoteScreenStreamRef.current
+                        : remoteStreamRef.current;
+                    const vOnly = toVideoOnlyStream(activeRemoteStream);
                     if (vOnly && el.srcObject !== vOnly) {
                       el.srcObject = vOnly;
                     }
@@ -4072,11 +4281,11 @@ export default function VideoCall({
                 onCanPlay={(e) => {
                   (e.target as HTMLVideoElement).play().catch(() => {});
                 }}
-                className={`w-full h-full object-cover ${
-                  hasRemoteStream && remoteCamActive ? 'block' : 'hidden'
+                className={`w-full h-full ${isRemoteScreenSharing ? 'object-contain bg-black' : 'object-cover'} ${
+                  (hasRemoteStream && remoteCamActive) || isRemoteScreenSharing ? 'block' : 'hidden'
                 }`}
               />
-              {(!hasRemoteStream || !remoteCamActive) && (
+              {(!hasRemoteStream || (!remoteCamActive && !isRemoteScreenSharing)) && (
                 <div className="w-full h-full flex flex-col items-center justify-center bg-[#161F38] text-white p-2 text-center">
                   <div className="w-9 h-9 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center mb-1">
                     <span className="text-xs font-black">{resolvedParticipantName[0] || 'П'}</span>
