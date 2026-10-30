@@ -394,9 +394,6 @@ export default function VideoCall({
 
   // User gesture unlock for audio & iOS background keep-alive
   useEffect(() => {
-    let audioCtx: AudioContext | null = null;
-    let osc: OscillatorNode | null = null;
-
     const unlockAudio = () => {
       // 1. Play WebRTC remote audio element
       if (remoteAudioRef.current && remoteStreamRef.current) {
@@ -412,29 +409,14 @@ export default function VideoCall({
         }
       }
 
-      // 2. Web Audio keep-alive oscillator (maintains iOS audio session in background)
-      try {
-        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-        if (AudioCtx && !audioCtx) {
-          audioCtx = new AudioCtx();
-          osc = audioCtx.createOscillator();
-          const gain = audioCtx.createGain();
-          gain.gain.value = 0.0001; // virtually silent
-          osc.frequency.value = 440;
-          osc.connect(gain);
-          gain.connect(audioCtx.destination);
-          osc.start();
-        }
-      } catch (_) {}
-
-      // 3. Play silent audio keep-alive for background iOS audio session
+      // 2. Play silent audio keep-alive for background iOS audio session
       try {
         if (keepAliveAudioRef.current && keepAliveAudioRef.current.paused) {
           keepAliveAudioRef.current.play().catch(() => {});
         }
       } catch (_) {}
 
-      // 4. On first user gesture, attempt media permission warmup if camera is not active yet
+      // 3. On first user gesture, attempt media permission warmup if camera is not active yet
       if (!hasAttemptedWarmupRef.current) {
         hasAttemptedWarmupRef.current = true;
         if (requestMediaPermissionsRef.current && (!streamRef.current || streamRef.current.getVideoTracks().length === 0)) {
@@ -449,10 +431,6 @@ export default function VideoCall({
     return () => {
       window.removeEventListener('click', unlockAudio);
       window.removeEventListener('touchstart', unlockAudio);
-      try {
-        osc?.stop();
-        audioCtx?.close();
-      } catch (_) {}
     };
   }, []);
 
@@ -602,8 +580,14 @@ export default function VideoCall({
   // Keep remote audio & video elements updated with remoteStreamRef
   useEffect(() => {
     if (remoteStreamRef.current) {
-      if (remoteAudioRef.current && remoteAudioRef.current.srcObject !== remoteStreamRef.current) {
-        remoteAudioRef.current.srcObject = remoteStreamRef.current;
+      if (remoteAudioRef.current) {
+        const aTracks = remoteStreamRef.current.getAudioTracks();
+        if (aTracks.length > 0) {
+          const aOnly = new MediaStream(aTracks);
+          if (remoteAudioRef.current.srcObject !== aOnly) {
+            remoteAudioRef.current.srcObject = aOnly;
+          }
+        }
         remoteAudioRef.current.muted = isDeafened;
         remoteAudioRef.current
           .play()
@@ -614,9 +598,13 @@ export default function VideoCall({
           });
       }
 
-      if (remoteVideoRef.current && !isSwapped && remoteVideoRef.current.srcObject !== remoteStreamRef.current) {
-        remoteVideoRef.current.srcObject = remoteStreamRef.current;
+      if (remoteVideoRef.current && !isSwapped) {
+        const vOnly = toVideoOnlyStream(remoteStreamRef.current);
+        if (vOnly && remoteVideoRef.current.srcObject !== vOnly) {
+          remoteVideoRef.current.srcObject = vOnly;
+        }
         remoteVideoRef.current.muted = true;
+        remoteVideoRef.current.volume = 0;
         remoteVideoRef.current.play().catch(() => {});
       }
     }
@@ -682,6 +670,30 @@ export default function VideoCall({
       }
     } catch (_) {}
     return null;
+  };
+
+  // Helper to extract strictly video tracks so video tags NEVER receive or output microphone audio
+  const toVideoOnlyStream = (stream: MediaStream | null): MediaStream | null => {
+    if (!stream) return null;
+    const vTracks = stream.getVideoTracks();
+    if (vTracks.length === 0) return null;
+    return new MediaStream(vTracks);
+  };
+
+  // Full Echo Cancellation & Noise Suppression audio constraints
+  const PREFERRED_AUDIO_CONSTRAINTS = {
+    echoCancellation: true,
+    noiseSuppression: true,
+    autoGainControl: true,
+    // WebRTC Chromium AEC extensions
+    googEchoCancellation: true,
+    googExperimentalEchoCancellation: true,
+    googAutoGainControl: true,
+    googExperimentalAutoGainControl: true,
+    googNoiseSuppression: true,
+    googExperimentalNoiseSuppression: true,
+    googHighpassFilter: true,
+    googAudioMirroring: false,
   };
 
   const resetPeerConnection = () => {
@@ -783,11 +795,11 @@ export default function VideoCall({
         event.track.enabled = !isDeafened && remoteMicActive;
       }
 
-      // 1. Dedicated audio element
-      if (remoteAudioRef.current) {
-        if (remoteAudioRef.current.srcObject !== incomingStream) {
-          remoteAudioRef.current.srcObject = incomingStream;
-        }
+      // 1. Dedicated audio element (only plays incoming audio)
+      if (remoteAudioRef.current && event.track.kind === 'audio') {
+        const aTracks = incomingStream.getAudioTracks();
+        const aStream = aTracks.length > 0 ? new MediaStream(aTracks) : new MediaStream([event.track]);
+        remoteAudioRef.current.srcObject = aStream;
         remoteAudioRef.current.muted = isDeafened;
         remoteAudioRef.current
           .play()
@@ -799,12 +811,14 @@ export default function VideoCall({
           });
       }
 
-      // 2. Video element
-      if (remoteVideoRef.current) {
-        if (event.track.kind === 'video' || remoteVideoRef.current.srcObject !== incomingStream) {
-          remoteVideoRef.current.srcObject = incomingStream;
+      // 2. Video element (strictly video-only, 100% muted to prevent loopback)
+      if (remoteVideoRef.current && event.track.kind === 'video') {
+        const vOnly = toVideoOnlyStream(incomingStream);
+        if (vOnly) {
+          remoteVideoRef.current.srcObject = vOnly;
         }
         remoteVideoRef.current.muted = true;
+        remoteVideoRef.current.volume = 0;
         remoteVideoRef.current.play().catch(() => {});
       }
 
@@ -814,13 +828,18 @@ export default function VideoCall({
         addLog('success', `Медиа-поток ${event.track.kind} активен (данные идут)`);
         setHasRemoteStream(true);
         setConnectionStatus('connected');
-        if (remoteVideoRef.current) {
-          if (event.track.kind === 'video') {
-            remoteVideoRef.current.srcObject = incomingStream;
+        if (remoteVideoRef.current && event.track.kind === 'video') {
+          const vOnly = toVideoOnlyStream(incomingStream);
+          if (vOnly) {
+            remoteVideoRef.current.srcObject = vOnly;
           }
+          remoteVideoRef.current.muted = true;
+          remoteVideoRef.current.volume = 0;
           remoteVideoRef.current.play().catch(() => {});
         }
-        if (remoteAudioRef.current) remoteAudioRef.current.play().catch(() => {});
+        if (remoteAudioRef.current && event.track.kind === 'audio') {
+          remoteAudioRef.current.play().catch(() => {});
+        }
       };
 
       if (event.track.readyState === 'live' && !event.track.muted && pc.connectionState === 'connected') {
@@ -1145,12 +1164,17 @@ export default function VideoCall({
           setMicActive(true);
           setMicrophoneError(null);
         }
-        if (localVideoRef.current && localVideoRef.current.srcObject !== stream) {
-          localVideoRef.current.srcObject = stream;
+        const localVOnly = toVideoOnlyStream(stream);
+        if (localVideoRef.current && localVOnly && localVideoRef.current.srcObject !== localVOnly) {
+          localVideoRef.current.muted = true;
+          localVideoRef.current.volume = 0;
+          localVideoRef.current.srcObject = localVOnly;
           localVideoRef.current.play().catch(() => {});
         }
-        if (pipVideoRef.current && !hasRemoteStream && pipVideoRef.current.srcObject !== stream) {
-          pipVideoRef.current.srcObject = stream;
+        if (pipVideoRef.current && !hasRemoteStream && localVOnly && pipVideoRef.current.srcObject !== localVOnly) {
+          pipVideoRef.current.muted = true;
+          pipVideoRef.current.volume = 0;
+          pipVideoRef.current.srcObject = localVOnly;
           pipVideoRef.current.play().catch(() => {});
         }
       },
@@ -1174,17 +1198,27 @@ export default function VideoCall({
           });
         }
         if (remoteVideoRef.current && kind === 'video') {
-          remoteVideoRef.current.srcObject = remoteStreamRef.current;
+          const vOnly = toVideoOnlyStream(remoteStreamRef.current);
+          if (vOnly) {
+            remoteVideoRef.current.srcObject = vOnly;
+          }
           remoteVideoRef.current.muted = true;
+          remoteVideoRef.current.volume = 0;
           remoteVideoRef.current.play().catch(() => {});
         }
         if (pipVideoRef.current && kind === 'video') {
-          pipVideoRef.current.srcObject = remoteStreamRef.current;
+          const vOnly = toVideoOnlyStream(remoteStreamRef.current);
+          if (vOnly) {
+            pipVideoRef.current.srcObject = vOnly;
+          }
           pipVideoRef.current.muted = true;
+          pipVideoRef.current.volume = 0;
           pipVideoRef.current.play().catch(() => {});
         }
         if (remoteAudioRef.current && kind === 'audio') {
-          remoteAudioRef.current.srcObject = remoteStreamRef.current;
+          const aTracks = remoteStreamRef.current?.getAudioTracks() || [];
+          const aOnly = aTracks.length > 0 ? new MediaStream(aTracks) : stream;
+          remoteAudioRef.current.srcObject = aOnly;
           remoteAudioRef.current.muted = isDeafened;
           remoteAudioRef.current.play().catch(() => {});
         }
@@ -1312,13 +1346,13 @@ export default function VideoCall({
 
       addLog('info', `Запрос камеры и микрофона (${isMobile ? 'мобильный' : 'ПК'})...`);
 
-      // 1. Try mobile-friendly or ideal constraints
+      // 1. Try mobile-friendly or ideal constraints with full AEC
       try {
         stream = await navigator.mediaDevices.getUserMedia(
           isMobile
             ? {
                 video: { facingMode: { ideal: mode } },
-                audio: { echoCancellation: true, noiseSuppression: true },
+                audio: PREFERRED_AUDIO_CONSTRAINTS,
               }
             : {
                 video: {
@@ -1326,29 +1360,26 @@ export default function VideoCall({
                   width: { ideal: 1280 },
                   height: { ideal: 720 },
                 },
-                audio: {
-                  echoCancellation: true,
-                  noiseSuppression: true,
-                },
+                audio: PREFERRED_AUDIO_CONSTRAINTS,
               }
         );
         acquiredVideo = true;
         acquiredAudio = true;
       } catch (err1) {
-        console.warn('[WebRTC] Preferred constraints failed, trying basic video + audio...', err1);
-        // 2. Try basic video + audio
+        console.warn('[WebRTC] Preferred constraints failed, trying basic video + audio with AEC...', err1);
+        // 2. Try basic video + audio (never drop echo cancellation!)
         try {
           stream = await navigator.mediaDevices.getUserMedia({
             video: isMobile ? true : { facingMode: mode },
-            audio: true,
+            audio: PREFERRED_AUDIO_CONSTRAINTS,
           });
           acquiredVideo = true;
           acquiredAudio = true;
         } catch (err2) {
-          console.warn('[WebRTC] Basic video+audio failed, trying audio-only...', err2);
+          console.warn('[WebRTC] Basic video+audio failed, trying audio-only with AEC...', err2);
           // 3. Try audio-only (e.g. camera is busy or unavailable)
           try {
-            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            stream = await navigator.mediaDevices.getUserMedia({ audio: PREFERRED_AUDIO_CONSTRAINTS });
             acquiredAudio = true;
             setCamActive(false);
           } catch (err3) {
@@ -1398,14 +1429,25 @@ export default function VideoCall({
 
       streamRef.current = stream;
 
-      // Update local preview depending on swapped state
+      // Update local preview depending on swapped state (strictly video-only, never audio to prevent hearing oneself)
+      const localVOnly = toVideoOnlyStream(stream);
       if (isSwapped) {
-        if (remoteVideoRef.current) remoteVideoRef.current.srcObject = stream;
+        if (remoteVideoRef.current && localVOnly) {
+          remoteVideoRef.current.muted = true;
+          remoteVideoRef.current.volume = 0;
+          remoteVideoRef.current.srcObject = localVOnly;
+        }
       } else {
-        if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+        if (localVideoRef.current && localVOnly) {
+          localVideoRef.current.muted = true;
+          localVideoRef.current.volume = 0;
+          localVideoRef.current.srcObject = localVOnly;
+        }
       }
-      if (pipVideoRef.current) {
-        pipVideoRef.current.srcObject = stream;
+      if (pipVideoRef.current && localVOnly) {
+        pipVideoRef.current.muted = true;
+        pipVideoRef.current.volume = 0;
+        pipVideoRef.current.srcObject = localVOnly;
       }
 
       // Update peer connection with local tracks
@@ -1481,11 +1523,14 @@ export default function VideoCall({
           video: isMobile
             ? { facingMode: 'user' }
             : { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
-          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+          audio: PREFERRED_AUDIO_CONSTRAINTS,
         });
       } catch (firstErr: any) {
-        console.warn('Detailed getUserMedia failed, retrying minimal constraints:', firstErr);
-        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        console.warn('Detailed getUserMedia failed, retrying minimal constraints with AEC:', firstErr);
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: PREFERRED_AUDIO_CONSTRAINTS,
+        });
       }
 
       if (stream) {
@@ -1495,12 +1540,17 @@ export default function VideoCall({
         setMicActive(true);
         streamRef.current = stream;
 
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = stream;
+        const vOnly = toVideoOnlyStream(stream);
+        if (localVideoRef.current && vOnly) {
+          localVideoRef.current.muted = true;
+          localVideoRef.current.volume = 0;
+          localVideoRef.current.srcObject = vOnly;
           localVideoRef.current.play().catch(() => {});
         }
-        if (pipVideoRef.current) {
-          pipVideoRef.current.srcObject = stream;
+        if (pipVideoRef.current && vOnly) {
+          pipVideoRef.current.muted = true;
+          pipVideoRef.current.volume = 0;
+          pipVideoRef.current.srcObject = vOnly;
           pipVideoRef.current.play().catch(() => {});
         }
 
@@ -1699,12 +1749,17 @@ export default function VideoCall({
           setMicActive(true);
           setMicrophoneError(null);
         }
-        if (localVideoRef.current && localVideoRef.current.srcObject !== stream) {
-          localVideoRef.current.srcObject = stream;
+        const localVOnly = toVideoOnlyStream(stream);
+        if (localVideoRef.current && localVOnly && localVideoRef.current.srcObject !== localVOnly) {
+          localVideoRef.current.muted = true;
+          localVideoRef.current.volume = 0;
+          localVideoRef.current.srcObject = localVOnly;
           localVideoRef.current.play().catch(() => {});
         }
-        if (pipVideoRef.current && !hasRemoteStream && pipVideoRef.current.srcObject !== stream) {
-          pipVideoRef.current.srcObject = stream;
+        if (pipVideoRef.current && !hasRemoteStream && localVOnly && pipVideoRef.current.srcObject !== localVOnly) {
+          pipVideoRef.current.muted = true;
+          pipVideoRef.current.volume = 0;
+          pipVideoRef.current.srcObject = localVOnly;
           pipVideoRef.current.play().catch(() => {});
         }
       },
@@ -1729,17 +1784,27 @@ export default function VideoCall({
           });
         }
         if (remoteVideoRef.current && kind === 'video') {
-          remoteVideoRef.current.srcObject = remoteStreamRef.current;
+          const vOnly = toVideoOnlyStream(remoteStreamRef.current);
+          if (vOnly) {
+            remoteVideoRef.current.srcObject = vOnly;
+          }
           remoteVideoRef.current.muted = true;
+          remoteVideoRef.current.volume = 0;
           remoteVideoRef.current.play().catch(() => {});
         }
         if (pipVideoRef.current && kind === 'video') {
-          pipVideoRef.current.srcObject = remoteStreamRef.current;
+          const vOnly = toVideoOnlyStream(remoteStreamRef.current);
+          if (vOnly) {
+            pipVideoRef.current.srcObject = vOnly;
+          }
           pipVideoRef.current.muted = true;
+          pipVideoRef.current.volume = 0;
           pipVideoRef.current.play().catch(() => {});
         }
         if (remoteAudioRef.current && kind === 'audio') {
-          remoteAudioRef.current.srcObject = remoteStreamRef.current;
+          const aTracks = remoteStreamRef.current?.getAudioTracks() || [];
+          const aOnly = aTracks.length > 0 ? new MediaStream(aTracks) : stream;
+          remoteAudioRef.current.srcObject = aOnly;
           remoteAudioRef.current.muted = isDeafened;
           remoteAudioRef.current.play().catch(() => {});
         }
@@ -2091,14 +2156,21 @@ export default function VideoCall({
     return () => clearInterval(interval);
   }, [roomToken, hasRemoteStream, isTeacher]);
 
-  // Re-bind video srcObject if ref attaches or mode switches
+  // Re-bind video srcObject if ref attaches or mode switches (strictly video-only, never audio)
   useEffect(() => {
     if (streamRef.current) {
-      if (localVideoRef.current && localVideoRef.current.srcObject !== streamRef.current) {
-        localVideoRef.current.srcObject = streamRef.current;
-      }
-      if (pipVideoRef.current && pipVideoRef.current.srcObject !== streamRef.current) {
-        pipVideoRef.current.srcObject = streamRef.current;
+      const vOnly = toVideoOnlyStream(streamRef.current);
+      if (vOnly) {
+        if (localVideoRef.current && localVideoRef.current.srcObject !== vOnly) {
+          localVideoRef.current.muted = true;
+          localVideoRef.current.volume = 0;
+          localVideoRef.current.srcObject = vOnly;
+        }
+        if (pipVideoRef.current && pipVideoRef.current.srcObject !== vOnly) {
+          pipVideoRef.current.muted = true;
+          pipVideoRef.current.volume = 0;
+          pipVideoRef.current.srcObject = vOnly;
+        }
       }
     }
   }, [isWhiteboardActive, camActive, isSwapped]);
@@ -2494,8 +2566,11 @@ export default function VideoCall({
           await videoSender.replaceTrack(cameraTrack);
         }
       }
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = streamRef.current;
+      const vOnly = toVideoOnlyStream(streamRef.current);
+      if (localVideoRef.current && vOnly) {
+        localVideoRef.current.muted = true;
+        localVideoRef.current.volume = 0;
+        localVideoRef.current.srcObject = vOnly;
       }
     }
 
@@ -2622,11 +2697,16 @@ export default function VideoCall({
           streamRef.current.getVideoTracks().forEach((t) => streamRef.current?.removeTrack(t));
           streamRef.current.addTrack(newVideoTrack);
 
-          if (localVideoRef.current) {
-            localVideoRef.current.srcObject = streamRef.current;
+          const vOnly = toVideoOnlyStream(streamRef.current);
+          if (localVideoRef.current && vOnly) {
+            localVideoRef.current.muted = true;
+            localVideoRef.current.volume = 0;
+            localVideoRef.current.srcObject = vOnly;
           }
-          if (pipVideoRef.current) {
-            pipVideoRef.current.srcObject = streamRef.current;
+          if (pipVideoRef.current && vOnly) {
+            pipVideoRef.current.muted = true;
+            pipVideoRef.current.volume = 0;
+            pipVideoRef.current.srcObject = vOnly;
           }
 
           if (pcRef.current && pcRef.current.signalingState !== 'closed') {
@@ -3526,8 +3606,11 @@ export default function VideoCall({
                 <video
                   ref={(el) => {
                     if (el) {
-                      if (remoteStreamRef.current && el.srcObject !== remoteStreamRef.current) {
-                        el.srcObject = remoteStreamRef.current;
+                      el.muted = true;
+                      el.volume = 0;
+                      const vOnly = toVideoOnlyStream(remoteStreamRef.current);
+                      if (vOnly && el.srcObject !== vOnly) {
+                        el.srcObject = vOnly;
                       }
                       el.play().catch(() => {});
                     }
@@ -3602,10 +3685,11 @@ export default function VideoCall({
             <video
               ref={(el) => {
                 if (el) {
-                  if (remoteStreamRef.current && el.srcObject !== remoteStreamRef.current) {
-                    el.srcObject = remoteStreamRef.current;
-                  } else if (remoteVideoRef.current?.srcObject && el.srcObject !== remoteVideoRef.current.srcObject) {
-                    el.srcObject = remoteVideoRef.current.srcObject;
+                  el.muted = true;
+                  el.volume = 0;
+                  const vOnly = toVideoOnlyStream(remoteStreamRef.current);
+                  if (vOnly && el.srcObject !== vOnly) {
+                    el.srcObject = vOnly;
                   }
                   el.play().catch(() => {});
                 }
@@ -3671,15 +3755,17 @@ export default function VideoCall({
               pipVideoRef.current = el;
               if (el) {
                 (el as any).autoPictureInPicture = true;
-                const targetStream = (hasRemoteStream && remoteCamActive && remoteStreamRef.current)
+                el.muted = true;
+                el.volume = 0;
+                const rawStream = (hasRemoteStream && remoteCamActive && remoteStreamRef.current)
                   ? remoteStreamRef.current
                   : (camActive && streamRef.current)
                   ? streamRef.current
                   : null;
+                const targetStream = toVideoOnlyStream(rawStream);
                 if (targetStream && el.srcObject !== targetStream) {
                   el.srcObject = targetStream;
                 }
-                el.muted = true;
                 el.play().catch(() => {});
               }
             }}
@@ -3803,10 +3889,12 @@ export default function VideoCall({
                     (el as any).autoPictureInPicture = true;
                     (el as any).disablePictureInPicture = false;
                     el.setAttribute('autopictureinpicture', 'true');
-                    if (remoteStreamRef.current && el.srcObject !== remoteStreamRef.current) {
-                      el.srcObject = remoteStreamRef.current;
-                    }
                     el.muted = true;
+                    el.volume = 0;
+                    const vOnly = toVideoOnlyStream(remoteStreamRef.current);
+                    if (vOnly && el.srcObject !== vOnly) {
+                      el.srcObject = vOnly;
+                    }
                     el.play().catch(() => {});
                   }
                 }}
@@ -3863,8 +3951,11 @@ export default function VideoCall({
                     (el as any).autoPictureInPicture = true;
                     (el as any).disablePictureInPicture = false;
                     el.setAttribute('autopictureinpicture', 'true');
-                    if (streamRef.current && el.srcObject !== streamRef.current) {
-                      el.srcObject = streamRef.current;
+                    el.muted = true;
+                    el.volume = 0;
+                    const vOnly = toVideoOnlyStream(streamRef.current);
+                    if (vOnly && el.srcObject !== vOnly) {
+                      el.srcObject = vOnly;
                     }
                     el.play().catch(() => {});
                   }
@@ -3910,8 +4001,11 @@ export default function VideoCall({
                     (el as any).autoPictureInPicture = true;
                     (el as any).disablePictureInPicture = false;
                     el.setAttribute('autopictureinpicture', 'true');
-                    if (streamRef.current && el.srcObject !== streamRef.current) {
-                      el.srcObject = streamRef.current;
+                    el.muted = true;
+                    el.volume = 0;
+                    const vOnly = toVideoOnlyStream(streamRef.current);
+                    if (vOnly && el.srcObject !== vOnly) {
+                      el.srcObject = vOnly;
                     }
                     el.play().catch(() => {});
                   }
@@ -3960,10 +4054,12 @@ export default function VideoCall({
                     (el as any).autoPictureInPicture = true;
                     (el as any).disablePictureInPicture = false;
                     el.setAttribute('autopictureinpicture', 'true');
-                    if (remoteStreamRef.current && el.srcObject !== remoteStreamRef.current) {
-                      el.srcObject = remoteStreamRef.current;
-                    }
                     el.muted = true;
+                    el.volume = 0;
+                    const vOnly = toVideoOnlyStream(remoteStreamRef.current);
+                    if (vOnly && el.srcObject !== vOnly) {
+                      el.srcObject = vOnly;
+                    }
                     el.play().catch(() => {});
                   }
                 }}

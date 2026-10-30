@@ -74,6 +74,11 @@ export async function initLiveKitCall(options: ConnectLiveKitOptions): Promise<L
     const room = new Room({
       adaptiveStream: true,
       dynacast: true,
+      audioCaptureDefaults: {
+        autoGainControl: true,
+        echoCancellation: true,
+        noiseSuppression: true,
+      },
       videoCaptureDefaults: {
         facingMode: 'user',
         ...(isMobile ? {} : { resolution: VideoPresets.h540.resolution }),
@@ -135,16 +140,16 @@ export async function initLiveKitCall(options: ConnectLiveKitOptions): Promise<L
           onRemoteTrackReceived?.('video', new MediaStream([track.mediaStreamTrack]));
         }
       } else if (track.kind === Track.Kind.Audio) {
-        // Auto-attach audio element to DOM so playback is guaranteed
-        try {
-          track.attach();
-        } catch (_) {}
-
+        // Dedicated audio playback to avoid duplicate sound and echo
         if (options.remoteAudioEl) {
           try {
             track.attach(options.remoteAudioEl);
             options.remoteAudioEl.muted = false;
             options.remoteAudioEl.play().catch(() => {});
+          } catch (_) {}
+        } else {
+          try {
+            track.attach();
           } catch (_) {}
         }
         if (track.mediaStreamTrack) {
