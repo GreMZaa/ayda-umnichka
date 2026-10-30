@@ -23,6 +23,7 @@ export interface ConnectLiveKitOptions {
   onPeerJoined?: (name: string, role?: string) => void;
   onPeerLeft?: () => void;
   onDataReceived?: (data: any) => void;
+  onMediaError?: (type: 'camera' | 'microphone', error: string) => void;
   onLog?: (level: 'info' | 'warn' | 'error' | 'success', message: string, detail?: any) => void;
 }
 
@@ -66,11 +67,16 @@ export async function initLiveKitCall(options: ConnectLiveKitOptions): Promise<L
     // Dynamically load livekit-client in browser environment
     const { Room, RoomEvent, Track, VideoPresets, AudioPresets } = await import('livekit-client');
 
+    const isMobile =
+      typeof window !== 'undefined' &&
+      (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth < 768);
+
     const room = new Room({
       adaptiveStream: true,
       dynacast: true,
       videoCaptureDefaults: {
-        resolution: VideoPresets.h540.resolution, // 960x540 25-30fps ~800kbps (butter-smooth, no lag)
+        facingMode: 'user',
+        ...(isMobile ? {} : { resolution: VideoPresets.h540.resolution }),
       },
       publishDefaults: {
         simulcast: true,
@@ -199,10 +205,14 @@ export async function initLiveKitCall(options: ConnectLiveKitOptions): Promise<L
       onLog?.('success', 'Локальный микрофон успешно активирован в LiveKit');
     } catch (micErr: any) {
       onLog?.('warn', 'LiveKit: сбой активации микрофона', micErr?.message);
+      options.onMediaError?.('microphone', micErr?.message || String(micErr));
     }
 
     try {
-      await room.localParticipant.setCameraEnabled(true);
+      await room.localParticipant.setCameraEnabled(true, {
+        facingMode: 'user',
+        ...(isMobile ? {} : { resolution: VideoPresets.h540.resolution }),
+      });
       const camPub = room.localParticipant.getTrackPublication(Track.Source.Camera);
       if (camPub?.videoTrack && options.localVideoEl) {
         camPub.videoTrack.attach(options.localVideoEl);
@@ -210,6 +220,7 @@ export async function initLiveKitCall(options: ConnectLiveKitOptions): Promise<L
       onLog?.('success', 'Локальная камера успешно активирована в LiveKit');
     } catch (camErr: any) {
       onLog?.('warn', 'LiveKit: сбой активации камеры', camErr?.message);
+      options.onMediaError?.('camera', camErr?.message || String(camErr));
     }
 
     // Expose local tracks to caller for diagnostics & controls

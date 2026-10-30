@@ -536,17 +536,20 @@ export default function LessonRoomPage() {
                 <span>Развернуть</span>
               </button>
             </div>
-            <iframe
-              src={
-                isTeacher
-                  ? (savedUserId ? `/teacher?id=${savedUserId}` : '/teacher')
-                  : savedUserId
-                  ? `/${savedUserId}`
-                  : '/student'
-              }
-              className="w-full flex-1 border-0 select-auto"
-              title="Личный кабинет платформы"
-            />
+            <div className="w-full flex-1 min-h-0 relative">
+              <iframe
+                src={
+                  isTeacher
+                    ? (savedUserId ? `/teacher?id=${savedUserId}` : '/teacher')
+                    : savedUserId
+                    ? `/${savedUserId}`
+                    : '/student'
+                }
+                className="w-full h-full border-0 absolute inset-0"
+                allow="camera; microphone; display-capture; clipboard-read; clipboard-write"
+                title="Личный кабинет платформы"
+              />
+            </div>
           </div>
         )}
 

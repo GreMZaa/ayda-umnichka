@@ -327,7 +327,9 @@ export default function VideoCall({
         s.includes('moz-extension://') ||
         s.includes('safari-extension://') ||
         s.includes('eppiocemhmnlbhjplcgkofciiegomcon') ||
-        s.includes('M_ID')
+        s.includes('M_ID') ||
+        s.includes('writeText') ||
+        s.includes('Clipboard')
       );
     };
 
@@ -431,6 +433,14 @@ export default function VideoCall({
           keepAliveAudioRef.current.play().catch(() => {});
         }
       } catch (_) {}
+
+      // 4. On first user gesture, attempt media permission warmup if camera is not active yet
+      if (!hasAttemptedWarmupRef.current) {
+        hasAttemptedWarmupRef.current = true;
+        if (requestMediaPermissionsRef.current && (!streamRef.current || streamRef.current.getVideoTracks().length === 0)) {
+          requestMediaPermissionsRef.current().catch(() => {});
+        }
+      }
     };
 
     window.addEventListener('click', unlockAudio, { passive: true });
@@ -501,6 +511,8 @@ export default function VideoCall({
   const streamRef = useRef<MediaStream | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
+  const requestMediaPermissionsRef = useRef<(() => Promise<void>) | null>(null);
+  const hasAttemptedWarmupRef = useRef(false);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const channelRef = useRef<any>(null);
@@ -1114,8 +1126,25 @@ export default function VideoCall({
         setActiveEngine('p2p');
         addLog('warn', `Отключено от LiveKit: ${reason || 'завершение сессии'}`);
       },
+      onMediaError: (type, err) => {
+        if (type === 'camera') {
+          setCameraError(err || 'Доступ к камере заблокирован в браузере');
+          setCamActive(false);
+        } else {
+          setMicrophoneError(err || 'Доступ к микрофону заблокирован в браузере');
+          setMicActive(false);
+        }
+      },
       onLocalTracks: (stream) => {
         streamRef.current = stream;
+        if (stream.getVideoTracks().length > 0) {
+          setCamActive(true);
+          setCameraError(null);
+        }
+        if (stream.getAudioTracks().length > 0) {
+          setMicActive(true);
+          setMicrophoneError(null);
+        }
         if (localVideoRef.current && localVideoRef.current.srcObject !== stream) {
           localVideoRef.current.srcObject = stream;
           localVideoRef.current.play().catch(() => {});
@@ -1129,6 +1158,12 @@ export default function VideoCall({
         isLiveKitActiveRef.current = true;
         setHasRemoteStream(true);
         setConnectionStatus('connected');
+        if (kind === 'video') {
+          setRemoteCamActive(true);
+        }
+        if (kind === 'audio') {
+          setRemoteMicActive(true);
+        }
         if (!remoteStreamRef.current) {
           remoteStreamRef.current = stream;
         } else {
@@ -1210,20 +1245,20 @@ export default function VideoCall({
       ),
     ].join('\n');
 
-    try {
-      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(report);
-        setCopiedLogSuccess(true);
-        setTimeout(() => setCopiedLogSuccess(false), 3000);
-        return;
-      }
-    } catch (_) {}
+    let copied = false;
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(report).catch(() => {});
+        copied = true;
+      } catch (_) {}
+    }
 
     // Fallback for mobile Android Webview / strict clipboard policy
-    try {
-      if (typeof document !== 'undefined') {
+    if (!copied && typeof document !== 'undefined') {
+      try {
         const textArea = document.createElement('textarea');
         textArea.value = report;
+        textArea.setAttribute('readonly', '');
         textArea.style.position = 'fixed';
         textArea.style.left = '-9999px';
         textArea.style.top = '-9999px';
@@ -1233,11 +1268,16 @@ export default function VideoCall({
         const success = document.execCommand('copy');
         document.body.removeChild(textArea);
         if (success) {
-          setCopiedLogSuccess(true);
-          setTimeout(() => setCopiedLogSuccess(false), 3000);
+          copied = true;
         }
-      }
-    } catch (_) {}
+      } catch (_) {}
+    }
+
+    if (copied) {
+      setCopiedLogSuccess(true);
+      setTimeout(() => setCopiedLogSuccess(false), 3000);
+      addLog('success', 'Отчет диагностики успешно скопирован');
+    }
   };
 
   // Handle incoming ICE candidate
@@ -1427,6 +1467,103 @@ export default function VideoCall({
     }
   };
 
+  // Explicit User-Gesture Permission Request for Mobile (iOS & Android)
+  const requestMediaPermissions = async () => {
+    try {
+      addLog('info', 'Пользователь запросил активацию камеры и микрофона...');
+      const isMobile =
+        typeof window !== 'undefined' &&
+        (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth < 768);
+
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: isMobile
+            ? { facingMode: 'user' }
+            : { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        });
+      } catch (firstErr: any) {
+        console.warn('Detailed getUserMedia failed, retrying minimal constraints:', firstErr);
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      }
+
+      if (stream) {
+        setCameraError(null);
+        setMicrophoneError(null);
+        setCamActive(true);
+        setMicActive(true);
+        streamRef.current = stream;
+
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream;
+          localVideoRef.current.play().catch(() => {});
+        }
+        if (pipVideoRef.current) {
+          pipVideoRef.current.srcObject = stream;
+          pipVideoRef.current.play().catch(() => {});
+        }
+
+        // If LiveKit is connected, re-enable camera and mic in LiveKit
+        if (livekitSessionRef.current?.room) {
+          const room = livekitSessionRef.current.room;
+          try {
+            await room.localParticipant.setMicrophoneEnabled(true, {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            });
+          } catch (e: any) {
+            console.warn('LiveKit mic enable err:', e);
+          }
+          try {
+            await room.localParticipant.setCameraEnabled(true, {
+              facingMode: 'user',
+            });
+            const camPub = room.localParticipant.getTrackPublication('camera');
+            if (camPub?.videoTrack && localVideoRef.current) {
+              camPub.videoTrack.attach(localVideoRef.current);
+            }
+            if (camPub?.videoTrack && pipVideoRef.current) {
+              camPub.videoTrack.attach(pipVideoRef.current);
+            }
+          } catch (e: any) {
+            console.warn('LiveKit cam enable err:', e);
+          }
+        }
+
+        // If P2P WebRTC is active, update senders
+        if (pcRef.current && pcRef.current.signalingState !== 'closed') {
+          const senders = pcRef.current.getSenders();
+          stream.getTracks().forEach((newTrack) => {
+            const sender = senders.find((s) => s.track?.kind === newTrack.kind);
+            if (sender) {
+              sender.replaceTrack(newTrack);
+            } else {
+              pcRef.current?.addTrack(newTrack, stream);
+            }
+          });
+        }
+
+        addLog('success', 'Камера и микрофон успешно активированы!');
+      }
+    } catch (err: any) {
+      console.error('Media permission request error:', err);
+      let errMsg = 'Сбой доступа к камере или микрофону';
+      if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
+        errMsg = 'Доступ к камере заблокирован в настройках браузера (Permission denied)';
+      } else if (err?.name === 'NotFoundError' || err?.name === 'DevicesNotFoundError') {
+        errMsg = 'Камера или микрофон не найдены на устройстве';
+      } else if (err?.name === 'NotReadableError' || err?.name === 'TrackStartError') {
+        errMsg = 'Камера занята другим приложением (Telegram/Zoom)';
+      }
+      setCameraError(errMsg);
+      addLog('error', errMsg, err?.message || String(err));
+    }
+  };
+
+  requestMediaPermissionsRef.current = requestMediaPermissions;
+
   // Flip between front/selfie camera and back/rear camera (VK style)
   const handleFlipCamera = async () => {
     const nextFacing = facingMode === 'user' ? 'environment' : 'user';
@@ -1541,9 +1678,27 @@ export default function VideoCall({
         setActiveEngine('p2p');
         addLog('warn', `LiveKit SFU отключен (${reason || 'сессия завершена'}). Резервный P2P канал готов.`);
       },
+      onMediaError: (type, err) => {
+        if (!isMounted) return;
+        if (type === 'camera') {
+          setCameraError(err || 'Доступ к камере заблокирован в браузере');
+          setCamActive(false);
+        } else {
+          setMicrophoneError(err || 'Доступ к микрофону заблокирован в браузере');
+          setMicActive(false);
+        }
+      },
       onLocalTracks: (stream) => {
         if (!isMounted) return;
         streamRef.current = stream;
+        if (stream.getVideoTracks().length > 0) {
+          setCamActive(true);
+          setCameraError(null);
+        }
+        if (stream.getAudioTracks().length > 0) {
+          setMicActive(true);
+          setMicrophoneError(null);
+        }
         if (localVideoRef.current && localVideoRef.current.srcObject !== stream) {
           localVideoRef.current.srcObject = stream;
           localVideoRef.current.play().catch(() => {});
@@ -1558,6 +1713,12 @@ export default function VideoCall({
         isLiveKitActiveRef.current = true;
         setHasRemoteStream(true);
         setConnectionStatus('connected');
+        if (kind === 'video') {
+          setRemoteCamActive(true);
+        }
+        if (kind === 'audio') {
+          setRemoteMicActive(true);
+        }
         if (!remoteStreamRef.current) {
           remoteStreamRef.current = stream;
         } else {
@@ -2350,15 +2511,22 @@ export default function VideoCall({
     setIsScreenSharing(false);
   };
 
-  const toggleMic = () => {
+  const toggleMic = async () => {
     const nextMicActive = !micActive;
     setMicActive(nextMicActive);
 
     // 0. LiveKit SFU mic toggle
     if (livekitSessionRef.current?.room) {
       try {
-        livekitSessionRef.current.room.localParticipant.setMicrophoneEnabled(nextMicActive);
-      } catch (_) {}
+        await livekitSessionRef.current.room.localParticipant.setMicrophoneEnabled(nextMicActive, {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        });
+        if (nextMicActive) setMicrophoneError(null);
+      } catch (err: any) {
+        setMicrophoneError(err?.message || 'Сбой переключения микрофона');
+      }
     }
 
     // 1. Mute local media stream audio tracks
@@ -2391,11 +2559,27 @@ export default function VideoCall({
   };
 
   const toggleCam = async () => {
+    const nextCamActive = !camActive;
+
     // 0. LiveKit SFU camera toggle
     if (livekitSessionRef.current?.room) {
       try {
-        await livekitSessionRef.current.room.localParticipant.setCameraEnabled(!camActive);
-      } catch (_) {}
+        await livekitSessionRef.current.room.localParticipant.setCameraEnabled(nextCamActive, {
+          facingMode: 'user',
+        });
+        if (nextCamActive) {
+          const camPub = livekitSessionRef.current.room.localParticipant.getTrackPublication('camera');
+          if (camPub?.videoTrack && localVideoRef.current) {
+            camPub.videoTrack.attach(localVideoRef.current);
+          }
+          if (camPub?.videoTrack && pipVideoRef.current) {
+            camPub.videoTrack.attach(pipVideoRef.current);
+          }
+          setCameraError(null);
+        }
+      } catch (err: any) {
+        setCameraError(err?.message || 'Сбой переключения камеры');
+      }
     }
 
     if (camActive) {
@@ -2441,6 +2625,9 @@ export default function VideoCall({
           if (localVideoRef.current) {
             localVideoRef.current.srcObject = streamRef.current;
           }
+          if (pipVideoRef.current) {
+            pipVideoRef.current.srcObject = streamRef.current;
+          }
 
           if (pcRef.current && pcRef.current.signalingState !== 'closed') {
             const transceivers = pcRef.current.getTransceivers ? pcRef.current.getTransceivers() : [];
@@ -2462,6 +2649,7 @@ export default function VideoCall({
           }
         }
         setCamActive(true);
+        setCameraError(null);
 
         if (channelRef.current) {
           channelRef.current.send({
@@ -2470,8 +2658,9 @@ export default function VideoCall({
             payload: { senderId: myPeerIdRef.current, camActive: true },
           });
         }
-      } catch (err) {
+      } catch (err: any) {
         console.warn('Failed to restart camera:', err);
+        setCameraError(err?.message || 'Камера недоступна');
       }
     }
   };
@@ -2751,10 +2940,54 @@ export default function VideoCall({
 
   // Real-time System Breakdown Alert Banner
   const renderBreakdownAlertBanner = () => {
+    const isInAppBrowser =
+      typeof navigator !== 'undefined' &&
+      /Telegram|VK|Instagram|FB|Line/i.test(navigator.userAgent);
+
+    // 0. In-App Browser Warning (Telegram / VK)
+    if (isInAppBrowser && dismissedAlertKey !== 'inapp_warn') {
+      return (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-lg bg-indigo-950/95 border border-indigo-400/50 backdrop-blur-md text-white rounded-2xl p-3 shadow-2xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 select-auto">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-300 shrink-0">
+              <AlertCircle className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-indigo-200">Открыто внутри Telegram / VK</p>
+              <p className="text-[11px] text-white/80">
+                Браузер соцсети блокирует камеру. Нажмите ⋮ в углу и выберите «Открыть в Chrome/Safari».
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                  navigator.clipboard.writeText(window.location.href).catch(() => {});
+                }
+                alert('Ссылка скопирована! Откройте Safari или Chrome и вставьте ссылку в строку адреса.');
+              }}
+              className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] rounded-xl transition-all cursor-pointer shadow-sm"
+            >
+              Копировать
+            </button>
+            <button
+              type="button"
+              onClick={() => setDismissedAlertKey('inapp_warn')}
+              className="p-1 text-white/50 hover:text-white rounded-lg cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     // 1. Camera Error Banner
     if (cameraError && dismissedAlertKey !== 'camera_err') {
       return (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-lg bg-rose-950/90 border border-rose-500/50 backdrop-blur-md text-white rounded-2xl p-3 shadow-2xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 select-auto">
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-lg bg-rose-950/95 border border-rose-500/50 backdrop-blur-md text-white rounded-2xl p-3 shadow-2xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 select-auto">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="p-2 rounded-xl bg-rose-500/20 text-rose-400 shrink-0">
               <AlertCircle className="w-5 h-5" />
@@ -2767,14 +3000,56 @@ export default function VideoCall({
           <div className="flex items-center gap-1.5 shrink-0">
             <button
               type="button"
-              onClick={() => setIsDiagnosticsOpen(true)}
-              className="px-2.5 py-1.5 bg-rose-500 hover:bg-rose-600 text-white font-bold text-[11px] rounded-xl transition-all cursor-pointer shadow-sm"
+              onClick={requestMediaPermissions}
+              className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[11px] rounded-xl transition-all cursor-pointer shadow-sm flex items-center gap-1 active:scale-95"
             >
-              Как починить
+              <Video className="w-3.5 h-3.5" />
+              <span>Включить камеру</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsDiagnosticsOpen(true)}
+              className="px-2 py-1.5 bg-white/15 hover:bg-white/25 text-white font-bold text-[11px] rounded-xl transition-all cursor-pointer"
+            >
+              Инструкция
             </button>
             <button
               type="button"
               onClick={() => setDismissedAlertKey('camera_err')}
+              className="p-1 text-white/50 hover:text-white rounded-lg cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // 1.1 Microphone Error Banner
+    if (microphoneError && !cameraError && dismissedAlertKey !== 'mic_err') {
+      return (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-lg bg-rose-950/95 border border-rose-500/50 backdrop-blur-md text-white rounded-2xl p-3 shadow-2xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 select-auto">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="p-2 rounded-xl bg-rose-500/20 text-rose-400 shrink-0">
+              <MicOff className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-rose-200">Микрофон недоступен</p>
+              <p className="text-[11px] text-white/80 truncate">{microphoneError}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={requestMediaPermissions}
+              className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[11px] rounded-xl transition-all cursor-pointer shadow-sm flex items-center gap-1 active:scale-95"
+            >
+              <Mic className="w-3.5 h-3.5" />
+              <span>Включить микрофон</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setDismissedAlertKey('mic_err')}
               className="p-1 text-white/50 hover:text-white rounded-lg cursor-pointer"
             >
               <X className="w-4 h-4" />
@@ -3113,26 +3388,7 @@ export default function VideoCall({
             {Boolean(cameraError || microphoneError) && (
               <button
                 type="button"
-                onClick={async () => {
-                  try {
-                    addLog('info', 'Запрос разрешения камеры и микрофона по нажатию кнопки...');
-                    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                    if (stream) {
-                      setCameraError(null);
-                      setMicrophoneError(null);
-                      streamRef.current = stream;
-                      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
-                      if (pipVideoRef.current) pipVideoRef.current.srcObject = stream;
-                      if (livekitSessionRef.current?.room) {
-                        await livekitSessionRef.current.room.localParticipant.setCameraEnabled(true);
-                        await livekitSessionRef.current.room.localParticipant.setMicrophoneEnabled(true);
-                      }
-                      addLog('success', 'Доступ к камере и микрофону успешно разрешен!');
-                    }
-                  } catch (err: any) {
-                    addLog('error', 'Браузер отклонил доступ к медиаустройствам:', err?.message || String(err));
-                  }
-                }}
+                onClick={requestMediaPermissions}
                 className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all cursor-pointer"
               >
                 <Video className="w-4 h-4" />
@@ -3674,11 +3930,18 @@ export default function VideoCall({
                 } ${!camActive ? 'hidden' : 'block'}`}
               />
               {!camActive && (
-                <div className="w-full h-full flex flex-col items-center justify-center bg-[#161F38] text-white p-2 text-center">
-                  <div className="w-9 h-9 rounded-full bg-coralAccent/20 text-coralAccent flex items-center justify-center mb-1">
-                    <VideoOff className="w-4 h-4" />
+                <div
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    requestMediaPermissions();
+                  }}
+                  className="w-full h-full flex flex-col items-center justify-center bg-[#161F38] hover:bg-[#1E294B] text-white p-2 text-center transition-colors cursor-pointer"
+                  title="Нажмите, чтобы включить камеру"
+                >
+                  <div className="w-9 h-9 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mb-1 animate-pulse">
+                    <Video className="w-4 h-4" />
                   </div>
-                  <span className="text-[10px] text-white/70 font-semibold">Камера выкл.</span>
+                  <span className="text-[10px] text-emerald-300 font-bold">Включить камеру</span>
                 </div>
               )}
               {/* Bottom label */}
