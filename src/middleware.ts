@@ -196,15 +196,18 @@ export function middleware(request: NextRequest) {
   const pathParts = pathname.split('/').filter(Boolean);
   if (pathParts.length === 1 && !SYSTEM_ROUTES.has(pathParts[0].toLowerCase())) {
     const requestedId = pathParts[0].toLowerCase();
+    const rawCookieUser = cookieUserId ? decodeURIComponent(cookieUserId).toLowerCase() : '';
+    const rawAuthUser = authUserId ? decodeURIComponent(authUserId).toLowerCase() : '';
+
     const isOwner =
-      cookieUserId?.toLowerCase() === requestedId ||
-      authUserId?.toLowerCase() === requestedId ||
+      rawCookieUser === requestedId ||
+      rawAuthUser === requestedId ||
       activeRole === 'teacher' ||
       activeRole === 'admin';
 
-    // If caller does not own this cabinet ID or is not authenticated:
-    // Require logging in or registering through our official login page!
-    if (!isOwner) {
+    // If caller has no credentials at all, prompt login
+    // If caller has session credentials (e.g. UUID), pass to /[userId] page for DB verification to avoid false-positive redirect loops
+    if (!isOwner && !rawCookieUser && !rawAuthUser) {
       const loginUrl = new URL('/login', request.url);
       loginUrl.searchParams.set('redirect', `/${requestedId}`);
       loginUrl.searchParams.set('cabinetId', requestedId);

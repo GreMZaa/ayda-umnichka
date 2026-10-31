@@ -82,10 +82,18 @@ export class AuthService {
     };
   }
 
-  static async getBinding(publicId: string) {
-    const cleanPublicId = publicId.trim().toLowerCase();
-    const binding = await UserRepository.findBindingByPublicId(cleanPublicId);
-    const profile = await UserRepository.findProfileByPublicId(cleanPublicId);
+  static async getBinding(identifier: string) {
+    const cleanId = identifier.trim();
+    const cleanLower = cleanId.toLowerCase();
+
+    // 1. Try finding by ID / UUID / auth_user_id / public_id
+    let { binding, profile } = await UserRepository.findBindingOrProfileById(cleanId);
+
+    // 2. Fallback to case-insensitive public_id
+    if (!binding && !profile) {
+      binding = await UserRepository.findBindingByPublicId(cleanLower);
+      profile = await UserRepository.findProfileByPublicId(cleanLower);
+    }
 
     if (binding) {
       const resolvedBalance =
@@ -121,7 +129,7 @@ export class AuthService {
       };
     }
 
-    return { exists: false, publicId: cleanPublicId };
+    return { exists: false, identifier: cleanId, publicId: cleanLower };
   }
 
   static async bindUser(dto: BindUserDTO, auth: AuthContext) {

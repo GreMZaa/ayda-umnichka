@@ -35,12 +35,15 @@ export class AuthController {
     try {
       const { searchParams } = new URL(req.url);
       const publicId = searchParams.get('publicId')?.trim().toLowerCase();
+      const authUserId = searchParams.get('authUserId')?.trim();
+      const userId = searchParams.get('userId')?.trim();
+      const target = publicId || authUserId || userId;
 
-      if (!publicId) {
-        return apiError('Missing publicId', 400);
+      if (!target) {
+        return apiError('Missing publicId or authUserId', 400);
       }
 
-      const result = await AuthService.getBinding(publicId);
+      const result = await AuthService.getBinding(target);
       return NextResponse.json(result, {
         headers: {
           'Cache-Control': 'no-store, no-cache, must-revalidate',

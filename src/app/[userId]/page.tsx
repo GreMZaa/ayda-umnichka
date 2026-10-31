@@ -124,9 +124,16 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
         document.cookie.match(/(?:^|; )aida_active_role=([^;]*)/)?.[1];
 
       const decodedAuth = activeAuthUser ? decodeURIComponent(activeAuthUser).toLowerCase() : '';
+      const bindingAuthId = data.binding?.auth_user_id ? String(data.binding.auth_user_id).toLowerCase() : '';
+      const bindingPublicId = data.binding?.public_id ? String(data.binding.public_id).toLowerCase() : '';
+
       const isOwner =
         Boolean(activeRole) &&
-        (decodedAuth === uid.toLowerCase() || activeRole === 'admin' || activeRole === 'teacher');
+        (decodedAuth === uid.toLowerCase() ||
+          decodedAuth === bindingPublicId ||
+          (bindingAuthId && decodedAuth === bindingAuthId) ||
+          activeRole === 'admin' ||
+          activeRole === 'teacher');
 
       if (!isOwner) {
         setIsAccessBlocked(true);

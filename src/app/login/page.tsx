@@ -24,10 +24,19 @@ import {
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { getClientUserId, setClientUserId, issueNewUserId } from '@/lib/userSession';
 
-// Validate redirect path to prevent Open Redirect (CWE-601)
-function getSafeRedirect(rawRedirect: string | null, fallback: string): string {
+// Validate redirect path to prevent Open Redirect (CWE-601) and redirect loops
+function getSafeRedirect(rawRedirect: string | null, fallback: string, userRole?: string): string {
   if (!rawRedirect) return fallback;
   if (rawRedirect.startsWith('/') && !rawRedirect.startsWith('//') && !rawRedirect.includes('\\')) {
+    // Prevent redirecting back to login itself
+    if (rawRedirect.startsWith('/login')) return fallback;
+    // Prevent cross-role redirect loops
+    if (userRole === 'student' && (rawRedirect.startsWith('/admin') || rawRedirect.startsWith('/teacher'))) {
+      return fallback;
+    }
+    if (userRole === 'teacher' && rawRedirect.startsWith('/admin')) {
+      return fallback;
+    }
     return rawRedirect;
   }
   return fallback;
@@ -38,11 +47,12 @@ function LoginFormContent() {
   const searchParams = useSearchParams();
   const redirectParam = searchParams.get('redirect');
   const errorParam = searchParams.get('error');
+  const authRequiredParam = searchParams.get('auth_required');
   const isLogout = searchParams.get('logout') === '1';
 
   const [tab, setTab] = useState<'login' | 'register'>('login');
   const [selectedRole, setSelectedRole] = useState<'student' | 'teacher'>('student');
-  const [isCheckingSession, setIsCheckingSession] = useState<boolean>(!isLogout);
+  const [isCheckingSession, setIsCheckingSession] = useState<boolean>(!isLogout && !authRequiredParam && !errorParam);
   
   // Form states
   const [emailOrPhone, setEmailOrPhone] = useState('');
@@ -51,7 +61,13 @@ function LoginFormContent() {
   const [childName, setChildName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState(errorParam === 'forbidden' ? 'Доступ ограничен. Войдите с соответствующими правами.' : '');
+  const [errorMessage, setErrorMessage] = useState(
+    errorParam === 'forbidden'
+      ? 'Доступ ограничен. Войдите с соответствующими правами.'
+      : authRequiredParam === '1'
+      ? 'Для доступа к этому кабинету необходимо войти в систему.'
+      : ''
+  );
   const [successMessage, setSuccessMessage] = useState('');
 
   // 1. Enforce redirection from main landing domain to official LK subdomain
@@ -63,7 +79,8 @@ function LoginFormContent() {
 
   // 2. Seamlessly restore active session so users don't have to re-enter password on refresh or when entering from main page
   useEffect(() => {
-    if (typeof window === 'undefined' || isLogout) {
+    // If the user arrived here because access was denied or required login, NEVER auto-redirect to avoid loops!
+    if (typeof window === 'undefined' || isLogout || authRequiredParam === '1' || errorParam) {
       setIsCheckingSession(false);
       return;
     }
@@ -91,7 +108,7 @@ function LoginFormContent() {
               : savedRole === 'admin'
               ? '/admin'
               : `/${encodeURIComponent(savedUid)}`;
-          const dest = getSafeRedirect(redirectParam, fallback);
+          const dest = getSafeRedirect(redirectParam, fallback, savedRole);
           window.location.href = dest;
           return;
         }
@@ -112,6 +129,9 @@ function LoginFormContent() {
             if (bindData?.binding?.full_name) {
               localStorage.setItem('aida_full_name', bindData.binding.full_name);
             }
+            if (bindData?.binding?.balance_lessons !== undefined) {
+              localStorage.setItem('aida_student_balance', String(bindData.binding.balance_lessons));
+            }
 
             document.cookie = `aida_active_role=${role}; path=/; max-age=2592000; SameSite=Lax`;
             document.cookie = `aida_auth_user_id=${encodeURIComponent(pubId)}; path=/; max-age=2592000; SameSite=Lax`;
@@ -123,7 +143,7 @@ function LoginFormContent() {
                 : role === 'admin'
                 ? '/admin'
                 : `/${encodeURIComponent(pubId)}`;
-            const dest = getSafeRedirect(redirectParam, fallback);
+            const dest = getSafeRedirect(redirectParam, fallback, role);
             window.location.href = dest;
             return;
           }
@@ -136,7 +156,7 @@ function LoginFormContent() {
     };
 
     restoreSession();
-  }, [isLogout, redirectParam, router]);
+  }, [isLogout, redirectParam, authRequiredParam, errorParam]);
 
   // Select registration role from the right block (admin registration is strictly forbidden)
   const handleSelectRegistrationRole = (role: 'student' | 'teacher') => {
@@ -255,11 +275,23 @@ function LoginFormContent() {
             }
 
             if (signInData?.user) {
-              const { data: binding } = await supabase
-                .from('user_bindings')
-                .select('public_id, role, full_name, balance_lessons')
-                .eq('auth_user_id', signInData.user.id)
-                .maybeSingle();
+              // 1. Authoritative server check with service role key support
+              let binding: any = null;
+              try {
+                const res = await fetch(`/api/user/bind?authUserId=${encodeURIComponent(signInData.user.id)}`);
+                const bindRes = await res.json();
+                if (bindRes?.binding) binding = bindRes.binding;
+              } catch (_) {}
+
+              // 2. Direct client query fallback
+              if (!binding) {
+                const { data: directBinding } = await supabase
+                  .from('user_bindings')
+                  .select('public_id, role, full_name, balance_lessons')
+                  .eq('auth_user_id', signInData.user.id)
+                  .maybeSingle();
+                binding = directBinding;
+              }
 
               const metaRole = (signInData.user.user_metadata as any)?.role;
               const metaPublicId = (signInData.user.user_metadata as any)?.public_id;
@@ -308,7 +340,7 @@ function LoginFormContent() {
               : userRole === 'admin'
               ? '/admin'
               : `/${targetId}`;
-          let safeDest = getSafeRedirect(redirectParam, fallback);
+          let safeDest = getSafeRedirect(redirectParam, fallback, userRole);
           if (userRole === 'teacher' && !safeDest.includes('id=')) {
             safeDest = `/teacher?id=${targetId}`;
           } else if (userRole === 'student' && safeDest === '/student') {
