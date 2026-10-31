@@ -3193,7 +3193,11 @@ export default function VideoCall({
             </div>
             <div className="min-w-0">
               <p className="text-xs font-bold text-rose-200">Камера недоступна</p>
-              <p className="text-[11px] text-white/80 truncate">{cameraError}</p>
+              <p className="text-[11px] text-white/80 truncate">
+                {typeof navigator !== 'undefined' && /XiaoMi|MiuiBrowser/i.test(navigator.userAgent)
+                  ? 'Mi Браузер блокирует доступ. Откройте в Chrome или проверьте настройки'
+                  : cameraError}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
@@ -3395,6 +3399,7 @@ export default function VideoCall({
     const isMac = /Macintosh|Mac OS X/i.test(userAgent);
     const isAndroid = /Android/i.test(userAgent);
     const isIOSDevice = isIPhone || /iPhone|iPad|iPod/i.test(userAgent);
+    const isXiaomiBrowser = /XiaoMi|MiuiBrowser/i.test(userAgent);
 
     let issueSummary = 'Все системы работают штатно';
     let issueType: 'good' | 'warn' | 'error' = 'good';
@@ -3419,6 +3424,11 @@ export default function VideoCall({
           'На iPhone (Safari): нажмите значок «aA» слева в строке адреса сайта -> «Настройки веб-сайта» -> установите «Камера: Разрешить» -> обновите страницу.';
         fixStep2 =
           'Если вы открыли ссылку внутри Telegram или VK: нажмите три точки (⋮) и выберите «Открыть в Safari».';
+      } else if (isXiaomiBrowser) {
+        fixStep1 =
+          'На Xiaomi/POCO: откройте ссылку в Google Chrome или Яндекс Браузере (встроенный Mi Браузер блокирует доступ к камере).';
+        fixStep2 =
+          'Или в телефоне: Настройки -> Приложения -> Все приложения -> Mi Браузер -> Разрешения -> включите «Камера» и «Микрофон».';
       } else {
         fixStep1 =
           'На телефоне (Android): нажмите значок настроек/замка слева в строке адреса сайта -> «Разрешения» -> включите тумблер «Камера» -> обновите страницу.';
@@ -3441,6 +3451,11 @@ export default function VideoCall({
           'Подключите гарнитуру к Mac. Проверьте Системные настройки -> Звук -> Вход.';
         fixStep2 =
           'В браузере проверьте разрешения для микрофона (значок замка в строке адреса).';
+      } else if (isXiaomiBrowser) {
+        fixStep1 =
+          'На Xiaomi/POCO: откройте ссылку в Google Chrome, либо в Настройках телефона (Приложения -> Mi Браузер -> Разрешения) разрешите «Микрофон».';
+        fixStep2 =
+          'Убедитесь, что гарнитура подключена и микрофон не отключен в системе.';
       } else {
         fixStep1 =
           'Подключите наушники или Bluetooth-гарнитуру к устройству.';
