@@ -92,7 +92,7 @@ function LoginFormContent() {
               ? '/admin'
               : `/${encodeURIComponent(savedUid)}`;
           const dest = getSafeRedirect(redirectParam, fallback);
-          router.replace(dest);
+          window.location.href = dest;
           return;
         }
 
@@ -124,7 +124,7 @@ function LoginFormContent() {
                 ? '/admin'
                 : `/${encodeURIComponent(pubId)}`;
             const dest = getSafeRedirect(redirectParam, fallback);
-            router.replace(dest);
+            window.location.href = dest;
             return;
           }
         }
@@ -213,8 +213,8 @@ function LoginFormContent() {
         setTimeout(() => {
           const fallback = selectedRole === 'teacher' ? `/teacher?id=${publicId}` : `/${publicId}`;
           const safeDest = getSafeRedirect(redirectParam, fallback);
-          router.push(safeDest);
-        }, 500);
+          window.location.href = safeDest;
+        }, 300);
       } else {
         // Login
         if (!emailOrPhone || !password) {
@@ -231,47 +231,60 @@ function LoginFormContent() {
         let userRole = 'student';
 
         if (isSupabaseConfigured) {
-          const { data: signInData, error } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-          });
-
-          if (error) {
-            setErrorMessage(
-              error.message.includes('Invalid login credentials')
-                ? 'Неверный email/телефон или пароль'
-                : error.message
+          try {
+            const authTimeoutPromise = new Promise<{ data: null; error: { message: string } }>((_, reject) =>
+              setTimeout(
+                () => reject(new Error('Превышено время ожидания ответа сервера. Пожалуйста, попробуйте еще раз.')),
+                12000
+              )
             );
+
+            const { data: signInData, error } = (await Promise.race([
+              supabase.auth.signInWithPassword({ email, password }),
+              authTimeoutPromise,
+            ])) as any;
+
+            if (error) {
+              setErrorMessage(
+                error.message.includes('Invalid login credentials')
+                  ? 'Неверный email/телефон или пароль'
+                  : error.message
+              );
+              setLoading(false);
+              return;
+            }
+
+            if (signInData?.user) {
+              const { data: binding } = await supabase
+                .from('user_bindings')
+                .select('public_id, role, full_name, balance_lessons')
+                .eq('auth_user_id', signInData.user.id)
+                .maybeSingle();
+
+              const metaRole = (signInData.user.user_metadata as any)?.role;
+              const metaPublicId = (signInData.user.user_metadata as any)?.public_id;
+              const metaFullName = (signInData.user.user_metadata as any)?.full_name;
+
+              if (binding?.public_id || metaPublicId) {
+                targetId = binding?.public_id || metaPublicId;
+                setClientUserId(targetId);
+              }
+              if (binding?.role || metaRole) {
+                userRole = binding?.role || metaRole;
+              }
+              if (binding?.full_name || metaFullName) {
+                const rawName = binding?.full_name || metaFullName;
+                const cleanFullName = rawName.replace(/\s*\(.*?\)$/, '').trim() || rawName;
+                localStorage.setItem('aida_full_name', cleanFullName);
+              }
+              if (binding?.balance_lessons !== undefined) {
+                localStorage.setItem('aida_student_balance', binding.balance_lessons.toString());
+              }
+            }
+          } catch (authErr: any) {
+            setErrorMessage(authErr?.message || 'Ошибка авторизации. Попробуйте еще раз.');
             setLoading(false);
             return;
-          }
-
-          if (signInData?.user) {
-            const { data: binding } = await supabase
-              .from('user_bindings')
-              .select('public_id, role, full_name, balance_lessons')
-              .eq('auth_user_id', signInData.user.id)
-              .maybeSingle();
-
-            const metaRole = (signInData.user.user_metadata as any)?.role;
-            const metaPublicId = (signInData.user.user_metadata as any)?.public_id;
-            const metaFullName = (signInData.user.user_metadata as any)?.full_name;
-
-            if (binding?.public_id || metaPublicId) {
-              targetId = binding?.public_id || metaPublicId;
-              setClientUserId(targetId);
-            }
-            if (binding?.role || metaRole) {
-              userRole = binding?.role || metaRole;
-            }
-            if (binding?.full_name || metaFullName) {
-              const rawName = binding?.full_name || metaFullName;
-              const cleanFullName = rawName.replace(/\s*\(.*?\)$/, '').trim() || rawName;
-              localStorage.setItem('aida_full_name', cleanFullName);
-            }
-            if (binding?.balance_lessons !== undefined) {
-              localStorage.setItem('aida_student_balance', binding.balance_lessons.toString());
-            }
           }
         }
 
@@ -301,8 +314,9 @@ function LoginFormContent() {
           } else if (userRole === 'student' && safeDest === '/student') {
             safeDest = `/${targetId}`;
           }
-          router.push(safeDest);
-        }, 300);
+          // Direct hard navigation guarantees all cookies are sent to middleware
+          window.location.href = safeDest;
+        }, 200);
       }
     } catch (err: unknown) {
       const errObj = err as { message?: string };
