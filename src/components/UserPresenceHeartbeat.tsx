@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 export default function UserPresenceHeartbeat() {
   const activeIdRef = useRef<string | null>(null);
@@ -42,54 +43,88 @@ export default function UserPresenceHeartbeat() {
     activeIdRef.current = currentId;
     if (!currentId) return;
 
-    // Send heartbeat
-    const sendHeartbeat = (status: 'online' | 'offline' = 'online') => {
+    // Direct Supabase Presence Channel (ZERO Vercel function calls — protects Vercel quotas!)
+    let presenceChannel: any = null;
+
+    const updateDirectDatabasePresence = async (status: 'online' | 'offline') => {
       const id = activeIdRef.current;
-      if (!id) return;
+      if (!id || !isSupabaseConfigured) return;
 
-      if (status === 'offline' && typeof navigator !== 'undefined' && navigator.sendBeacon) {
-        try {
-          const blob = new Blob([JSON.stringify({ publicId: id, status: 'offline' })], {
-            type: 'application/json',
-          });
-          navigator.sendBeacon('/api/presence', blob);
-          return;
-        } catch {
-          // fallback to fetch keepalive
-        }
+      const now = new Date().toISOString();
+      try {
+        // Direct update to Supabase via browser client — bypasses Vercel Serverless completely!
+        await supabase
+          .from('user_bindings')
+          .update({
+            metadata: {
+              is_online: status === 'online',
+              last_seen_at: now,
+            },
+            updated_at: now,
+          })
+          .eq('public_id', id);
+      } catch (err) {
+        console.warn('Direct Supabase presence update error:', err);
       }
-
-      fetch('/api/presence', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ publicId: id, status }),
-        keepalive: status === 'offline',
-      }).catch(() => {
-        // Silently ignore network failures in heartbeat
-      });
     };
 
-    // Initial heartbeat
-    sendHeartbeat('online');
+    if (isSupabaseConfigured) {
+      try {
+        presenceChannel = supabase.channel(`presence_${currentId}`, {
+          config: { presence: { key: currentId } },
+        });
 
-    // Recurring heartbeat every 25 seconds (must be well below 90s timeout)
+        presenceChannel
+          .on('presence', { event: 'sync' }, () => {})
+          .subscribe(async (status: string) => {
+            if (status === 'SUBSCRIBED') {
+              await presenceChannel.track({
+                public_id: currentId,
+                is_online: true,
+                online_at: new Date().toISOString(),
+              });
+            }
+          });
+      } catch (err) {
+        console.warn('Supabase Realtime presence channel init failed:', err);
+      }
+    }
+
+    // Initial direct update to Supabase
+    updateDirectDatabasePresence('online');
+
+    // Recurring direct heartbeat every 90 seconds (instead of 25s, directly to Supabase!)
     const interval = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        sendHeartbeat('online');
+        updateDirectDatabasePresence('online');
       }
-    }, 25000);
+    }, 90000);
 
     // Visibility change listener
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        sendHeartbeat('online');
+        updateDirectDatabasePresence('online');
+        if (presenceChannel) {
+          presenceChannel.track({
+            public_id: currentId,
+            is_online: true,
+            online_at: new Date().toISOString(),
+          }).catch(() => {});
+        }
+      } else {
+        if (presenceChannel) {
+          presenceChannel.untrack().catch(() => {});
+        }
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     // Before unload listener
     const handleBeforeUnload = () => {
-      sendHeartbeat('offline');
+      updateDirectDatabasePresence('offline');
+      if (presenceChannel) {
+        presenceChannel.untrack().catch(() => {});
+      }
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
 
@@ -97,6 +132,9 @@ export default function UserPresenceHeartbeat() {
       clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('beforeunload', handleBeforeUnload);
+      if (presenceChannel) {
+        supabase.removeChannel(presenceChannel);
+      }
     };
   }, []);
 
