@@ -78,38 +78,6 @@ interface VideoCallProps {
   onExitToCabinet?: () => void;
 }
 
-const rtcConfig: RTCConfiguration = {
-  iceServers: [
-    // 1. Global Google Anycast STUN (Fastest <20ms public IP resolution across Russian ISPs)
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' },
-    { urls: 'stun:stun3.l.google.com:19302' },
-    { urls: 'stun:stun4.l.google.com:19302' },
-    // 2. Cloudflare Anycast STUN
-    { urls: 'stun:stun.cloudflare.com:3478' },
-    // 3. OpenRelay / Metered STUN & TURN (Reliable NAT traversal + TCP 443 relay when direct UDP is blocked)
-    { urls: 'stun:openrelay.metered.ca:80' },
-    {
-      urls: [
-        'turn:openrelay.metered.ca:80',
-        'turn:openrelay.metered.ca:443',
-        'turn:openrelay.metered.ca:443?transport=tcp',
-        'turn:openrelay.metered.ca:80?transport=tcp',
-      ],
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
-    },
-    // 4. Nextcloud STUN over 443 & 3478
-    { urls: 'stun:stun.nextcloud.com:443' },
-    { urls: 'stun:stun.nextcloud.com:3478' },
-  ],
-  iceCandidatePoolSize: 10,
-  iceTransportPolicy: 'all',
-  bundlePolicy: 'max-bundle',
-  rtcpMuxPolicy: 'require',
-};
-
 const PiPIcon = ({ className = 'w-5 h-5' }: { className?: string }) => (
   <svg
     className={className}
@@ -493,9 +461,7 @@ export default function VideoCall({
   const requestMediaPermissionsRef = useRef<(() => Promise<void>) | null>(null);
   const hasAttemptedWarmupRef = useRef(false);
 
-  const pcRef = useRef<RTCPeerConnection | null>(null);
   const channelRef = useRef<any>(null);
-  const candidateQueueRef = useRef<RTCIceCandidateInit[]>([]);
   const myPeerIdRef = useRef<string>(
     typeof window !== 'undefined' && window.sessionStorage
       ? window.sessionStorage.getItem(`webrtc_peer_${roomToken}_${isTeacher ? 'teacher' : 'student'}`) ||
@@ -616,19 +582,7 @@ export default function VideoCall({
         track.enabled = micActive;
       });
     }
-    if (pcRef.current) {
-      pcRef.current.getSenders().forEach((sender) => {
-        if (sender.track && sender.track.kind === 'audio') {
-          sender.track.enabled = micActive;
-        }
-      });
-    }
   }, [hasRemoteStream, isDeafened, remoteMicActive, isWhiteboardActive, isPipMinimized, isChatOpen, isPlatformMinimized]);
-
-  // WebRTC PeerConnection management & stream helpers
-  const cameraPromiseRef = useRef<Promise<MediaStream | null> | null>(null);
-  const isNegotiatingRef = useRef(false);
-  const lastOfferSentRef = useRef<number>(0);
 
   // Helper to create a dummy video track so WebRTC negotiation never fails if camera is unavailable
   const createDummyVideoTrack = (): MediaStreamTrack | null => {
@@ -697,415 +651,8 @@ export default function VideoCall({
     googAudioMirroring: false,
   };
 
-  const resetPeerConnection = () => {
-    if (pcRef.current) {
-      try {
-        pcRef.current.close();
-      } catch (_) {}
-      pcRef.current = null;
-    }
-    candidateQueueRef.current = [];
-    if (!isLiveKitActiveRef.current) {
-      remoteStreamRef.current = null;
-      setHasRemoteStream(false);
-    }
-    isNegotiatingRef.current = false;
-    lastOfferSentRef.current = 0;
-  };
-
-  const ensureLocalStream = async (): Promise<MediaStream> => {
-    if (streamRef.current && streamRef.current.getTracks().length > 0) {
-      return streamRef.current;
-    }
-    if (cameraPromiseRef.current) {
-      const existing = await cameraPromiseRef.current;
-      if (existing && existing.getTracks().length > 0) return existing;
-    }
-    const p = startCamera();
-    cameraPromiseRef.current = p;
-    const res = await p;
-    return res || streamRef.current || new MediaStream();
-  };
-
-  // Helper to wait for ICE gathering completion or timeout so candidates are embedded in SDP
-  const waitForIceGathering = (pc: RTCPeerConnection): Promise<void> => {
-    return new Promise((resolve) => {
-      if (pc.iceGatheringState === 'complete') {
-        resolve();
-        return;
-      }
-      let timeoutId: NodeJS.Timeout;
-      const checkState = () => {
-        if (pc.iceGatheringState === 'complete') {
-          pc.removeEventListener('icegatheringstatechange', checkState);
-          clearTimeout(timeoutId);
-          resolve();
-        }
-      };
-      pc.addEventListener('icegatheringstatechange', checkState);
-      timeoutId = setTimeout(() => {
-        pc.removeEventListener('icegatheringstatechange', checkState);
-        resolve();
-      }, 800); // 800ms gives plenty of time for fast Anycast STUNs without delaying call setup
-    });
-  };
-
-  // WebRTC PeerConnection factory
-  const getOrCreatePeerConnection = (stream: MediaStream): RTCPeerConnection => {
-    if (pcRef.current && pcRef.current.signalingState !== 'closed') {
-      return pcRef.current;
-    }
-
-    const pc = new RTCPeerConnection(rtcConfig);
-    pcRef.current = pc;
-
-    // Attach local media tracks (video & audio)
-    const attachedKinds = new Set<string>();
-    stream.getTracks().forEach((track) => {
-      try {
-        pc.addTrack(track, stream);
-        attachedKinds.add(track.kind);
-      } catch (_) {}
-    });
-
-    // Ensure audio and video transceivers exist so remote media can always be negotiated & received
-    if (!attachedKinds.has('audio')) {
-      try {
-        pc.addTransceiver('audio', { direction: 'sendrecv' });
-      } catch (_) {}
-    }
-    if (!attachedKinds.has('video')) {
-      try {
-        pc.addTransceiver('video', { direction: 'sendrecv' });
-      } catch (_) {}
-    }
-
-    // Handle remote tracks (audio & video from student or teacher)
-    pc.ontrack = (event) => {
-      console.log('[WebRTC] Received remote track:', event.track.kind, event.track.id);
-      addLog('success', `Получен удаленный медиа-трек: ${event.track.kind}`);
-      const incomingStream = event.streams && event.streams[0] ? event.streams[0] : (remoteStreamRef.current || new MediaStream());
-      if (!incomingStream.getTracks().some((t) => t.id === event.track.id)) {
-        incomingStream.addTrack(event.track);
-      }
-      remoteStreamRef.current = incomingStream;
-      setHasRemoteStream(true);
-      setConnectionStatus('connected');
-
-      if (event.track.kind === 'audio') {
-        event.track.enabled = !isDeafened && remoteMicActive;
-      }
-
-      // 1. Dedicated audio element (only plays incoming audio)
-      if (remoteAudioRef.current && event.track.kind === 'audio') {
-        const aTracks = incomingStream.getAudioTracks();
-        const aStream = aTracks.length > 0 ? new MediaStream(aTracks) : new MediaStream([event.track]);
-        remoteAudioRef.current.srcObject = aStream;
-        remoteAudioRef.current.muted = isDeafened;
-        remoteAudioRef.current
-          .play()
-          .then(() => setIsAudioAutoplayBlocked(false))
-          .catch((err) => {
-            console.warn('[WebRTC] Remote audio autoPlay blocked:', err);
-            setIsAudioAutoplayBlocked(true);
-            addLog('warn', 'Звук собеседника заглушен браузером (требуется нажатие на экран)');
-          });
-      }
-
-      // 2. Video element (strictly video-only, 100% muted to prevent loopback)
-      if (remoteVideoRef.current && event.track.kind === 'video') {
-        const vOnly = toVideoOnlyStream(incomingStream);
-        if (vOnly) {
-          remoteVideoRef.current.srcObject = vOnly;
-        }
-        remoteVideoRef.current.muted = true;
-        remoteVideoRef.current.volume = 0;
-        remoteVideoRef.current.play().catch(() => {});
-      }
-
-      // 3. Listen to unmute (first actual data packets received over network)
-      event.track.onunmute = () => {
-        console.log('[WebRTC] Remote track unmuted (media flowing):', event.track.kind);
-        addLog('success', `Медиа-поток ${event.track.kind} активен (данные идут)`);
-        setHasRemoteStream(true);
-        setConnectionStatus('connected');
-        if (remoteVideoRef.current && event.track.kind === 'video') {
-          const vOnly = toVideoOnlyStream(incomingStream);
-          if (vOnly) {
-            remoteVideoRef.current.srcObject = vOnly;
-          }
-          remoteVideoRef.current.muted = true;
-          remoteVideoRef.current.volume = 0;
-          remoteVideoRef.current.play().catch(() => {});
-        }
-        if (remoteAudioRef.current && event.track.kind === 'audio') {
-          remoteAudioRef.current.play().catch(() => {});
-        }
-      };
-
-      if (event.track.readyState === 'live' && !event.track.muted && pc.connectionState === 'connected') {
-        setHasRemoteStream(true);
-        setConnectionStatus('connected');
-      }
-    };
-
-    // Send local ICE candidates to peer with explicit fields
-    pc.onicecandidate = (event) => {
-      if (event.candidate && channelRef.current) {
-        const c = event.candidate;
-        const candObj = typeof c.toJSON === 'function' ? c.toJSON() : {
-          candidate: c.candidate,
-          sdpMid: c.sdpMid,
-          sdpMLineIndex: c.sdpMLineIndex,
-          usernameFragment: c.usernameFragment,
-        };
-        channelRef.current.send({
-          type: 'broadcast',
-          event: 'ice-candidate',
-          payload: {
-            candidate: candObj,
-            senderId: myPeerIdRef.current,
-          },
-        });
-      }
-    };
-
-    pc.onconnectionstatechange = () => {
-      console.log('[WebRTC] Connection state change:', pc.connectionState);
-      if (isLiveKitActiveRef.current) {
-        console.log('[WebRTC] LiveKit SFU active, suppressing P2P connectionState change');
-        return;
-      }
-      addLog(
-        pc.connectionState === 'connected' ? 'success' : pc.connectionState === 'failed' ? 'error' : 'info',
-        `WebRTC соединение: ${pc.connectionState}`
-      );
-      if (pc.connectionState === 'connected') {
-        setConnectionStatus('connected');
-        setHasRemoteStream(true);
-      } else if (pc.connectionState === 'connecting') {
-        setConnectionStatus('connecting');
-      } else if (pc.connectionState === 'disconnected') {
-        console.warn('[WebRTC] Connection disconnected, waiting for reconnection...');
-        addLog('warn', 'WebRTC соединение отключилось, ожидание переподключения...');
-      } else if (pc.connectionState === 'failed') {
-        console.warn('[WebRTC] Connection failed');
-        addLog('error', 'Сбой WebRTC соединения (failed)');
-        setConnectionStatus('connecting');
-        setHasRemoteStream(false);
-        // Only teacher initiates automatic reconnection recovery after backoff to prevent collisions
-        if (isTeacher) {
-          setTimeout(async () => {
-            if (pcRef.current && pcRef.current.connectionState === 'failed' && !isLiveKitActiveRef.current) {
-              addLog('info', 'Попытка автоматического восстановления соединения учителем...');
-              resetPeerConnection();
-              try {
-                const stream = await ensureLocalStream();
-                if (stream && channelRef.current) {
-                  const newPc = getOrCreatePeerConnection(stream);
-                  await createAndSendOffer(newPc);
-                }
-              } catch (_) {}
-            }
-          }, 3500);
-        }
-      }
-    };
-
-    pc.oniceconnectionstatechange = () => {
-      console.log('[WebRTC] ICE connection state:', pc.iceConnectionState);
-      if (isLiveKitActiveRef.current) {
-        return;
-      }
-      setCurrentIceState(pc.iceConnectionState);
-      addLog(
-        pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed'
-          ? 'success'
-          : pc.iceConnectionState === 'failed'
-          ? 'error'
-          : 'info',
-        `ICE статус (P2P): ${pc.iceConnectionState}`
-      );
-      if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
-        setConnectionStatus('connected');
-        setHasRemoteStream(true);
-      } else if (pc.iceConnectionState === 'failed') {
-        console.warn('[WebRTC] ICE failed across direct route');
-        addLog('error', 'Сбой ICE (P2P маршрут не найден)');
-        setConnectionStatus('connecting');
-        setHasRemoteStream(false);
-      }
-    };
-
-    return pc;
-  };
-
-  // Create and send SDP Offer
-  const createAndSendOffer = async (pc: RTCPeerConnection) => {
-    try {
-      if (isNegotiatingRef.current || pc.signalingState !== 'stable') {
-        console.log('[WebRTC] Skipping offer creation: busy or signaling not stable', {
-          isNegotiating: isNegotiatingRef.current,
-          signalingState: pc.signalingState,
-        });
-        return;
-      }
-      const now = Date.now();
-      if (now - lastOfferSentRef.current < 4500) {
-        console.log('[WebRTC] Throttling offer: an offer was sent recently (<4.5s ago)');
-        return;
-      }
-      lastOfferSentRef.current = now;
-      isNegotiatingRef.current = true;
-      console.log('[WebRTC] Creating SDP offer...');
-      addLog('info', 'Формирование и отправка WebRTC Offer...');
-      const offer = await pc.createOffer({
-        offerToReceiveAudio: true,
-        offerToReceiveVideo: true,
-      });
-      await pc.setLocalDescription(offer);
-      await waitForIceGathering(pc);
-
-      const finalOffer = pc.localDescription || offer;
-      if (channelRef.current && finalOffer) {
-        channelRef.current.send({
-          type: 'broadcast',
-          event: 'offer',
-          payload: {
-            sdp: {
-              type: finalOffer.type,
-              sdp: finalOffer.sdp,
-            },
-            senderId: myPeerIdRef.current,
-          },
-        });
-        console.log('[WebRTC] SDP offer sent with embedded candidates');
-        addLog('success', 'WebRTC Offer успешно отправлен собеседнику');
-      }
-    } catch (err: any) {
-      console.warn('[WebRTC] Error creating offer:', err);
-      addLog('error', 'Сбой формирования WebRTC Offer', err?.message || String(err));
-    } finally {
-      isNegotiatingRef.current = false;
-    }
-  };
-
-  // Handle incoming SDP Offer (Callee)
-  const handleRemoteOffer = async (sdp: RTCSessionDescriptionInit, stream: MediaStream) => {
-    try {
-      console.log('[WebRTC] Handling remote offer...');
-      addLog('info', 'Получен WebRTC Offer, формирование ответа (Answer)...');
-      const pc = getOrCreatePeerConnection(stream);
-      if (pc.signalingState !== 'stable') {
-        console.log('[WebRTC] Handling offer collision in state:', pc.signalingState);
-        if (pc.signalingState === 'have-local-offer') {
-          if (!isTeacher) {
-            await pc.setLocalDescription({ type: 'rollback' } as any).catch(() => {});
-          } else {
-            return;
-          }
-        }
-      }
-      await pc.setRemoteDescription(new RTCSessionDescription(sdp));
-
-      // Flush queued ICE candidates
-      while (candidateQueueRef.current.length > 0) {
-        const cand = candidateQueueRef.current.shift();
-        if (cand && (cand.candidate || cand.candidate === '')) {
-          try {
-            await pc.addIceCandidate(new RTCIceCandidate(cand));
-          } catch (_) {}
-        }
-      }
-
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      await waitForIceGathering(pc);
-
-      const finalAnswer = pc.localDescription || answer;
-      if (channelRef.current && finalAnswer) {
-        channelRef.current.send({
-          type: 'broadcast',
-          event: 'answer',
-          payload: {
-            sdp: {
-              type: finalAnswer.type,
-              sdp: finalAnswer.sdp,
-            },
-            senderId: myPeerIdRef.current,
-          },
-        });
-        console.log('[WebRTC] SDP answer sent with embedded candidates');
-        addLog('success', 'WebRTC Answer отправлен собеседнику');
-      }
-    } catch (err: any) {
-      console.warn('[WebRTC] Error handling offer:', err);
-      addLog('error', 'Сбой обработки WebRTC Offer', err?.message || String(err));
-    }
-  };
-
-  // Handle incoming SDP Answer (Caller)
-  const handleRemoteAnswer = async (sdp: RTCSessionDescriptionInit) => {
-    try {
-      console.log('[WebRTC] Handling remote answer...');
-      if (!pcRef.current) return;
-      if (pcRef.current.signalingState !== 'have-local-offer') {
-        console.warn('[WebRTC] Ignoring remote answer in unexpected state:', pcRef.current.signalingState);
-        return;
-      }
-      await pcRef.current.setRemoteDescription(new RTCSessionDescription(sdp));
-      addLog('success', 'Получен и применён WebRTC Answer от собеседника');
-
-      // Flush queued ICE candidates
-      while (candidateQueueRef.current.length > 0) {
-        const cand = candidateQueueRef.current.shift();
-        if (cand && (cand.candidate || cand.candidate === '')) {
-          try {
-            await pcRef.current.addIceCandidate(new RTCIceCandidate(cand));
-          } catch (_) {}
-        }
-      }
-    } catch (err: any) {
-      console.warn('[WebRTC] Error handling answer:', err);
-      addLog('error', 'Сбой обработки WebRTC Answer', err?.message || String(err));
-    }
-  };
-
-  // Manual reset & re-negotiation of WebRTC connection
-  const handleRestartCall = async () => {
-    addLog('warn', 'Инициирован ручной перезапуск видеосвязи...');
-    resetPeerConnection();
-    setHasRemoteStream(false);
-    setConnectionStatus('connecting');
-    setCurrentIceState('new');
-
-    if (livekitSessionRef.current?.room) {
-      try {
-        await livekitSessionRef.current.room.localParticipant.setCameraEnabled(true);
-        await livekitSessionRef.current.room.localParticipant.setMicrophoneEnabled(true);
-        setCameraError(null);
-        setMicrophoneError(null);
-        addLog('success', 'Повторный запрос камеры и микрофона в LiveKit выполнен успешно');
-      } catch (e: any) {
-        addLog('warn', 'Повторный запрос камеры:', e?.message || String(e));
-      }
-    }
-
-    try {
-      const stream = await ensureLocalStream();
-      if (stream && channelRef.current) {
-        const pc = getOrCreatePeerConnection(stream);
-        await createAndSendOffer(pc);
-        addLog('info', 'Новый WebRTC Offer сформирован после перезапуска');
-      }
-    } catch (err: any) {
-      addLog('error', 'Ошибка при перезапуске видеосвязи', err?.message || String(err));
-    }
-  };
-
-  // Manual LiveKit account switch (Account 1 ↔ Account 2)
-  const handleSwitchLiveKitAccount = async (targetAccount: 'account1' | 'account2' | 'auto') => {
-    addLog('warn', `Ручное переключение пула LiveKit на: ${targetAccount}...`);
+  // Unified LiveKit Cloud SFU connection manager (Sole WebRTC media engine)
+  const connectLiveKitSession = async (accountOverride?: 'account1' | 'account2' | 'auto') => {
     if (livekitSessionRef.current?.room) {
       try {
         livekitSessionRef.current.room.disconnect();
@@ -1121,79 +668,96 @@ export default function VideoCall({
       (isTeacher ? 'Преподаватель' : 'Ученик');
     const myCleanName = myLocalName.replace(/\s*\(.*?\)$/, '').trim();
 
-    const session = await initLiveKitCall({
-      roomToken,
-      identity: myPeerIdRef.current,
-      name: myCleanName,
-      isTeacher: Boolean(isTeacher),
-      accountOverride: targetAccount,
-      localVideoEl: localVideoRef.current,
-      remoteVideoEl: remoteVideoRef.current,
-      remoteAudioEl: remoteAudioRef.current,
-      onConnected: (acc, accName) => {
-        isLiveKitActiveRef.current = true;
-        setActiveEngine('livekit');
-        setLivekitAccount(acc);
-        setLivekitAccountName(accName);
-        setConnectionStatus('connected');
-        if (pcRef.current) {
-          try { pcRef.current.close(); } catch (_) {}
-          pcRef.current = null;
-        }
-      },
-      onDisconnected: (reason) => {
-        isLiveKitActiveRef.current = false;
-        setActiveEngine('p2p');
-        addLog('warn', `Отключено от LiveKit: ${reason || 'завершение сессии'}`);
-      },
-      onMediaError: (type, err) => {
-        if (type === 'camera') {
-          setCameraError(err || 'Доступ к камере заблокирован в браузере');
-          setCamActive(false);
-        } else {
-          setMicrophoneError(err || 'Доступ к микрофону заблокирован в браузере');
-          setMicActive(false);
-        }
-      },
-      onLocalTracks: (stream) => {
-        streamRef.current = stream;
-        if (stream.getVideoTracks().length > 0) {
-          setCamActive(true);
-          setCameraError(null);
-        }
-        if (stream.getAudioTracks().length > 0) {
-          setMicActive(true);
-          setMicrophoneError(null);
-        }
-        const localVOnly = toVideoOnlyStream(stream);
-        if (localVideoRef.current && localVOnly && localVideoRef.current.srcObject !== localVOnly) {
-          localVideoRef.current.muted = true;
-          localVideoRef.current.volume = 0;
-          localVideoRef.current.srcObject = localVOnly;
-          localVideoRef.current.play().catch(() => {});
-        }
-        if (pipVideoRef.current && !hasRemoteStream && localVOnly && pipVideoRef.current.srcObject !== localVOnly) {
-          pipVideoRef.current.muted = true;
-          pipVideoRef.current.volume = 0;
-          pipVideoRef.current.srcObject = localVOnly;
-          pipVideoRef.current.play().catch(() => {});
-        }
-      },
-      onRemoteTrackReceived: (kind, stream) => {
-        isLiveKitActiveRef.current = true;
-        setHasRemoteStream(true);
-        setConnectionStatus('connected');
-        if (kind === 'video') {
-          setRemoteCamActive(true);
-        }
-        if (kind === 'audio') {
-          setRemoteMicActive(true);
-        }
-        if (kind === 'screen') {
-          remoteScreenStreamRef.current = stream;
-          setIsRemoteScreenSharing(true);
-          if (remoteVideoRef.current) {
-            const vOnly = toVideoOnlyStream(stream);
+    try {
+      const session = await initLiveKitCall({
+        roomToken,
+        identity: myPeerIdRef.current,
+        name: myCleanName,
+        isTeacher: Boolean(isTeacher),
+        accountOverride: accountOverride || (livekitAccount ?? undefined),
+        localVideoEl: localVideoRef.current,
+        remoteVideoEl: remoteVideoRef.current,
+        remoteAudioEl: remoteAudioRef.current,
+        onConnected: (acc, accName) => {
+          isLiveKitActiveRef.current = true;
+          setActiveEngine('livekit');
+          setLivekitAccount(acc);
+          setLivekitAccountName(accName);
+          setConnectionStatus('connected');
+        },
+        onDisconnected: (reason) => {
+          isLiveKitActiveRef.current = false;
+          setConnectionStatus('connecting');
+          addLog('warn', `LiveKit SFU отключен (${reason || 'сессия завершена'})`);
+        },
+        onMediaError: (type, err) => {
+          if (type === 'camera') {
+            setCameraError(err || 'Доступ к камере заблокирован в браузере');
+            setCamActive(false);
+          } else {
+            setMicrophoneError(err || 'Доступ к микрофону заблокирован в браузере');
+            setMicActive(false);
+          }
+        },
+        onLocalTracks: (stream) => {
+          streamRef.current = stream;
+          if (stream.getVideoTracks().length > 0) {
+            setCamActive(true);
+            setCameraError(null);
+          }
+          if (stream.getAudioTracks().length > 0) {
+            setMicActive(true);
+            setMicrophoneError(null);
+          }
+          const localVOnly = toVideoOnlyStream(stream);
+          if (localVideoRef.current && localVOnly && localVideoRef.current.srcObject !== localVOnly) {
+            localVideoRef.current.muted = true;
+            localVideoRef.current.volume = 0;
+            localVideoRef.current.srcObject = localVOnly;
+            localVideoRef.current.play().catch(() => {});
+          }
+          if (pipVideoRef.current && !hasRemoteStream && localVOnly && pipVideoRef.current.srcObject !== localVOnly) {
+            pipVideoRef.current.muted = true;
+            pipVideoRef.current.volume = 0;
+            pipVideoRef.current.srcObject = localVOnly;
+            pipVideoRef.current.play().catch(() => {});
+          }
+        },
+        onRemoteTrackReceived: (kind, stream) => {
+          isLiveKitActiveRef.current = true;
+          setHasRemoteStream(true);
+          setConnectionStatus('connected');
+          if (kind === 'video') {
+            setRemoteCamActive(true);
+          }
+          if (kind === 'audio') {
+            setRemoteMicActive(true);
+          }
+          if (kind === 'screen') {
+            remoteScreenStreamRef.current = stream;
+            setIsRemoteScreenSharing(true);
+            if (remoteVideoRef.current) {
+              const vOnly = toVideoOnlyStream(stream);
+              if (vOnly) {
+                remoteVideoRef.current.srcObject = vOnly;
+              }
+              remoteVideoRef.current.muted = true;
+              remoteVideoRef.current.volume = 0;
+              remoteVideoRef.current.play().catch(() => {});
+            }
+            return;
+          }
+          if (!remoteStreamRef.current) {
+            remoteStreamRef.current = stream;
+          } else {
+            stream.getTracks().forEach((t) => {
+              if (!remoteStreamRef.current?.getTracks().some((et) => et.id === t.id)) {
+                remoteStreamRef.current?.addTrack(t);
+              }
+            });
+          }
+          if (remoteVideoRef.current && kind === 'video' && !isRemoteScreenSharing) {
+            const vOnly = toVideoOnlyStream(remoteStreamRef.current);
             if (vOnly) {
               remoteVideoRef.current.srcObject = vOnly;
             }
@@ -1201,70 +765,62 @@ export default function VideoCall({
             remoteVideoRef.current.volume = 0;
             remoteVideoRef.current.play().catch(() => {});
           }
-          return;
-        }
-        if (!remoteStreamRef.current) {
-          remoteStreamRef.current = stream;
-        } else {
-          stream.getTracks().forEach((t) => {
-            if (!remoteStreamRef.current?.getTracks().some((et) => et.id === t.id)) {
-              remoteStreamRef.current?.addTrack(t);
+          if (pipVideoRef.current && kind === 'video') {
+            const vOnly = toVideoOnlyStream(remoteStreamRef.current);
+            if (vOnly) {
+              pipVideoRef.current.srcObject = vOnly;
             }
-          });
-        }
-        if (remoteVideoRef.current && kind === 'video' && !isRemoteScreenSharing) {
-          const vOnly = toVideoOnlyStream(remoteStreamRef.current);
-          if (vOnly) {
-            remoteVideoRef.current.srcObject = vOnly;
+            pipVideoRef.current.muted = true;
+            pipVideoRef.current.volume = 0;
+            pipVideoRef.current.play().catch(() => {});
           }
-          remoteVideoRef.current.muted = true;
-          remoteVideoRef.current.volume = 0;
-          remoteVideoRef.current.play().catch(() => {});
-        }
-        if (pipVideoRef.current && kind === 'video') {
-          const vOnly = toVideoOnlyStream(remoteStreamRef.current);
-          if (vOnly) {
-            pipVideoRef.current.srcObject = vOnly;
+          if (remoteAudioRef.current && kind === 'audio') {
+            const aTracks = remoteStreamRef.current?.getAudioTracks() || [];
+            const aOnly = aTracks.length > 0 ? new MediaStream(aTracks) : stream;
+            remoteAudioRef.current.srcObject = aOnly;
+            remoteAudioRef.current.muted = isDeafened;
+            remoteAudioRef.current.play().catch(() => {});
           }
-          pipVideoRef.current.muted = true;
-          pipVideoRef.current.volume = 0;
-          pipVideoRef.current.play().catch(() => {});
-        }
-        if (remoteAudioRef.current && kind === 'audio') {
-          const aTracks = remoteStreamRef.current?.getAudioTracks() || [];
-          const aOnly = aTracks.length > 0 ? new MediaStream(aTracks) : stream;
-          remoteAudioRef.current.srcObject = aOnly;
-          remoteAudioRef.current.muted = isDeafened;
-          remoteAudioRef.current.play().catch(() => {});
-        }
-      },
-      onScreenShareEnded: () => {
-        remoteScreenStreamRef.current = null;
-        setIsRemoteScreenSharing(false);
-        if (remoteVideoRef.current && remoteStreamRef.current) {
-          const vOnly = toVideoOnlyStream(remoteStreamRef.current);
-          if (vOnly) {
-            remoteVideoRef.current.srcObject = vOnly;
+        },
+        onScreenShareEnded: () => {
+          remoteScreenStreamRef.current = null;
+          setIsRemoteScreenSharing(false);
+          if (remoteVideoRef.current && remoteStreamRef.current) {
+            const vOnly = toVideoOnlyStream(remoteStreamRef.current);
+            if (vOnly) {
+              remoteVideoRef.current.srcObject = vOnly;
+            }
           }
-        }
-      },
-      onPeerJoined: (name) => {
-        setIsPeerInRoom(true);
-        setPeerProvidedName(name);
-      },
-      onPeerLeft: () => {
-        setIsPeerInRoom(false);
-      },
-      onLog: addLog,
-    });
+        },
+        onPeerJoined: (name) => {
+          setIsPeerInRoom(true);
+          setPeerProvidedName(name);
+        },
+        onPeerLeft: () => {
+          setIsPeerInRoom(false);
+        },
+        onLog: addLog,
+      });
 
-    if (session) {
-      livekitSessionRef.current = session;
-      setActiveEngine('livekit');
-      addLog('success', `Успешно переключено на ${session.accountName}`);
-    } else {
-      addLog('warn', 'Не удалось переключить аккаунт LiveKit, возврат к резервному каналу');
+      if (session) {
+        livekitSessionRef.current = session;
+        setActiveEngine('livekit');
+        addLog('success', `Успешно подключено к LiveKit (${session.accountName})`);
+      }
+    } catch (err: any) {
+      addLog('error', 'Ошибка подключения к LiveKit SFU', err?.message || String(err));
     }
+  };
+
+  const handleRestartCall = async () => {
+    addLog('warn', 'Инициирован ручной перезапуск видеосвязи...');
+    setHasRemoteStream(false);
+    await connectLiveKitSession();
+  };
+
+  const handleSwitchLiveKitAccount = async (targetAccount: 'account1' | 'account2' | 'auto') => {
+    addLog('warn', `Ручное переключение пула LiveKit на: ${targetAccount}...`);
+    await connectLiveKitSession(targetAccount);
   };
 
   // Copy structured diagnostic report for technical support / developer
@@ -1280,9 +836,9 @@ export default function VideoCall({
       `Сигналинг Supabase: ${currentSignalingStatus}`,
       `Собеседник в сети: ${isPeerInRoom ? 'ДА' : 'НЕТ'}`,
       `Удаленный стрим: ${hasRemoteStream ? 'ПОЛУЧЕН' : 'НЕТ'}`,
-      `WebRTC Connection State: ${pcRef.current?.connectionState || 'null'}`,
-      `WebRTC ICE State: ${pcRef.current?.iceConnectionState || currentIceState}`,
-      `WebRTC Signaling State: ${pcRef.current?.signalingState || 'null'}`,
+      `Медиа-сервер: LiveKit Cloud SFU (${livekitAccountName})`,
+      `Статус SFU: ${livekitSessionRef.current?.room?.state || connectionStatus}`,
+      `Участников в LiveKit: ${livekitSessionRef.current?.room?.remoteParticipants?.size ?? 0}`,
       `Локальная камера: ${camActive ? 'ВКЛ' : 'ВЫКЛ'} (ошибка: ${cameraError || 'нет'})`,
       `Локальный микрофон: ${micActive ? 'ВКЛ' : 'ВЫКЛ'} (ошибка: ${microphoneError || 'нет'})`,
       `Звук заблокирован iOS: ${isAudioAutoplayBlocked ? 'ДА (требуется нажатие)' : 'НЕТ'}`,
@@ -1342,357 +898,46 @@ export default function VideoCall({
     }
   };
 
-  // Handle incoming ICE candidate
-  const handleRemoteIceCandidate = async (candidate: any) => {
-    try {
-      if (!candidate || (!candidate.candidate && candidate.candidate !== '')) return;
-      if (pcRef.current && pcRef.current.remoteDescription && pcRef.current.remoteDescription.type) {
-        await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate));
-      } else {
-        candidateQueueRef.current.push(candidate);
-      }
-    } catch (err) {
-      console.warn('[WebRTC] Error adding ICE candidate:', err);
-    }
-  };
-
-  // Start local camera & microphone with progressive fallback
-  const startCamera = async (targetFacing?: 'user' | 'environment'): Promise<MediaStream | null> => {
-    try {
-      const mode = targetFacing || facingModeRef.current;
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-      }
-
-      let stream: MediaStream | null = null;
-      let acquiredVideo = false;
-      let acquiredAudio = false;
-
-      const isMobile =
-        typeof window !== 'undefined' &&
-        (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth < 768);
-
-      addLog('info', `Запрос камеры и микрофона (${isMobile ? 'мобильный' : 'ПК'})...`);
-
-      // 1. Acquire Video independently
-      try {
-        const vStream = await navigator.mediaDevices.getUserMedia(
-          isMobile
-            ? { video: { facingMode: { ideal: mode } } }
-            : { video: { facingMode: mode, width: { ideal: 1280 }, height: { ideal: 720 } } }
-        );
-        stream = vStream;
-        acquiredVideo = true;
-      } catch (err1) {
-        try {
-          const vStream = await navigator.mediaDevices.getUserMedia({ video: true });
-          stream = vStream;
-          acquiredVideo = true;
-        } catch (_) {}
-      }
-
-      // 2. Acquire Audio independently (never fails camera if mic is unplugged)
-      try {
-        const aStream = await navigator.mediaDevices.getUserMedia({
-          audio: PREFERRED_AUDIO_CONSTRAINTS,
-        });
-        const aTrack = aStream.getAudioTracks()[0];
-        if (aTrack) {
-          if (!stream) stream = new MediaStream();
-          stream.addTrack(aTrack);
-          acquiredAudio = true;
-        }
-      } catch (errA) {
-        try {
-          const aStream = await navigator.mediaDevices.getUserMedia({
-            audio: { echoCancellation: true },
-          });
-          const aTrack = aStream.getAudioTracks()[0];
-          if (aTrack) {
-            if (!stream) stream = new MediaStream();
-            stream.addTrack(aTrack);
-            acquiredAudio = true;
-          }
-        } catch (_) {}
-      }
-
-      if (!stream) {
-        stream = new MediaStream();
-      }
-      if (!acquiredVideo || stream.getVideoTracks().length === 0) {
-        const dummyV = createDummyVideoTrack();
-        if (dummyV) stream.addTrack(dummyV);
-        setCameraError('Видеопоток недоступен (камера выключена или заблокирована)');
-        addLog('warn', 'Видеопоток недоступен, создана виртуальная видео-заглушка');
-      } else {
-        setCameraError(null);
-        addLog('success', 'Локальная камера успешно активирована');
-      }
-
-      if (!acquiredAudio || stream.getAudioTracks().length === 0) {
-        const silentA = createSilentAudioTrack();
-        if (silentA) stream.addTrack(silentA);
-        setMicrophoneError('Микрофон недоступен');
-        addLog('warn', 'Микрофон недоступен, создан беззвучный аудио-трек');
-      } else {
-        setMicrophoneError(null);
-        addLog('success', 'Локальный микрофон успешно активирован');
-      }
-
-      // Preserve current microphone and camera states
-      stream.getAudioTracks().forEach((track) => {
-        track.enabled = micActive;
-      });
-      stream.getVideoTracks().forEach((track) => {
-        track.enabled = camActive;
-      });
-
-      streamRef.current = stream;
-
-      // Update local preview depending on swapped state (strictly video-only, never audio to prevent hearing oneself)
-      const localVOnly = toVideoOnlyStream(stream);
-      if (isSwapped) {
-        if (remoteVideoRef.current && localVOnly) {
-          remoteVideoRef.current.muted = true;
-          remoteVideoRef.current.volume = 0;
-          remoteVideoRef.current.srcObject = localVOnly;
-        }
-      } else {
-        if (localVideoRef.current && localVOnly) {
-          localVideoRef.current.muted = true;
-          localVideoRef.current.volume = 0;
-          localVideoRef.current.srcObject = localVOnly;
-        }
-      }
-      if (pipVideoRef.current && localVOnly) {
-        pipVideoRef.current.muted = true;
-        pipVideoRef.current.volume = 0;
-        pipVideoRef.current.srcObject = localVOnly;
-      }
-
-      // Update peer connection with local tracks
-      if (pcRef.current && pcRef.current.signalingState !== 'closed') {
-        const senders = pcRef.current.getSenders();
-        stream.getTracks().forEach((newTrack) => {
-          const sender = senders.find((s) => s.track?.kind === newTrack.kind || (s as any).kind === newTrack.kind);
-          if (sender) {
-            sender.replaceTrack(newTrack);
-          } else {
-            pcRef.current?.addTrack(newTrack, stream!);
-          }
-        });
-      }
-
-      // Announce ready in room if we haven't established remote stream yet
-      if (channelRef.current && !hasRemoteStream && pcRef.current?.connectionState !== 'connected') {
-        const myLocalName =
-          (typeof window !== 'undefined' &&
-            (localStorage.getItem('aida_full_name') ||
-              localStorage.getItem('aida_user_name'))) ||
-          '';
-        const cleanLocalName = myLocalName.replace(/\s*\(.*?\)$/, '').trim();
-
-        channelRef.current.send({
-          type: 'broadcast',
-          event: 'user-joined',
-          payload: {
-            senderId: myPeerIdRef.current,
-            isTeacher,
-            userName: cleanLocalName || (isTeacher ? 'Преподаватель' : 'Ученик'),
-            startedAt: timerStartTimeRef.current,
-          },
-        });
-      }
-
-      return stream;
-    } catch (err: any) {
-      console.warn('WebRTC camera preview error:', err);
-      let errMsg = 'Сбой доступа к камере или микрофону';
-      if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
-        errMsg = 'Доступ к камере заблокирован в настройках браузера';
-      } else if (err?.name === 'NotFoundError' || err?.name === 'DevicesNotFoundError') {
-        errMsg = 'Камера или микрофон не найдены на устройстве';
-      } else if (err?.name === 'NotReadableError' || err?.name === 'TrackStartError') {
-        errMsg = 'Камера занята другим приложением (Telegram/Zoom)';
-      }
-      setCameraError(errMsg);
-      addLog('error', errMsg, err?.message || String(err));
-      const fallbackStream = new MediaStream();
-      const dummyV = createDummyVideoTrack();
-      const silentA = createSilentAudioTrack();
-      if (dummyV) fallbackStream.addTrack(dummyV);
-      if (silentA) fallbackStream.addTrack(silentA);
-      streamRef.current = fallbackStream;
-      return fallbackStream;
-    } finally {
-      cameraPromiseRef.current = null;
-    }
-  };
-
-  // Explicit User-Gesture Permission Request for Mobile & PC (Video and Audio acquired independently)
+  // Explicit User-Gesture Permission Request for Mobile & PC via LiveKit Cloud SFU
   const requestMediaPermissions = async () => {
     try {
       addLog('info', 'Пользователь запросил активацию камеры и микрофона...');
-      const isMobile =
-        typeof window !== 'undefined' &&
-        (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth < 768);
-
-      const combinedStream = streamRef.current || new MediaStream();
-
-      // 1. Acquire Video Track independently
-      let acquiredVideo = false;
-      try {
-        const vStream = await navigator.mediaDevices.getUserMedia({
-          video: isMobile
-            ? { facingMode: 'user' }
-            : { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
-        });
-        const vTrack = vStream.getVideoTracks()[0];
-        if (vTrack) {
-          combinedStream.getVideoTracks().forEach((t) => {
-            combinedStream.removeTrack(t);
-            t.stop();
-          });
-          combinedStream.addTrack(vTrack);
-          acquiredVideo = true;
-          setCamActive(true);
-          setCameraError(null);
-          addLog('success', 'Локальная камера успешно активирована');
-        }
-      } catch (vErr: any) {
+      if (livekitSessionRef.current?.room) {
+        const room = livekitSessionRef.current.room;
         try {
-          const vStream = await navigator.mediaDevices.getUserMedia({ video: true });
-          const vTrack = vStream.getVideoTracks()[0];
-          if (vTrack) {
-            combinedStream.getVideoTracks().forEach((t) => {
-              combinedStream.removeTrack(t);
-              t.stop();
-            });
-            combinedStream.addTrack(vTrack);
-            acquiredVideo = true;
-            setCamActive(true);
-            setCameraError(null);
-            addLog('success', 'Локальная камера успешно активирована');
-          }
-        } catch (vErr2: any) {
-          console.warn('Video acquisition failed:', vErr2);
-          if (vErr2?.name === 'NotAllowedError') {
-            setCameraError('Доступ к камере запрещен в браузере');
-            setCamActive(false);
-          } else if (vErr2?.name === 'NotFoundError') {
-            setCameraError('Камера не найдена на устройстве');
-            setCamActive(false);
-          } else {
-            setCameraError('Камера недоступна');
-            setCamActive(false);
-          }
-        }
-      }
-
-      // 2. Acquire Audio Track independently (failure never affects camera!)
-      let acquiredAudio = false;
-      try {
-        const aStream = await navigator.mediaDevices.getUserMedia({
-          audio: PREFERRED_AUDIO_CONSTRAINTS,
-        });
-        const aTrack = aStream.getAudioTracks()[0];
-        if (aTrack) {
-          combinedStream.getAudioTracks().forEach((t) => {
-            combinedStream.removeTrack(t);
-            t.stop();
+          await room.localParticipant.setMicrophoneEnabled(true, {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
           });
-          combinedStream.addTrack(aTrack);
-          acquiredAudio = true;
           setMicActive(true);
           setMicrophoneError(null);
           addLog('success', 'Локальный микрофон успешно активирован');
-        }
-      } catch (aErr: any) {
-        try {
-          const aStream = await navigator.mediaDevices.getUserMedia({
-            audio: { echoCancellation: true },
-          });
-          const aTrack = aStream.getAudioTracks()[0];
-          if (aTrack) {
-            combinedStream.getAudioTracks().forEach((t) => {
-              combinedStream.removeTrack(t);
-              t.stop();
-            });
-            combinedStream.addTrack(aTrack);
-            acquiredAudio = true;
-            setMicActive(true);
-            setMicrophoneError(null);
-            addLog('success', 'Локальный микрофон успешно активирован');
-          }
-        } catch (aErr2: any) {
-          console.warn('Audio acquisition failed (mic missing or denied):', aErr2);
+        } catch (mErr: any) {
           setMicActive(false);
-          if (aErr2?.name === 'NotAllowedError') {
-            setMicrophoneError('Доступ к микрофону запрещен в браузере');
-          } else if (aErr2?.name === 'NotFoundError' || aErr2?.name === 'DevicesNotFoundError') {
-            setMicrophoneError('Микрофон не подключен к компьютеру');
-            addLog('warn', 'Микрофон не обнаружен (подключите микрофон или наушники)');
-          } else {
-            setMicrophoneError('Микрофон недоступен');
-          }
-          if (combinedStream.getAudioTracks().length === 0) {
-            const silent = createSilentAudioTrack();
-            if (silent) combinedStream.addTrack(silent);
-          }
+          setMicrophoneError('Доступ к микрофону заблокирован в браузере');
+          addLog('warn', 'LiveKit: сбой активации микрофона', mErr?.message);
         }
-      }
 
-      streamRef.current = combinedStream;
-
-      // Update local preview with video-only track
-      const vOnly = toVideoOnlyStream(combinedStream);
-      if (localVideoRef.current && vOnly) {
-        localVideoRef.current.muted = true;
-        localVideoRef.current.volume = 0;
-        localVideoRef.current.srcObject = vOnly;
-        localVideoRef.current.play().catch(() => {});
-      }
-      if (pipVideoRef.current && vOnly) {
-        pipVideoRef.current.muted = true;
-        pipVideoRef.current.volume = 0;
-        pipVideoRef.current.srcObject = vOnly;
-        pipVideoRef.current.play().catch(() => {});
-      }
-
-      // LiveKit update
-      if (livekitSessionRef.current?.room) {
-        const room = livekitSessionRef.current.room;
-        if (acquiredAudio) {
-          try {
-            await room.localParticipant.setMicrophoneEnabled(true, {
-              echoCancellation: true,
-              noiseSuppression: true,
-              autoGainControl: true,
-            });
-          } catch (_) {}
-        }
-        if (acquiredVideo) {
-          try {
-            await room.localParticipant.setCameraEnabled(true, { facingMode: 'user' });
-            const camPub = room.localParticipant.getTrackPublication('camera');
-            if (camPub?.videoTrack && localVideoRef.current) {
-              camPub.videoTrack.attach(localVideoRef.current);
-            }
-          } catch (_) {}
-        }
-      }
-
-      // P2P WebRTC senders update
-      if (pcRef.current && pcRef.current.signalingState !== 'closed') {
-        const senders = pcRef.current.getSenders();
-        combinedStream.getTracks().forEach((newTrack) => {
-          const sender = senders.find((s) => s.track?.kind === newTrack.kind);
-          if (sender) {
-            sender.replaceTrack(newTrack);
-          } else {
-            pcRef.current?.addTrack(newTrack, combinedStream);
+        try {
+          await room.localParticipant.setCameraEnabled(true, { facingMode: facingModeRef.current });
+          const camPub = room.localParticipant.getTrackPublication('camera');
+          if (camPub?.videoTrack && localVideoRef.current) {
+            camPub.videoTrack.attach(localVideoRef.current);
           }
-        });
+          if (camPub?.videoTrack && pipVideoRef.current) {
+            camPub.videoTrack.attach(pipVideoRef.current);
+          }
+          setCamActive(true);
+          setCameraError(null);
+          addLog('success', 'Локальная камера успешно активирована');
+        } catch (cErr: any) {
+          setCamActive(false);
+          setCameraError('Доступ к камере заблокирован в браузере');
+          addLog('warn', 'LiveKit: сбой активации камеры', cErr?.message);
+        }
+      } else {
+        await connectLiveKitSession();
       }
     } catch (err: any) {
       console.error('Media permission request error:', err);
@@ -1712,9 +957,10 @@ export default function VideoCall({
         if (camPub?.videoTrack) {
           await camPub.videoTrack.restartTrack({ facingMode: nextFacing });
         }
-      } catch (_) {}
+      } catch (err: any) {
+        console.warn('Flip camera error:', err);
+      }
     }
-    await startCamera(nextFacing);
   };
 
   // Raise / lower hand in video call (VK style)
@@ -1804,16 +1050,11 @@ export default function VideoCall({
         setLivekitAccount(acc);
         setLivekitAccountName(accName);
         setConnectionStatus('connected');
-        if (pcRef.current) {
-          try { pcRef.current.close(); } catch (_) {}
-          pcRef.current = null;
-        }
       },
       onDisconnected: (reason) => {
         if (!isMounted) return;
         isLiveKitActiveRef.current = false;
-        setActiveEngine('p2p');
-        addLog('warn', `LiveKit SFU отключен (${reason || 'сессия завершена'}). Резервный P2P канал готов.`);
+        addLog('warn', `LiveKit SFU отключен (${reason || 'сессия завершена'}). Ожидание повторного подключения...`);
       },
       onMediaError: (type, err) => {
         if (!isMounted) return;
@@ -1938,9 +1179,6 @@ export default function VideoCall({
       if (session) {
         livekitSessionRef.current = session;
         setActiveEngine('livekit');
-      } else {
-        // Fallback to local camera and P2P connection
-        startCamera();
       }
     });
 
@@ -1953,7 +1191,7 @@ export default function VideoCall({
     channel
       .on('broadcast', { event: 'user-joined' }, async ({ payload }) => {
         if (payload?.senderId === myPeerIdRef.current) return;
-        console.log('[WebRTC] Peer joined room:', payload);
+        console.log('[Signaling] Peer joined room:', payload);
         setIsPeerInRoom(true);
         addLog(
           'success',
@@ -1967,7 +1205,7 @@ export default function VideoCall({
           setPeerProvidedName(payload.userName);
         }
 
-        // 1. Immediately acknowledge presence so newcomer knows we are already in the room!
+        // Immediately acknowledge presence so newcomer knows we are already in the room!
         if (channelRef.current) {
           const myLocalName =
             (typeof window !== 'undefined' &&
@@ -1996,36 +1234,10 @@ export default function VideoCall({
             });
           }
         }
-
-        // 2. Only reset if connection was completely broken (and LiveKit is not active)
-        if (pcRef.current && pcRef.current.connectionState === 'failed' && !isLiveKitActiveRef.current) {
-          resetPeerConnection();
-          setConnectionStatus('connecting');
-        }
-
-        // 3. Initiate offer: Teacher initiates if present, or deterministic tie-breaker by peerId
-        // If LiveKit SFU is already active and routing media, bypass P2P offer initiation
-        if (isLiveKitActiveRef.current) return;
-
-        const shouldInitiate =
-          (isTeacher && !payload?.isTeacher) ||
-          (isTeacher === Boolean(payload?.isTeacher) && myPeerIdRef.current > (payload?.senderId || ''));
-        const isConnectionBusyOrActive =
-          pcRef.current &&
-          (pcRef.current.connectionState === 'connected' ||
-            (pcRef.current.connectionState === 'connecting' && Date.now() - lastOfferSentRef.current < 6000));
-
-        if (shouldInitiate && !isConnectionBusyOrActive) {
-          const stream = await ensureLocalStream();
-          if (stream) {
-            const pc = getOrCreatePeerConnection(stream);
-            await createAndSendOffer(pc);
-          }
-        }
       })
       .on('broadcast', { event: 'user-here' }, async ({ payload }) => {
         if (payload?.senderId === myPeerIdRef.current) return;
-        console.log('[WebRTC] Peer is already in room (user-here):', payload);
+        console.log('[Signaling] Peer is already in room (user-here):', payload);
         setIsPeerInRoom(true);
         addLog('success', `Собеседник уже в комнате: ${payload?.userName || 'Участник'}`);
 
@@ -2035,91 +1247,16 @@ export default function VideoCall({
         if (payload?.userName) {
           setPeerProvidedName(payload.userName);
         }
-
-        // Only reset if connection was completely broken (and LiveKit is not active)
-        if (pcRef.current && pcRef.current.connectionState === 'failed' && !isLiveKitActiveRef.current) {
-          resetPeerConnection();
-          setConnectionStatus('connecting');
-        }
-
-        // If LiveKit SFU is already active and routing media, bypass P2P offer initiation
-        if (isLiveKitActiveRef.current) return;
-
-        // If I should initiate the offer (Teacher initiates or deterministic tie-breaker)
-        const shouldInitiate =
-          (isTeacher && !payload?.isTeacher) ||
-          (isTeacher === Boolean(payload?.isTeacher) && myPeerIdRef.current > (payload?.senderId || ''));
-        const isConnectionBusyOrActive =
-          pcRef.current &&
-          (pcRef.current.connectionState === 'connected' ||
-            (pcRef.current.connectionState === 'connecting' && Date.now() - lastOfferSentRef.current < 6000));
-
-        if (shouldInitiate && !isConnectionBusyOrActive) {
-          const stream = await ensureLocalStream();
-          if (stream) {
-            const pc = getOrCreatePeerConnection(stream);
-            await createAndSendOffer(pc);
-          }
-        }
       })
       .on('broadcast', { event: 'presence-ping' }, async ({ payload }) => {
         if (payload?.senderId === myPeerIdRef.current) return;
         setIsPeerInRoom(true);
         syncTimerWithTimestamp(payload?.startedAt);
-
-        // If LiveKit SFU is already active and routing media, bypass P2P offer initiation
-        if (isLiveKitActiveRef.current) return;
-
-        const shouldInitiate =
-          (isTeacher && !payload?.isTeacher) ||
-          (isTeacher === Boolean(payload?.isTeacher) && myPeerIdRef.current > (payload?.senderId || ''));
-
-        const isConnectionBusyOrActive =
-          pcRef.current &&
-          (pcRef.current.connectionState === 'connected' ||
-            (pcRef.current.connectionState === 'connecting' && Date.now() - lastOfferSentRef.current < 7000));
-
-        if (shouldInitiate && !isConnectionBusyOrActive) {
-          const stream = await ensureLocalStream();
-          if (stream) {
-            const pc = getOrCreatePeerConnection(stream);
-            await createAndSendOffer(pc);
-          }
-        }
-      })
-      .on('broadcast', { event: 'offer' }, async ({ payload }) => {
-        if (payload?.senderId === myPeerIdRef.current) return;
-        if (isLiveKitActiveRef.current) {
-          console.log('[WebRTC] P2P offer received, but LiveKit SFU is active; ignoring P2P offer');
-          return;
-        }
-        if (payload?.sdp) {
-          console.log('[WebRTC] Received SDP offer, answering...');
-          setConnectionStatus('connecting');
-          const stream = await ensureLocalStream();
-          if (stream) {
-            await handleRemoteOffer(payload.sdp, stream);
-          }
-        }
-      })
-      .on('broadcast', { event: 'answer' }, async ({ payload }) => {
-        if (payload?.senderId === myPeerIdRef.current) return;
-        if (isLiveKitActiveRef.current) return;
-        if (payload?.sdp) {
-          await handleRemoteAnswer(payload.sdp);
-        }
-      })
-      .on('broadcast', { event: 'ice-candidate' }, async ({ payload }) => {
-        if (payload?.senderId === myPeerIdRef.current) return;
-        if (isLiveKitActiveRef.current) return;
-        if (payload?.candidate) {
-          await handleRemoteIceCandidate(payload.candidate);
-        }
       })
       .on('broadcast', { event: 'peer-mic-change' }, ({ payload }) => {
         if (payload?.senderId === myPeerIdRef.current) return;
         if (typeof payload?.micActive === 'boolean') {
-          console.log('[WebRTC] Remote peer mic status changed:', payload.micActive);
+          console.log('[Signaling] Remote peer mic status changed:', payload.micActive);
           setRemoteMicActive(payload.micActive);
           if (remoteStreamRef.current) {
             remoteStreamRef.current.getAudioTracks().forEach((track) => {
@@ -2186,7 +1323,6 @@ export default function VideoCall({
         console.log('[WebRTC] Peer left room:', payload);
         addLog('warn', 'Собеседник покинул комнату');
         setIsPeerInRoom(false);
-        resetPeerConnection();
         setHasRemoteStream(false);
         setConnectionStatus('waiting');
       })
@@ -2235,7 +1371,6 @@ export default function VideoCall({
         supabase.removeChannel(channel);
       } catch (_) {}
 
-      resetPeerConnection();
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
       }
@@ -2251,7 +1386,7 @@ export default function VideoCall({
     if (!roomToken || hasRemoteStream) return;
 
     const interval = setInterval(() => {
-      if (channelRef.current && !hasRemoteStream && pcRef.current?.connectionState !== 'connected') {
+      if (channelRef.current && !hasRemoteStream) {
         channelRef.current.send({
           type: 'broadcast',
           event: 'presence-ping',
@@ -2607,16 +1742,6 @@ export default function VideoCall({
             const screenTrack = screenStream.getVideoTracks()[0];
             if (!screenTrack) return;
 
-            // Replace track in peer connection
-            if (pcRef.current && pcRef.current.signalingState !== 'closed') {
-              const videoSender = pcRef.current.getSenders().find((s) => s.track?.kind === 'video');
-              if (videoSender) {
-                await videoSender.replaceTrack(screenTrack);
-              } else {
-                pcRef.current.addTrack(screenTrack, screenStream);
-              }
-            }
-
             if (localVideoRef.current) {
               localVideoRef.current.srcObject = screenStream;
             }
@@ -2678,13 +1803,6 @@ export default function VideoCall({
     }
 
     if (streamRef.current) {
-      const cameraTrack = streamRef.current.getVideoTracks()[0];
-      if (pcRef.current && cameraTrack) {
-        const videoSender = pcRef.current.getSenders().find((s) => s.track?.kind === 'video');
-        if (videoSender) {
-          await videoSender.replaceTrack(cameraTrack);
-        }
-      }
       const vOnly = toVideoOnlyStream(streamRef.current);
       if (localVideoRef.current && vOnly) {
         localVideoRef.current.muted = true;
@@ -2730,16 +1848,7 @@ export default function VideoCall({
       });
     }
 
-    // 2. Mute RTCPeerConnection audio senders directly
-    if (pcRef.current && pcRef.current.signalingState !== 'closed') {
-      pcRef.current.getSenders().forEach((sender) => {
-        if (sender.track && sender.track.kind === 'audio') {
-          sender.track.enabled = nextMicActive;
-        }
-      });
-    }
-
-    // 3. Broadcast status change to peer via signaling channel
+    // 2. Broadcast status change to peer via signaling channel
     if (channelRef.current) {
       channelRef.current.send({
         type: 'broadcast',
@@ -2826,25 +1935,6 @@ export default function VideoCall({
             pipVideoRef.current.muted = true;
             pipVideoRef.current.volume = 0;
             pipVideoRef.current.srcObject = vOnly;
-          }
-
-          if (pcRef.current && pcRef.current.signalingState !== 'closed') {
-            const transceivers = pcRef.current.getTransceivers ? pcRef.current.getTransceivers() : [];
-            const videoTransceiver = transceivers.find(
-              (t) => t.receiver?.track?.kind === 'video' || t.sender?.track?.kind === 'video'
-            );
-            if (videoTransceiver && videoTransceiver.sender) {
-              await videoTransceiver.sender.replaceTrack(newVideoTrack);
-            } else {
-              const videoSender = pcRef.current
-                .getSenders()
-                .find((s) => s.track?.kind === 'video' || (s as any).kind === 'video');
-              if (videoSender) {
-                await videoSender.replaceTrack(newVideoTrack);
-              } else {
-                pcRef.current.addTrack(newVideoTrack, streamRef.current);
-              }
-            }
           }
         }
         setCamActive(true);
