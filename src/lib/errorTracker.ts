@@ -11,9 +11,30 @@ export interface ErrorContext {
   additional?: Record<string, any>;
 }
 
+const lastReportTimes: number[] = [];
+const reportedSignatures = new Map<string, number>();
+
 export async function reportClientError(error: unknown, context: ErrorContext = {}) {
   try {
     const errObj = error instanceof Error ? error : new Error(String(error));
+    const now = Date.now();
+
+    // 1. Sliding window rate limit: max 5 reports per 60 seconds per client
+    while (lastReportTimes.length > 0 && now - lastReportTimes[0] > 60000) {
+      lastReportTimes.shift();
+    }
+    if (lastReportTimes.length >= 5) {
+      return; // Throttled to protect Vercel Serverless quotas
+    }
+
+    // 2. Exact signature deduplication: ignore identical errors within 30 seconds
+    const signature = `${errObj.name}:${errObj.message}:${context.path || ''}`;
+    const lastSeen = reportedSignatures.get(signature);
+    if (lastSeen && now - lastSeen < 30000) {
+      return;
+    }
+    reportedSignatures.set(signature, now);
+    lastReportTimes.push(now);
 
     let currentUserId = context.userId;
     let currentRole = context.role;

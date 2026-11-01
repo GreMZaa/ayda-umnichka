@@ -57,13 +57,21 @@ export function middleware(request: NextRequest) {
   };
 
   // ─────────────────────────────────────────────────────────
-  // 0. LOGIN ROUTE REDIRECT (MAIN DOMAIN -> LK SUBDOMAIN)
+  // 0. REDIRECT LOOP PROTECTION (Circuit Breaker)
   // ─────────────────────────────────────────────────────────
-  if (pathname.startsWith('/login') && !isLkSubdomain && !host.includes('localhost') && !host.includes('127.0.0.1')) {
-    const targetUrl = new URL(`https://lk-ayda-umnichka.vercel.app${pathname}${search}`);
-    const response = NextResponse.redirect(targetUrl, 307);
+  const redirCount = parseInt(request.cookies.get('aida_rc')?.value || '0', 10);
+  if (redirCount > 4) {
+    // Break any recursive redirection loop immediately: render page or fall back to /login safely
+    const response = NextResponse.next();
+    response.cookies.delete('aida_rc');
     return applySecurityHeaders(response);
   }
+
+  const safeRedirect = (targetUrl: URL | string, status = 307) => {
+    const res = NextResponse.redirect(targetUrl, status);
+    res.cookies.set('aida_rc', String(redirCount + 1), { path: '/', maxAge: 5 });
+    return applySecurityHeaders(res);
+  };
 
   // ─────────────────────────────────────────────────────────
   // 1. ROOT PATH HANDLING
@@ -95,14 +103,14 @@ export function middleware(request: NextRequest) {
         } else {
           url.pathname = `/${targetId}`;
         }
-        const response = NextResponse.redirect(url);
-        return applySecurityHeaders(response);
+        const response = safeRedirect(url);
+        return response;
       }
 
       // Guest / unregistered: send to official login/registration page
       const loginUrl = new URL('/login', request.url);
-      const response = NextResponse.redirect(loginUrl);
-      return applySecurityHeaders(response);
+      const response = safeRedirect(loginUrl);
+      return response;
     }
 
     // On main domain root, allow public landing
@@ -127,8 +135,8 @@ export function middleware(request: NextRequest) {
       const loginUrl = new URL('/login', request.url);
       loginUrl.searchParams.set('redirect', pathname);
       loginUrl.searchParams.set('error', 'forbidden');
-      const response = NextResponse.redirect(loginUrl);
-      return applySecurityHeaders(response);
+      const response = safeRedirect(loginUrl);
+      return response;
     }
   }
 
@@ -156,8 +164,8 @@ export function middleware(request: NextRequest) {
       const loginUrl = new URL('/login', request.url);
       loginUrl.searchParams.set('redirect', pathname + search);
       loginUrl.searchParams.set('error', 'forbidden');
-      const response = NextResponse.redirect(loginUrl);
-      return applySecurityHeaders(response);
+      const response = safeRedirect(loginUrl);
+      return response;
     }
   }
 
@@ -167,14 +175,14 @@ export function middleware(request: NextRequest) {
     if (targetId) {
       const url = request.nextUrl.clone();
       url.pathname = `/${targetId}`;
-      const response = NextResponse.redirect(url);
-      return applySecurityHeaders(response);
+      const response = safeRedirect(url);
+      return response;
     }
 
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('redirect', '/student');
-    const response = NextResponse.redirect(loginUrl);
-    return applySecurityHeaders(response);
+    const response = safeRedirect(loginUrl);
+    return response;
   }
 
   // Messenger and Video Rooms: require authenticated role
@@ -183,8 +191,8 @@ export function middleware(request: NextRequest) {
       const loginUrl = new URL('/login', request.url);
       loginUrl.searchParams.set('redirect', pathname + search);
       loginUrl.searchParams.set('error', 'auth_required');
-      const response = NextResponse.redirect(loginUrl);
-      return applySecurityHeaders(response);
+      const response = safeRedirect(loginUrl);
+      return response;
     }
   }
 
@@ -212,8 +220,8 @@ export function middleware(request: NextRequest) {
       loginUrl.searchParams.set('redirect', `/${requestedId}`);
       loginUrl.searchParams.set('cabinetId', requestedId);
       loginUrl.searchParams.set('auth_required', '1');
-      const response = NextResponse.redirect(loginUrl);
-      return applySecurityHeaders(response);
+      const response = safeRedirect(loginUrl);
+      return response;
     }
   }
 

@@ -171,7 +171,7 @@ export default function Navbar() {
     };
 
     fetchUnread();
-    timer = setInterval(fetchUnread, 15000);
+    timer = setInterval(fetchUnread, 120000); // 2 minutes (backed by instant Realtime events)
 
     const onUserUpdate = () => fetchUnread();
     window.addEventListener('aida-user-updated', onUserUpdate);
