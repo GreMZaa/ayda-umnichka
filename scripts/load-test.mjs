@@ -12,7 +12,7 @@
 
 import autocannon from 'autocannon';
 
-const TARGET_URL = process.env.TARGET_URL || process.argv[2] || 'https://ayda-umnichka.vercel.app';
+const TARGET_URL = process.env.TARGET_URL || process.argv[2] || 'https://ayda-um.vercel.app';
 const CONCURRENCY = parseInt(process.env.CONCURRENCY || '30', 10);
 const DURATION = parseInt(process.env.DURATION || '6', 10);
 

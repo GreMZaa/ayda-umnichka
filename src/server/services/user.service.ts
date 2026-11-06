@@ -3,6 +3,7 @@ import { TeacherStudentRepository } from '../repositories/teacherStudent.reposit
 import { supabaseClient } from '../config/database';
 import { AppError } from '../middleware/apiErrors';
 import { formatLastSeenTolyatti } from '@/lib/utils';
+import { isValidRegistrationEmail, normalizeEmailInput } from '@/lib/emailValidation';
 
 export interface TeacherRecord {
   id: string;
@@ -228,13 +229,61 @@ export class UserService {
     });
   }
 
+  static async getTeachersForStudent(studentPublicId: string) {
+    const cleanId = studentPublicId.trim().toLowerCase();
+    const { data: bindings, error } =
+      await TeacherStudentRepository.findTeachersByStudent(cleanId);
+
+    if (error) {
+      console.error('Error fetching teachers for student:', error);
+      throw new AppError(error.message, 500);
+    }
+
+    const rows = bindings || [];
+    const teacherIds = [
+      ...new Set(rows.map((r: any) => r.teacher_public_id).filter(Boolean)),
+    ] as string[];
+
+    const nameByPublicId = new Map<string, string>();
+
+    if (teacherIds.length > 0) {
+      const { data: teacherBindings } = await supabaseClient
+        .from('user_bindings')
+        .select('public_id, full_name')
+        .in('public_id', teacherIds);
+
+      (teacherBindings || []).forEach((b: any) => {
+        if (b.public_id && b.full_name) {
+          const clean = String(b.full_name)
+            .replace(/\s*\(.*?\)$/, '')
+            .trim();
+          nameByPublicId.set(String(b.public_id).toLowerCase(), clean || b.full_name);
+        }
+      });
+    }
+
+    return rows.map((r: any) => {
+      const pubId = (r.teacher_public_id || '').toLowerCase();
+      const fromDb = pubId ? nameByPublicId.get(pubId) : undefined;
+      const fallback = (r.teacher_name || r.notes || 'Преподаватель').replace(/\s*\(.*?\)$/, '').trim();
+      return {
+        id: r.id,
+        teacher_public_id: r.teacher_public_id,
+        teacher_name: fromDb || fallback,
+      };
+    });
+  }
+
   static async addStudentToTeacher(body: {
     teacher_public_id?: string;
     student_public_id?: string;
     student_name?: string;
     notes?: string;
+    parent_email?: string;
+    initial_balance?: number;
   }) {
-    const { teacher_public_id, student_public_id, student_name, notes } = body;
+    const { teacher_public_id, student_public_id, student_name, notes, parent_email, initial_balance } =
+      body;
 
     if (!teacher_public_id) {
       throw new AppError('Необходимо указать ID преподавателя', 400);
@@ -244,6 +293,18 @@ export class UserService {
     }
 
     const teacherId = teacher_public_id;
+
+    // New student typed manually — create Supabase auth + user_bindings + teacher link
+    if (!student_public_id?.trim() && student_name?.trim()) {
+      return this.provisionManualStudentForTeacher({
+        teacher_public_id: teacherId,
+        student_name: student_name.trim(),
+        notes: notes?.trim(),
+        parent_email: parent_email?.trim(),
+        initial_balance: typeof initial_balance === 'number' ? initial_balance : 1,
+      });
+    }
+
     const existing = await TeacherStudentRepository.findExisting(
       teacherId,
       student_public_id,
@@ -275,6 +336,104 @@ export class UserService {
     return { success: true, student: data };
   }
 
+  /** Create student account in Supabase when teacher adds pupil manually. */
+  private static async provisionManualStudentForTeacher(params: {
+    teacher_public_id: string;
+    student_name: string;
+    notes?: string;
+    parent_email?: string;
+    initial_balance: number;
+  }) {
+    const newStudentPublicId = `id${Math.floor(100000 + Math.random() * 900000)}`;
+    const createdPassword = String(Math.floor(100000 + Math.random() * 900000));
+    let targetEmail: string;
+
+    if (params.parent_email && isValidRegistrationEmail(params.parent_email)) {
+      targetEmail = normalizeEmailInput(params.parent_email);
+    } else {
+      targetEmail = `${newStudentPublicId}@aidaumnichka.ru`;
+    }
+
+    const fullName = params.student_name.trim();
+    const balance = Math.max(0, params.initial_balance);
+
+    const { data: authData, error: authError } = await UserRepository.createUserWithAdminAuth({
+      email: targetEmail,
+      password: createdPassword,
+      metadata: {
+        public_id: newStudentPublicId,
+        full_name: fullName,
+        role: 'student',
+        balance_lessons: balance,
+      },
+    });
+
+    if (authError || !authData?.user?.id) {
+      throw new AppError(
+        authError?.message || 'Не удалось создать учётную запись ученика в Supabase',
+        400
+      );
+    }
+
+    const authUserId = authData.user.id;
+    const now = new Date().toISOString();
+
+    const { error: bindingError } = await UserRepository.upsertBinding({
+      public_id: newStudentPublicId,
+      auth_user_id: authUserId,
+      role: 'student',
+      full_name: fullName,
+      email: targetEmail,
+      is_registered: true,
+      balance_lessons: balance,
+      metadata: {
+        created_by_teacher: params.teacher_public_id,
+        subject_notes: params.notes || null,
+      },
+      updated_at: now,
+    });
+
+    if (bindingError) {
+      console.error('user_bindings upsert failed:', bindingError);
+      throw new AppError(bindingError.message, 500);
+    }
+
+    try {
+      await UserRepository.upsertProfile({
+        id: authUserId,
+        public_id: newStudentPublicId,
+        full_name: fullName,
+        role: 'student',
+        email: targetEmail,
+        balance_lessons: balance,
+      });
+    } catch (profileErr) {
+      console.warn('Profile sync optional note:', profileErr);
+    }
+
+    const { data: linkRow, error: linkError } = await TeacherStudentRepository.createBinding({
+      teacher_public_id: params.teacher_public_id,
+      student_public_id: newStudentPublicId,
+      student_name: fullName,
+      notes: params.notes || 'Индивидуальное сопровождение',
+      created_at: now,
+    });
+
+    if (linkError) {
+      console.error('teacher_students insert failed:', linkError);
+      throw new AppError(linkError.message, 500);
+    }
+
+    return {
+      success: true,
+      message: 'Ученик создан и закреплён за вами',
+      student: linkRow,
+      studentPublicId: newStudentPublicId,
+      login: targetEmail,
+      password: createdPassword,
+    };
+  }
+
   static async updateTeacherStudent(body: {
     id?: string;
     teacher_public_id?: string;
@@ -303,14 +462,20 @@ export class UserService {
     teacher_public_id?: string;
     student_public_id?: string;
   }) {
-    const { error } = await TeacherStudentRepository.deleteBinding({
-      id: filter.id,
-      teacherPublicId: filter.teacher_public_id,
-      studentPublicId: filter.student_public_id,
+    const studentPublicId = filter.student_public_id?.trim().toLowerCase();
+    const teacherPublicId = filter.teacher_public_id?.trim();
+
+    const { data, error } = await TeacherStudentRepository.deleteBinding({
+      id: filter.id?.trim(),
+      teacherPublicId,
+      studentPublicId: studentPublicId || undefined,
     });
     if (error) {
       console.error('Error deleting from teacher_students:', error);
       throw new AppError(error.message, 500);
+    }
+    if (!data?.length) {
+      throw new AppError('Связка не найдена в базе (возможно, ученик был только в локальном кэше)', 404);
     }
     return { success: true, message: 'Ученик успешно откреплен' };
   }

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { getLkOrigin, getMainSiteOrigin } from '@/lib/publicOrigins';
 
 // System paths that have dedicated page handlers or are public assets
 const SYSTEM_ROUTES = new Set([
@@ -28,7 +29,7 @@ export function middleware(request: NextRequest) {
   const host = request.headers.get('host') || '';
   const { pathname, search } = request.nextUrl;
 
-  // Check if request is coming to the LK subdomain (e.g. lk-ayda-umnichka.vercel.app or lk.example.ru)
+  // Check if request is coming to the LK subdomain (e.g. lk-ayda-um.vercel.app or lk.example.ru)
   const isLkSubdomain = host.startsWith('lk-') || host.startsWith('lk.');
 
   // Current session cookies (Only present IF user has already registered/logged in!)
@@ -42,11 +43,14 @@ export function middleware(request: NextRequest) {
       res.cookies.delete('agentation');
     }
 
+    const mainOrigin = getMainSiteOrigin();
+    const lkOrigin = getLkOrigin();
+
     // 2. Security Headers (Defense-in-depth: CWE-693)
     res.headers.set('X-Content-Type-Options', 'nosniff');
     res.headers.set(
       'Content-Security-Policy',
-      "frame-ancestors 'self' https://ayda-umnichka.vercel.app https://lk-ayda-umnichka.vercel.app https://*.vercel.app;"
+      `frame-ancestors 'self' ${mainOrigin} ${lkOrigin} https://*.vercel.app;`
     );
     res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
     res.headers.set('X-XSS-Protection', '1; mode=block');

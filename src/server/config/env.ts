@@ -11,4 +11,10 @@ export const env = {
   isSupabaseConfigured: Boolean(
     process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   ),
+  SMTP_HOST: process.env.SMTP_HOST || 'smtp.gmail.com',
+  SMTP_PORT: Number(process.env.SMTP_PORT || 587),
+  SMTP_USER: process.env.SMTP_USER || '',
+  SMTP_PASS: process.env.SMTP_PASS || '',
+  SMTP_FROM: process.env.SMTP_FROM || process.env.SMTP_USER || '',
+  SMTP_FROM_NAME: process.env.SMTP_FROM_NAME || 'АйДаУмничка',
 };

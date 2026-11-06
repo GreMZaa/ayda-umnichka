@@ -22,7 +22,22 @@ import {
   Check
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { getLkUrl } from '@/lib/lkUrl';
+import { getLkOrigin, getMainSiteOrigin } from '@/lib/publicOrigins';
 import { getClientUserId, setClientUserId, issueNewUserId } from '@/lib/userSession';
+import { sanitizeFioInput, validateFioField } from '@/lib/fioValidation';
+import {
+  formatCooldownRu,
+  getPasswordResetCooldownRemainingMs,
+  markPasswordResetSent,
+  mapPasswordResetEmailError,
+  PASSWORD_RESET_COOLDOWN_MS,
+} from '@/lib/passwordResetCooldown';
+import {
+  isValidRegistrationEmail,
+  normalizeEmailInput,
+  registrationEmailErrorMessage,
+} from '@/lib/emailValidation';
 
 // Validate redirect path to prevent Open Redirect (CWE-601) and redirect loops
 function getSafeRedirect(rawRedirect: string | null, fallback: string, userRole?: string): string {
@@ -42,6 +57,10 @@ function getSafeRedirect(rawRedirect: string | null, fallback: string, userRole?
   return fallback;
 }
 
+const MAIN_SITE_HOST = new URL(getMainSiteOrigin()).hostname;
+const LK_ORIGIN = getLkOrigin();
+const SESSION_CHECK_TIMEOUT_MS = 8000;
+
 function LoginFormContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -49,8 +68,10 @@ function LoginFormContent() {
   const errorParam = searchParams.get('error');
   const authRequiredParam = searchParams.get('auth_required');
   const isLogout = searchParams.get('logout') === '1';
+  const resetSuccessParam = searchParams.get('reset');
 
   const [tab, setTab] = useState<'login' | 'register'>('login');
+  const [forgotMode, setForgotMode] = useState(false);
   const [selectedRole, setSelectedRole] = useState<'student' | 'teacher'>('student');
   const [isCheckingSession, setIsCheckingSession] = useState<boolean>(!isLogout && !authRequiredParam && !errorParam);
   
@@ -61,6 +82,7 @@ function LoginFormContent() {
   const [childName, setChildName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [resetEmailCooldownMs, setResetEmailCooldownMs] = useState(0);
   const [errorMessage, setErrorMessage] = useState(
     errorParam === 'forbidden'
       ? 'Доступ ограничен. Войдите с соответствующими правами.'
@@ -68,12 +90,90 @@ function LoginFormContent() {
       ? 'Для доступа к этому кабинету необходимо войти в систему.'
       : ''
   );
-  const [successMessage, setSuccessMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState(
+    resetSuccessParam === 'success'
+      ? 'Пароль успешно изменён. Теперь войдите с новым паролем.'
+      : ''
+  );
+
+  function resolveLoginEmail(raw: string): string {
+    return raw.includes('@')
+      ? raw.trim().toLowerCase()
+      : `${raw.replace(/\D/g, '')}@aidaumnichka.ru`;
+  }
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    if (!emailOrPhone.trim()) {
+      setErrorMessage('Укажите email или телефон, указанный при регистрации');
+      return;
+    }
+
+    const cooldownLeft = getPasswordResetCooldownRemainingMs(emailOrPhone);
+    if (cooldownLeft > 0) {
+      setErrorMessage(
+        `Письмо уже отправляли недавно. Повторная отправка через ${formatCooldownRu(cooldownLeft)}.`
+      );
+      setResetEmailCooldownMs(cooldownLeft);
+      return;
+    }
+
+    if (!isSupabaseConfigured) {
+      setErrorMessage('Сервис авторизации временно недоступен');
+      return;
+    }
+
+    const email = resolveLoginEmail(emailOrPhone);
+    setLoading(true);
+
+    try {
+      const redirectTo = getLkUrl('/login/reset-password');
+
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: emailOrPhone, redirectTo }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || data.message || 'Не удалось отправить письмо');
+      }
+
+      markPasswordResetSent(emailOrPhone);
+      setResetEmailCooldownMs(PASSWORD_RESET_COOLDOWN_MS);
+      setSuccessMessage(
+        `Письмо отправлено на ${email}. Откройте ссылку в письме — на следующей странице задайте новый пароль. Проверьте папку «Спам». Повторная отправка — не чаще чем раз в 5 минут.`
+      );
+    } catch (err: unknown) {
+      setErrorMessage(mapPasswordResetEmailError((err as { message?: string })?.message));
+      const left = getPasswordResetCooldownRemainingMs(emailOrPhone);
+      if (left > 0) setResetEmailCooldownMs(left);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!forgotMode) {
+      setResetEmailCooldownMs(0);
+      return;
+    }
+    const tick = () => {
+      setResetEmailCooldownMs(getPasswordResetCooldownRemainingMs(emailOrPhone));
+    };
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [forgotMode, emailOrPhone]);
 
   // 1. Enforce redirection from main landing domain to official LK subdomain
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.location.hostname === 'ayda-umnichka.vercel.app') {
-      window.location.replace(`https://lk-ayda-umnichka.vercel.app/login${window.location.search}`);
+    if (typeof window === 'undefined') return;
+    if (window.location.hostname === MAIN_SITE_HOST) {
+      window.location.replace(`${LK_ORIGIN}/login${window.location.search}`);
     }
   }, []);
 
@@ -113,9 +213,16 @@ function LoginFormContent() {
           return;
         }
 
-        // Check Supabase session if not in localStorage
+        // Check Supabase session if not in localStorage (timeout if Supabase blocked/slow)
         if (isSupabaseConfigured) {
-          const { data } = await supabase.auth.getSession();
+          const sessionResult = await Promise.race([
+            supabase.auth.getSession(),
+            new Promise<null>((resolve) => window.setTimeout(() => resolve(null), SESSION_CHECK_TIMEOUT_MS)),
+          ]);
+          if (!sessionResult) {
+            return;
+          }
+          const { data } = sessionResult;
           if (data?.session?.user) {
             const authUser = data.session.user;
             const res = await fetch(`/api/user/bind?authUserId=${encodeURIComponent(authUser.id)}`).catch(() => null);
@@ -162,6 +269,9 @@ function LoginFormContent() {
   const handleSelectRegistrationRole = (role: 'student' | 'teacher') => {
     setSelectedRole(role);
     setTab('register');
+    if (role === 'teacher') {
+      setChildName('');
+    }
     setErrorMessage('');
     setSuccessMessage('');
   };
@@ -182,9 +292,32 @@ function LoginFormContent() {
           return;
         }
 
-        const email = emailOrPhone.includes('@')
-          ? emailOrPhone.trim().toLowerCase()
-          : `${emailOrPhone.replace(/\D/g, '')}@aidaumnichka.ru`;
+        const parentFioError =
+          selectedRole === 'student'
+            ? validateFioField(fullName, 'ФИО родителя')
+            : validateFioField(fullName, 'ФИО педагога');
+        if (parentFioError) {
+          setErrorMessage(parentFioError);
+          setLoading(false);
+          return;
+        }
+
+        if (selectedRole === 'student') {
+          const childFioError = validateFioField(childName, 'ФИО ученика');
+          if (childFioError) {
+            setErrorMessage(childFioError);
+            setLoading(false);
+            return;
+          }
+        }
+
+        if (!isValidRegistrationEmail(emailOrPhone)) {
+          setErrorMessage(registrationEmailErrorMessage());
+          setLoading(false);
+          return;
+        }
+
+        const email = normalizeEmailInput(emailOrPhone);
 
         const publicId = issueNewUserId();
 
@@ -379,7 +512,7 @@ function LoginFormContent() {
               {/* Back Link */}
               <div className="flex items-center justify-between pb-1.5">
                 <a
-                  href="https://ayda-umnichka.vercel.app"
+                  href={getMainSiteOrigin()}
                   className="inline-flex items-center gap-1.5 text-xs font-bold text-[#8A95A8] hover:text-coralAccent transition-colors duration-140"
                 >
                   <span>←</span>
@@ -405,6 +538,7 @@ function LoginFormContent() {
                   type="button"
                   onClick={() => {
                     setTab('login');
+                    setForgotMode(false);
                     setErrorMessage('');
                     setSuccessMessage('');
                   }}
@@ -421,6 +555,7 @@ function LoginFormContent() {
                   type="button"
                   onClick={() => {
                     setTab('register');
+                    setForgotMode(false);
                     setErrorMessage('');
                     setSuccessMessage('');
                   }}
@@ -443,61 +578,105 @@ function LoginFormContent() {
                 </div>
               )}
 
+              {successMessage && (
+                <div className="mb-2 p-2 bg-[#EAF7CF] border border-[#D5ECA3] rounded-xl text-xs text-[#456512] flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-[#5C8519]" />
+                  <span className="leading-tight">{successMessage}</span>
+                </div>
+              )}
+
               {/* Form */}
-              <form onSubmit={handleAuthSubmit} className="space-y-2">
+              <form
+                onSubmit={forgotMode ? handleForgotPassword : handleAuthSubmit}
+                className="space-y-2"
+              >
                 {tab === 'register' && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div className="space-y-0.5">
                       <label className="text-[11px] font-extrabold text-[#161F38] block">
-                        Ваше имя:
+                        {selectedRole === 'student' ? 'ФИО родителя:' : 'ФИО педагога:'}
                       </label>
                       <input
                         type="text"
                         required
                         value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
-                        placeholder="Иван Иванов"
+                        onChange={(e) => setFullName(sanitizeFioInput(e.target.value))}
+                        placeholder="Иванов Иван Иванович"
                         className="w-full bg-[#FFFBF7] border border-[#F2E0CF] rounded-xl px-3 py-1.5 text-base sm:text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent"
                       />
+                      <p className="text-[10px] text-[#9E9085]">Три слова: фамилия, имя, отчество</p>
                     </div>
-                    <div className="space-y-0.5">
-                      <label className="text-[11px] font-extrabold text-[#161F38] block">
-                        Имя ребёнка {selectedRole === 'teacher' && '(или специализация)'}:
-                      </label>
-                      <input
-                        type="text"
-                        value={childName}
-                        onChange={(e) => setChildName(e.target.value)}
-                        placeholder={selectedRole === 'teacher' ? 'Логопед-дефектолог' : 'Артём (6 лет)'}
-                        className="w-full bg-[#FFFBF7] border border-[#F2E0CF] rounded-xl px-3 py-1.5 text-base sm:text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent"
-                      />
-                    </div>
+                    {selectedRole === 'student' ? (
+                      <div className="space-y-0.5">
+                        <label className="text-[11px] font-extrabold text-[#161F38] block">
+                          ФИО ученика:
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={childName}
+                          onChange={(e) => setChildName(sanitizeFioInput(e.target.value))}
+                          placeholder="Петрова Мария Сергеевна"
+                          className="w-full bg-[#FFFBF7] border border-[#F2E0CF] rounded-xl px-3 py-1.5 text-base sm:text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent"
+                        />
+                        <p className="text-[10px] text-[#9E9085]">Три слова: фамилия, имя, отчество</p>
+                      </div>
+                    ) : (
+                      <div className="hidden sm:block" aria-hidden />
+                    )}
                   </div>
                 )}
 
                 {/* Email / Phone */}
                 <div className="space-y-0.5">
                   <label className="text-[11px] font-extrabold text-[#161F38] block">
-                    Email или номер телефона:
+                    {tab === 'register' ? 'Email:' : 'Email или номер телефона:'}
                   </label>
                   <div className="relative">
                     <input
-                      type="text"
+                      type={tab === 'register' ? 'email' : 'text'}
+                      inputMode={tab === 'register' ? 'email' : 'text'}
+                      autoComplete={tab === 'register' ? 'email' : 'username'}
                       required
                       value={emailOrPhone}
                       onChange={(e) => setEmailOrPhone(e.target.value)}
-                      placeholder="user@mail.ru или +7 (927) 000-00-00"
+                      placeholder={
+                        tab === 'register' ? 'user@mail.ru' : 'user@mail.ru или +7 (927) 000-00-00'
+                      }
                       className="w-full bg-[#FFFBF7] border border-[#F2E0CF] rounded-xl px-3 py-1.5 pl-8 text-base sm:text-xs text-[#161F38] placeholder-[#9E9085] focus:outline-none focus:border-coralAccent"
                     />
                     <Mail className="w-3.5 h-3.5 text-[#9E9085] absolute left-2.5 top-1/2 -translate-y-1/2" />
                   </div>
+                  {tab === 'register' && (
+                    <p className="text-[10px] text-[#9E9085]">
+                      Регистрация только по настоящему адресу почты — письма и восстановление пароля приходят на
+                      email.
+                    </p>
+                  )}
                 </div>
 
                 {/* Password */}
+                {!forgotMode && (
                 <div className="space-y-0.5">
-                  <label className="text-[11px] font-extrabold text-[#161F38] block">
-                    Пароль:
-                  </label>
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="text-[11px] font-extrabold text-[#161F38] block">
+                      Пароль:
+                    </label>
+                    {tab === 'login' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setForgotMode(true);
+                          setErrorMessage('');
+                          setSuccessMessage('');
+                          setPassword('');
+                        }}
+                        className="text-[10px] sm:text-[11px] font-bold text-coralAccent hover:text-coralAccent-hover underline-offset-2 hover:underline shrink-0"
+                      >
+                        Забыли пароль?
+                      </button>
+                    )}
+                  </div>
                   <div className="relative">
                     <input
                       type={showPassword ? 'text' : 'password'}
@@ -517,19 +696,55 @@ function LoginFormContent() {
                     </button>
                   </div>
                 </div>
+                )}
+
+                {forgotMode && tab === 'login' && (
+                  <p className="text-[10px] text-[#6B758E] leading-snug">
+                    Мы отправим письмо со ссылкой. Новый пароль можно будет задать только после перехода по
+                    ссылке из письма — на отдельной защищённой странице. Повторная отправка — не чаще одного
+                    раза в 5 минут на один адрес.
+                    {resetEmailCooldownMs > 0 && (
+                      <span className="block mt-1 font-bold text-[#161F38]">
+                        Отправить снова через {formatCooldownRu(resetEmailCooldownMs)}
+                      </span>
+                    )}
+                  </p>
+                )}
+
+                {forgotMode && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForgotMode(false);
+                      setErrorMessage('');
+                    }}
+                    className="text-[11px] font-bold text-[#6B758E] hover:text-[#161F38]"
+                  >
+                    ← Вернуться ко входу
+                  </button>
+                )}
 
                 {/* Submit Button */}
-                <div className="pt-1">
+                <div className="pt-1 space-y-2">
                   <button
                     type="submit"
-                    disabled={loading}
-                    className="w-full bg-coralAccent hover:bg-coralAccent-hover text-white font-black text-xs sm:text-sm py-2.5 rounded-full shadow-xs transition-[background-color,transform,box-shadow] duration-140 ease-out-emil flex items-center justify-center gap-2 active:scale-[0.97] disabled:opacity-85 cursor-pointer"
+                    disabled={loading || (forgotMode && resetEmailCooldownMs > 0)}
+                    className="w-full bg-coralAccent hover:bg-coralAccent-hover text-white font-black text-xs sm:text-sm py-2.5 rounded-full shadow-xs transition-[background-color,transform,box-shadow] duration-140 ease-out-emil flex items-center justify-center gap-2 active:scale-[0.97] disabled:opacity-85 cursor-pointer disabled:cursor-not-allowed"
                   >
                     {loading ? (
                       <>
                         <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin shrink-0" />
-                        <span>Выполняется вход...</span>
+                        <span>{forgotMode ? 'Отправка...' : 'Выполняется вход...'}</span>
                       </>
+                    ) : forgotMode ? (
+                      resetEmailCooldownMs > 0 ? (
+                        <span>Подождите {formatCooldownRu(resetEmailCooldownMs)}</span>
+                      ) : (
+                        <>
+                          <span>Отправить ссылку на почту</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </>
+                      )
                     ) : (
                       <>
                         <span>
@@ -541,6 +756,21 @@ function LoginFormContent() {
                       </>
                     )}
                   </button>
+
+                  {tab === 'login' && !forgotMode && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForgotMode(true);
+                        setErrorMessage('');
+                        setSuccessMessage('');
+                        setPassword('');
+                      }}
+                      className="w-full py-2.5 rounded-full border-2 border-[#F2DECE] bg-white hover:bg-[#FFF8F1] hover:border-coralAccent/50 text-[#161F38] font-black text-xs sm:text-sm transition-colors cursor-pointer"
+                    >
+                      Забыли пароль?
+                    </button>
+                  )}
                 </div>
               </form>
             </div>

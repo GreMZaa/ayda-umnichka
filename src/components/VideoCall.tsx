@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Mic,
@@ -458,6 +458,13 @@ export default function VideoCall({
   const screenStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
   const remoteScreenStreamRef = useRef<MediaStream | null>(null);
+  const remoteVideoOnlyCacheRef = useRef<MediaStream | null>(null);
+  const localVideoOnlyCacheRef = useRef<MediaStream | null>(null);
+  const pipLocalVideoRef = useRef<HTMLVideoElement | null>(null);
+  const pipRemoteVideoRef = useRef<HTMLVideoElement | null>(null);
+  const chatMiniVideoRef = useRef<HTMLVideoElement | null>(null);
+  const whiteboardRemoteVideoRef = useRef<HTMLVideoElement | null>(null);
+  const whiteboardMiniVideoRef = useRef<HTMLVideoElement | null>(null);
   const requestMediaPermissionsRef = useRef<(() => Promise<void>) | null>(null);
   const hasAttemptedWarmupRef = useRef(false);
 
@@ -565,10 +572,10 @@ export default function VideoCall({
           });
       }
 
-      if (remoteVideoRef.current && !isSwapped) {
-        const vOnly = toVideoOnlyStream(remoteStreamRef.current);
-        if (vOnly && remoteVideoRef.current.srcObject !== vOnly) {
-          remoteVideoRef.current.srcObject = vOnly;
+      if (remoteVideoRef.current && !isSwapped && !isLiveKitActiveRef.current) {
+        const vOnly = toVideoOnlyStream(remoteStreamRef.current, remoteVideoOnlyCacheRef);
+        if (vOnly) {
+          attachVideoStreamIfNeeded(remoteVideoRef.current, vOnly);
         }
         remoteVideoRef.current.muted = true;
         remoteVideoRef.current.volume = 0;
@@ -582,7 +589,7 @@ export default function VideoCall({
         track.enabled = micActive;
       });
     }
-  }, [hasRemoteStream, isDeafened, remoteMicActive, isWhiteboardActive, isPipMinimized, isChatOpen, isPlatformMinimized]);
+  }, [hasRemoteStream, isDeafened, remoteMicActive]);
 
   // Helper to create a dummy video track so WebRTC negotiation never fails if camera is unavailable
   const createDummyVideoTrack = (): MediaStreamTrack | null => {
@@ -627,13 +634,129 @@ export default function VideoCall({
     return null;
   };
 
-  // Helper to extract strictly video tracks so video tags NEVER receive or output microphone audio
-  const toVideoOnlyStream = (stream: MediaStream | null): MediaStream | null => {
+  // Helper to extract strictly video tracks — reuses one MediaStream while track ids are unchanged (prevents flicker)
+  const toVideoOnlyStream = (
+    stream: MediaStream | null,
+    cacheRef: React.MutableRefObject<MediaStream | null> = remoteVideoOnlyCacheRef
+  ): MediaStream | null => {
     if (!stream) return null;
-    const vTracks = stream.getVideoTracks();
+    const vTracks = stream.getVideoTracks().filter((t) => t.readyState !== 'ended');
     if (vTracks.length === 0) return null;
-    return new MediaStream(vTracks);
+    const sig = vTracks.map((t) => t.id).join('|');
+    const cached = cacheRef.current;
+    if (cached) {
+      const cachedSig = cached.getVideoTracks().map((t) => t.id).join('|');
+      if (cachedSig === sig) return cached;
+    }
+    const next = new MediaStream(vTracks);
+    cacheRef.current = next;
+    return next;
   };
+
+  const attachVideoStreamIfNeeded = (el: HTMLVideoElement | null, vOnly: MediaStream | null) => {
+    if (!el || !vOnly) return;
+    const current = el.srcObject as MediaStream | null;
+    const currentTrackId = current?.getVideoTracks()[0]?.id;
+    const nextTrackId = vOnly.getVideoTracks()[0]?.id;
+    if (currentTrackId && currentTrackId === nextTrackId) return;
+    el.srcObject = vOnly;
+  };
+
+  const syncAllVideoElements = () => {
+    const activeRemote =
+      isRemoteScreenSharing && remoteScreenStreamRef.current
+        ? remoteScreenStreamRef.current
+        : remoteStreamRef.current;
+    const remoteVOnly = toVideoOnlyStream(activeRemote, remoteVideoOnlyCacheRef);
+    const localVOnly = toVideoOnlyStream(streamRef.current, localVideoOnlyCacheRef);
+
+    const configurePiPAttrs = (el: HTMLVideoElement | null) => {
+      if (!el) return;
+      (el as any).autoPictureInPicture = true;
+      (el as any).disablePictureInPicture = false;
+      el.setAttribute('autopictureinpicture', 'true');
+      el.muted = true;
+      el.volume = 0;
+    };
+
+    // LiveKit already calls track.attach() on remoteVideoRef — do not fight it with srcObject
+    if (!isLiveKitActiveRef.current) {
+      if (!isSwapped) {
+        configurePiPAttrs(remoteVideoRef.current);
+        attachVideoStreamIfNeeded(remoteVideoRef.current, remoteVOnly);
+        remoteVideoRef.current?.play().catch(() => {});
+      } else {
+        configurePiPAttrs(localVideoRef.current);
+        attachVideoStreamIfNeeded(localVideoRef.current, localVOnly);
+        localVideoRef.current?.play().catch(() => {});
+      }
+    }
+
+    configurePiPAttrs(pipLocalVideoRef.current);
+    attachVideoStreamIfNeeded(pipLocalVideoRef.current, localVOnly);
+    pipLocalVideoRef.current?.play().catch(() => {});
+
+    configurePiPAttrs(pipRemoteVideoRef.current);
+    attachVideoStreamIfNeeded(pipRemoteVideoRef.current, remoteVOnly);
+    pipRemoteVideoRef.current?.play().catch(() => {});
+
+    configurePiPAttrs(chatMiniVideoRef.current);
+    attachVideoStreamIfNeeded(chatMiniVideoRef.current, remoteVOnly);
+    chatMiniVideoRef.current?.play().catch(() => {});
+
+    configurePiPAttrs(whiteboardRemoteVideoRef.current);
+    attachVideoStreamIfNeeded(whiteboardRemoteVideoRef.current, remoteVOnly);
+    whiteboardRemoteVideoRef.current?.play().catch(() => {});
+
+    configurePiPAttrs(whiteboardMiniVideoRef.current);
+    attachVideoStreamIfNeeded(whiteboardMiniVideoRef.current, remoteVOnly);
+    whiteboardMiniVideoRef.current?.play().catch(() => {});
+
+    configurePiPAttrs(pipVideoRef.current);
+    const pipSource = !hasRemoteStream ? streamRef.current : activeRemote;
+    const pipCache = !hasRemoteStream ? localVideoOnlyCacheRef : remoteVideoOnlyCacheRef;
+    attachVideoStreamIfNeeded(pipVideoRef.current, toVideoOnlyStream(pipSource, pipCache));
+    pipVideoRef.current?.play().catch(() => {});
+  };
+
+  useEffect(() => {
+    syncAllVideoElements();
+  }, [
+    hasRemoteStream,
+    remoteCamActive,
+    isRemoteScreenSharing,
+    isSwapped,
+    camActive,
+    isWhiteboardActive,
+    isPipMinimized,
+    isChatOpen,
+    connectionStatus,
+  ]);
+
+  const setMainRemoteVideoRef = useCallback((el: HTMLVideoElement | null) => {
+    remoteVideoRef.current = el;
+  }, []);
+  const setMainLocalVideoRef = useCallback((el: HTMLVideoElement | null) => {
+    localVideoRef.current = el;
+  }, []);
+  const setPipLocalVideoRef = useCallback((el: HTMLVideoElement | null) => {
+    pipLocalVideoRef.current = el;
+  }, []);
+  const setPipRemoteVideoRef = useCallback((el: HTMLVideoElement | null) => {
+    pipRemoteVideoRef.current = el;
+  }, []);
+  const setChatMiniVideoRef = useCallback((el: HTMLVideoElement | null) => {
+    chatMiniVideoRef.current = el;
+  }, []);
+  const setWhiteboardRemoteVideoRef = useCallback((el: HTMLVideoElement | null) => {
+    whiteboardRemoteVideoRef.current = el;
+  }, []);
+  const setWhiteboardMiniVideoRef = useCallback((el: HTMLVideoElement | null) => {
+    whiteboardMiniVideoRef.current = el;
+  }, []);
+  const setPipVideoRef = useCallback((el: HTMLVideoElement | null) => {
+    pipVideoRef.current = el;
+  }, []);
 
   // Full Echo Cancellation & Noise Suppression audio constraints
   const PREFERRED_AUDIO_CONSTRAINTS = {
@@ -737,9 +860,9 @@ export default function VideoCall({
             remoteScreenStreamRef.current = stream;
             setIsRemoteScreenSharing(true);
             if (remoteVideoRef.current) {
-              const vOnly = toVideoOnlyStream(stream);
+              const vOnly = toVideoOnlyStream(stream, remoteVideoOnlyCacheRef);
               if (vOnly) {
-                remoteVideoRef.current.srcObject = vOnly;
+                attachVideoStreamIfNeeded(remoteVideoRef.current, vOnly);
               }
               remoteVideoRef.current.muted = true;
               remoteVideoRef.current.volume = 0;
@@ -756,10 +879,10 @@ export default function VideoCall({
               }
             });
           }
-          if (remoteVideoRef.current && kind === 'video' && !isRemoteScreenSharing) {
-            const vOnly = toVideoOnlyStream(remoteStreamRef.current);
+          if (remoteVideoRef.current && kind === 'video' && !isRemoteScreenSharing && !isLiveKitActiveRef.current) {
+            const vOnly = toVideoOnlyStream(remoteStreamRef.current, remoteVideoOnlyCacheRef);
             if (vOnly) {
-              remoteVideoRef.current.srcObject = vOnly;
+              attachVideoStreamIfNeeded(remoteVideoRef.current, vOnly);
             }
             remoteVideoRef.current.muted = true;
             remoteVideoRef.current.volume = 0;
@@ -781,16 +904,12 @@ export default function VideoCall({
             remoteAudioRef.current.muted = isDeafened;
             remoteAudioRef.current.play().catch(() => {});
           }
+          syncAllVideoElements();
         },
         onScreenShareEnded: () => {
           remoteScreenStreamRef.current = null;
           setIsRemoteScreenSharing(false);
-          if (remoteVideoRef.current && remoteStreamRef.current) {
-            const vOnly = toVideoOnlyStream(remoteStreamRef.current);
-            if (vOnly) {
-              remoteVideoRef.current.srcObject = vOnly;
-            }
-          }
+          syncAllVideoElements();
         },
         onPeerJoined: (name) => {
           setIsPeerInRoom(true);
@@ -1125,10 +1244,10 @@ export default function VideoCall({
             }
           });
         }
-        if (remoteVideoRef.current && kind === 'video' && !isRemoteScreenSharing) {
-          const vOnly = toVideoOnlyStream(remoteStreamRef.current);
+        if (remoteVideoRef.current && kind === 'video' && !isRemoteScreenSharing && !isLiveKitActiveRef.current) {
+          const vOnly = toVideoOnlyStream(remoteStreamRef.current, remoteVideoOnlyCacheRef);
           if (vOnly) {
-            remoteVideoRef.current.srcObject = vOnly;
+            attachVideoStreamIfNeeded(remoteVideoRef.current, vOnly);
           }
           remoteVideoRef.current.muted = true;
           remoteVideoRef.current.volume = 0;
@@ -1150,16 +1269,12 @@ export default function VideoCall({
           remoteAudioRef.current.muted = isDeafened;
           remoteAudioRef.current.play().catch(() => {});
         }
+        syncAllVideoElements();
       },
       onScreenShareEnded: () => {
         remoteScreenStreamRef.current = null;
         setIsRemoteScreenSharing(false);
-        if (remoteVideoRef.current && remoteStreamRef.current) {
-          const vOnly = toVideoOnlyStream(remoteStreamRef.current);
-          if (vOnly) {
-            remoteVideoRef.current.srcObject = vOnly;
-          }
-        }
+        syncAllVideoElements();
       },
       onPeerJoined: (name) => {
         if (!isMounted) return;
@@ -2898,17 +3013,7 @@ export default function VideoCall({
             <div className="w-9 h-9 rounded-full bg-[#161F38] text-white flex items-center justify-center font-black text-xs shrink-0 overflow-hidden relative border border-coralAccent/40">
               {hasRemoteStream && remoteCamActive ? (
                 <video
-                  ref={(el) => {
-                    if (el) {
-                      el.muted = true;
-                      el.volume = 0;
-                      const vOnly = toVideoOnlyStream(remoteStreamRef.current);
-                      if (vOnly && el.srcObject !== vOnly) {
-                        el.srcObject = vOnly;
-                      }
-                      el.play().catch(() => {});
-                    }
-                  }}
+                  ref={setWhiteboardMiniVideoRef}
                   autoPlay
                   playsInline
                   muted
@@ -2977,21 +3082,7 @@ export default function VideoCall({
           <div className="relative aspect-video bg-[#161F38] flex items-center justify-center overflow-hidden">
             {/* Live Video element for remote stream */}
             <video
-              ref={(el) => {
-                if (el) {
-                  el.muted = true;
-                  el.volume = 0;
-                  const activeRemoteStream =
-                    isRemoteScreenSharing && remoteScreenStreamRef.current
-                      ? remoteScreenStreamRef.current
-                      : remoteStreamRef.current;
-                  const vOnly = toVideoOnlyStream(activeRemoteStream);
-                  if (vOnly && el.srcObject !== vOnly) {
-                    el.srcObject = vOnly;
-                  }
-                  el.play().catch(() => {});
-                }
-              }}
+              ref={setWhiteboardRemoteVideoRef}
               autoPlay
               playsInline
               muted
@@ -3049,24 +3140,7 @@ export default function VideoCall({
           {/* Main stream inside floating PiP card:
               Shows remote participant if active, or local camera preview with status if waiting for peer */}
           <video
-            ref={(el) => {
-              pipVideoRef.current = el;
-              if (el) {
-                (el as any).autoPictureInPicture = true;
-                el.muted = true;
-                el.volume = 0;
-                const rawStream = (hasRemoteStream && remoteCamActive && remoteStreamRef.current)
-                  ? remoteStreamRef.current
-                  : (camActive && streamRef.current)
-                  ? streamRef.current
-                  : null;
-                const targetStream = toVideoOnlyStream(rawStream);
-                if (targetStream && el.srcObject !== targetStream) {
-                  el.srcObject = targetStream;
-                }
-                el.play().catch(() => {});
-              }
-            }}
+            ref={setPipVideoRef}
             autoPlay
             playsInline
             muted
@@ -3189,25 +3263,7 @@ export default function VideoCall({
             /* Main View: Remote stream */
             <>
               <video
-                ref={(el) => {
-                  remoteVideoRef.current = el;
-                  if (el) {
-                    (el as any).autoPictureInPicture = true;
-                    (el as any).disablePictureInPicture = false;
-                    el.setAttribute('autopictureinpicture', 'true');
-                    el.muted = true;
-                    el.volume = 0;
-                    const activeRemoteStream =
-                      isRemoteScreenSharing && remoteScreenStreamRef.current
-                        ? remoteScreenStreamRef.current
-                        : remoteStreamRef.current;
-                    const vOnly = toVideoOnlyStream(activeRemoteStream);
-                    if (vOnly && el.srcObject !== vOnly) {
-                      el.srcObject = vOnly;
-                    }
-                    el.play().catch(() => {});
-                  }
-                }}
+                ref={setMainRemoteVideoRef}
                 autoPlay
                 playsInline
                 muted
@@ -3255,21 +3311,7 @@ export default function VideoCall({
             /* Main View: Local stream (Swapped) */
             <>
               <video
-                ref={(el) => {
-                  localVideoRef.current = el;
-                  if (el) {
-                    (el as any).autoPictureInPicture = true;
-                    (el as any).disablePictureInPicture = false;
-                    el.setAttribute('autopictureinpicture', 'true');
-                    el.muted = true;
-                    el.volume = 0;
-                    const vOnly = toVideoOnlyStream(streamRef.current);
-                    if (vOnly && el.srcObject !== vOnly) {
-                      el.srcObject = vOnly;
-                    }
-                    el.play().catch(() => {});
-                  }
-                }}
+                ref={setMainLocalVideoRef}
                 autoPlay
                 playsInline
                 muted
@@ -3305,21 +3347,7 @@ export default function VideoCall({
             /* PiP shows Local stream */
             <>
               <video
-                ref={(el) => {
-                  localVideoRef.current = el;
-                  if (el) {
-                    (el as any).autoPictureInPicture = true;
-                    (el as any).disablePictureInPicture = false;
-                    el.setAttribute('autopictureinpicture', 'true');
-                    el.muted = true;
-                    el.volume = 0;
-                    const vOnly = toVideoOnlyStream(streamRef.current);
-                    if (vOnly && el.srcObject !== vOnly) {
-                      el.srcObject = vOnly;
-                    }
-                    el.play().catch(() => {});
-                  }
-                }}
+                ref={setPipLocalVideoRef}
                 autoPlay
                 playsInline
                 muted
@@ -3358,25 +3386,7 @@ export default function VideoCall({
             /* PiP shows Remote stream */
             <>
               <video
-                ref={(el) => {
-                  remoteVideoRef.current = el;
-                  if (el) {
-                    (el as any).autoPictureInPicture = true;
-                    (el as any).disablePictureInPicture = false;
-                    el.setAttribute('autopictureinpicture', 'true');
-                    el.muted = true;
-                    el.volume = 0;
-                    const activeRemoteStream =
-                      isRemoteScreenSharing && remoteScreenStreamRef.current
-                        ? remoteScreenStreamRef.current
-                        : remoteStreamRef.current;
-                    const vOnly = toVideoOnlyStream(activeRemoteStream);
-                    if (vOnly && el.srcObject !== vOnly) {
-                      el.srcObject = vOnly;
-                    }
-                    el.play().catch(() => {});
-                  }
-                }}
+                ref={setPipRemoteVideoRef}
                 autoPlay
                 playsInline
                 muted
@@ -3829,18 +3839,7 @@ export default function VideoCall({
             >
               {/* Remote Video Stream (strictly video tracks so iOS never mutes audio session) */}
               <video
-                ref={(el) => {
-                  if (el) {
-                    (el as any).autoPictureInPicture = true;
-                    if (remoteStreamRef.current) {
-                      const vTracks = remoteStreamRef.current.getVideoTracks();
-                      if (vTracks.length > 0 && (!el.srcObject || (el.srcObject as MediaStream).getVideoTracks()[0]?.id !== vTracks[0].id)) {
-                        el.srcObject = new MediaStream(vTracks);
-                      }
-                    }
-                    el.play().catch(() => {});
-                  }
-                }}
+                ref={setChatMiniVideoRef}
                 autoPlay
                 playsInline
                 muted

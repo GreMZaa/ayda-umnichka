@@ -8,6 +8,7 @@ import {
 import { extractAuthContext } from '../middleware/authGuard';
 import { apiSuccess, apiError } from '../middleware/apiErrors';
 import { checkRateLimit, getClientIp } from '../middleware/rateLimiter';
+import { resolvePasswordResetRedirect } from '../config/authRedirects';
 
 export class AuthController {
   static async register(req: NextRequest) {
@@ -93,6 +94,71 @@ export class AuthController {
       return apiSuccess(result, 200);
     } catch (err: any) {
       return apiError(err.message, err.statusCode || 500);
+    }
+  }
+
+  static async setPasswordByEmail(req: NextRequest) {
+    try {
+      const ip = getClientIp(req);
+      const rateCheck = checkRateLimit(`set_password_${ip}`, 10, 15 * 60 * 1000);
+      if (!rateCheck.allowed) {
+        return apiError(
+          `Слишком много попыток. Повторите через ${rateCheck.retryAfter} сек.`,
+          429
+        );
+      }
+
+      const body = await req.json();
+      const email = body?.email ? String(body.email) : '';
+      const newPassword = body?.newPassword ? String(body.newPassword) : '';
+
+      const result = await AuthService.setPasswordByEmail(email, newPassword);
+      return apiSuccess(result, 200);
+    } catch (err: any) {
+      return apiError(err.message, err.statusCode || 400);
+    }
+  }
+
+  static async forgotPassword(req: NextRequest) {
+    try {
+      const ip = getClientIp(req);
+      const ipLimit = checkRateLimit(`forgot_password_ip_${ip}`, 8, 60 * 60 * 1000);
+      if (!ipLimit.allowed) {
+        return apiError(
+          `Слишком много запросов с вашего IP. Повторите через ${ipLimit.retryAfter} сек.`,
+          429
+        );
+      }
+
+      const body = await req.json();
+      const emailOrPhone = body?.email ? String(body.email).trim() : '';
+      const redirectTo = resolvePasswordResetRedirect(
+        typeof body?.redirectTo === 'string' ? body.redirectTo : undefined
+      );
+
+      if (!emailOrPhone) {
+        return apiError('Укажите email или телефон', 400);
+      }
+
+      const normalizedKey = emailOrPhone.includes('@')
+        ? emailOrPhone.toLowerCase()
+        : emailOrPhone.replace(/\D/g, '');
+      const emailLimit = checkRateLimit(
+        `forgot_password_email_${normalizedKey}`,
+        1,
+        5 * 60 * 1000
+      );
+      if (!emailLimit.allowed) {
+        return apiError(
+          `Письмо уже отправляли недавно. Повторите через ${emailLimit.retryAfter} сек.`,
+          429
+        );
+      }
+
+      const result = await AuthService.requestPasswordReset(emailOrPhone, redirectTo);
+      return apiSuccess(result, 200);
+    } catch (err: any) {
+      return apiError(err.message, err.statusCode || 400);
     }
   }
 }

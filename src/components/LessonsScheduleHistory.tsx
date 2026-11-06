@@ -228,7 +228,7 @@ export default function LessonsScheduleHistory({
         .replace(/\s*\(ребёнок:[^)]+\)/i, '')
         .trim();
     }
-    return 'Василина Владимировна';
+    return 'Преподаватель';
   };
 
   const formatElapsedTimer = (totalSec: number) => {
@@ -529,21 +529,21 @@ export default function LessonsScheduleHistory({
         {/* Modern Schedule Modal Window */}
         {showScheduleForm && (
           <div
-            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200"
             onClick={(e) => {
               if (e.target === e.currentTarget) setShowScheduleForm(false);
             }}
           >
-            <div className="bg-white rounded-3xl p-5 sm:p-7 max-w-md w-full border border-[#F2DECE] shadow-2xl space-y-5 animate-in zoom-in-95 duration-200 relative">
+            <div className="bg-white rounded-t-3xl sm:rounded-3xl p-5 sm:p-7 max-w-md w-full border border-[#F2DECE] shadow-2xl animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 relative max-h-[92dvh] flex flex-col">
               {/* Header with Icon and Close Button */}
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start justify-between gap-3 shrink-0 pb-4">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-2xl bg-[#FFF2E6] text-coralAccent border border-[#FCDDC7] flex items-center justify-center shrink-0 shadow-2xs">
                     <Calendar className="w-6 h-6" />
                   </div>
                   <div>
                     <h3 className="text-base sm:text-lg font-black text-[#161F38] tracking-tight">
-                      Запланировать онлайн-урок
+                      Онлайн-урок
                     </h3>
                     <p className="text-xs text-[#6B758E] mt-0.5">
                       Выберите ученика, тему занятия и время
@@ -560,7 +560,8 @@ export default function LessonsScheduleHistory({
                 </button>
               </div>
 
-              <form onSubmit={handleCreateScheduledLesson} className="space-y-4">
+              <form onSubmit={handleCreateScheduledLesson} className="flex flex-col flex-1 min-h-0">
+                <div className="overflow-y-auto flex-1 min-h-0 space-y-4 overscroll-contain pr-0.5 -mr-0.5">
                 {/* Student selector */}
                 <div className="space-y-1.5">
                   <label className="block text-xs font-black text-[#161F38]">
@@ -632,20 +633,21 @@ export default function LessonsScheduleHistory({
                   onChange={(val) => setFormDateTime(val)}
                   label="Дата и время проведения:"
                 />
+                </div>
 
-                {/* Action buttons */}
-                <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-[#F8EDE1]">
+                {/* Action buttons — always visible (sticky on phone) */}
+                <div className="shrink-0 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2.5 pt-3 mt-2 border-t border-[#F8EDE1] bg-white pb-[max(12px,env(safe-area-inset-bottom))]">
                   <button
                     type="button"
                     onClick={() => setShowScheduleForm(false)}
-                    className="text-xs font-bold text-[#8A95A8] hover:text-[#161F38] px-4 py-2 rounded-xl transition-colors cursor-pointer"
+                    className="w-full sm:w-auto text-xs font-bold text-[#8A95A8] hover:text-[#161F38] px-4 py-2.5 rounded-xl transition-colors cursor-pointer"
                   >
                     Отмена
                   </button>
                   <button
                     type="submit"
                     disabled={isSubmitting || availableStudents.length === 0 || !formStudent}
-                    className="text-xs font-black bg-coralAccent hover:bg-coralAccent-hover text-white px-5 py-2.5 rounded-full shadow-md active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1.5"
+                    className="w-full sm:w-auto text-sm sm:text-xs font-black bg-coralAccent hover:bg-coralAccent-hover text-white px-5 py-3 sm:py-2.5 rounded-full shadow-md active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-1.5"
                   >
                     {isSubmitting ? (
                       <>

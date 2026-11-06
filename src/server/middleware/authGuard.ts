@@ -37,8 +37,8 @@ export function extractAuthContext(req: NextRequest): AuthContext {
         Boolean(
           userId &&
             (userId.startsWith('teacher_') ||
-              userId.startsWith('id17') ||
-              userId.startsWith('id18') ||
+              userId.startsWith('id') ||
+              /^\d{5,8}$/.test(userId) ||
               userId.includes('teacher'))
         ))
   );

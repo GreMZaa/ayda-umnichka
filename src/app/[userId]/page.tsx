@@ -92,6 +92,9 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
   const [balance, setBalance] = useState<number>(0);
   const [lessons, setLessons] = useState<LessonSession[]>([]);
   const [homeworks, setHomeworks] = useState<HomeworkItem[]>([]);
+  const [assignedTeachers, setAssignedTeachers] = useState<
+    { teacherPublicId: string; teacherName: string }[]
+  >([]);
 
 
 
@@ -222,6 +225,29 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
       } catch (err) {
         console.warn('Failed to load lessons:', err);
       }
+
+      // 5. Teachers assigned to this student (teacher_students bindings)
+      try {
+        const bindRes = await fetch(
+          `/api/teacher/students?studentPublicId=${encodeURIComponent(uid)}`,
+          { cache: 'no-store' }
+        );
+        const bindData = await bindRes.json();
+        if (bindData?.teachers && Array.isArray(bindData.teachers)) {
+          const mapped = bindData.teachers.map((t: any) => ({
+            teacherPublicId: String(t.teacher_public_id || ''),
+            teacherName: String(t.teacher_name || 'Преподаватель')
+              .replace(/\s*\(.*?\)$/, '')
+              .trim(),
+          }));
+          setAssignedTeachers(mapped.filter((t: { teacherName: string }) => t.teacherName));
+        } else {
+          setAssignedTeachers([]);
+        }
+      } catch (err) {
+        console.warn('Failed to load assigned teachers:', err);
+        setAssignedTeachers([]);
+      }
     } catch (err) {
       console.warn('Cabinet verification check error:', err);
     } finally {
@@ -346,6 +372,9 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
   }
 
   const primaryTeacherName = (() => {
+    if (assignedTeachers.length > 0) {
+      return assignedTeachers[0].teacherName;
+    }
     const fromLesson = lessons.find(
       (l) => l.teacherName && l.teacherName !== 'Преподаватель' && l.teacherName !== 'Преподаватель центра'
     )?.teacherName;
@@ -358,7 +387,7 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
     if (fromHw) {
       return fromHw.replace(/\s*\(.*?\)$/, '').trim();
     }
-    return 'Василина Владимировна';
+    return 'Преподаватель';
   })();
 
   return (
@@ -436,14 +465,28 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
 
       {/* 3. Homeworks Block — Compact teacher & homework card with "Перейти к ДЗ" button */}
       {(() => {
-        // Extract teachers who created lessons or assigned homework
-        // "только вместо ученика преподаватель кто сделал урок ему"
         const teachersMap = new Map<string, { name: string; totalCount: number; pendingCount: number }>();
 
+        const ensureTeacher = (rawName: string) => {
+          const name = rawName.replace(/\s*\(.*?\)$/, '').trim();
+          if (!name) return;
+          if (!teachersMap.has(name)) {
+            teachersMap.set(name, { name, totalCount: 0, pendingCount: 0 });
+          }
+        };
+
+        assignedTeachers.forEach((t) => ensureTeacher(t.teacherName));
+
         homeworks.forEach((h) => {
-          let tName = h.teacherName?.trim() || primaryTeacherName;
-          if (tName === 'Преподаватель' || tName === 'Преподаватель центра') {
-            tName = primaryTeacherName;
+          let tName = (h.teacherName || '').trim().replace(/\s*\(.*?\)$/, '').trim();
+          if (!tName || tName === 'Преподаватель' || tName === 'Преподаватель центра') {
+            return;
+          }
+          if (assignedTeachers.length > 0) {
+            const allowed = assignedTeachers.some(
+              (at) => at.teacherName.toLowerCase() === tName.toLowerCase()
+            );
+            if (!allowed) return;
           }
           const entry = teachersMap.get(tName) || { name: tName, totalCount: 0, pendingCount: 0 };
           entry.totalCount += 1;
@@ -452,24 +495,6 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
           }
           teachersMap.set(tName, entry);
         });
-
-        lessons.forEach((l) => {
-          let tName = l.teacherName?.trim() || primaryTeacherName;
-          if (tName === 'Преподаватель' || tName === 'Преподаватель центра') {
-            tName = primaryTeacherName;
-          }
-          if (tName && !teachersMap.has(tName)) {
-            teachersMap.set(tName, { name: tName, totalCount: 0, pendingCount: 0 });
-          }
-        });
-
-        if (teachersMap.size === 0) {
-          teachersMap.set(primaryTeacherName, {
-            name: primaryTeacherName,
-            totalCount: homeworks.length,
-            pendingCount: homeworks.filter((h) => h.status === 'assigned').length,
-          });
-        }
 
         const teacherEntries = Array.from(teachersMap.values());
         const pendingHomeworkCount = homeworks.filter((h) => h.status === 'assigned').length;
@@ -506,9 +531,15 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
                 </div>
               </div>
 
-              {/* List of Teachers who gave lessons/homework */}
+              {/* List of assigned teachers */}
               <div className="space-y-2.5">
-                {teacherEntries.map((teacher) => (
+                {teacherEntries.length === 0 ? (
+                  <div className="p-4 rounded-2xl border border-dashed border-[#E5EED8] bg-[#FDFEFC] text-center text-[11px] text-[#6B758E]">
+                    Пока нет закреплённых преподавателей. Администратор или педагог центра назначит куратора после
+                    зачисления.
+                  </div>
+                ) : (
+                  teacherEntries.map((teacher) => (
                   <div
                     key={teacher.name}
                     className="p-3 sm:p-3.5 bg-[#FDFEFC] hover:bg-white rounded-2xl border border-[#E5EED8] hover:border-[#5C8519]/60 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all"
@@ -563,7 +594,8 @@ export default function UserPersonalCabinetPage({ params }: PageProps) {
                       </Link>
                     </div>
                   </div>
-                ))}
+                ))
+                )}
               </div>
             </div>
           </div>

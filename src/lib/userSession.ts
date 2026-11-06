@@ -16,6 +16,20 @@ export function generateNewUserId(): string {
   return `id${randomNum}`;
 }
 
+/** Restore platform public_id when URL or cookie lost the "id" prefix (e.g. 180457 → id180457). */
+export function normalizePublicId(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return trimmed;
+  const lower = trimmed.toLowerCase();
+  if (lower.startsWith('id') || lower.startsWith('admin_') || lower.startsWith('teacher_')) {
+    return lower;
+  }
+  if (/^\d{5,8}$/.test(trimmed)) {
+    return `id${trimmed}`;
+  }
+  return lower.replace(/[^a-z0-9._-]/g, '');
+}
+
 /**
  * Returns the currently authenticated user's ID, or null if unregistered/guest
  */

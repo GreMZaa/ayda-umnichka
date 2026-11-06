@@ -1,16 +1,39 @@
 import { supabaseServer, supabaseClient } from '../config/database';
 
 export class TeacherStudentRepository {
+  static async findTeachersByStudent(studentPublicId: string) {
+    return await supabaseClient
+      .from('teacher_students')
+      .select('*')
+      .eq('student_public_id', studentPublicId)
+      .order('created_at', { ascending: false });
+  }
+
   static async findStudentsByTeacher(teacherPublicId?: string) {
     let query = supabaseClient
       .from('teacher_students')
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (teacherPublicId) {
-      query = query.or(`teacher_public_id.eq.${teacherPublicId},teacher_public_id.is.null`);
+    const trimmed = teacherPublicId?.trim();
+    if (!trimmed) {
+      return await query;
     }
 
+    const normalized = trimmed.toLowerCase();
+
+    const { data: teacherProfile } = await supabaseClient
+      .from('profiles')
+      .select('id')
+      .ilike('public_id', normalized)
+      .maybeSingle();
+
+    const orFilters = [`teacher_public_id.ilike.${normalized}`];
+    if (teacherProfile?.id) {
+      orFilters.push(`teacher_id.eq.${teacherProfile.id}`);
+    }
+
+    query = query.or(orFilters.join(','));
     return await query;
   }
 
@@ -55,10 +78,17 @@ export class TeacherStudentRepository {
     let query = supabaseServer.from('teacher_students').delete();
     if (filter.id) {
       query = query.eq('id', filter.id);
+      if (filter.teacherPublicId) {
+        query = query.eq('teacher_public_id', filter.teacherPublicId.trim());
+      }
     } else {
-      if (filter.teacherPublicId) query = query.eq('teacher_public_id', filter.teacherPublicId);
-      if (filter.studentPublicId) query = query.eq('student_public_id', filter.studentPublicId);
+      if (filter.teacherPublicId) {
+        query = query.ilike('teacher_public_id', filter.teacherPublicId.trim());
+      }
+      if (filter.studentPublicId) {
+        query = query.ilike('student_public_id', filter.studentPublicId);
+      }
     }
-    return await query;
+    return await query.select('id');
   }
 }

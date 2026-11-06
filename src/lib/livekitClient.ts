@@ -73,8 +73,8 @@ export async function initLiveKitCall(options: ConnectLiveKitOptions): Promise<L
       (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth < 768);
 
     const room = new Room({
-      adaptiveStream: true,
-      dynacast: true,
+      adaptiveStream: false,
+      dynacast: false,
       audioCaptureDefaults: {
         autoGainControl: true,
         echoCancellation: true,

@@ -350,7 +350,7 @@ export default function HomePage() {
               <div className="flex flex-col sm:flex-row items-center gap-3">
                 <div className="w-8 h-8 rounded-full overflow-hidden relative border border-[#F2DECE] shadow-2xs shrink-0 bg-white hidden sm:block">
                   <Image
-                    src="/images/logo-official.png"
+                    src="/images/logo-official.jpg"
                     alt="Логотип АйДаУмничка"
                     fill
                     className="object-contain"

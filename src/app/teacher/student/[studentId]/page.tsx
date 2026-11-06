@@ -96,6 +96,8 @@ export default function TeacherStudentDetailsPage() {
   const [copiedLink, setCopiedLink] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  /** UUID строки в teacher_students — надёжный ключ для открепления */
+  const [teacherStudentBindingId, setTeacherStudentBindingId] = useState<string | null>(null);
 
   // Initial teacher resolution from localStorage if param missing
   useEffect(() => {
@@ -106,6 +108,13 @@ export default function TeacherStudentDetailsPage() {
         localStorage.getItem('aida_user_id') ||
         'id179017';
       setTeacherPublicId(storedTeacherId);
+
+      try {
+        localStorage.setItem('aida_active_role', 'teacher');
+        localStorage.setItem('aida_auth_user_id', storedTeacherId);
+        document.cookie = `aida_active_role=teacher; path=/; max-age=2592000; SameSite=Lax`;
+        document.cookie = `aida_auth_user_id=${encodeURIComponent(storedTeacherId)}; path=/; max-age=2592000; SameSite=Lax`;
+      } catch (_) {}
 
       const storedTeacherName =
         localStorage.getItem('aida_full_name') ||
@@ -151,6 +160,9 @@ export default function TeacherStudentDetailsPage() {
                 (s.student_public_id && s.student_public_id.toLowerCase() === studentId.toLowerCase()) ||
                 s.id === studentId
             );
+            if (match?.id) {
+              setTeacherStudentBindingId(String(match.id));
+            }
             if (match?.notes) {
               setNotes(match.notes);
             }
@@ -282,13 +294,54 @@ export default function TeacherStudentDetailsPage() {
   const handleRemoveStudent = async () => {
     setIsDeleting(true);
     try {
-      await fetch(
-        `/api/teacher/students?teacherPublicId=${encodeURIComponent(teacherPublicId)}&studentPublicId=${encodeURIComponent(studentId)}`,
-        { method: 'DELETE' }
-      );
+      const studentPub = (student?.public_id || studentId).trim();
+      const params = new URLSearchParams();
+      if (teacherStudentBindingId) {
+        params.set('id', teacherStudentBindingId);
+      }
+      if (teacherPublicId) {
+        params.set('teacherPublicId', teacherPublicId);
+      }
+      if (studentPub) {
+        params.set('studentPublicId', studentPub);
+      }
+
+      const res = await fetch(`/api/teacher/students?${params.toString()}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data?.success) {
+        const isGhostOnly =
+          res.status === 404 ||
+          (typeof data?.error === 'string' &&
+            data.error.toLowerCase().includes('локальном кэше'));
+        if (!isGhostOnly) {
+          alert(data?.error || data?.message || 'Не удалось открепить ученика');
+          setIsDeleting(false);
+          setShowDeleteConfirm(false);
+          return;
+        }
+      }
+
+      try {
+        const saved = localStorage.getItem('aida_teacher_students_v1');
+        if (saved) {
+          const list = JSON.parse(saved) as { id?: string; publicId?: string }[];
+          const bindingKey = teacherStudentBindingId || '';
+          const pubLower = studentPub.toLowerCase();
+          const filtered = list.filter((item) => {
+            if (bindingKey && item.id === bindingKey) return false;
+            if (pubLower && item.publicId?.toLowerCase() === pubLower) return false;
+            if (bindingKey && item.id === studentId) return false;
+            return true;
+          });
+          localStorage.setItem('aida_teacher_students_v1', JSON.stringify(filtered));
+        }
+      } catch (_) {}
+
       router.push(`/teacher?id=${encodeURIComponent(teacherPublicId)}`);
     } catch (err) {
       console.error('Error removing student:', err);
+      alert('Ошибка сети при откреплении ученика');
       setIsDeleting(false);
       setShowDeleteConfirm(false);
     }

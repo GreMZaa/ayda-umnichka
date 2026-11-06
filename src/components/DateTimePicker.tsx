@@ -291,7 +291,7 @@ export default function DateTimePicker({
           </div>
           <span className="text-[10px] font-bold text-[#5C8519] bg-[#EEF8D5] px-2 py-0.5 rounded-full shrink-0 border border-[#DFEFC0] flex items-center gap-1">
             <Check className="w-3 h-3 text-[#5C8519]" />
-            Готово
+            Выбрано
           </span>
         </div>
 

@@ -225,6 +225,7 @@ export default function AdminDashboard() {
   const [hwFile, setHwFile] = useState<File | null>(null);
   const [isCreatingHw, setIsCreatingHw] = useState(false);
   const [isDeletingHwId, setIsDeletingHwId] = useState<string | null>(null);
+  const [deletingAccountId, setDeletingAccountId] = useState<string | null>(null);
 
   const showToast = (text: string, type: 'success' | 'error' = 'success') => {
     setToastMsg({ text, type });
@@ -592,6 +593,37 @@ export default function AdminDashboard() {
       showToast(err?.message || 'Ошибка обновления баланса в Supabase', 'error');
     } finally {
       setIsAdjustingBalance(false);
+    }
+  };
+
+  const handleDeleteUserAccount = async (user: UserBindingRecord) => {
+    const name = cleanPersonName(user.full_name);
+    const roleLabel = user.role === 'teacher' ? 'педагога' : 'ученика';
+    const confirmed = window.confirm(
+      `Удалить аккаунт ${roleLabel} «${name}» (${user.public_id})?\n\n` +
+        'Будут удалены вход в систему, запись в базе и связки с педагогами/учениками. Действие необратимо.'
+    );
+    if (!confirmed) return;
+
+    setDeletingAccountId(user.public_id);
+    try {
+      const res = await fetch('/api/admin/users/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ publicId: user.public_id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'Не удалось удалить аккаунт');
+      }
+      showToast(data.message || 'Аккаунт удалён');
+      await fetchAllData();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Ошибка удаления аккаунта';
+      showToast(message, 'error');
+    } finally {
+      setDeletingAccountId(null);
     }
   };
 
@@ -1632,15 +1664,27 @@ export default function AdminDashboard() {
                       </div>
                     </div>
 
-                    <Link
-                      href={`/teacher?id=${encodeURIComponent(teacher.public_id)}`}
-                      target="_blank"
-                      className="inline-flex items-center gap-1 text-xs font-black bg-[#FFF8F1] hover:bg-[#FFF2E6] text-[#161F38] border border-[#F2DECE] px-3 py-1.5 rounded-xl transition-all active:scale-95 cursor-pointer shadow-2xs shrink-0"
-                      title="Перейти в личный кабинет педагога"
-                    >
-                      <span>Кабинет</span>
-                      <ExternalLink className="w-3 h-3 text-[#8A95A8]" />
-                    </Link>
+                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                      <Link
+                        href={`/teacher?id=${encodeURIComponent(teacher.public_id)}`}
+                        target="_blank"
+                        className="inline-flex items-center gap-1 text-xs font-black bg-[#FFF8F1] hover:bg-[#FFF2E6] text-[#161F38] border border-[#F2DECE] px-3 py-1.5 rounded-xl transition-all active:scale-95 cursor-pointer shadow-2xs"
+                        title="Перейти в личный кабинет педагога"
+                      >
+                        <span>Кабинет</span>
+                        <ExternalLink className="w-3 h-3 text-[#8A95A8]" />
+                      </Link>
+                      <button
+                        type="button"
+                        disabled={deletingAccountId === teacher.public_id}
+                        onClick={() => handleDeleteUserAccount(teacher)}
+                        className="inline-flex items-center gap-1 text-xs font-black text-white bg-rose-600 hover:bg-rose-700 border border-rose-700 px-2.5 py-1 rounded-lg transition-colors cursor-pointer disabled:opacity-50 shadow-2xs"
+                        title="Удалить аккаунт педагога"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        {deletingAccountId === teacher.public_id ? 'Удаление…' : 'Удалить аккаунт'}
+                      </button>
+                    </div>
                   </div>
 
                   {/* Teacher Stats */}
@@ -1695,28 +1739,42 @@ export default function AdminDashboard() {
                   </div>
 
                   {/* Quick Action: Assign lesson for this teacher */}
-                  <div className="pt-2 border-t border-[#F8EDE1] flex items-center justify-between gap-2">
+                  <div className="pt-2 border-t border-[#F8EDE1] flex flex-col gap-2">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setScheduleTeacherId(teacher.public_id);
+                          setIsScheduleModalOpen(true);
+                        }}
+                        className="text-xs font-black text-coralAccent hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Назначить урок от этого педагога</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBindTeacherId(teacher.public_id);
+                          setIsBindModalOpen(true);
+                        }}
+                        className="text-xs font-bold text-[#8A95A8] hover:text-[#161F38] flex items-center gap-1 cursor-pointer"
+                      >
+                        <UserPlus className="w-3.5 h-3.5" />
+                        <span>Прикрепить ученика</span>
+                      </button>
+                    </div>
                     <button
                       type="button"
-                      onClick={() => {
-                        setScheduleTeacherId(teacher.public_id);
-                        setIsScheduleModalOpen(true);
-                      }}
-                      className="text-xs font-black text-coralAccent hover:underline flex items-center gap-1 cursor-pointer"
+                      disabled={deletingAccountId === teacher.public_id}
+                      onClick={() => handleDeleteUserAccount(teacher)}
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-xs font-black text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-300 px-3 py-2 rounded-xl transition-colors cursor-pointer disabled:opacity-50"
+                      title="Удалить аккаунт педагога из Supabase"
                     >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Назначить урок от этого педагога</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setBindTeacherId(teacher.public_id);
-                        setIsBindModalOpen(true);
-                      }}
-                      className="text-xs font-bold text-[#8A95A8] hover:text-[#161F38] flex items-center gap-1 cursor-pointer"
-                    >
-                      <UserPlus className="w-3.5 h-3.5" />
-                      <span>Прикрепить ученика</span>
+                      <Trash2 className="w-3.5 h-3.5" />
+                      {deletingAccountId === teacher.public_id
+                        ? 'Удаление аккаунта…'
+                        : 'Удалить аккаунт педагога'}
                     </button>
                   </div>
                 </div>
@@ -1779,7 +1837,7 @@ export default function AdminDashboard() {
                     </div>
 
                     {/* Balance pill & Cabinet link */}
-                    <div className="flex items-center gap-3 self-end sm:self-auto shrink-0">
+                    <div className="flex flex-wrap items-center justify-end gap-2 self-end sm:self-auto shrink-0 max-w-full">
                       <div className="text-right">
                         <span className="text-[10px] text-[#8A95A8] font-bold block uppercase tracking-wider">
                           Баланс занятий
@@ -1797,6 +1855,16 @@ export default function AdminDashboard() {
                         <span>Кабинет</span>
                         <ExternalLink className="w-3 h-3 text-[#8A95A8]" />
                       </Link>
+                      <button
+                        type="button"
+                        disabled={deletingAccountId === student.public_id}
+                        onClick={() => handleDeleteUserAccount(student)}
+                        className="inline-flex items-center gap-1 text-xs font-black text-white bg-rose-600 hover:bg-rose-700 border border-rose-700 px-3 py-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50 shadow-2xs shrink-0"
+                        title="Удалить аккаунт ученика"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        {deletingAccountId === student.public_id ? 'Удаление…' : 'Удалить аккаунт'}
+                      </button>
                     </div>
                   </div>
 
@@ -1871,6 +1939,17 @@ export default function AdminDashboard() {
                         className="text-xs font-bold text-[#8A95A8] hover:text-[#161F38] ml-1 underline cursor-pointer"
                       >
                         Своё число
+                      </button>
+                      <span className="hidden sm:inline w-px h-5 bg-[#F2DECE] mx-0.5" aria-hidden />
+                      <button
+                        type="button"
+                        disabled={deletingAccountId === student.public_id}
+                        onClick={() => handleDeleteUserAccount(student)}
+                        className="inline-flex items-center gap-1 text-xs font-black text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-300 px-3 py-1 rounded-lg transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+                        title="Удалить аккаунт ученика из Supabase"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        {deletingAccountId === student.public_id ? 'Удаление…' : 'Удалить аккаунт'}
                       </button>
                     </div>
                   </div>
@@ -2819,13 +2898,13 @@ LIVEKIT_API_SECRET_SECONDARY="secretyyy"`}
       {/* MODAL 1: SCHEDULE LESSON */}
       {isScheduleModalOpen && (
         <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200"
           onClick={(e) => {
             if (e.target === e.currentTarget) setIsScheduleModalOpen(false);
           }}
         >
-          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-lg w-full border border-[#F2DECE] shadow-2xl space-y-5 animate-in zoom-in-95 duration-200">
-            <div className="flex items-start justify-between gap-3">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl p-5 sm:p-7 max-w-lg w-full border border-[#F2DECE] shadow-2xl animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200 max-h-[92dvh] flex flex-col">
+            <div className="flex items-start justify-between gap-3 shrink-0 pb-4">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-2xl bg-[#FFF2E6] text-coralAccent border border-[#FCDDC7] flex items-center justify-center shrink-0 shadow-2xs">
                   <Calendar className="w-6 h-6" />
@@ -2848,7 +2927,8 @@ LIVEKIT_API_SECRET_SECONDARY="secretyyy"`}
               </button>
             </div>
 
-            <form onSubmit={handleAdminScheduleLesson} className="space-y-4">
+            <form onSubmit={handleAdminScheduleLesson} className="flex flex-col flex-1 min-h-0">
+              <div className="overflow-y-auto flex-1 min-h-0 space-y-4 overscroll-contain">
               {/* Teacher selector */}
               <div className="space-y-1.5">
                 <label className="block text-xs font-black text-[#161F38]">
@@ -2928,20 +3008,21 @@ LIVEKIT_API_SECRET_SECONDARY="secretyyy"`}
                 onChange={setScheduleDateTime}
                 label="Дата и время проведения:"
               />
+              </div>
 
               {/* Actions */}
-              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-[#F8EDE1]">
+              <div className="shrink-0 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2.5 pt-3 mt-2 border-t border-[#F8EDE1] bg-white pb-[max(12px,env(safe-area-inset-bottom))]">
                 <button
                   type="button"
                   onClick={() => setIsScheduleModalOpen(false)}
-                  className="text-xs font-bold text-[#8A95A8] hover:text-[#161F38] px-4 py-2 rounded-xl transition-colors cursor-pointer"
+                  className="w-full sm:w-auto text-xs font-bold text-[#8A95A8] hover:text-[#161F38] px-4 py-2.5 rounded-xl transition-colors cursor-pointer"
                 >
                   Отмена
                 </button>
                 <button
                   type="submit"
                   disabled={isScheduling || !scheduleTeacherId || !scheduleStudentId || !scheduleDateTime}
-                  className="text-xs font-black bg-coralAccent hover:bg-coralAccent-hover text-white px-5 py-2.5 rounded-full shadow-md active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1.5"
+                  className="w-full sm:w-auto text-sm sm:text-xs font-black bg-coralAccent hover:bg-coralAccent-hover text-white px-5 py-3 sm:py-2.5 rounded-full shadow-md active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-1.5"
                 >
                   {isScheduling ? (
                     <>

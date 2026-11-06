@@ -29,6 +29,9 @@ yarn-error.log*
 backups/*.json
 !backups/.gitkeep
 
+# supabase CLI local state (machine-specific)
+supabase/.temp/
+
 # vercel
 .vercel
 

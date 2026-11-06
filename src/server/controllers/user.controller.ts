@@ -43,11 +43,20 @@ export class UserController {
       const auth = extractAuthContext(req);
       const { searchParams } = new URL(req.url);
       const teacherPublicId = searchParams.get('teacherPublicId')?.trim();
+      const studentPublicId = searchParams.get('studentPublicId')?.trim();
 
-      // If called by student, only return if matching own binding
-      if (!auth.isTeacher && !auth.isAdmin && auth.userId && teacherPublicId) {
-        // Safe query for teacher students
+      if (studentPublicId) {
+        const studentIdNorm = studentPublicId.toLowerCase();
+        if (!auth.isAdmin && !auth.isTeacher) {
+          const callerId = (auth.userId || '').toLowerCase();
+          if (!callerId || callerId !== studentIdNorm) {
+            return apiError('Доступ запрещен', 403, { teachers: [] });
+          }
+        }
+        const teachers = await UserService.getTeachersForStudent(studentPublicId);
+        return apiSuccess({ teachers });
       }
+
       const students = await UserService.getTeacherStudents(teacherPublicId);
       return apiSuccess({ students });
     } catch (err: any) {

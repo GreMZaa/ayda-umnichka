@@ -17,6 +17,10 @@ import {
   LayoutDashboard,
 } from 'lucide-react';
 import { getLkUrl } from '@/lib/lkUrl';
+import { getLkOrigin, getMainSiteOrigin } from '@/lib/publicOrigins';
+
+const MAIN_SITE_ORIGIN = getMainSiteOrigin();
+const LK_LOGIN_URL = `${getLkOrigin()}/login`;
 import { supabase } from '@/lib/supabase';
 
 // Helper to clean technical registration suffixes like (ребёнок: ...) from display name
@@ -286,7 +290,7 @@ export default function Navbar() {
           <Link href="/" onClick={handleLogoClick} className="flex items-center gap-2.5 sm:gap-3 group cursor-pointer" title="Нажмите 3 раза для перехода в админку">
             <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full overflow-hidden relative shadow-xs border-2 border-white bg-white group-hover:scale-105 transition-transform shrink-0">
               <Image
-                src="/images/logo-official.png"
+                src="/images/logo-official.jpg"
                 alt="Логотип АйДаУмничка"
                 fill
                 className="object-contain"
@@ -517,7 +521,7 @@ export default function Navbar() {
 
 
                         <a
-                          href="https://ayda-umnichka.vercel.app"
+                          href={MAIN_SITE_ORIGIN}
                           className="flex items-center justify-between px-3 py-2 text-xs font-bold text-[#6B758E] hover:bg-[#FFF7EE] hover:text-[#161F38] rounded-xl transition-colors"
                         >
                           <div className="flex items-center gap-2.5">
@@ -548,15 +552,15 @@ export default function Navbar() {
               </div>
             ) : isLogin ? (
               <a
-                href="https://ayda-umnichka.vercel.app"
+                href={MAIN_SITE_ORIGIN}
                 className="inline-flex items-center gap-1.5 text-xs font-bold text-[#161F38] bg-white border border-[#EADBCC] px-4 py-2 rounded-full hover:border-coralAccent transition-[border-color,box-shadow,transform] duration-140 ease-out-emil shadow-xs active:scale-[0.97]"
               >
                 <span>← На главную</span>
               </a>
             ) : (
-              // On landing page: Direct real link to LK subdomain (https://lk-ayda-umnichka.vercel.app/login)
+              // On landing page: Direct real link to LK subdomain (https://lk-ayda-um.vercel.app/login)
               <a
-                href="https://lk-ayda-umnichka.vercel.app/login"
+                href={LK_LOGIN_URL}
                 className="bg-[#C5E87D] hover:bg-[#B6DC67] text-[#161F38] font-black px-3.5 py-2 sm:px-5 sm:py-2.5 rounded-full text-xs tracking-tight transition-[background-color,transform,box-shadow] duration-140 ease-out-emil shadow-xs flex items-center gap-1.5 sm:gap-2 active:scale-[0.97] cursor-pointer whitespace-nowrap"
               >
                 <LogIn className="w-3.5 h-3.5 text-[#161F38]" />

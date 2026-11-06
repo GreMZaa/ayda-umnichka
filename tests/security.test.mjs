@@ -1,7 +1,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-const BASE_URL = process.env.TEST_BASE_URL || 'https://ayda-umnichka.vercel.app';
+const BASE_URL = process.env.TEST_BASE_URL || 'https://ayda-um.vercel.app';
 
 describe('Security Suite: RBAC & Cabinet Protection Tests', () => {
 

@@ -1,4 +1,14 @@
 import { AppError } from '../middleware/apiErrors';
+import {
+  isValidFioThreeWords,
+  normalizeFioSpaces,
+  fioValidationMessage,
+} from '@/lib/fioValidation';
+import {
+  isValidRegistrationEmail,
+  normalizeEmailInput,
+  registrationEmailErrorMessage,
+} from '@/lib/emailValidation';
 
 export interface RegisterDTO {
   email: string;
@@ -20,20 +30,42 @@ export function validateRegisterInput(body: any): RegisterDTO {
     throw new AppError('Пожалуйста, заполните все обязательные поля', 400);
   }
 
-  if (typeof email !== 'string' || !email.includes('@')) {
-    throw new AppError('Укажите корректный email адрес', 400);
+  if (typeof email !== 'string' || !isValidRegistrationEmail(email)) {
+    throw new AppError(registrationEmailErrorMessage(), 400);
   }
 
   if (role === 'admin') {
     throw new AppError('Регистрация с ролью Администратора запрещена', 403);
   }
 
+  const normalizedFullName = normalizeFioSpaces(String(fullName));
+  if (!isValidFioThreeWords(normalizedFullName)) {
+    throw new AppError(
+      role === 'student'
+        ? fioValidationMessage('ФИО родителя')
+        : fioValidationMessage('ФИО педагога'),
+      400
+    );
+  }
+
+  const roleStr = String(role);
+  let normalizedChildName: string | undefined;
+  if (roleStr === 'student') {
+    if (!childName || !String(childName).trim()) {
+      throw new AppError(fioValidationMessage('ФИО ученика'), 400);
+    }
+    normalizedChildName = normalizeFioSpaces(String(childName));
+    if (!isValidFioThreeWords(normalizedChildName)) {
+      throw new AppError(fioValidationMessage('ФИО ученика'), 400);
+    }
+  }
+
   return {
-    email: email.trim().toLowerCase(),
+    email: normalizeEmailInput(email),
     password: String(password),
-    fullName: fullName.trim(),
-    childName: childName ? String(childName).trim() : undefined,
-    role: String(role),
+    fullName: normalizedFullName,
+    childName: normalizedChildName,
+    role: roleStr,
     publicId: String(publicId).trim().toLowerCase(),
   };
 }

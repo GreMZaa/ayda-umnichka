@@ -15,7 +15,7 @@ export default function Footer() {
       <div className="flex items-center justify-center gap-2 mb-2">
         <div className="w-6 h-6 rounded-full overflow-hidden relative border border-white shadow-2xs shrink-0 bg-white">
           <Image
-            src="/images/logo-official.png"
+            src="/images/logo-official.jpg"
             alt="Логотип АйДаУмничка"
             fill
             className="object-contain"

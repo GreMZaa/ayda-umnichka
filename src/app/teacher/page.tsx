@@ -35,6 +35,9 @@ import {
   User
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { normalizePublicId } from '@/lib/userSession';
+import { getLkUrl } from '@/lib/lkUrl';
+import { isValidRegistrationEmail } from '@/lib/emailValidation';
 import { broadcastPlatformEvent } from '@/lib/platformNotifications';
 import { showSystemNotification, playNotificationChime } from '@/components/NotificationManager';
 import type { TeacherRecord } from '@/app/api/teachers/route';
@@ -153,6 +156,7 @@ export default function TeacherDashboard() {
   const [addStudentTab, setAddStudentTab] = useState<'registered' | 'manual'>('registered');
   const [selectedStudentToAdd, setSelectedStudentToAdd] = useState('');
   const [customStudentName, setCustomStudentName] = useState('');
+  const [customStudentEmail, setCustomStudentEmail] = useState('');
   const [customStudentNote, setCustomStudentNote] = useState('');
   const [isBindingStudent, setIsBindingStudent] = useState(false);
   const [isStudentDropdownOpen, setIsStudentDropdownOpen] = useState(false);
@@ -200,6 +204,13 @@ export default function TeacherDashboard() {
   const [editingLeadNoteId, setEditingLeadNoteId] = useState<string | null>(null);
   const [leadNoteInput, setLeadNoteInput] = useState('');
   const [copiedPhoneLeadId, setCopiedPhoneLeadId] = useState<string | null>(null);
+  const [manualStudentCreds, setManualStudentCreds] = useState<{
+    studentPublicId: string;
+    studentName: string;
+    login: string;
+    password: string;
+  } | null>(null);
+  const [copiedManualCreds, setCopiedManualCreds] = useState(false);
 
   // Teachers directory
   const [supabaseTeachers, setSupabaseTeachers] = useState<TeacherRecord[]>([]);
@@ -241,7 +252,7 @@ export default function TeacherDashboard() {
         cache: 'no-store',
       });
       const data = await res.json();
-      if (data?.students && data.students.length > 0) {
+      if (res.ok && Array.isArray(data?.students)) {
         const mapped: BoundStudentItem[] = data.students.map((st: any) => ({
           id: st.id,
           publicId: st.student_public_id,
@@ -251,6 +262,13 @@ export default function TeacherDashboard() {
           addedAt: st.created_at ? new Date(st.created_at).toLocaleDateString('ru-RU', { timeZone: 'Europe/Samara' }) : '',
         }));
         setBoundStudents(mapped);
+        try {
+          if (mapped.length === 0) {
+            localStorage.removeItem('aida_teacher_students_v1');
+          } else {
+            localStorage.setItem('aida_teacher_students_v1', JSON.stringify(mapped));
+          }
+        } catch (_) {}
         setStudentBalances((prev) => {
           const updated = { ...prev };
           data.students.forEach((st: any) => {
@@ -260,12 +278,6 @@ export default function TeacherDashboard() {
           });
           return updated;
         });
-      } else {
-        // Fallback to local storage if DB is initially empty
-        const saved = localStorage.getItem('aida_teacher_students_v1');
-        if (saved) {
-          setBoundStudents(JSON.parse(saved));
-        }
       }
     } catch (err) {
       console.warn('Failed to load bound students:', err);
@@ -641,12 +653,13 @@ export default function TeacherDashboard() {
       urlId = sp.get('id') || '';
     }
 
-    const savedUserId =
+    const savedUserId = normalizePublicId(
       urlId ||
-      localStorage.getItem('aida_auth_user_id') ||
-      document.cookie.match(/(?:^|; )aida_auth_user_id=([^;]*)/)?.[1] ||
-      localStorage.getItem('aida_user_id') ||
-      '';
+        localStorage.getItem('aida_auth_user_id') ||
+        document.cookie.match(/(?:^|; )aida_auth_user_id=([^;]*)/)?.[1] ||
+        localStorage.getItem('aida_user_id') ||
+        ''
+    );
 
     if (!savedUserId) {
       router.replace('/login?redirect=/teacher');
@@ -719,20 +732,6 @@ export default function TeacherDashboard() {
     };
   }, []);
 
-  if (isAuthorized === false) {
-    return (
-      <div className="min-h-[50vh] flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl p-6 border border-red-200 text-center max-w-sm space-y-3">
-          <Shield className="w-10 h-10 text-red-500 mx-auto" />
-          <h2 className="text-lg font-black text-[#161F38]">Доступ ограничен</h2>
-          <p className="text-xs text-[#6B758E]">
-            Кабинет учителя доступен только зарегистрированным педагогам платформы. Перенаправляем на вход...
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   // Handle adding student to teacher's roster in Supabase
   const handleAddStudent = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -768,6 +767,12 @@ export default function TeacherDashboard() {
       return;
     }
 
+    if (addStudentTab === 'manual' && customStudentEmail.trim() && !isValidRegistrationEmail(customStudentEmail)) {
+      alert('Укажите корректный email родителя или оставьте поле пустым — тогда будет служебный логин.');
+      setIsBindingStudent(false);
+      return;
+    }
+
     try {
       const res = await fetch('/api/teacher/students', {
         method: 'POST',
@@ -777,16 +782,25 @@ export default function TeacherDashboard() {
           student_public_id: publicIdToSave || null,
           student_name: nameToSave,
           notes: customStudentNote.trim() || 'Индивидуальное сопровождение',
+          parent_email: addStudentTab === 'manual' ? customStudentEmail.trim() || undefined : undefined,
+          initial_balance: 1,
         }),
       });
 
       const data = await res.json();
-      if (data?.success && data?.student) {
+      if (!res.ok || !data?.success) {
+        alert(data?.error || data?.message || 'Не удалось добавить ученика');
+        setIsBindingStudent(false);
+        return;
+      }
+
+      if (data?.student) {
         const newEntry: BoundStudentItem = {
           id: data.student.id,
-          publicId: data.student.student_public_id,
-          fullName: data.student.student_name,
+          publicId: data.studentPublicId || data.student.student_public_id || publicIdToSave,
+          fullName: data.student.student_name || nameToSave,
           notes: data.student.notes,
+          balanceLessons: 1,
           addedAt: new Date().toLocaleDateString('ru-RU', { timeZone: 'Europe/Samara' }),
         };
         const updated = [newEntry, ...boundStudents];
@@ -794,13 +808,27 @@ export default function TeacherDashboard() {
         try {
           localStorage.setItem('aida_teacher_students_v1', JSON.stringify(updated));
         } catch (_) {}
+
+        if (data.login && data.password) {
+          setManualStudentCreds({
+            studentPublicId: data.studentPublicId || newEntry.publicId || '',
+            studentName: nameToSave,
+            login: data.login,
+            password: data.password,
+          });
+          setCopiedManualCreds(false);
+        }
+
+        fetchSupabaseStudents();
       }
     } catch (err) {
       console.warn('Error binding student:', err);
+      alert('Ошибка сети при добавлении ученика');
     } finally {
       setIsBindingStudent(false);
       setSelectedStudentToAdd('');
       setCustomStudentName('');
+      setCustomStudentEmail('');
       setCustomStudentNote('');
       setShowAddStudentForm(false);
     }
@@ -808,12 +836,25 @@ export default function TeacherDashboard() {
 
   // Remove student from roster
   const handleRemoveStudent = async (id: string, publicId?: string) => {
+    const params = new URLSearchParams({ id });
+    if (teacherPublicId) params.set('teacherPublicId', teacherPublicId);
+    if (publicId) params.set('studentPublicId', publicId);
+
     try {
-      await fetch(`/api/teacher/students?id=${encodeURIComponent(id)}`, {
-        method: 'DELETE',
-      });
+      const res = await fetch(`/api/teacher/students?${params.toString()}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
+      const isGhostOnly =
+        res.status === 404 ||
+        (typeof data?.error === 'string' &&
+          data.error.toLowerCase().includes('локальном кэше'));
+      if (!res.ok && !isGhostOnly && !data?.success) {
+        alert(data?.error || data?.message || 'Не удалось открепить ученика');
+        return;
+      }
     } catch (err) {
       console.warn('Error unbinding student:', err);
+      alert('Ошибка сети при откреплении ученика');
+      return;
     }
 
     const updated = boundStudents.filter((s) => s.id !== id);
@@ -913,11 +954,12 @@ export default function TeacherDashboard() {
   };
 
   // Filtered lists for comboboxes
-  const filteredHwStudents = supabaseStudents.filter(
-    (s) =>
-      s.fullName.toLowerCase().includes(hwStudentInput.toLowerCase()) ||
-      s.publicId.toLowerCase().includes(hwStudentInput.toLowerCase())
-  );
+  const filteredHwStudents = supabaseStudents.filter((s) => {
+    const name = (s.fullName || '').toLowerCase();
+    const pub = (s.publicId || '').toLowerCase();
+    const q = hwStudentInput.toLowerCase();
+    return name.includes(q) || pub.includes(q);
+  });
 
   // Clean teacher display name (strips metadata suffixes like "(ребёнок: ...)")
   const cleanTeacherDisplayName = teacherName.replace(/\s*\(.*?\)$/, '').trim();
@@ -966,11 +1008,14 @@ export default function TeacherDashboard() {
   // Students available in database to be bound to this teacher
   const availableStudentsToAdd = useMemo(() => {
     return supabaseStudents.filter((st) => {
-      return !boundStudents.some(
-        (b) =>
-          (b.publicId && b.publicId.toLowerCase() === st.publicId.toLowerCase()) ||
-          (b.fullName && b.fullName.trim().toLowerCase() === st.fullName.trim().toLowerCase())
-      );
+      return !boundStudents.some((b) => {
+        const stPub = (st.publicId || '').toLowerCase();
+        const bPub = (b.publicId || '').toLowerCase();
+        if (stPub && bPub && stPub === bPub) return true;
+        const bNorm = (b.fullName || '').replace(/\s*\(.*?\)$/, '').trim().toLowerCase();
+        const stNorm = (st.fullName || '').trim().toLowerCase();
+        return bNorm && bNorm === stNorm;
+      });
     });
   }, [supabaseStudents, boundStudents]);
 
@@ -979,6 +1024,31 @@ export default function TeacherDashboard() {
     if (!selectedStudentToAdd) return null;
     return availableStudentsToAdd.find((s) => s.publicId === selectedStudentToAdd) || null;
   }, [selectedStudentToAdd, availableStudentsToAdd]);
+
+  if (isAuthorized === null) {
+    return (
+      <div className="min-h-[50vh] flex items-center justify-center p-4">
+        <div className="flex flex-col items-center gap-3">
+          <RefreshCw className="w-8 h-8 text-coralAccent animate-spin" />
+          <p className="text-xs font-bold text-[#6B758E]">Загрузка кабинета преподавателя...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isAuthorized === false) {
+    return (
+      <div className="min-h-[50vh] flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl p-6 border border-red-200 text-center max-w-sm space-y-3">
+          <Shield className="w-10 h-10 text-red-500 mx-auto" />
+          <h2 className="text-lg font-black text-[#161F38]">Доступ ограничен</h2>
+          <p className="text-xs text-[#6B758E]">
+            Кабинет учителя доступен только зарегистрированным педагогам платформы. Перенаправляем на вход...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 sm:space-y-5">
@@ -1089,12 +1159,15 @@ export default function TeacherDashboard() {
                       const stHwList = getStudentHomeworkList(st);
 
                       return (
-                        <Link
+                        <div
                           key={st.id}
-                          href={`/teacher/student/${encodeURIComponent(info.publicId || st.id)}?teacherId=${encodeURIComponent(teacherPublicId || '')}`}
-                          className="group p-3 sm:p-3.5 bg-[#FDFEFC] hover:bg-white rounded-2xl border border-[#E5EED8] hover:border-[#5C8519] shadow-2xs hover:shadow-xs flex items-center justify-between gap-3 transition-all cursor-pointer active:scale-[0.99]"
-                          title="Нажмите, чтобы открыть информацию и настройки ребёнка"
+                          className="group p-3 sm:p-3.5 bg-[#FDFEFC] hover:bg-white rounded-2xl border border-[#E5EED8] hover:border-[#5C8519] shadow-2xs hover:shadow-xs flex items-center justify-between gap-3 transition-all active:scale-[0.99]"
                         >
+                          <Link
+                            href={`/teacher/student/${encodeURIComponent(info.publicId || st.id)}?teacherId=${encodeURIComponent(teacherPublicId || '')}`}
+                            className="flex items-center justify-between gap-3 flex-1 min-w-0 cursor-pointer"
+                            title="Нажмите, чтобы открыть информацию и настройки ребёнка"
+                          >
                           {/* Student Info */}
                           <div className="flex items-center gap-3 min-w-0">
                             <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-tr from-[#5C8519] to-[#8BC34A] text-white font-black text-xs sm:text-sm flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
@@ -1134,7 +1207,24 @@ export default function TeacherDashboard() {
                               <ChevronRight className="w-4 h-4 stroke-[2.5]" />
                             </div>
                           </div>
-                        </Link>
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (
+                                window.confirm(
+                                  `Открепить ${info.displayName} от вашего кабинета?`
+                                )
+                              ) {
+                                void handleRemoveStudent(st.id, info.publicId || undefined);
+                              }
+                            }}
+                            className="w-8 h-8 rounded-xl border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 flex items-center justify-center shrink-0 cursor-pointer transition-colors"
+                            title="Открепить ученика"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       );
                     })}
               </div>
@@ -1777,8 +1867,8 @@ export default function TeacherDashboard() {
                                 if (!studentSearchQuery.trim()) return true;
                                 const q = studentSearchQuery.toLowerCase();
                                 return (
-                                  st.fullName.toLowerCase().includes(q) ||
-                                  st.publicId.toLowerCase().includes(q) ||
+                                  (st.fullName || '').toLowerCase().includes(q) ||
+                                  (st.publicId || '').toLowerCase().includes(q) ||
                                   (st.phone && st.phone.includes(q))
                                 );
                               })
@@ -1848,6 +1938,21 @@ export default function TeacherDashboard() {
                     autoFocus
                     className="w-full bg-[#FAFBFD] hover:bg-white border border-[#E3E8EE] focus:border-[#5C8519] rounded-xl px-3 py-2 text-xs text-[#161F38] font-bold focus:outline-none transition-colors"
                   />
+                  <div className="space-y-1 pt-1">
+                    <label className="block text-[11px] font-bold text-[#6B758E]">
+                      Email для входа (необязательно):
+                    </label>
+                    <input
+                      type="email"
+                      value={customStudentEmail}
+                      onChange={(e) => setCustomStudentEmail(e.target.value)}
+                      placeholder="parent@mail.ru — или пусто для служебного логина"
+                      className="w-full bg-[#FAFBFD] hover:bg-white border border-[#E3E8EE] focus:border-[#5C8519] rounded-xl px-3 py-2 text-xs text-[#161F38] focus:outline-none transition-colors"
+                    />
+                    <p className="text-[10px] text-[#9E9085] leading-snug">
+                      Будет создан аккаунт в Supabase; логин и пароль покажем после сохранения.
+                    </p>
+                  </div>
                 </div>
               )}
 
@@ -1923,6 +2028,63 @@ export default function TeacherDashboard() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {manualStudentCreds && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-[#161F38]/50 backdrop-blur-xs"
+        >
+          <div className="relative w-full max-w-md bg-white rounded-3xl p-5 sm:p-6 shadow-2xl border border-[#F2DECE] space-y-4">
+            <div className="p-3.5 rounded-2xl bg-[#EAF7CF] border border-[#CCE8A2] text-center space-y-1.5">
+              <Check className="w-8 h-8 mx-auto text-[#5C8519]" />
+              <h4 className="text-sm font-black text-[#161F38]">Ученик создан в Supabase</h4>
+              <p className="text-[11px] text-[#5C8519] font-bold">{manualStudentCreds.studentName}</p>
+            </div>
+            <div className="p-3 bg-[#F0FDF4] border border-[#BBF7D0] rounded-2xl space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-[#166534]">Данные для входа:</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (navigator?.clipboard) {
+                      navigator.clipboard.writeText(
+                        `Логин: ${manualStudentCreds.login}\nПароль: ${manualStudentCreds.password}\nСайт: ${getLkUrl('/login')}`
+                      );
+                      setCopiedManualCreds(true);
+                      setTimeout(() => setCopiedManualCreds(false), 2000);
+                    }
+                  }}
+                  className="text-[10px] font-extrabold text-[#166534] bg-white px-2 py-0.5 rounded-md border border-[#BBF7D0] cursor-pointer flex items-center gap-1"
+                >
+                  {copiedManualCreds ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                  <span>{copiedManualCreds ? 'Скопировано!' : 'Копировать'}</span>
+                </button>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-white/80 p-2 rounded-xl border border-[#BBF7D0]/60">
+                <div>
+                  <span className="text-[#6B758E] text-[10px] block">Логин:</span>
+                  <span className="font-black text-[#161F38] break-all">{manualStudentCreds.login}</span>
+                </div>
+                <div>
+                  <span className="text-[#6B758E] text-[10px] block">Пароль:</span>
+                  <span className="font-black text-[#161F38]">{manualStudentCreds.password}</span>
+                </div>
+              </div>
+            </div>
+            <p className="text-[10px] text-[#6B758E] text-center">
+              ID: <strong>{manualStudentCreds.studentPublicId}</strong>
+            </p>
+            <button
+              type="button"
+              onClick={() => setManualStudentCreds(null)}
+              className="w-full text-xs font-black bg-[#5C8519] hover:bg-[#4E7214] text-white px-5 py-2.5 rounded-full cursor-pointer"
+            >
+              Готово
+            </button>
           </div>
         </div>
       )}

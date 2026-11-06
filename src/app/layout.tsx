@@ -9,6 +9,7 @@ import UserPresenceHeartbeat from "@/components/UserPresenceHeartbeat";
 import PullToRefresh from "@/components/PullToRefresh";
 import NotificationManager from "@/components/NotificationManager";
 import ErrorMonitoringProvider from "@/components/ErrorMonitoringProvider";
+import { getMainSiteOrigin } from "@/lib/publicOrigins";
 import "./globals.css";
 
 const nunito = Nunito({
@@ -20,7 +21,7 @@ const nunito = Nunito({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://ayda-umnichka.vercel.app'),
+  metadataBase: new URL(getMainSiteOrigin()),
   title: "АйДаУмничка — Детский развивающий центр (Тольятти)",
   description: "Образовательная онлайн-платформа детского центра «АйДаУмничка» в г. Тольятти: P2P видеоуроки, интерактивная доска, чаты и прозрачный учет баланса занятий.",
   applicationName: "АйДаУмничка",
@@ -44,7 +45,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "АйДаУмничка — Детский развивающий центр (Тольятти)",
     description: "Образовательная онлайн-платформа детского центра «АйДаУмничка» в г. Тольятти",
-    images: ['/images/logo-official.png'],
+    images: ['/images/logo-official.jpg'],
   },
 };
 
@@ -62,7 +63,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ru" suppressHydrationWarning>
+    <html lang="ru" suppressHydrationWarning style={{ backgroundColor: '#FFF7EE' }}>
       <head>
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
@@ -73,6 +74,16 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="АйДаУмничка" />
         <meta name="application-name" content="АйДаУмничка" />
         <meta name="mobile-web-app-capable" content="yes" />
+        <noscript>
+          <style>{`body{padding:24px;font-family:system-ui,sans-serif;max-width:420px;margin:0 auto}`}</style>
+          <p>
+            Для входа нужен JavaScript. Если страница не открывается в Telegram, нажмите «Safari» внизу или
+            откройте сайт в обычном браузере.
+          </p>
+          <p>
+            <a href="/login">Перейти к входу</a>
+          </p>
+        </noscript>
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -117,6 +128,7 @@ export default function RootLayout({
       </head>
       <body
         suppressHydrationWarning
+        style={{ backgroundColor: '#FFF7EE' }}
         className={`${nunito.variable} font-sans min-h-screen bg-[#FFF7EE] text-[#161F38] flex flex-col antialiased selection:bg-[#FDEEDC] selection:text-[#161F38]`}
       >
         <ErrorMonitoringProvider>

@@ -1,6 +1,15 @@
 import { UserRepository } from '../repositories/user.repository';
+import { supabaseAdmin, supabaseServer } from '../config/database';
 import { RegisterDTO, BindUserDTO, RenameHandleDTO } from '../validators/auth.validator';
 import { AppError } from '../middleware/apiErrors';
+import {
+  isTransactionalEmailConfigured,
+  sendPasswordRecoveryEmail,
+} from './transactionalEmail.service';
+import {
+  normalizeRecoveryActionLink,
+  resolvePasswordResetRedirect,
+} from '../config/authRedirects';
 import { AuthContext } from '../middleware/authGuard';
 
 export class AuthService {
@@ -230,5 +239,135 @@ export class AuthService {
     }
 
     return { success: true };
+  }
+
+  static normalizeLoginEmail(raw: string): string {
+    const trimmed = raw.trim();
+    if (trimmed.includes('@')) {
+      return trimmed.toLowerCase();
+    }
+    const digits = trimmed.replace(/\D/g, '');
+    return `${digits}@aidaumnichka.ru`;
+  }
+
+  static async setPasswordByEmail(emailRaw: string, newPassword: string) {
+    const email = AuthService.normalizeLoginEmail(emailRaw);
+    if (!email.includes('@') || email.length < 5) {
+      throw new AppError('Укажите корректный email или телефон', 400);
+    }
+    if (!newPassword || newPassword.length < 6) {
+      throw new AppError('Пароль должен быть не короче 6 символов', 400);
+    }
+
+    let authUserId: string | null = null;
+
+    const { data: binding } = await supabaseServer
+      .from('user_bindings')
+      .select('auth_user_id, email')
+      .eq('email', email)
+      .maybeSingle();
+
+    if (binding?.auth_user_id) {
+      authUserId = binding.auth_user_id;
+    }
+
+    if (!authUserId) {
+      let page = 1;
+      while (page <= 10) {
+        const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 200 });
+        if (error) throw new AppError(error.message, 500);
+        const found = data.users?.find((u) => u.email?.toLowerCase() === email);
+        if (found?.id) {
+          authUserId = found.id;
+          break;
+        }
+        if (!data.users?.length || data.users.length < 200) break;
+        page += 1;
+      }
+    }
+
+    if (!authUserId) {
+      throw new AppError(
+        'Аккаунт с таким email/телефоном не найден. Проверьте адрес или зарегистрируйтесь.',
+        404
+      );
+    }
+
+    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(authUserId, {
+      password: newPassword,
+    });
+
+    if (updateError) {
+      throw new AppError(updateError.message || 'Не удалось обновить пароль', 500);
+    }
+
+    return {
+      success: true,
+      message: 'Новый пароль сохранён. Теперь войдите с этим паролем.',
+    };
+  }
+
+  /** Recovery link via Supabase Admin API; email sent from our SMTP (not Supabase default). */
+  static async requestPasswordReset(emailRaw: string, redirectToRaw?: string) {
+    if (!isTransactionalEmailConfigured()) {
+      throw new AppError(
+        'Отправка писем временно не настроена. Обратитесь к администратору.',
+        503
+      );
+    }
+
+    const email = emailRaw.includes('@')
+      ? emailRaw.trim().toLowerCase()
+      : `${emailRaw.replace(/\D/g, '')}@aidaumnichka.ru`;
+
+    if (!email || !email.includes('@')) {
+      throw new AppError('Укажите корректный email', 400);
+    }
+
+    const redirectTo = resolvePasswordResetRedirect(redirectToRaw);
+
+    const { data, error } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'recovery',
+      email,
+      options: { redirectTo },
+    });
+
+    if (error) {
+      const msg = error.message.toLowerCase();
+      if (msg.includes('user not found') || msg.includes('not found')) {
+        return {
+          success: true,
+          message:
+            'Если аккаунт с этим адресом есть, мы отправили письмо со ссылкой для смены пароля.',
+        };
+      }
+      throw new AppError(error.message, 400);
+    }
+
+    let actionLink =
+      data?.properties?.action_link ||
+      (data as { action_link?: string })?.action_link;
+
+    if (!actionLink) {
+      throw new AppError('Не удалось создать ссылку для восстановления', 500);
+    }
+
+    actionLink = normalizeRecoveryActionLink(actionLink, redirectTo);
+
+    try {
+      await sendPasswordRecoveryEmail({ to: email, actionLink });
+    } catch (sendErr: unknown) {
+      console.error('Password recovery email failed:', sendErr);
+      throw new AppError(
+        'Не удалось отправить письмо. Проверьте SMTP на сервере или попробуйте позже.',
+        502
+      );
+    }
+
+    return {
+      success: true,
+      message:
+        'Если аккаунт с этим адресом есть, мы отправили письмо со ссылкой для смены пароля.',
+    };
   }
 }

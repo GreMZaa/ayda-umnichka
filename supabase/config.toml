@@ -1,0 +1,62 @@
+# Supabase local / remote link config (PLATFORMA / АйДаУмничка)
+# Target organization: https://supabase.com/dashboard/org/izhgvbkzxgrnfbdynfik
+
+project_id = "ffuaihmewlksjshnnlly"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 17
+
+[studio]
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+site_url = "https://lk-ayda-um.vercel.app"
+    additional_redirect_urls = [
+      "https://lk-ayda-um.vercel.app/**",
+      "https://lk-ayda-um.vercel.app/login/reset-password",
+      "http://localhost:3000/**",
+      "http://localhost:3000/login/reset-password",
+    ]
+
+[auth.email.template.recovery]
+subject = "Восстановление пароля — АйДаУмничка"
+content_path = "./supabase/templates/recovery.html"
+
+[auth.email.template.confirmation]
+subject = "Подтвердите email — АйДаУмничка"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.magic_link]
+subject = "Вход в личный кабинет — АйДаУмничка"
+content_path = "./supabase/templates/magic_link.html"
+
+[auth.email.template.invite]
+subject = "Приглашение в АйДаУмничка"
+content_path = "./supabase/templates/invite.html"
+
+[auth.email.template.email_change]
+subject = "Подтвердите новый email — АйДаУмничка"
+content_path = "./supabase/templates/email_change.html"
+
+[auth.email.template.reauthentication]
+subject = "Код подтверждения — АйДаУмничка"
+content_path = "./supabase/templates/reauthentication.html"
+
+# Минимальный интервал между письмами на один адрес (recovery, confirm, magic link)
+[auth.email]
+max_frequency = "5m"
+
+# Лимит исходящих auth-писем на проект в час (при включённом SMTP)
+[auth.rate_limit]
+email_sent = 15
