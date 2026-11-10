@@ -96,6 +96,7 @@ export default function TeacherStudentDetailsPage() {
   const [copiedLink, setCopiedLink] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [startingLesson, setStartingLesson] = useState(false);
   /** UUID строки в teacher_students — надёжный ключ для открепления */
   const [teacherStudentBindingId, setTeacherStudentBindingId] = useState<string | null>(null);
 
@@ -210,6 +211,90 @@ export default function TeacherStudentDetailsPage() {
     if (childMatch) return childMatch[1].trim();
     return student.full_name.replace(/\s*\(.*?\)$/, '').trim() || student.full_name;
   }, [student, studentId]);
+
+  const handleStartLesson = async () => {
+    if (!student) return;
+    const defaultTopic = 'Индивидуальное занятие: Логопедия';
+    const studentPubId = (student.public_id || studentId).trim();
+    const teacherLabel =
+      teacherPublicId && teacherName
+        ? `${teacherName.replace(/\s*\(.*?\)$/, '').trim()} (${teacherPublicId})`
+        : teacherName || 'Преподаватель';
+
+    const goToRoom = (token: string, lessonTopic?: string) => {
+      const topic = encodeURIComponent((lessonTopic || defaultTopic).trim() || defaultTopic);
+      router.push(
+        `/room/${token}?role=teacher&studentId=${encodeURIComponent(studentPubId)}&topic=${topic}`
+      );
+    };
+
+    setStartingLesson(true);
+    try {
+      const activeLesson = lessons.find((l) => l.status === 'active' && l.room_token);
+      if (activeLesson?.room_token) {
+        goToRoom(activeLesson.room_token, activeLesson.topic);
+        return;
+      }
+
+      const pendingLessons = lessons
+        .filter((l) => l.status === 'pending' && l.room_token)
+        .sort((a, b) => {
+          const ta = new Date(a.scheduled_for || a.started_at || 0).getTime();
+          const tb = new Date(b.scheduled_for || b.started_at || 0).getTime();
+          return ta - tb;
+        });
+
+      const pendingLesson = pendingLessons[0];
+      if (pendingLesson?.room_token) {
+        await fetch('/api/lessons', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'start_room',
+            room_token: pendingLesson.room_token,
+            topic: pendingLesson.topic || defaultTopic,
+            student_public_id: studentPubId,
+            student_name: studentDisplayName,
+            teacher_name: teacherLabel,
+            started_at: new Date().toISOString(),
+          }),
+        });
+        goToRoom(pendingLesson.room_token, pendingLesson.topic);
+        return;
+      }
+
+      const createRes = await fetch('/api/lessons', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic: defaultTopic,
+          student_public_id: studentPubId,
+          student_name: studentDisplayName,
+          teacher_name: teacherLabel,
+          status: 'active',
+          started_at: new Date().toISOString(),
+        }),
+      });
+
+      const createData = await createRes.json().catch(() => ({}));
+      const created = createData?.lesson;
+      const roomToken = Array.isArray(created)
+        ? created[0]?.room_token
+        : created?.room_token;
+
+      if (!roomToken) {
+        alert(createData?.error || 'Не удалось создать комнату для урока. Зайдите через расписание.');
+        return;
+      }
+
+      goToRoom(roomToken, defaultTopic);
+    } catch (err) {
+      console.warn('Start lesson error:', err);
+      alert('Ошибка при запуске урока. Попробуйте войти через карточку урока в расписании.');
+    } finally {
+      setStartingLesson(false);
+    }
+  };
 
   // Adjust balance by delta (+1, -1, +5, etc.)
   const handleAdjustBalance = async (delta: number) => {
@@ -486,15 +571,15 @@ export default function TeacherStudentDetailsPage() {
 
           {/* Quick Start Lesson Button */}
           <div className="flex items-center gap-2 shrink-0 pt-2 sm:pt-0 border-t border-[#E5EED8]/60 sm:border-t-0">
-            <Link
-              href={`/room/room-${Math.floor(1000 + Math.random() * 9000)}?role=teacher&studentId=${encodeURIComponent(
-                student.public_id || studentId
-              )}&topic=${encodeURIComponent('Индивидуальное занятие: Логопедия')}`}
-              className="inline-flex items-center gap-2 bg-[#5C8519] hover:bg-[#4E7214] text-white px-4 py-2.5 rounded-xl text-xs font-black shadow-xs hover:shadow-sm transition-all active:scale-[0.98] cursor-pointer"
+            <button
+              type="button"
+              onClick={handleStartLesson}
+              disabled={startingLesson}
+              className="inline-flex items-center gap-2 bg-[#5C8519] hover:bg-[#4E7214] disabled:opacity-60 text-white px-4 py-2.5 rounded-xl text-xs font-black shadow-xs hover:shadow-sm transition-all active:scale-[0.98] cursor-pointer"
             >
               <Video className="w-4 h-4" />
-              <span>Начать урок</span>
-            </Link>
+              <span>{startingLesson ? 'Подключение...' : 'Начать урок'}</span>
+            </button>
           </div>
         </div>
       </div>

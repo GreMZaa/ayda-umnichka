@@ -46,17 +46,31 @@ export async function initLiveKitCall(options: ConnectLiveKitOptions): Promise<L
   try {
     onLog?.('info', 'Запрос доступа к LiveKit Cloud SFU (проверка двух аккаунтов)...');
 
+    let resolvedAccountOverride = accountOverride;
+    if (typeof window !== 'undefined' && !resolvedAccountOverride) {
+      const stored = sessionStorage.getItem(`aida_livekit_acct_${roomToken}`);
+      if (stored === 'account1' || stored === 'account2') {
+        resolvedAccountOverride = stored;
+      }
+    }
+
     const tokenRes = await fetchLiveKitToken({
       room: roomToken,
       identity,
       name,
-      accountOverride,
+      accountOverride: resolvedAccountOverride,
     });
 
     const cleanUrl = (tokenRes.serverUrl || '').replace(/^["'\uFEFF\u200B\s]+|["'\uFEFF\u200B\s]+$/g, '').trim();
     if (!tokenRes.success || !tokenRes.token || !cleanUrl) {
       onLog?.('info', 'LiveKit Cloud не настроен или выключен, используется резервный P2P WebRTC канал');
       return null;
+    }
+
+    if (typeof window !== 'undefined' && tokenRes.account) {
+      try {
+        sessionStorage.setItem(`aida_livekit_acct_${roomToken}`, tokenRes.account);
+      } catch (_) {}
     }
 
     const hostPreview = cleanUrl.replace(/^wss?:\/\//, '').split('.')[0] || 'livekit';

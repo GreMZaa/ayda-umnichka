@@ -449,7 +449,11 @@ export default function VideoCall({
   // WebRTC P2P states
   const [hasRemoteStream, setHasRemoteStream] = useState(false);
   const [isPeerInRoom, setIsPeerInRoom] = useState(false);
+  const [livekitRemoteCount, setLivekitRemoteCount] = useState(0);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'waiting'>('waiting');
+
+  const participantCount =
+    livekitRemoteCount > 0 ? 1 + livekitRemoteCount : hasRemoteStream || isPeerInRoom ? 2 : 1;
 
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -1367,6 +1371,24 @@ export default function VideoCall({
         if (payload?.senderId === myPeerIdRef.current) return;
         setIsPeerInRoom(true);
         syncTimerWithTimestamp(payload?.startedAt);
+
+        const peerAccount = payload?.livekitAccount;
+        if (
+          (peerAccount === 'account1' || peerAccount === 'account2') &&
+          typeof window !== 'undefined'
+        ) {
+          const myAccount = sessionStorage.getItem(`aida_livekit_acct_${roomToken}`);
+          if (myAccount && myAccount !== peerAccount && livekitSessionRef.current?.room) {
+            try {
+              sessionStorage.setItem(`aida_livekit_acct_${roomToken}`, peerAccount);
+            } catch (_) {}
+            connectLiveKitSession(peerAccount);
+          } else if (!myAccount) {
+            try {
+              sessionStorage.setItem(`aida_livekit_acct_${roomToken}`, peerAccount);
+            } catch (_) {}
+          }
+        }
       })
       .on('broadcast', { event: 'peer-mic-change' }, ({ payload }) => {
         if (payload?.senderId === myPeerIdRef.current) return;
@@ -1453,6 +1475,11 @@ export default function VideoCall({
             '';
           const cleanLocalName = myLocalName.replace(/\s*\(.*?\)$/, '').trim();
 
+          const lkAccount =
+            typeof window !== 'undefined'
+              ? sessionStorage.getItem(`aida_livekit_acct_${roomToken}`)
+              : null;
+
           channel.send({
             type: 'broadcast',
             event: 'user-joined',
@@ -1461,6 +1488,7 @@ export default function VideoCall({
               isTeacher,
               userName: cleanLocalName || (isTeacher ? 'Преподаватель' : 'Ученик'),
               startedAt: timerStartTimeRef.current,
+              livekitAccount: lkAccount,
             },
           });
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
@@ -1502,6 +1530,10 @@ export default function VideoCall({
 
     const interval = setInterval(() => {
       if (channelRef.current && !hasRemoteStream) {
+        const lkAccount =
+          typeof window !== 'undefined'
+            ? sessionStorage.getItem(`aida_livekit_acct_${roomToken}`)
+            : null;
         channelRef.current.send({
           type: 'broadcast',
           event: 'presence-ping',
@@ -1509,6 +1541,7 @@ export default function VideoCall({
             senderId: myPeerIdRef.current,
             isTeacher,
             startedAt: timerStartTimeRef.current,
+            livekitAccount: lkAccount,
           },
         });
       }
@@ -1516,6 +1549,78 @@ export default function VideoCall({
 
     return () => clearInterval(interval);
   }, [roomToken, hasRemoteStream, isTeacher]);
+
+  // Sync peer presence with LiveKit SFU (not only Supabase signaling)
+  useEffect(() => {
+    if (!roomToken) return;
+
+    const tick = () => {
+      const room = livekitSessionRef.current?.room;
+      if (!room) return;
+
+      const remotes = room.remoteParticipants?.size ?? 0;
+      setLivekitRemoteCount(remotes);
+      if (remotes > 0) {
+        setIsPeerInRoom(true);
+      }
+
+      for (const [, participant] of room.remoteParticipants) {
+        if (participant.name) {
+          setPeerProvidedName((prev) =>
+            prev && prev !== 'Преподаватель' && prev !== 'Ученик центра' ? prev : participant.name || prev
+          );
+        }
+        for (const [, pub] of participant.trackPublications) {
+          if (pub && !pub.isSubscribed && typeof pub.setSubscribed === 'function') {
+            try {
+              pub.setSubscribed(true);
+            } catch (_) {}
+          }
+        }
+      }
+    };
+
+    tick();
+    const interval = setInterval(tick, 2000);
+    return () => clearInterval(interval);
+  }, [roomToken]);
+
+  // Mark lesson room as active when a participant enters (same room id for teacher + student)
+  useEffect(() => {
+    if (!roomToken) return;
+    const announceKey = `aida_room_enter_${roomToken}`;
+    if (typeof window !== 'undefined' && sessionStorage.getItem(announceKey)) return;
+    try {
+      sessionStorage.setItem(announceKey, '1');
+    } catch (_) {}
+
+    const storedName =
+      (typeof window !== 'undefined' &&
+        (localStorage.getItem('aida_full_name') || localStorage.getItem('aida_user_name'))) ||
+      '';
+    const cleanStored = storedName.replace(/\s*\(.*?\)$/, '').trim();
+
+    fetch('/api/lessons', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'start_room',
+        room_token: roomToken,
+        started_at: new Date().toISOString(),
+        topic: topic || 'Индивидуальное занятие: Логопедия',
+        teacher_name: isTeacher
+          ? cleanStored || 'Преподаватель'
+          : participantName && participantName !== 'Преподаватель'
+          ? participantName
+          : 'Преподаватель',
+        student_name: isTeacher
+          ? participantName && participantName !== 'Ученик центра'
+            ? participantName
+            : 'Ученик'
+          : cleanStored || 'Ученик',
+      }),
+    }).catch(() => {});
+  }, [roomToken, isTeacher, topic, participantName]);
 
   // Re-bind video srcObject if ref attaches or mode switches (strictly video-only, never audio)
   useEffect(() => {
@@ -3302,8 +3407,13 @@ export default function VideoCall({
                       ? 'Камера выключена'
                       : isPeerInRoom
                       ? 'Собеседник в сети • Установка видеосвязи...'
-                      : 'Ожидание подключения собеседника...'}
+                      : isTeacher
+                      ? 'Ожидание ученика в этой комнате...'
+                      : 'Ожидание преподавателя. Попросите войти в урок из расписания (та же комната).'}
                   </p>
+                  {!hasRemoteStream && !isPeerInRoom && (
+                    <p className="text-[10px] text-[#8A95A8] font-bold mt-2">Комната: {roomToken}</p>
+                  )}
                 </div>
               )}
             </>
@@ -3451,7 +3561,7 @@ export default function VideoCall({
               title="Участники"
             >
               <Users className="w-4 h-4" />
-              <span>{(hasRemoteStream || isPeerInRoom) ? 2 : 1}</span>
+              <span>{participantCount}</span>
             </button>
 
             {onToggleWhiteboard && (
@@ -3702,7 +3812,7 @@ export default function VideoCall({
                 <div className="flex items-center gap-2">
                   <Users className="w-5 h-5 text-coralAccent" />
                   <span className="font-extrabold text-base">
-                    Участники ({(hasRemoteStream || isPeerInRoom) ? 2 : 1})
+                    Участники ({participantCount})
                   </span>
                 </div>
                 <button
