@@ -159,13 +159,13 @@ export default function HomePage() {
                 
                 {/* Cat + Companion Feature Column (Completely fills the space beside the mascot) */}
                 <div className="flex items-stretch gap-3.5 sm:gap-4">
-                  {/* Arched Organic Cat Mascot Frame with HD Generated Mascot */}
-                  <div className="w-32 h-44 sm:w-44 sm:h-52 lg:w-48 lg:h-56 rounded-[30px] sm:rounded-[40px] overflow-hidden relative shadow-sm border-2 border-white bg-transparent shrink-0">
+                  {/* Фирменный знак центра (домик) */}
+                  <div className="w-32 h-44 sm:w-44 sm:h-52 lg:w-48 lg:h-56 rounded-[30px] sm:rounded-[40px] overflow-hidden relative shadow-sm border-2 border-white bg-[#FFF8F1] shrink-0">
                     <Image
                       src="/images/mascot-center-hd.jpg"
-                      alt="Кот-наставник центра АйДаУмничка (Тольятти)"
+                      alt="Логотип центра «Ай Да Умничка» — подготовка к школе, Тольятти"
                       fill
-                      className="object-cover"
+                      className="object-contain p-1"
                       priority
                     />
                   </div>
